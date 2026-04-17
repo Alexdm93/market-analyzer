@@ -45,18 +45,18 @@ export default function SignInPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-6 py-8 md:px-10 md:py-10">
+    <main className="relative min-h-screen w-full overflow-hidden px-4 py-6 sm:px-6 sm:py-8 md:px-10 md:py-10">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,118,110,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(217,119,6,0.14),transparent_28%)]" />
-      <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[minmax(0,1.15fr)_26rem]">
-        <section className="surface-panel rounded-[2rem] p-8 md:p-10">
+      <div className="relative mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-6 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[minmax(0,1.15fr)_26rem] lg:gap-8">
+        <section className="surface-panel min-w-0 rounded-[2rem] p-6 md:p-8 lg:p-10">
           <div className="eyebrow mb-3">Acceso privado</div>
-          <h1 className="font-display max-w-2xl text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
+          <h1 className="font-display max-w-2xl text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
             Inicia sesion con una cuenta local creada dentro de la plataforma.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
             Este flujo ya no depende de Microsoft u otro proveedor externo. Tus credenciales se validan contra usuarios registrados en la aplicacion.
           </p>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="metric-tile">
               <ShieldCheck className="h-5 w-5 text-teal-700" />
               <div className="mt-4 font-display text-lg font-bold text-slate-900">Sesion propia</div>
@@ -75,9 +75,9 @@ export default function SignInPage() {
           </div>
         </section>
 
-        <section className="surface-card rounded-[2rem] p-6 md:p-8">
+        <section className="surface-card min-w-0 rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-2">Iniciar sesion</div>
-          <h2 className="font-display text-3xl font-bold text-slate-900">Bienvenido</h2>
+          <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">Bienvenido</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">Usa el correo y la contrasena que registraste en la plataforma.</p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">

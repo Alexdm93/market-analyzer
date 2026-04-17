@@ -26,10 +26,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className={`${manrope.variable} ${spaceGrotesk.variable}`}>
-      <body className="flex min-h-screen items-start">
+      <body className="flex min-h-screen flex-col items-stretch md:flex-row md:items-start">
         <Providers>
           <Sidebar />
-          <main className="app-main min-h-screen min-w-0 flex-1">{children}</main>
+          <main className="app-main min-h-screen min-w-0 flex-1 w-full">{children}</main>
         </Providers>
       </body>
     </html>

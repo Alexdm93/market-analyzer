@@ -20,13 +20,13 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="app-shell h-screen w-[var(--sidebar-width)] border-r border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:px-4 md:py-4 lg:px-5 lg:py-6">
-      <div className="surface-panel flex h-full flex-col rounded-[1.75rem] p-3 md:p-4 lg:p-5">
+    <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-4 md:py-4 lg:px-5 lg:py-6">
+      <div className="surface-panel flex h-auto flex-col rounded-[1.75rem] p-3 md:h-full md:p-4 lg:p-5">
         <div className="mb-5 flex items-start justify-between gap-3 lg:mb-8">
           <div>
             <div className="eyebrow mb-2">Salary Intelligence</div>
             <h1 className="font-display text-xl font-bold text-slate-900 md:text-2xl">Market Analyzer</h1>
-            <p className="mt-2 max-w-52 text-sm leading-6 text-slate-600">
+            <p className="mt-2 max-w-none text-sm leading-6 text-slate-600 md:max-w-52">
               Carga, consolida y revisa mercado salarial desde una sola vista.
             </p>
           </div>
@@ -35,7 +35,7 @@ export default function Sidebar() {
           </div>
         </div>
 
-        <nav className="flex flex-col gap-2 pb-1">
+        <nav className="grid grid-cols-1 gap-2 pb-1 sm:grid-cols-2 md:flex md:flex-col">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -62,11 +62,11 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="mt-auto rounded-[1.5rem] border border-slate-200/70 bg-white/70 p-4">
+        <div className="mt-4 rounded-[1.5rem] border border-slate-200/70 bg-white/70 p-4 md:mt-auto">
           {session?.user ? (
             <>
               <div className="eyebrow mb-2">Sesion activa</div>
-              <div className="font-display text-lg font-bold text-slate-900">{session.user.name}</div>
+              <div className="break-words font-display text-lg font-bold text-slate-900">{session.user.name}</div>
               
               <button
                 onClick={() => signOut({ callbackUrl: "/signin" })}

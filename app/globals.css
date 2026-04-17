@@ -68,8 +68,7 @@ textarea {
 }
 
 .app-shell {
-  position: sticky;
-  top: 0;
+  position: static;
   z-index: 1;
   flex-shrink: 0;
 }
@@ -77,6 +76,13 @@ textarea {
 .app-main {
   padding-left: 0;
   background: var(--shell-background);
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    position: sticky;
+    top: 0;
+  }
 }
 
 .page-wrap {

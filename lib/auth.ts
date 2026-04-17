@@ -4,6 +4,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 import { prisma } from "@/lib/prisma";
 
+const USER_DELETED_ERROR = "UserDeleted";
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -54,12 +56,35 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
       }
 
+      if (typeof token.id === "string") {
+        const existingUser = await prisma.user.findUnique({
+          where: { id: token.id },
+          select: { id: true, name: true, email: true },
+        });
+
+        if (!existingUser) {
+          token.id = undefined;
+          token.name = undefined;
+          token.email = undefined;
+          token.error = USER_DELETED_ERROR;
+          return token;
+        }
+
+        token.name = existingUser.name;
+        token.email = existingUser.email;
+        token.error = undefined;
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = typeof token.id === "string" ? token.id : undefined;
+        session.user.name = typeof token.name === "string" ? token.name : session.user.name;
+        session.user.email = typeof token.email === "string" ? token.email : session.user.email;
       }
+
+      session.error = typeof token.error === "string" ? token.error : undefined;
 
       return session;
     },
