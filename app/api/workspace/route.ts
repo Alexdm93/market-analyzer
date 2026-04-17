@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
@@ -11,52 +12,188 @@ import {
   safeParseSnapshots,
 } from "@/lib/workspace";
 
-function flattenPositions(userId: string, snapshots: Record<string, Snapshot>) {
-  return Object.values(snapshots).flatMap((snapshot) => {
-    const snapshotDate = new Date(snapshot.date);
+type TransactionClient = Prisma.TransactionClient;
 
-    return (snapshot.rows ?? []).map((row) => ({
-      userId,
-      snapshotId: snapshot.id,
-      snapshotLabel: snapshot.label,
-      snapshotDate: Number.isNaN(snapshotDate.getTime()) ? new Date() : snapshotDate,
-      positionId: row.id,
-      title: row.tituloCargo || null,
-      dataJson: JSON.stringify(row),
-    }));
-  });
+function resolveSnapshotDate(value: string) {
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return new Date();
+  }
+
+  return parsedDate;
 }
 
-async function syncUserPositions(userId: string, snapshots: Record<string, Snapshot>) {
-  const flattenedPositions = flattenPositions(userId, snapshots);
+function resolveCompanyName(companyInfo: CompanyInfo, fallbackName: string) {
+  const normalized = companyInfo.companyName.trim();
+  return normalized || fallbackName;
+}
 
-  await prisma.userPosition.deleteMany({
-    where: { userId },
+async function ensureCompanyIdForUser(
+  tx: TransactionClient,
+  userId: string,
+  companyInfo: CompanyInfo
+) {
+  const user = await tx.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+          _count: {
+            select: {
+              users: true,
+            },
+          },
+        },
+      },
+    },
   });
 
-  if (flattenedPositions.length > 0) {
-    await prisma.userPosition.createMany({
-      data: flattenedPositions,
+  if (!user) {
+    throw new Error("User not found.");
+  }
+
+  const fallbackCompanyName = user.name.trim() ? `Empresa ${user.name.trim()}` : `Empresa ${user.email}`;
+  const companyName = resolveCompanyName(companyInfo, fallbackCompanyName);
+
+  if (user.company?.name === companyName) {
+    return {
+      companyId: user.company.id,
+      previousCompanyId: null,
+    };
+  }
+
+  const existingCompany = await tx.company.findUnique({
+    where: { name: companyName },
+    select: { id: true },
+  });
+
+  if (user.company && user.company._count.users === 1 && !existingCompany) {
+    const renamedCompany = await tx.company.update({
+      where: { id: user.company.id },
+      data: { name: companyName },
+      select: { id: true },
+    });
+
+    return {
+      companyId: renamedCompany.id,
+      previousCompanyId: null,
+    };
+  }
+
+  const company =
+    existingCompany ??
+    (await tx.company.create({
+      data: { name: companyName },
+      select: { id: true },
+    }));
+
+  const previousCompanyId = user.companyId !== company.id ? user.companyId : null;
+
+  if (previousCompanyId) {
+    await tx.user.update({
+      where: { id: userId },
+      data: { companyId: company.id },
+    });
+  }
+
+  return {
+    companyId: company.id,
+    previousCompanyId,
+  };
+}
+
+async function cleanupUnusedCompany(tx: TransactionClient, companyId: string | null) {
+  if (!companyId) {
+    return;
+  }
+
+  const companyUsage = await tx.company.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  });
+
+  if (!companyUsage) {
+    return;
+  }
+
+  const [userCount, snapshotCount, positionCount] = await Promise.all([
+    tx.user.count({ where: { companyId } }),
+    tx.userSnapshot.count({ where: { companyId } }),
+    tx.userPosition.count({ where: { companyId } }),
+  ]);
+
+  if (userCount === 0 && snapshotCount === 0 && positionCount === 0) {
+    await tx.company.delete({
+      where: { id: companyId },
     });
   }
 }
 
-async function backfillUserPositionsIfNeeded(userId: string, snapshotsJson: string) {
-  const snapshots = safeParseSnapshots(snapshotsJson);
-
-  if (Object.keys(snapshots).length === 0) {
-    return;
-  }
-
-  const existingCount = await prisma.userPosition.count({
+async function syncRelationalWorkspace(
+  tx: TransactionClient,
+  userId: string,
+  companyId: string,
+  snapshots: Record<string, Snapshot>
+) {
+  await tx.userPosition.deleteMany({
     where: { userId },
   });
 
-  if (existingCount > 0) {
-    return;
-  }
+  await tx.userSnapshot.deleteMany({
+    where: { userId },
+  });
 
-  await syncUserPositions(userId, snapshots);
+  for (const snapshot of Object.values(snapshots)) {
+    const createdSnapshot = await tx.userSnapshot.create({
+      data: {
+        userId,
+        companyId,
+        snapshotId: snapshot.id,
+        label: snapshot.label,
+        date: resolveSnapshotDate(snapshot.date),
+      },
+      select: { id: true },
+    });
+
+    if ((snapshot.rows ?? []).length > 0) {
+      await tx.userPosition.createMany({
+        data: (snapshot.rows ?? []).map((row) => ({
+          userId,
+          companyId,
+          userSnapshotId: createdSnapshot.id,
+          snapshotId: snapshot.id,
+          snapshotLabel: snapshot.label,
+          snapshotDate: resolveSnapshotDate(snapshot.date),
+          positionId: row.id,
+          title: row.tituloCargo || null,
+          dataJson: JSON.stringify(row),
+        })),
+      });
+    }
+  }
+}
+
+async function backfillRelationalWorkspace(userId: string, companyInfoJson: string, snapshotsJson: string) {
+  const nextCompanyInfo = safeParseCompanyInfo(companyInfoJson);
+  const nextSnapshots = safeParseSnapshots(snapshotsJson);
+
+  await prisma.$transaction(async (tx) => {
+    const { companyId, previousCompanyId } = await ensureCompanyIdForUser(tx, userId, nextCompanyInfo);
+    const snapshotCount = await tx.userSnapshot.count({ where: { userId } });
+
+    if (snapshotCount === 0 && Object.keys(nextSnapshots).length > 0) {
+      await syncRelationalWorkspace(tx, userId, companyId, nextSnapshots);
+    }
+
+    await cleanupUnusedCompany(tx, previousCompanyId);
+  });
 }
 
 type UpdateWorkspaceBody = Partial<{
@@ -107,7 +244,7 @@ export async function GET() {
   }
 
   const workspace = await getOrCreateWorkspace(userId);
-  await backfillUserPositionsIfNeeded(userId, workspace.snapshotsJson);
+  await backfillRelationalWorkspace(userId, workspace.companyInfoJson, workspace.snapshotsJson);
 
   return Response.json(toPayload(workspace));
 }
@@ -138,6 +275,8 @@ export async function PUT(request: Request) {
   const companyInfoJson = JSON.stringify(nextCompanyInfo);
 
   const workspace = await prisma.$transaction(async (tx) => {
+    const { companyId, previousCompanyId } = await ensureCompanyIdForUser(tx, userId, nextCompanyInfo);
+
     const updatedWorkspace = await tx.userWorkspace.update({
       where: { userId },
       data: {
@@ -148,17 +287,8 @@ export async function PUT(request: Request) {
       },
     });
 
-    const flattenedPositions = flattenPositions(userId, nextSnapshots);
-
-    await tx.userPosition.deleteMany({
-      where: { userId },
-    });
-
-    if (flattenedPositions.length > 0) {
-      await tx.userPosition.createMany({
-        data: flattenedPositions,
-      });
-    }
+    await syncRelationalWorkspace(tx, userId, companyId, nextSnapshots);
+    await cleanupUnusedCompany(tx, previousCompanyId);
 
     return updatedWorkspace;
   });

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 type RegisterBody = {
+  companyName?: string;
   name?: string;
   email?: string;
   password?: string;
@@ -10,9 +11,14 @@ type RegisterBody = {
 
 export async function POST(request: Request) {
   const body = (await request.json()) as RegisterBody;
+  const companyName = body.companyName?.trim() ?? "";
   const name = body.name?.trim() ?? "";
   const email = body.email?.trim().toLowerCase() ?? "";
   const password = body.password ?? "";
+
+  if (companyName.length < 2) {
+    return Response.json({ message: "La empresa debe tener al menos 2 caracteres." }, { status: 400 });
+  }
 
   if (name.length < 2) {
     return Response.json({ message: "El nombre debe tener al menos 2 caracteres." }, { status: 400 });
@@ -36,17 +42,27 @@ export async function POST(request: Request) {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      passwordHash,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const company = await tx.company.upsert({
+      where: { name: companyName },
+      update: {},
+      create: { name: companyName },
+      select: { id: true },
+    });
+
+    return tx.user.create({
+      data: {
+        companyId: company.id,
+        name,
+        email,
+        passwordHash,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    });
   });
 
   return Response.json({ user }, { status: 201 });

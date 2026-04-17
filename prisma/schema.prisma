@@ -8,12 +8,25 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Company {
+  id         String         @id @default(cuid())
+  name       String         @unique
+  users      User[]
+  snapshots  UserSnapshot[]
+  positions  UserPosition[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
 model User {
   id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   name         String
   email        String   @unique
   passwordHash String
   workspace    UserWorkspace?
+  snapshots    UserSnapshot[]
   positions    UserPosition[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -30,10 +43,31 @@ model UserWorkspace {
   updatedAt          DateTime @updatedAt
 }
 
+model UserSnapshot {
+  id         String         @id @default(cuid())
+  userId     String
+  companyId  String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshotId String
+  label      String
+  date       DateTime
+  positions  UserPosition[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@unique([userId, snapshotId])
+  @@index([companyId, date])
+}
+
 model UserPosition {
   id            String   @id @default(cuid())
   userId        String
+  companyId     String
+  userSnapshotId String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshot      UserSnapshot @relation(fields: [userSnapshotId], references: [id], onDelete: Cascade)
   snapshotId    String
   snapshotLabel String
   snapshotDate  DateTime
@@ -45,4 +79,6 @@ model UserPosition {
 
   @@unique([userId, snapshotId, positionId])
   @@index([userId, snapshotDate])
+  @@index([companyId, snapshotDate])
+  @@index([userSnapshotId])
 }

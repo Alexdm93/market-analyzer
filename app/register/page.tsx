@@ -9,6 +9,7 @@ import { signIn, useSession } from "next-auth/react";
 export default function RegisterPage() {
   const router = useRouter();
   const { status } = useSession();
+  const [companyName, setCompanyName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +40,7 @@ export default function RegisterPage() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ companyName, name, email, password }),
     });
 
     const payload = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -78,6 +79,19 @@ export default function RegisterPage() {
           <p className="mt-3 text-sm leading-6 text-slate-600">Esta cuenta sera la base para asociar datos y permisos por usuario.</p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="companyName" className="field-label">Empresa</label>
+              <input
+                id="companyName"
+                type="text"
+                value={companyName}
+                onChange={(event) => setCompanyName(event.target.value)}
+                className="field"
+                placeholder="Nombre de la empresa"
+                autoComplete="organization"
+                required
+              />
+            </div>
             <div>
               <label htmlFor="name" className="field-label">Nombre</label>
               <input
