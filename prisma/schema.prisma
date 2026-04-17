@@ -14,6 +14,7 @@ model User {
   email        String   @unique
   passwordHash String
   workspace    UserWorkspace?
+  positions    UserPosition[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -27,4 +28,21 @@ model UserWorkspace {
   companyInfoJson    String   @default("{}")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+model UserPosition {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshotId    String
+  snapshotLabel String
+  snapshotDate  DateTime
+  positionId    String
+  title         String?
+  dataJson      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, snapshotId, positionId])
+  @@index([userId, snapshotDate])
 }

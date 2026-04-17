@@ -11,6 +11,54 @@ import {
   safeParseSnapshots,
 } from "@/lib/workspace";
 
+function flattenPositions(userId: string, snapshots: Record<string, Snapshot>) {
+  return Object.values(snapshots).flatMap((snapshot) => {
+    const snapshotDate = new Date(snapshot.date);
+
+    return (snapshot.rows ?? []).map((row) => ({
+      userId,
+      snapshotId: snapshot.id,
+      snapshotLabel: snapshot.label,
+      snapshotDate: Number.isNaN(snapshotDate.getTime()) ? new Date() : snapshotDate,
+      positionId: row.id,
+      title: row.tituloCargo || null,
+      dataJson: JSON.stringify(row),
+    }));
+  });
+}
+
+async function syncUserPositions(userId: string, snapshots: Record<string, Snapshot>) {
+  const flattenedPositions = flattenPositions(userId, snapshots);
+
+  await prisma.userPosition.deleteMany({
+    where: { userId },
+  });
+
+  if (flattenedPositions.length > 0) {
+    await prisma.userPosition.createMany({
+      data: flattenedPositions,
+    });
+  }
+}
+
+async function backfillUserPositionsIfNeeded(userId: string, snapshotsJson: string) {
+  const snapshots = safeParseSnapshots(snapshotsJson);
+
+  if (Object.keys(snapshots).length === 0) {
+    return;
+  }
+
+  const existingCount = await prisma.userPosition.count({
+    where: { userId },
+  });
+
+  if (existingCount > 0) {
+    return;
+  }
+
+  await syncUserPositions(userId, snapshots);
+}
+
 type UpdateWorkspaceBody = Partial<{
   inflation: number;
   snapshots: Record<string, Snapshot>;
@@ -59,6 +107,7 @@ export async function GET() {
   }
 
   const workspace = await getOrCreateWorkspace(userId);
+  await backfillUserPositionsIfNeeded(userId, workspace.snapshotsJson);
 
   return Response.json(toPayload(workspace));
 }
@@ -85,14 +134,33 @@ export async function PUT(request: Request) {
       ? { ...EMPTY_COMPANY_INFO, ...body.companyInfo }
       : safeParseCompanyInfo(existingWorkspace.companyInfoJson);
 
-  const workspace = await prisma.userWorkspace.update({
-    where: { userId },
-    data: {
-      inflation: nextInflation,
-      snapshotsJson: JSON.stringify(nextSnapshots),
-      selectedSnapshotId: nextSelectedSnapshotId,
-      companyInfoJson: JSON.stringify(nextCompanyInfo),
-    },
+  const snapshotsJson = JSON.stringify(nextSnapshots);
+  const companyInfoJson = JSON.stringify(nextCompanyInfo);
+
+  const workspace = await prisma.$transaction(async (tx) => {
+    const updatedWorkspace = await tx.userWorkspace.update({
+      where: { userId },
+      data: {
+        inflation: nextInflation,
+        snapshotsJson,
+        selectedSnapshotId: nextSelectedSnapshotId,
+        companyInfoJson,
+      },
+    });
+
+    const flattenedPositions = flattenPositions(userId, nextSnapshots);
+
+    await tx.userPosition.deleteMany({
+      where: { userId },
+    });
+
+    if (flattenedPositions.length > 0) {
+      await tx.userPosition.createMany({
+        data: flattenedPositions,
+      });
+    }
+
+    return updatedWorkspace;
   });
 
   return Response.json(toPayload(workspace));
