@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import { BriefcaseBusiness, CalendarDays, Check, Edit, FolderPlus, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { JOB_TITLES } from "@/data/jobTitles";
+import { type Snapshot } from "@/lib/workspace";
+import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 const FREQUENCY_OPTIONS: Array<{ value: PaymentFrequency; label: string }> = [
   { value: "biweekly", label: "Quincenal" },
@@ -151,8 +153,6 @@ const empty = (i: number): ExtendedMarketPosition => ({
 });
 
 export default function DataPage() {
-  type Snapshot = { id: string; label: string; date: string; rows: ExtendedMarketPosition[] };
-
   function getDisplayLabel(snapshot: Snapshot) {
     const formattedDate = new Date(snapshot.date).toLocaleDateString();
     const rawLabel = (snapshot.label || "").trim();
@@ -170,41 +170,46 @@ export default function DataPage() {
   // If no snapshot selected, show nothing (user requested empty view when "-- seleccionar --")
   const [rows, setRows] = useState<ExtendedMarketPosition[]>([]);
 
-  // Load localStorage data on client after mount to avoid SSR/client markup mismatch
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("marketDataSnapshots");
-      let parsed: Record<string, Snapshot> = {};
-      if (raw) {
-        parsed = JSON.parse(raw) as Record<string, Snapshot>;
-        // filter legacy/default snapshots
+    let ignore = false;
+
+    async function loadWorkspaceData() {
+      try {
+        const workspace = await fetchWorkspace();
         const filtered: Record<string, Snapshot> = {};
-        Object.entries(parsed).forEach(([k, v]) => {
-          const label = (v.label || "").toString().toLowerCase();
-          const id = (v.id || "").toString().toLowerCase();
+
+        Object.entries(workspace.snapshots).forEach(([key, value]) => {
+          const label = (value.label || "").toString().toLowerCase();
+          const id = (value.id || "").toString().toLowerCase();
           if (label.includes("default") || id.includes("default") || label === "default algo" || id === "default algo") {
-            // skip
-          } else {
-            filtered[k] = v;
+            return;
           }
+          filtered[key] = value;
         });
-        if (Object.keys(filtered).length !== Object.keys(parsed).length) {
-          try { localStorage.setItem("marketDataSnapshots", JSON.stringify(filtered)); } catch {}
+
+        const selectedId = workspace.selectedSnapshotId || "";
+
+        if (!ignore) {
+          setSnapshots(filtered);
+          setSelectedSnapshotId(selectedId);
+          if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
+            setRows(filtered[selectedId].rows);
+          }
         }
-        parsed = filtered;
+
+        if (Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
+          await updateWorkspace({ snapshots: filtered, selectedSnapshotId: selectedId });
+        }
+      } catch {
+        // ignore
       }
-      const sId = localStorage.getItem("marketDataSelectedSnapshot") || "";
-      // defer state updates to avoid synchronous setState in effect
-      setTimeout(() => {
-        setSnapshots(parsed);
-        setSelectedSnapshotId(sId);
-        if (sId && parsed[sId] && Array.isArray(parsed[sId].rows)) {
-          setRows(parsed[sId].rows);
-        }
-      }, 0);
-    } catch {
-      // ignore
     }
+
+    void loadWorkspaceData();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -212,11 +217,14 @@ export default function DataPage() {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
   }
 
-  // Snapshot helpers
-  function persistSnapshots(next: Record<string, Snapshot>) {
+  async function persistSnapshots(next: Record<string, Snapshot>, nextSelectedSnapshotId = selectedSnapshotId) {
     setSnapshots(next);
+
     try {
-      localStorage.setItem("marketDataSnapshots", JSON.stringify(next));
+      await updateWorkspace({
+        snapshots: next,
+        selectedSnapshotId: nextSelectedSnapshotId,
+      });
     } catch (e) {
       console.error(e);
     }
@@ -231,19 +239,16 @@ export default function DataPage() {
     }
     const snap: Snapshot = { id: idDate, label: label ?? idDate, date: idDate, rows: useCurrent ? JSON.parse(JSON.stringify(rows)) : [empty(0)] };
     const next = { ...snapshots, [idDate]: snap };
-    persistSnapshots(next);
+    void persistSnapshots(next, idDate);
     setSelectedSnapshotId(idDate);
     setRows(JSON.parse(JSON.stringify(snap.rows)));
-    try {
-      localStorage.setItem("marketDataSelectedSnapshot", idDate);
-    } catch {}
     showNotification('Corte creado');
   }
 
   function saveCurrentToSnapshot(id: string) {
     if (!id) return;
     const next = { ...snapshots, [id]: { ...(snapshots[id] || { id, label: id, date: id, rows: [] }), rows: JSON.parse(JSON.stringify(rows)) } };
-    persistSnapshots(next);
+    void persistSnapshots(next, id);
     // notify user
     showNotification('Guardado correctamente');
   }
@@ -264,12 +269,12 @@ export default function DataPage() {
     const current = snapshots[id];
     if (!current) return;
     const next = { ...snapshots, [id]: { ...current, label: newLabel } };
-    persistSnapshots(next);
+    void persistSnapshots(next);
     showNotification('Renombrado correctamente');
   }
 
   // modal state
-  const [modal, setModal] = useState<{ type: 'rename' | 'delete' | null; id?: string }>(() => ({ type: null }));
+  const [modal, setModal] = useState<{ type: 'rename' | 'delete' | 'save' | null; id?: string }>(() => ({ type: null }));
   const [modalInput, setModalInput] = useState<string>('');
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
 
@@ -278,32 +283,33 @@ export default function DataPage() {
     if (!id) {
       setRows([]);
       setSelectedSnapshotId("");
-      try {
-        localStorage.removeItem("marketDataSelectedSnapshot");
-      } catch {}
+      void updateWorkspace({ selectedSnapshotId: "" }).catch(() => {
+        // ignore
+      });
       return;
     }
     const snap = snapshots[id];
     if (!snap) return;
     setRows(JSON.parse(JSON.stringify(snap.rows)));
     setSelectedSnapshotId(id);
-    try {
-      localStorage.setItem("marketDataSelectedSnapshot", id);
-    } catch {}
+    void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
+      // ignore
+    });
   }
 
   function deleteSnapshot(id: string) {
     if (!id) return;
     const next = { ...snapshots } as Record<string, Snapshot>;
     delete next[id];
-    persistSnapshots(next);
     const remaining = Object.keys(next);
     const newSelected = remaining[0] ?? "";
+    void persistSnapshots(next, newSelected);
     setSelectedSnapshotId(newSelected);
-    try {
-      localStorage.setItem("marketDataSelectedSnapshot", newSelected);
-    } catch {}
-    if (newSelected && next[newSelected]) setRows(JSON.parse(JSON.stringify(next[newSelected].rows)));
+    if (newSelected && next[newSelected]) {
+      setRows(JSON.parse(JSON.stringify(next[newSelected].rows)));
+    } else {
+      setRows([]);
+    }
     showNotification('Eliminado correctamente');
   }
 
@@ -450,6 +456,27 @@ export default function DataPage() {
 
   function removeRow(i: number) {
     setRows((r) => r.filter((_, idx) => idx !== i));
+  }
+
+  function saveRowById(rowId: string) {
+    if (!selectedSnapshotId) {
+      showNotification("Seleccione un corte");
+      return;
+    }
+    const current: Snapshot = snapshots[selectedSnapshotId] || { id: selectedSnapshotId, label: selectedSnapshotId, date: selectedSnapshotId, rows: [] };
+    const nextRows = Array.isArray(current.rows) ? [...current.rows] : [];
+    const rowIndex = rows.findIndex((rr) => rr.id === rowId);
+    if (rowIndex === -1) return;
+    const rowToSave = JSON.parse(JSON.stringify(rows[rowIndex]));
+    const existingIndex = nextRows.findIndex((rr) => rr.id === rowToSave.id);
+    if (existingIndex !== -1) {
+      nextRows[existingIndex] = rowToSave;
+    } else {
+      nextRows.splice(rowIndex, 0, rowToSave);
+    }
+    const next = { ...snapshots, [selectedSnapshotId]: { ...current, rows: nextRows } };
+    void persistSnapshots(next, selectedSnapshotId);
+    showNotification('Cargo guardado');
   }
 
   // legacy save function removed (use snapshots / saveCurrentToSnapshot instead)
@@ -634,6 +661,19 @@ export default function DataPage() {
                     <button onClick={() => toggleExpand(r.id)} className="btn btn-secondary">
                       <Edit className="h-4 w-4" />
                       {expanded[r.id] ? "Cerrar edición" : "Editar cargo"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!selectedSnapshotId) {
+                          showNotification("Seleccione un corte");
+                          return;
+                        }
+                        setModal({ type: 'save', id: r.id });
+                      }}
+                      className="btn btn-secondary"
+                    >
+                      <Save className="h-4 w-4" />
+                      Guardar cargo
                     </button>
                     <button onClick={() => removeRow(i)} className="btn btn-danger">
                       <Trash2 className="h-4 w-4" />
@@ -1034,6 +1074,17 @@ export default function DataPage() {
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
                   <button onClick={() => { if (modal.id) { renameSnapshotConfirmed(modal.id, modalInput); } setModal({ type: null }); }} className="btn btn-primary">Renombrar</button>
+                </div>
+              </div>
+            )}
+            {modal.type === "save" && (
+              <div>
+                <div className="eyebrow mb-2">Confirmar</div>
+                <h3 className="font-display text-2xl font-bold text-slate-900">Guardar cargo</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">¿Deseas guardar los cambios de este cargo en el corte seleccionado?</p>
+                <div className="mt-5 flex justify-end gap-3">
+                  <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
+                  <button onClick={() => { if (modal.id) { saveRowById(modal.id); } setModal({ type: null }); }} className="btn btn-primary">Guardar</button>
                 </div>
               </div>
             )}

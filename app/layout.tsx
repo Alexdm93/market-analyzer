@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import Providers from "@/components/Providers";
 import Sidebar from "../components/Sidebar";
 
 const manrope = Manrope({
@@ -26,8 +27,10 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${manrope.variable} ${spaceGrotesk.variable}`}>
       <body className="flex min-h-screen items-start">
-        <Sidebar />
-        <main className="app-main min-h-screen min-w-0 flex-1">{children}</main>
+        <Providers>
+          <Sidebar />
+          <main className="app-main min-h-screen min-w-0 flex-1">{children}</main>
+        </Providers>
       </body>
     </html>
   );

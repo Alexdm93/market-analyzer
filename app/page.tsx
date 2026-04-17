@@ -3,28 +3,46 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight, BriefcaseBusiness, Sparkles, TrendingUp } from "lucide-react";
 import { legacyMockMarketData as mockMarketData } from "@/data/mockSalaries";
 import { projectSalary } from "@/lib/projections";
+import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 export default function Home() {
-  const [inflation, setInflation] = useState<number>(() => {
-    try {
-      const raw = localStorage.getItem("inflation");
-      if (raw != null) {
-        const n = Number(raw);
-        if (!Number.isNaN(n)) return n;
-      }
-    } catch {
-      // ignore
-    }
-    return 5;
-  });
+  const [inflation, setInflation] = useState<number>(5);
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("inflation", String(inflation));
-    } catch {
-      // ignore
+    let ignore = false;
+
+    async function loadWorkspace() {
+      try {
+        const workspace = await fetchWorkspace();
+        if (!ignore) {
+          setInflation(workspace.inflation);
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!ignore) {
+          setWorkspaceLoaded(true);
+        }
+      }
     }
-  }, [inflation]);
+
+    void loadWorkspace();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceLoaded) {
+      return;
+    }
+
+    void updateWorkspace({ inflation }).catch(() => {
+      // ignore
+    });
+  }, [inflation, workspaceLoaded]);
 
   const averageBase = Math.round(
     mockMarketData.reduce((acc, job) => acc + job.basePercentiles.p50, 0) / mockMarketData.length

@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Salary Intelligence
 
-## Getting Started
+Aplicación Next.js 16 con autenticación local vía NextAuth y persistencia en Prisma. La configuración quedó preparada para desplegar en Vercel usando Supabase Postgres como base de datos.
 
-First, run the development server:
+## Requisitos
+
+- Node.js 20.9 o superior
+- pnpm
+- Un proyecto de Supabase con acceso a Postgres
+
+## Variables de entorno
+
+Crea tu `.env.local` a partir de `.env.example`.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+DATABASE_URL="postgresql://postgres.[YOUR_PROJECT_REF]:[YOUR_PASSWORD]@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.[YOUR_PROJECT_REF]:[YOUR_PASSWORD]@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="replace-with-a-long-random-secret"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Notas:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `DATABASE_URL` queda reservada para runtime usando el pooler de Supabase.
+- `DIRECT_URL` se usa para migraciones y operaciones que Prisma no debe ejecutar a través del pooler transaccional.
+- En local, usa `NEXTAUTH_URL=http://localhost:3000`.
+- En Vercel, configura `NEXTAUTH_URL` con tu dominio público, por ejemplo `https://tu-app.vercel.app`.
+- Genera `NEXTAUTH_SECRET` con `openssl rand -base64 32`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Desarrollo local
 
-## Learn More
+Instala dependencias, genera el cliente de Prisma y sincroniza el esquema con Supabase:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm install
+pnpm db:push
+pnpm dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Si prefieres validar solo el cliente de Prisma:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm db:generate
+```
 
-## Deploy on Vercel
+## Despliegue en Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Importa el repositorio en Vercel.
+2. Añade estas variables de entorno en el proyecto:
+	`DATABASE_URL`
+	`DIRECT_URL`
+	`NEXTAUTH_URL`
+	`NEXTAUTH_SECRET`
+3. Usa el runtime por defecto de Node.js.
+4. Deja el comando de build en `pnpm vercel-build` si quieres forzar `prisma generate` antes de compilar.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+El proyecto ya no depende de SQLite ni de archivos locales de base de datos, por lo que es compatible con el entorno efímero de Vercel.
+
+## Migraciones
+
+Tienes dos opciones:
+
+- Flujo simple: ejecutar `pnpm db:push` contra Supabase antes del primer deploy.
+- Flujo versionado: ya se incluye una migración inicial en `prisma/migrations`; aplícala con `pnpm db:migrate:deploy` en CI o antes de promover cambios.
+
+## Scripts útiles
+
+```bash
+pnpm dev
+pnpm build
+pnpm lint
+pnpm db:generate
+pnpm db:push
+pnpm db:migrate:deploy
+pnpm vercel-build
+```

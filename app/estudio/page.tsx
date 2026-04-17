@@ -3,8 +3,9 @@ import { BarChart3, Database, Layers3 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExtendedMarketPosition } from "@/types/salary";
+import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
+import { type Snapshot } from "@/lib/workspace";
 
-type Snapshot = { id: string; label: string; date: string; rows: ExtendedMarketPosition[] };
 type Group = {
   cod: string;
   title: string;
@@ -69,59 +70,42 @@ function computeRowTotal(r: ExtendedMarketPosition) {
 }
 
 export default function EstudioPage() {
-  const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>(() => {
-    try {
-      const raw = localStorage.getItem("marketDataSnapshots");
-      return raw ? (JSON.parse(raw) as Record<string, Snapshot>) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
 
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>(() => {
-    try {
-      return localStorage.getItem("marketDataSelectedSnapshot") || Object.keys(JSON.parse(localStorage.getItem("marketDataSnapshots") || "{}"))?.[0] || "";
-    } catch {
-      return "";
-    }
-  });
-
-  // derive rows from selected snapshot or fallback to legacy key
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
-    try {
-      if (selectedSnapshotId && snapshots[selectedSnapshotId]) return snapshots[selectedSnapshotId].rows || [];
-      const raw = localStorage.getItem("marketData");
-      if (raw) {
-        const parsed = JSON.parse(raw) as ExtendedMarketPosition[];
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // ignore
+    if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
+      return snapshots[selectedSnapshotId].rows || [];
     }
+
     return [];
   }, [snapshots, selectedSnapshotId]);
 
   useEffect(() => {
-    // refresh snapshots from storage (in case modified elsewhere)
-    function onStorage() {
+    let ignore = false;
+
+    async function loadWorkspace() {
       try {
-        const raw = localStorage.getItem("marketDataSnapshots");
-        setSnapshots(raw ? JSON.parse(raw) : {});
+        const workspace = await fetchWorkspace();
+        if (ignore) {
+          return;
+        }
+
+        setSnapshots(workspace.snapshots);
+        setSelectedSnapshotId(workspace.selectedSnapshotId || Object.keys(workspace.snapshots)[0] || "");
       } catch {
-        setSnapshots({});
+        if (!ignore) {
+          setSnapshots({});
+          setSelectedSnapshotId("");
+        }
       }
     }
-    onStorage();
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("estudioLastVisited", new Date().toISOString());
-    } catch {
-      // ignore
-    }
+    void loadWorkspace();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const map = new Map<string, ExtendedMarketPosition[]>();
@@ -227,9 +211,9 @@ export default function EstudioPage() {
                   onChange={(e) => {
                     const id = e.target.value;
                     setSelectedSnapshotId(id);
-                    try {
-                      localStorage.setItem("marketDataSelectedSnapshot", id);
-                    } catch {}
+                    void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
+                      // ignore
+                    });
                   }}
                   className="field-select"
                 >
@@ -243,9 +227,6 @@ export default function EstudioPage() {
 
               <button
                 onClick={() => {
-                  try {
-                    if (selectedSnapshotId) localStorage.setItem("marketDataSelectedSnapshot", selectedSnapshotId);
-                  } catch {}
                   router.push("/data");
                 }}
                 className="btn btn-primary mt-5 w-full"

@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Database, Info, LayoutDashboard, LineChart } from "lucide-react";
+import { Database, Info, LayoutDashboard, LineChart, LogIn, LogOut, UserPlus } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 
 const menuItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
@@ -12,6 +13,11 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session, status } = useSession();
+
+  if (pathname === "/signin" || pathname === "/register") {
+    return null;
+  }
 
   return (
     <aside className="app-shell h-screen w-[var(--sidebar-width)] border-r border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:px-4 md:py-4 lg:px-5 lg:py-6">
@@ -55,6 +61,43 @@ export default function Sidebar() {
             );
           })}
         </nav>
+
+        <div className="mt-auto rounded-[1.5rem] border border-slate-200/70 bg-white/70 p-4">
+          {session?.user ? (
+            <>
+              <div className="eyebrow mb-2">Sesion activa</div>
+              <div className="font-display text-lg font-bold text-slate-900">{session.user.name}</div>
+              
+              <button
+                onClick={() => signOut({ callbackUrl: "/signin" })}
+                className="btn btn-secondary mt-4 w-full"
+                type="button"
+              >
+                <LogOut className="h-4 w-4" />
+                Cerrar sesion
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="eyebrow mb-2">Acceso</div>
+              <p className="text-sm leading-6 text-slate-600">
+                {status === "loading"
+                  ? "Comprobando sesion..."
+                  : "Crea una cuenta local o entra con tus credenciales."}
+              </p>
+              <div className="mt-4 flex flex-col gap-2">
+                <Link href="/signin" className="btn btn-primary w-full">
+                  <LogIn className="h-4 w-4" />
+                  Iniciar sesion
+                </Link>
+                <Link href="/register" className="btn btn-secondary w-full">
+                  <UserPlus className="h-4 w-4" />
+                  Crear cuenta
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </aside>
   );

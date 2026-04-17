@@ -1,6 +1,8 @@
 "use client";
 import { Building2, Contact2, Globe2, Save, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
+import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 const ECONOMIC_SECTOR_OPTIONS = [
   "Comercio / Retail",
@@ -27,67 +29,28 @@ const REVENUE_RANGE_OPTIONS = [
   "g. Mas de 150MM USD",
 ] as const;
 
-type CompanyInfo = {
-  companyName: string;
-  sector: string;
-  dateFilled: string;
-  headcount: string;
-  revenueUSD: string;
-  avgProfitPercent: string;
-  hrName: string;
-  hrPosition: string;
-  hrEmail: string;
-  hrPhone: string;
-  hrCell: string;
-  minVacationDays: string;
-  minUtilityDays: string;
-  conversionRate: string;
-  locality: string;
-};
-
-const EMPTY_COMPANY_INFO: CompanyInfo = {
-  companyName: "",
-  sector: "",
-  dateFilled: "",
-  headcount: "",
-  revenueUSD: "",
-  avgProfitPercent: "",
-  hrName: "",
-  hrPosition: "",
-  hrEmail: "",
-  hrPhone: "",
-  hrCell: "",
-  minVacationDays: "",
-  minUtilityDays: "",
-  conversionRate: "",
-  locality: "",
-};
-
 export default function Informacion() {
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
 
   useEffect(() => {
-    let nextCompanyInfo: CompanyInfo | null = null;
+    let ignore = false;
 
-    try {
-      const raw = localStorage.getItem("companyInfo");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          nextCompanyInfo = { ...EMPTY_COMPANY_INFO, ...parsed };
+    async function loadWorkspace() {
+      try {
+        const workspace = await fetchWorkspace();
+        if (!ignore) {
+          setCompanyInfo(workspace.companyInfo);
         }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
 
-    if (!nextCompanyInfo) return;
+    void loadWorkspace();
 
-    const timeoutId = window.setTimeout(() => {
-      setCompanyInfo(nextCompanyInfo as CompanyInfo);
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
+    return () => {
+      ignore = true;
+    };
   }, []);
   const [notification, setNotification] = useState("");
 
@@ -95,9 +58,9 @@ export default function Informacion() {
     setCompanyInfo((prev) => ({ ...prev, [key]: value }));
   }
 
-  function saveCompanyInfo() {
+  async function saveCompanyInfo() {
     try {
-      localStorage.setItem("companyInfo", JSON.stringify(companyInfo));
+      await updateWorkspace({ companyInfo });
       setNotification("Información guardada correctamente");
       window.setTimeout(() => setNotification(""), 2500);
     } catch (e) {
@@ -152,7 +115,7 @@ export default function Informacion() {
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Completa primero datos de empresa, luego contacto y finalmente parámetros generales del estudio.
               </p>
-              <button onClick={saveCompanyInfo} className="btn btn-primary mt-6 w-full">
+              <button onClick={() => void saveCompanyInfo()} className="btn btn-primary mt-6 w-full">
                 <Save className="h-4 w-4" />
                 Guardar información de la empresa
               </button>
