@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { BriefcaseBusiness, CalendarDays, Check, Edit, FolderPlus, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, Check, Edit, FolderPlus, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { JOB_TITLES } from "@/data/jobTitles";
 import { type Snapshot } from "@/lib/workspace";
@@ -153,6 +153,10 @@ const empty = (i: number): ExtendedMarketPosition => ({
 });
 
 export default function DataPage() {
+  const [saveState, setSaveState] = useState<"idle" | "pending" | "saved" | "error">("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   function getDisplayLabel(snapshot: Snapshot) {
     const formattedDate = new Date(snapshot.date).toLocaleDateString();
     const rawLabel = (snapshot.label || "").trim();
@@ -169,68 +173,154 @@ export default function DataPage() {
 
   // If no snapshot selected, show nothing (user requested empty view when "-- seleccionar --")
   const [rows, setRows] = useState<ExtendedMarketPosition[]>([]);
+  const snapshotsRef = useRef<Record<string, Snapshot>>({});
+  const draftSaveTimer = useRef<number | null>(null);
+
+  async function reloadWorkspaceData(options?: { showNotification?: boolean }) {
+    setIsRefreshing(true);
+
+    try {
+      const workspace = await fetchWorkspace();
+      const filtered: Record<string, Snapshot> = {};
+
+      Object.entries(workspace.snapshots).forEach(([key, value]) => {
+        const label = (value.label || "").toString().toLowerCase();
+        const id = (value.id || "").toString().toLowerCase();
+        if (label.includes("default") || id.includes("default") || label === "default algo" || id === "default algo") {
+          return;
+        }
+        filtered[key] = value;
+      });
+
+      const selectedId = workspace.selectedSnapshotId || "";
+
+      setSnapshots(filtered);
+      setSelectedSnapshotId(selectedId);
+      setSaveState(selectedId ? "saved" : "idle");
+      setLastSavedAt(null);
+
+      if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
+        setRows(filtered[selectedId].rows);
+      } else {
+        setRows([]);
+      }
+
+      if (Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
+        await updateWorkspace({ snapshots: filtered, selectedSnapshotId: selectedId });
+      }
+
+      if (options?.showNotification) {
+        showNotification("Data actualizada desde Supabase");
+      }
+    } catch (error) {
+      console.error(error);
+      if (options?.showNotification) {
+        showNotification("No se pudo actualizar la data desde Supabase");
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     let ignore = false;
 
-    async function loadWorkspaceData() {
-      try {
-        const workspace = await fetchWorkspace();
-        const filtered: Record<string, Snapshot> = {};
-
-        Object.entries(workspace.snapshots).forEach(([key, value]) => {
-          const label = (value.label || "").toString().toLowerCase();
-          const id = (value.id || "").toString().toLowerCase();
-          if (label.includes("default") || id.includes("default") || label === "default algo" || id === "default algo") {
-            return;
-          }
-          filtered[key] = value;
-        });
-
-        const selectedId = workspace.selectedSnapshotId || "";
-
-        if (!ignore) {
-          setSnapshots(filtered);
-          setSelectedSnapshotId(selectedId);
-          if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
-            setRows(filtered[selectedId].rows);
-          }
-        }
-
-        if (Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
-          await updateWorkspace({ snapshots: filtered, selectedSnapshotId: selectedId });
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    void loadWorkspaceData();
+    void reloadWorkspaceData();
 
     return () => {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    snapshotsRef.current = snapshots;
+  }, [snapshots]);
+
+  useEffect(() => {
+    if (!selectedSnapshotId) {
+      return;
+    }
+
+    const activeSnapshot = snapshots[selectedSnapshotId];
+
+    if (!activeSnapshot) {
+      return;
+    }
+
+    const nextRowsJson = JSON.stringify(rows);
+    const currentRowsJson = JSON.stringify(activeSnapshot.rows ?? []);
+
+    if (nextRowsJson === currentRowsJson) {
+      return;
+    }
+
+    setSaveState("pending");
+
+    if (draftSaveTimer.current) {
+      window.clearTimeout(draftSaveTimer.current);
+    }
+
+    draftSaveTimer.current = window.setTimeout(() => {
+      const currentSnapshot = snapshotsRef.current[selectedSnapshotId];
+
+      if (!currentSnapshot) {
+        return;
+      }
+
+      const nextSnapshots = {
+        ...snapshotsRef.current,
+        [selectedSnapshotId]: {
+          ...currentSnapshot,
+          rows: JSON.parse(nextRowsJson) as ExtendedMarketPosition[],
+        },
+      };
+
+      void persistSnapshots(nextSnapshots, selectedSnapshotId, { showErrorNotification: true });
+    }, 700);
+
+    return () => {
+      if (draftSaveTimer.current) {
+        window.clearTimeout(draftSaveTimer.current);
+      }
+    };
+  }, [rows, selectedSnapshotId, snapshots]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function toggleExpand(id: string) {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
   }
 
-  async function persistSnapshots(next: Record<string, Snapshot>, nextSelectedSnapshotId = selectedSnapshotId) {
+  async function persistSnapshots(
+    next: Record<string, Snapshot>,
+    nextSelectedSnapshotId = selectedSnapshotId,
+    options?: { showErrorNotification?: boolean }
+  ) {
     setSnapshots(next);
+    setSaveState("pending");
 
     try {
       await updateWorkspace({
         snapshots: next,
         selectedSnapshotId: nextSelectedSnapshotId,
       });
+
+      setSaveState(nextSelectedSnapshotId ? "saved" : "idle");
+      setLastSavedAt(nextSelectedSnapshotId ? new Date() : null);
+
+      return true;
     } catch (e) {
       console.error(e);
+      setSaveState("error");
+
+      if (options?.showErrorNotification) {
+        showNotification("Error al guardar cargos en Supabase");
+      }
+
+      return false;
     }
   }
 
-  function createSnapshot(date?: string, label?: string, useCurrent = false) {
+  async function createSnapshot(date?: string, label?: string, useCurrent = false) {
     // normalize date to YYYY-MM-DD for uniqueness
     const idDate = date ? new Date(date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
     if (snapshots[idDate]) {
@@ -239,18 +329,17 @@ export default function DataPage() {
     }
     const snap: Snapshot = { id: idDate, label: label ?? idDate, date: idDate, rows: useCurrent ? JSON.parse(JSON.stringify(rows)) : [empty(0)] };
     const next = { ...snapshots, [idDate]: snap };
-    void persistSnapshots(next, idDate);
+    const wasPersisted = await persistSnapshots(next, idDate, { showErrorNotification: true });
     setSelectedSnapshotId(idDate);
     setRows(JSON.parse(JSON.stringify(snap.rows)));
-    showNotification('Corte creado');
+    showNotification(wasPersisted ? 'Corte creado' : 'Corte creado solo en esta sesión');
   }
 
-  function saveCurrentToSnapshot(id: string) {
+  async function saveCurrentToSnapshot(id: string) {
     if (!id) return;
     const next = { ...snapshots, [id]: { ...(snapshots[id] || { id, label: id, date: id, rows: [] }), rows: JSON.parse(JSON.stringify(rows)) } };
-    void persistSnapshots(next, id);
-    // notify user
-    showNotification('Guardado correctamente');
+    const wasPersisted = await persistSnapshots(next, id, { showErrorNotification: true });
+    showNotification(wasPersisted ? 'Guardado correctamente' : 'No se pudo guardar en Supabase');
   }
 
   // simple transient notification
@@ -264,13 +353,13 @@ export default function DataPage() {
 
   // legacy prompt-based rename removed; use modal + `renameSnapshotConfirmed`
 
-  function renameSnapshotConfirmed(id: string, newLabel: string) {
+  async function renameSnapshotConfirmed(id: string, newLabel: string) {
     if (!id) return;
     const current = snapshots[id];
     if (!current) return;
     const next = { ...snapshots, [id]: { ...current, label: newLabel } };
-    void persistSnapshots(next);
-    showNotification('Renombrado correctamente');
+    const wasPersisted = await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
+    showNotification(wasPersisted ? 'Renombrado correctamente' : 'No se pudo renombrar en Supabase');
   }
 
   // modal state
@@ -283,6 +372,8 @@ export default function DataPage() {
     if (!id) {
       setRows([]);
       setSelectedSnapshotId("");
+      setSaveState("idle");
+      setLastSavedAt(null);
       void updateWorkspace({ selectedSnapshotId: "" }).catch(() => {
         // ignore
       });
@@ -292,25 +383,27 @@ export default function DataPage() {
     if (!snap) return;
     setRows(JSON.parse(JSON.stringify(snap.rows)));
     setSelectedSnapshotId(id);
+    setSaveState("saved");
+    setLastSavedAt(null);
     void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
       // ignore
     });
   }
 
-  function deleteSnapshot(id: string) {
+  async function deleteSnapshot(id: string) {
     if (!id) return;
     const next = { ...snapshots } as Record<string, Snapshot>;
     delete next[id];
     const remaining = Object.keys(next);
     const newSelected = remaining[0] ?? "";
-    void persistSnapshots(next, newSelected);
+    const wasPersisted = await persistSnapshots(next, newSelected, { showErrorNotification: true });
     setSelectedSnapshotId(newSelected);
     if (newSelected && next[newSelected]) {
       setRows(JSON.parse(JSON.stringify(next[newSelected].rows)));
     } else {
       setRows([]);
     }
-    showNotification('Eliminado correctamente');
+    showNotification(wasPersisted ? 'Eliminado correctamente' : 'No se pudo eliminar en Supabase');
   }
 
   function update(i: number, key: keyof ExtendedMarketPosition, value: string | number | boolean) {
@@ -442,6 +535,11 @@ export default function DataPage() {
   }
 
   function addRow() {
+    if (!selectedSnapshotId) {
+      showNotification("Crea o selecciona un corte antes de agregar cargos");
+      return;
+    }
+
     const newRow = empty(rows.length || 0);
     // add the new row at the top and expand it + focus its title input
     setRows((r) => [newRow, ...r]);
@@ -458,7 +556,7 @@ export default function DataPage() {
     setRows((r) => r.filter((_, idx) => idx !== i));
   }
 
-  function saveRowById(rowId: string) {
+  async function saveRowById(rowId: string) {
     if (!selectedSnapshotId) {
       showNotification("Seleccione un corte");
       return;
@@ -475,8 +573,8 @@ export default function DataPage() {
       nextRows.splice(rowIndex, 0, rowToSave);
     }
     const next = { ...snapshots, [selectedSnapshotId]: { ...current, rows: nextRows } };
-    void persistSnapshots(next, selectedSnapshotId);
-    showNotification('Cargo guardado');
+    const wasPersisted = await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
+    showNotification(wasPersisted ? 'Cargo guardado' : 'No se pudo guardar el cargo en Supabase');
   }
 
   // legacy save function removed (use snapshots / saveCurrentToSnapshot instead)
@@ -519,6 +617,27 @@ export default function DataPage() {
                   {notification}
                 </div>
               )}
+
+              {selectedSnapshotId ? (
+                <div
+                  className={`mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+                    saveState === "pending"
+                      ? "bg-amber-50 text-amber-800"
+                      : saveState === "error"
+                        ? "bg-red-50 text-red-700"
+                        : "bg-teal-50 text-teal-800"
+                  }`}
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full ${saveState === "pending" ? "animate-pulse bg-amber-500" : saveState === "error" ? "bg-red-500" : "bg-teal-500"}`} />
+                  {saveState === "pending"
+                    ? "Guardando en Supabase..."
+                    : saveState === "error"
+                      ? "Error al guardar en Supabase"
+                      : lastSavedAt
+                        ? `Guardado en Supabase a las ${lastSavedAt.toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}`
+                        : "Guardado en Supabase"}
+                </div>
+              ) : null}
             </div>
 
             <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
@@ -553,7 +672,7 @@ export default function DataPage() {
                 <button
                   onClick={() => {
                     const d = (document.getElementById("headerSnapshotDate") as HTMLInputElement)?.value;
-                    createSnapshot(d || undefined, undefined, false);
+                    void createSnapshot(d || undefined, undefined, false);
                   }}
                   className="btn btn-primary w-full"
                 >
@@ -568,7 +687,7 @@ export default function DataPage() {
                         showNotification("Seleccione un corte");
                         return;
                       }
-                      saveCurrentToSnapshot(selectedSnapshotId);
+                        void saveCurrentToSnapshot(selectedSnapshotId);
                     }}
                     className="btn btn-secondary"
                   >
@@ -578,6 +697,19 @@ export default function DataPage() {
                   <button onClick={addRow} className="btn btn-primary">
                     <Plus className="h-4 w-4" />
                     Agregar cargo
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (draftSaveTimer.current) {
+                        window.clearTimeout(draftSaveTimer.current);
+                      }
+                      void reloadWorkspaceData({ showNotification: true });
+                    }}
+                    className="btn btn-secondary"
+                    disabled={isRefreshing}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                    {isRefreshing ? "Actualizando..." : "Actualizar data"}
                   </button>
                   <button
                     onClick={() => {
@@ -1073,7 +1205,7 @@ export default function DataPage() {
                 <input id="renameInput" value={modalInput} onChange={(e) => setModalInput(e.target.value)} className="field mt-5" placeholder="Nuevo nombre" />
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
-                  <button onClick={() => { if (modal.id) { renameSnapshotConfirmed(modal.id, modalInput); } setModal({ type: null }); }} className="btn btn-primary">Renombrar</button>
+                  <button onClick={() => { if (modal.id) { void renameSnapshotConfirmed(modal.id, modalInput); } setModal({ type: null }); }} className="btn btn-primary">Renombrar</button>
                 </div>
               </div>
             )}
@@ -1084,7 +1216,7 @@ export default function DataPage() {
                 <p className="mt-2 text-sm leading-6 text-slate-600">¿Deseas guardar los cambios de este cargo en el corte seleccionado?</p>
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
-                  <button onClick={() => { if (modal.id) { saveRowById(modal.id); } setModal({ type: null }); }} className="btn btn-primary">Guardar</button>
+                  <button onClick={() => { if (modal.id) { void saveRowById(modal.id); } setModal({ type: null }); }} className="btn btn-primary">Guardar</button>
                 </div>
               </div>
             )}
@@ -1095,7 +1227,7 @@ export default function DataPage() {
                 <p className="mt-2 text-sm leading-6 text-slate-600">¿Estás seguro? Esta acción no se puede deshacer.</p>
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
-                  <button onClick={() => { if (modal.id) { deleteSnapshot(modal.id); } setModal({ type: null }); }} className="btn btn-danger">Eliminar</button>
+                  <button onClick={() => { if (modal.id) { void deleteSnapshot(modal.id); } setModal({ type: null }); }} className="btn btn-danger">Eliminar</button>
                 </div>
               </div>
             )}
