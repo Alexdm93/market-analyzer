@@ -1,3 +1,4 @@
+import { SnapshotProcessingStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 
@@ -243,6 +244,16 @@ async function syncRelationalWorkspace(
   companyId: string,
   snapshots: Record<string, Snapshot>
 ) {
+  const existingStatuses = await tx.userSnapshot.findMany({
+    where: { userId },
+    select: {
+      snapshotId: true,
+      status: true,
+      processedAt: true,
+    },
+  });
+  const statusBySnapshotId = new Map(existingStatuses.map((snapshot) => [snapshot.snapshotId, { status: snapshot.status, processedAt: snapshot.processedAt }]));
+
   await tx.userPosition.deleteMany({
     where: { userId },
   });
@@ -259,6 +270,8 @@ async function syncRelationalWorkspace(
         snapshotId: snapshot.id,
         label: snapshot.label,
         date: resolveSnapshotDate(snapshot.date),
+        status: statusBySnapshotId.get(snapshot.id)?.status ?? SnapshotProcessingStatus.IN_REVIEW,
+        processedAt: statusBySnapshotId.get(snapshot.id)?.processedAt ?? null,
       },
       select: { id: true },
     });

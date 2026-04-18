@@ -1,3 +1,4 @@
+import { SnapshotProcessingStatus } from "@prisma/client";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
@@ -14,6 +15,8 @@ type GlobalSnapshotSummary = {
   id: string;
   label: string;
   date: string;
+  status: SnapshotProcessingStatus;
+  processedAt: string | null;
 };
 
 type UserSummary = {
@@ -71,6 +74,8 @@ async function getGlobalSnapshots() {
       snapshotId: true,
       label: true,
       date: true,
+      status: true,
+      processedAt: true,
     },
     distinct: ["snapshotId"],
     orderBy: [
@@ -83,6 +88,8 @@ async function getGlobalSnapshots() {
     id: snapshot.snapshotId,
     label: snapshot.label,
     date: snapshot.date.toISOString().split("T")[0],
+    status: snapshot.status,
+    processedAt: snapshot.processedAt?.toISOString() ?? null,
   }));
 }
 
@@ -105,6 +112,16 @@ async function rebuildRelationalWorkspace(
   user: UserSummary,
   snapshots: Record<string, Snapshot>
 ) {
+  const existingStatuses = await tx.userSnapshot.findMany({
+    where: { userId: user.id },
+    select: {
+      snapshotId: true,
+      status: true,
+      processedAt: true,
+    },
+  });
+  const statusBySnapshotId = new Map(existingStatuses.map((snapshot) => [snapshot.snapshotId, { status: snapshot.status, processedAt: snapshot.processedAt }]));
+
   await tx.userPosition.deleteMany({
     where: { userId: user.id },
   });
@@ -121,6 +138,8 @@ async function rebuildRelationalWorkspace(
         snapshotId: snapshot.id,
         label: snapshot.label,
         date: resolveSnapshotDate(snapshot.date),
+        status: statusBySnapshotId.get(snapshot.id)?.status ?? SnapshotProcessingStatus.IN_REVIEW,
+        processedAt: statusBySnapshotId.get(snapshot.id)?.processedAt ?? null,
       },
       select: { id: true },
     });

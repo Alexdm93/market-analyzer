@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
@@ -56,6 +57,16 @@ type UpdateUserRoleBody = {
   role?: "USER" | "ADMIN";
 };
 
+type BulkUserUpdate = {
+  userId?: string;
+  role?: "USER" | "ADMIN";
+  password?: string;
+};
+
+type BulkUpdateUsersBody = {
+  updates?: BulkUserUpdate[];
+};
+
 export async function PATCH(request: Request) {
   const auth = await requireAdminSession();
 
@@ -98,4 +109,93 @@ export async function PATCH(request: Request) {
   }
 
   return Response.json({ user: updatedUser });
+}
+
+export async function PUT(request: Request) {
+  const auth = await requireAdminSession();
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const body = (await request.json()) as BulkUpdateUsersBody;
+  const updates = Array.isArray(body.updates) ? body.updates : [];
+
+  if (updates.length === 0) {
+    return Response.json({ message: "No hay cambios para guardar." }, { status: 400 });
+  }
+
+  const normalizedUpdates = updates.map((update) => ({
+    userId: update.userId?.trim() ?? "",
+    role: update.role,
+    password: update.password ?? "",
+  }));
+
+  const invalidUpdate = normalizedUpdates.find(
+    (update) => !update.userId || ((update.role !== "USER" && update.role !== "ADMIN") && update.password.trim().length === 0)
+  );
+
+  if (invalidUpdate) {
+    return Response.json({ message: "Hay cambios inválidos en la actualización de usuarios." }, { status: 400 });
+  }
+
+  const tooShortPassword = normalizedUpdates.find(
+    (update) => update.password.trim().length > 0 && update.password.trim().length < 8
+  );
+
+  if (tooShortPassword) {
+    return Response.json({ message: "La nueva contrasena debe tener al menos 8 caracteres." }, { status: 400 });
+  }
+
+  const selfDemotion = normalizedUpdates.find(
+    (update) => update.userId === auth.session.user.id && update.role === "USER"
+  );
+
+  if (selfDemotion) {
+    return Response.json({ message: "No puedes quitarte tu propio acceso admin desde aquí." }, { status: 400 });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const update of normalizedUpdates) {
+      const data: {
+        role?: "USER" | "ADMIN";
+        passwordHash?: string;
+      } = {};
+
+      if (update.role === "USER" || update.role === "ADMIN") {
+        data.role = update.role;
+      }
+
+      if (update.password.trim().length > 0) {
+        data.passwordHash = await bcrypt.hash(update.password.trim(), 12);
+      }
+
+      await tx.user.update({
+        where: { id: update.userId },
+        data,
+      });
+    }
+  }).catch(() => null);
+
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      createdAt: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: [
+      { role: "desc" },
+      { createdAt: "asc" },
+    ],
+  });
+
+  return Response.json({ users });
 }

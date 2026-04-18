@@ -26,6 +26,11 @@ type AdminUser = {
   };
 };
 
+type PendingUserEdit = {
+  role: "USER" | "ADMIN";
+  password: string;
+};
+
 type AdminSnapshot = {
   id: string;
   label: string;
@@ -52,6 +57,8 @@ export default function AdminPage() {
   const [renameSnapshotLabel, setRenameSnapshotLabel] = useState("");
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
+  const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
+  const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -202,33 +209,92 @@ export default function AdminPage() {
     }
   }
 
-  function handleRoleChange(userId: string, role: "USER" | "ADMIN") {
+  function updatePendingUserEdit(user: AdminUser, nextEdit: Partial<PendingUserEdit>) {
+    setPendingUserEdits((current) => {
+      const previous = current[user.id] ?? { role: user.role, password: "" };
+      const merged = { ...previous, ...nextEdit };
+      const hasRoleChange = merged.role !== user.role;
+      const hasPasswordChange = merged.password.trim().length > 0;
+
+      if (!hasRoleChange && !hasPasswordChange) {
+        const { [user.id]: _, ...rest } = current;
+        return rest;
+      }
+
+      return {
+        ...current,
+        [user.id]: merged,
+      };
+    });
+  }
+
+  async function handleSaveUserChanges() {
     setErrorMessage("");
     setStatusMessage("");
 
-    startTransition(() => {
-      void (async () => {
-        const response = await fetch("/api/admin/users", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ userId, role }),
-        });
+    const updates = users
+      .map((user) => {
+        const draft = pendingUserEdits[user.id];
 
-        const payload = (await response.json().catch(() => null)) as { user?: AdminUser; message?: string } | null;
-
-        if (!response.ok || !payload?.user) {
-          setErrorMessage(payload?.message ?? "No fue posible actualizar el rol.");
-          return;
+        if (!draft) {
+          return null;
         }
 
-        setUsers((current) =>
-          current.map((user) => (user.id === payload.user?.id ? payload.user : user))
-        );
-        setStatusMessage(`Rol actualizado para ${payload.user.name}.`);
-      })();
-    });
+        return {
+          userId: user.id,
+          role: draft.role,
+          password: draft.password.trim(),
+          currentRole: user.role,
+          name: user.name,
+        };
+      })
+      .filter((update): update is NonNullable<typeof update> => Boolean(update));
+
+    if (updates.length === 0) {
+      setStatusMessage("No hay cambios pendientes en usuarios.");
+      return;
+    }
+
+    const invalidPasswordUpdate = updates.find((update) => update.password.length > 0 && update.password.length < 8);
+
+    if (invalidPasswordUpdate) {
+      setErrorMessage(`La nueva contrasena de ${invalidPasswordUpdate.name} debe tener al menos 8 caracteres.`);
+      return;
+    }
+
+    const adminPromotion = updates.find((update) => update.currentRole !== "ADMIN" && update.role === "ADMIN");
+
+    if (adminPromotion && !window.confirm(`Vas a otorgar permisos de administrador a ${adminPromotion.name}. ¿Deseas continuar?`)) {
+      return;
+    }
+
+    setIsSavingUserChanges(true);
+
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          updates: updates.map(({ userId, role, password }) => ({ userId, role, password })),
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { users?: AdminUser[]; message?: string } | null;
+
+      if (!response.ok || !Array.isArray(payload?.users)) {
+        throw new Error(payload?.message ?? "No fue posible guardar los cambios de usuarios.");
+      }
+
+      setUsers(payload.users);
+      setPendingUserEdits({});
+      setStatusMessage("Cambios de usuarios guardados correctamente.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No fue posible guardar los cambios de usuarios.");
+    } finally {
+      setIsSavingUserChanges(false);
+    }
   }
 
   async function handleCreateSnapshot(event: React.FormEvent<HTMLFormElement>) {
@@ -552,13 +618,19 @@ export default function AdminPage() {
         </section>
 
         <section className="surface-card rounded-[2rem] p-6 md:p-8">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-slate-100 p-3 text-slate-700">
-              <Users size={18} aria-hidden />
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-slate-100 p-3 text-slate-700">
+                <Users size={18} aria-hidden />
+              </div>
+              <div>
+                <h2 className="font-display text-2xl font-bold text-slate-900">Usuarios y roles</h2>
+              </div>
             </div>
-            <div>
-              <h2 className="font-display text-2xl font-bold text-slate-900">Usuarios y roles</h2>
-            </div>
+            <button type="button" onClick={() => void handleSaveUserChanges()} className="btn btn-primary" disabled={isSavingUserChanges || Object.keys(pendingUserEdits).length === 0}>
+              {isSavingUserChanges ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              {isSavingUserChanges ? "Guardando..." : "Guardar todo"}
+            </button>
           </div>
 
           {isLoadingUsers ? (
@@ -575,11 +647,18 @@ export default function AdminPage() {
                     <th className="px-4">Usuario</th>
                     <th className="px-4">Empresa</th>
                     <th className="px-4">Rol</th>
-                    <th className="px-4">Acción</th>
+                    <th className="px-4">Contraseña</th>
+                    <th className="px-4">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((user) => (
+                    (() => {
+                      const draft = pendingUserEdits[user.id] ?? { role: user.role, password: "" };
+                      const hasRoleChange = draft.role !== user.role;
+                      const hasPasswordChange = draft.password.trim().length > 0;
+
+                      return (
                     <tr key={user.id} className="rounded-[1.25rem] bg-slate-50/80 text-sm text-slate-700">
                       <td className="rounded-l-[1.25rem] px-4 py-4 align-top">
                         <div className="font-display text-base font-bold text-slate-900">{user.name}</div>
@@ -590,25 +669,48 @@ export default function AdminPage() {
                         <div className="mt-1 text-xs text-slate-500 break-all">{user.company.id}</div>
                       </td>
                       <td className="px-4 py-4 align-top">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${user.role === "ADMIN" ? "bg-teal-50 text-teal-800" : "bg-slate-200/70 text-slate-700"}`}>
-                          {user.role}
-                        </span>
+                        <div className="space-y-3">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${draft.role === "ADMIN" ? "bg-teal-50 text-teal-800" : "bg-slate-200/70 text-slate-700"}`}>
+                            {draft.role}
+                          </span>
+                          <select
+                            aria-label={`Rol de ${user.name}`}
+                            title={`Rol de ${user.name}`}
+                            value={draft.role}
+                            onChange={(event) => updatePendingUserEdit(user, { role: event.target.value as "USER" | "ADMIN" })}
+                            className="field-select min-w-36"
+                            disabled={isSavingUserChanges}
+                          >
+                            <option value="USER">USER</option>
+                            <option value="ADMIN">ADMIN</option>
+                          </select>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Actual protegida</div>
+                        <input
+                          type="password"
+                          value={draft.password}
+                          onChange={(event) => updatePendingUserEdit(user, { password: event.target.value })}
+                          className="field mt-3 min-w-44"
+                          placeholder="Nueva contrasena"
+                          autoComplete="new-password"
+                          disabled={isSavingUserChanges}
+                        />
                       </td>
                       <td className="rounded-r-[1.25rem] px-4 py-4 align-top">
-                        <select
-                          aria-label={`Rol de ${user.name}`}
-                          title={`Rol de ${user.name}`}
-                          value={user.role}
-                          onChange={(event) => handleRoleChange(user.id, event.target.value as "USER" | "ADMIN")}
-                          className="field-select min-w-36"
-                          disabled={isPending}
-                        >
-                          <option value="USER">USER</option>
-                          <option value="ADMIN">ADMIN</option>
-                        </select>
-                        {isPending ? <LoaderCircle className="mt-3 h-4 w-4 animate-spin text-slate-500" /> : null}
+                        {hasRoleChange || hasPasswordChange ? (
+                          <div className="space-y-2 text-xs text-slate-600">
+                            {hasRoleChange ? <div>Rol pendiente: {user.role} → {draft.role}</div> : null}
+                            {hasPasswordChange ? <div>Contraseña pendiente de cambio</div> : null}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-500">Sin cambios</div>
+                        )}
                       </td>
                     </tr>
+                      );
+                    })()
                   ))}
                 </tbody>
               </table>

@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { UserRole } from "@prisma/client";
+import { SnapshotProcessingStatus, UserRole } from "@prisma/client";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
@@ -125,6 +125,8 @@ export async function POST(request: Request) {
         snapshotId: true,
         label: true,
         date: true,
+        status: true,
+        processedAt: true,
       },
       distinct: ["snapshotId"],
       orderBy: [
@@ -202,6 +204,8 @@ export async function POST(request: Request) {
           snapshotId: snapshot.snapshotId,
           label: snapshot.label,
           date: snapshot.date,
+          status: snapshot.status ?? SnapshotProcessingStatus.IN_REVIEW,
+          processedAt: snapshot.processedAt ?? null,
         })),
       });
     }
