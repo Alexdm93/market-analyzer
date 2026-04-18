@@ -15,8 +15,14 @@ async function parseWorkspaceResponse(response: Response) {
   return payload as UserWorkspacePayload;
 }
 
-export async function fetchWorkspace() {
-  const response = await fetch("/api/workspace", {
+export async function fetchWorkspace(companyId?: string) {
+  const searchParams = new URLSearchParams();
+
+  if (companyId) {
+    searchParams.set("companyId", companyId);
+  }
+
+  const response = await fetch(`/api/workspace${searchParams.size ? `?${searchParams.toString()}` : ""}`, {
     method: "GET",
     cache: "no-store",
   });

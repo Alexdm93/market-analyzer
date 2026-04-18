@@ -102,6 +102,7 @@ export default function RegisterPage() {
     }
 
     const result = await signIn("credentials", {
+      companyId,
       email,
       password,
       redirect: false,

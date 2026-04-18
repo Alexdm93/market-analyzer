@@ -5,13 +5,21 @@ import { useEffect, useState, useTransition } from "react";
 import { LoaderCircle, LockKeyhole, LogIn, ShieldCheck } from "lucide-react";
 import { signIn, useSession } from "next-auth/react";
 
+type CompanyOption = {
+  id: string;
+  name: string;
+};
+
 export default function SignInPage() {
   const router = useRouter();
   const { status } = useSession();
+  const [companyId, setCompanyId] = useState("");
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -20,12 +28,57 @@ export default function SignInPage() {
     }
   }, [router, status]);
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadCompanies() {
+      try {
+        const response = await fetch("/api/companies", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as { companies?: CompanyOption[]; message?: string } | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "No fue posible cargar las empresas.");
+        }
+
+        if (!ignore) {
+          const nextCompanies = Array.isArray(payload?.companies) ? payload.companies : [];
+          setCompanies(nextCompanies);
+          setCompanyId(nextCompanies[0]?.id ?? "");
+        }
+      } catch (loadError) {
+        if (!ignore) {
+          setError(loadError instanceof Error ? loadError.message : "No fue posible cargar las empresas.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingCompanies(false);
+        }
+      }
+    }
+
+    void loadCompanies();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setIsSubmitting(true);
 
+    if (!companyId) {
+      setError("Selecciona una empresa.");
+      setIsSubmitting(false);
+      return;
+    }
+
     const result = await signIn("credentials", {
+      companyId,
       email,
       password,
       redirect: false,
@@ -81,6 +134,24 @@ export default function SignInPage() {
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
+              <label htmlFor="companyId" className="field-label">Empresa</label>
+              <select
+                id="companyId"
+                value={companyId}
+                onChange={(event) => setCompanyId(event.target.value)}
+                className="field-select"
+                disabled={isLoadingCompanies || companies.length === 0}
+                required
+              >
+                {isLoadingCompanies ? <option value="">Cargando empresas...</option> : null}
+                {!isLoadingCompanies && companies.length === 0 ? <option value="">No hay empresas registradas</option> : null}
+                {!isLoadingCompanies && companies.length > 0 ? <option value="">Selecciona una empresa</option> : null}
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label htmlFor="email" className="field-label">Correo</label>
               <input
                 id="email"
@@ -109,7 +180,7 @@ export default function SignInPage() {
 
             {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
-            <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isPending || status === "loading"}>
+            <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isPending || status === "loading" || isLoadingCompanies || companies.length === 0}>
               {isSubmitting || isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
               {isSubmitting || isPending ? "Iniciando sesion..." : "Entrar"}
             </button>

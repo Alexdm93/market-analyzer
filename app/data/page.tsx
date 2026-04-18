@@ -1,10 +1,16 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { JOB_TITLES } from "@/data/jobTitles";
 import { type Snapshot } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
+
+type CompanyOption = {
+  id: string;
+  name: string;
+};
 
 const FREQUENCY_OPTIONS: Array<{ value: PaymentFrequency; label: string }> = [
   { value: "biweekly", label: "Quincenal" },
@@ -153,9 +159,16 @@ const empty = (i: number): ExtendedMarketPosition => ({
 });
 
 export default function DataPage() {
+  const { data: session, status } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const [saveState, setSaveState] = useState<"idle" | "pending" | "saved" | "error">("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
+
+  const isAdminCompanyView = isAdmin && Boolean(selectedCompanyId);
 
   function getDisplayLabel(snapshot: Snapshot) {
     const formattedDate = new Date(snapshot.date).toLocaleDateString();
@@ -180,7 +193,7 @@ export default function DataPage() {
     setIsRefreshing(true);
 
     try {
-      const workspace = await fetchWorkspace();
+      const workspace = await fetchWorkspace(isAdminCompanyView ? selectedCompanyId : undefined);
       const filtered: Record<string, Snapshot> = {};
 
       Object.entries(workspace.snapshots).forEach(([key, value]) => {
@@ -205,26 +218,71 @@ export default function DataPage() {
         setRows([]);
       }
 
-      if (Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
+      if (!isAdminCompanyView && Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
         await updateWorkspace({ snapshots: filtered, selectedSnapshotId: selectedId });
       }
 
       if (options?.showNotification) {
-        showNotification("Data actualizada desde Supabase");
+        showNotification(isAdminCompanyView ? "Data de empresa actualizada desde Supabase" : "Data actualizada desde Supabase");
       }
     } catch (error) {
       console.error(error);
       if (options?.showNotification) {
-        showNotification("No se pudo actualizar la data desde Supabase");
+        showNotification(isAdminCompanyView ? "No se pudo actualizar la data de la empresa" : "No se pudo actualizar la data desde Supabase");
       }
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [isAdminCompanyView, selectedCompanyId]);
 
   useEffect(() => {
+    if (status === "loading") {
+      return;
+    }
+
     void reloadWorkspaceData();
-  }, [reloadWorkspaceData]);
+  }, [reloadWorkspaceData, status]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    let ignore = false;
+    setIsLoadingCompanies(true);
+
+    async function loadCompanies() {
+      try {
+        const response = await fetch("/api/companies", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as { companies?: CompanyOption[]; message?: string } | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "No fue posible cargar las empresas.");
+        }
+
+        if (!ignore) {
+          setCompanies(Array.isArray(payload?.companies) ? payload.companies : []);
+        }
+      } catch (error) {
+        if (!ignore) {
+          console.error(error);
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingCompanies(false);
+        }
+      }
+    }
+
+    void loadCompanies();
+
+    return () => {
+      ignore = true;
+    };
+  }, [isAdmin]);
 
   useEffect(() => {
     snapshotsRef.current = snapshots;
@@ -239,6 +297,10 @@ export default function DataPage() {
     setSaveState("pending");
 
     try {
+      if (isAdminCompanyView) {
+        throw new Error("La vista de empresa para admin es solo lectura.");
+      }
+
       await updateWorkspace({
         snapshots: next,
         selectedSnapshotId: nextSelectedSnapshotId,
@@ -258,9 +320,14 @@ export default function DataPage() {
 
       return false;
     }
-  }, [selectedSnapshotId]);
+  }, [isAdminCompanyView, selectedSnapshotId]);
 
   useEffect(() => {
+    if (isAdminCompanyView) {
+      setSaveState("idle");
+      return;
+    }
+
     if (!selectedSnapshotId) {
       return;
     }
@@ -307,7 +374,7 @@ export default function DataPage() {
         window.clearTimeout(draftSaveTimer.current);
       }
     };
-  }, [persistSnapshots, rows, selectedSnapshotId, snapshots]);
+  }, [isAdminCompanyView, persistSnapshots, rows, selectedSnapshotId, snapshots]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function toggleExpand(id: string) {
@@ -341,9 +408,11 @@ export default function DataPage() {
       setSelectedSnapshotId("");
       setSaveState("idle");
       setLastSavedAt(null);
-      void updateWorkspace({ selectedSnapshotId: "" }).catch(() => {
-        // ignore
-      });
+      if (!isAdminCompanyView) {
+        void updateWorkspace({ selectedSnapshotId: "" }).catch(() => {
+          // ignore
+        });
+      }
       return;
     }
     const snap = snapshots[id];
@@ -352,9 +421,11 @@ export default function DataPage() {
     setSelectedSnapshotId(id);
     setSaveState("saved");
     setLastSavedAt(null);
-    void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
-      // ignore
-    });
+    if (!isAdminCompanyView) {
+      void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
+        // ignore
+      });
+    }
   }
 
   function update(i: number, key: keyof ExtendedMarketPosition, value: string | number | boolean) {
@@ -589,6 +660,29 @@ export default function DataPage() {
                         : "Guardado en Supabase"}
                 </div>
               ) : null}
+
+              {isAdmin ? (
+                <div className="mt-6 max-w-md">
+                  <label htmlFor="companyFilter" className="field-label">Empresa</label>
+                  <select
+                    id="companyFilter"
+                    value={selectedCompanyId}
+                    onChange={(event) => setSelectedCompanyId(event.target.value)}
+                    className="field-select"
+                    disabled={isLoadingCompanies}
+                  >
+                    <option value="">Mi data</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>{company.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    {isAdminCompanyView
+                      ? "Estás viendo una vista consolidada por empresa en modo solo lectura."
+                      : "Selecciona una empresa para consultar su data consolidada."}
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
@@ -616,7 +710,9 @@ export default function DataPage() {
                 </div>
 
                 <div className="rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-                  Los cortes se crean, renombran y eliminan desde la vista admin. Aquí solo puedes trabajar sobre los cortes globales ya asignados.
+                  {isAdminCompanyView
+                    ? "Vista de consulta por empresa. Los cortes y cargos se muestran en modo solo lectura para el admin."
+                    : "Los cortes se crean, renombran y eliminan desde la vista admin. Aquí solo puedes trabajar sobre los cortes globales ya asignados."}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -629,11 +725,12 @@ export default function DataPage() {
                         void saveCurrentToSnapshot(selectedSnapshotId);
                     }}
                     className="btn btn-secondary"
+                    disabled={isAdminCompanyView}
                   >
                     <Save className="h-4 w-4" />
                     Guardar
                   </button>
-                  <button onClick={addRow} className="btn btn-primary">
+                  <button onClick={addRow} className="btn btn-primary" disabled={isAdminCompanyView}>
                     <Plus className="h-4 w-4" />
                     Agregar cargo
                   </button>
@@ -670,7 +767,7 @@ export default function DataPage() {
               <p className="mt-3 text-sm leading-7 text-slate-600">
                 Si aún no ves cortes disponibles, solicita al admin que cree o sincronice los cortes globales. Cuando el corte exista, podrás agregar cargos y completar la información.
               </p>
-              <button onClick={addRow} className="btn btn-primary mt-6">
+              <button onClick={addRow} className="btn btn-primary mt-6" disabled={isAdminCompanyView}>
                 <Plus className="h-4 w-4" />
                 Crear primer cargo
               </button>
@@ -703,7 +800,7 @@ export default function DataPage() {
                   <div className="flex flex-wrap gap-3 xl:justify-end">
                     <button onClick={() => toggleExpand(r.id)} className="btn btn-secondary">
                       <Edit className="h-4 w-4" />
-                      {expanded[r.id] ? "Cerrar edición" : "Editar cargo"}
+                      {expanded[r.id] ? "Cerrar detalle" : isAdminCompanyView ? "Ver detalle" : "Editar cargo"}
                     </button>
                     <button
                       onClick={() => {
@@ -714,11 +811,12 @@ export default function DataPage() {
                         setModal({ type: 'save', id: r.id });
                       }}
                       className="btn btn-secondary"
+                      disabled={isAdminCompanyView}
                     >
                       <Save className="h-4 w-4" />
                       Guardar cargo
                     </button>
-                    <button onClick={() => removeRow(i)} className="btn btn-danger">
+                    <button onClick={() => removeRow(i)} className="btn btn-danger" disabled={isAdminCompanyView}>
                       <Trash2 className="h-4 w-4" />
                       Eliminar
                     </button>
@@ -727,7 +825,7 @@ export default function DataPage() {
 
                 {expanded[r.id] && (
                   <div className="border-t border-slate-200/70 bg-[rgba(255,248,241,0.76)] p-5 md:p-6">
-                    <div className="space-y-5">
+                    <fieldset disabled={isAdminCompanyView} className="space-y-5 disabled:opacity-90">
                       <section className="rounded-[1.5rem] border border-slate-200/80 bg-white/90 p-5">
                         <div className="eyebrow mb-3">Paso 1</div>
                         <h3 className="font-display text-xl font-bold text-slate-900">Identidad del cargo</h3>
@@ -1095,7 +1193,7 @@ export default function DataPage() {
                           )}
                         </div>
                       </section>
-                    </div>
+                    </fieldset>
                   </div>
                 )}
               </article>

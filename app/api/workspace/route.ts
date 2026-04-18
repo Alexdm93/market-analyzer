@@ -203,9 +203,8 @@ type UpdateWorkspaceBody = Partial<{
   companyInfo: CompanyInfo;
 }>;
 
-async function getCurrentUserId() {
-  const session = await getServerSession(authOptions);
-  return session?.user?.id;
+async function getCurrentSession() {
+  return getServerSession(authOptions);
 }
 
 async function getOrCreateWorkspace(userId: string) {
@@ -236,11 +235,136 @@ function toPayload(workspace: {
   };
 }
 
-export async function GET() {
-  const userId = await getCurrentUserId();
+async function buildCompanyPayload(companyId: string) {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  if (!company) {
+    return null;
+  }
+
+  const [workspace, snapshots, positions] = await Promise.all([
+    prisma.userWorkspace.findFirst({
+      where: {
+        user: {
+          companyId,
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      select: {
+        inflation: true,
+        selectedSnapshotId: true,
+        companyInfoJson: true,
+      },
+    }),
+    prisma.userSnapshot.findMany({
+      where: { companyId },
+      select: {
+        snapshotId: true,
+        label: true,
+        date: true,
+      },
+      distinct: ["snapshotId"],
+      orderBy: [
+        { date: "desc" },
+        { snapshotId: "desc" },
+      ],
+    }),
+    prisma.userPosition.findMany({
+      where: { companyId },
+      select: {
+        snapshotId: true,
+        positionId: true,
+        dataJson: true,
+      },
+      orderBy: [
+        { snapshotDate: "desc" },
+        { updatedAt: "desc" },
+      ],
+    }),
+  ]);
+
+  const companySnapshots = Object.fromEntries(
+    snapshots.map((snapshot) => [
+      snapshot.snapshotId,
+      {
+        id: snapshot.snapshotId,
+        label: snapshot.label,
+        date: snapshot.date.toISOString().split("T")[0],
+        rows: [],
+      },
+    ])
+  ) as Record<string, Snapshot>;
+
+  const seenPositions = new Set<string>();
+
+  for (const position of positions) {
+    const dedupeKey = `${position.snapshotId}:${position.positionId}`;
+
+    if (seenPositions.has(dedupeKey)) {
+      continue;
+    }
+
+    const targetSnapshot = companySnapshots[position.snapshotId];
+
+    if (!targetSnapshot) {
+      continue;
+    }
+
+    try {
+      targetSnapshot.rows.push(JSON.parse(position.dataJson));
+      seenPositions.add(dedupeKey);
+    } catch {
+      continue;
+    }
+  }
+
+  const parsedCompanyInfo = safeParseCompanyInfo(workspace?.companyInfoJson);
+
+  return {
+    inflation: workspace?.inflation ?? DEFAULT_WORKSPACE.inflation,
+    snapshots: companySnapshots,
+    selectedSnapshotId:
+      (workspace?.selectedSnapshotId && companySnapshots[workspace.selectedSnapshotId]
+        ? workspace.selectedSnapshotId
+        : snapshots[0]?.snapshotId) ?? "",
+    companyInfo: {
+      ...parsedCompanyInfo,
+      companyName: company.name,
+    },
+  };
+}
+
+export async function GET(request: Request) {
+  const session = await getCurrentSession();
+  const userId = session?.user?.id;
 
   if (!userId) {
     return Response.json({ message: "No autorizado." }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const companyId = searchParams.get("companyId")?.trim() ?? "";
+
+  if (companyId) {
+    if (session.user.role !== "ADMIN") {
+      return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
+    }
+
+    const companyPayload = await buildCompanyPayload(companyId);
+
+    if (!companyPayload) {
+      return Response.json({ message: "La empresa seleccionada no existe." }, { status: 404 });
+    }
+
+    return Response.json(companyPayload);
   }
 
   const workspace = await getOrCreateWorkspace(userId);
@@ -250,7 +374,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const userId = await getCurrentUserId();
+  const session = await getCurrentSession();
+  const userId = session?.user?.id;
 
   if (!userId) {
     return Response.json({ message: "No autorizado." }, { status: 401 });
