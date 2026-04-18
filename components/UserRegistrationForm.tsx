@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ECONOMIC_SECTOR_OPTIONS, type CompanyCatalogEntry } from "@/lib/company";
 
-export type CompanyOption = {
-  id: string;
-  name: string;
-};
+export type CompanyOption = CompanyCatalogEntry;
 
 export type UserRegistrationValues = {
   name: string;
   email: string;
   companyId: string;
   companyName: string;
+  companyDescription: string;
+  companyEconomicSector: string;
+  companyClassification: string;
   password: string;
   confirmPassword: string;
   role: "USER" | "ADMIN";
@@ -38,6 +39,9 @@ const DEFAULT_VALUES: UserRegistrationValues = {
   email: "",
   companyId: "",
   companyName: "",
+  companyDescription: "",
+  companyEconomicSector: "",
+  companyClassification: "",
   password: "",
   confirmPassword: "",
   role: "USER",
@@ -60,6 +64,7 @@ export default function UserRegistrationForm({
 
   const isBootstrap = !forceExistingCompanySelector && !isLoadingCompanies && bootstrapRequired;
   const needsNewCompany = isBootstrap && companies.length === 0;
+  const selectedCompany = companies.find((company) => company.id === values.companyId) ?? null;
 
   useEffect(() => {
     let ignore = false;
@@ -130,6 +135,9 @@ export default function UserRegistrationForm({
     await onSubmit({
       ...values,
       companyName: needsNewCompany ? values.companyName : "",
+      companyDescription: needsNewCompany ? values.companyDescription : selectedCompany?.description ?? "",
+      companyEconomicSector: needsNewCompany ? values.companyEconomicSector : selectedCompany?.economicSector ?? "",
+      companyClassification: needsNewCompany ? values.companyClassification : selectedCompany?.classification ?? "",
       role: allowRoleSelection ? values.role : isBootstrap ? "ADMIN" : "USER",
     });
   }
@@ -161,6 +169,32 @@ export default function UserRegistrationForm({
           className="field"
           placeholder="equipo@empresa.com"
           autoComplete="email"
+          required
+        />
+      </div>
+      <div>
+        <label htmlFor="registrationPassword" className="field-label">Contrasena</label>
+        <input
+          id="registrationPassword"
+          type="password"
+          value={values.password}
+          onChange={(event) => updateValue("password", event.target.value)}
+          className="field"
+          placeholder="Minimo 8 caracteres"
+          autoComplete="new-password"
+          required
+        />
+      </div>
+      <div>
+        <label htmlFor="registrationConfirmPassword" className="field-label">Confirmar contrasena</label>
+        <input
+          id="registrationConfirmPassword"
+          type="password"
+          value={values.confirmPassword}
+          onChange={(event) => updateValue("confirmPassword", event.target.value)}
+          className="field"
+          placeholder="Repite la contrasena"
+          autoComplete="new-password"
           required
         />
       </div>
@@ -198,29 +232,51 @@ export default function UserRegistrationForm({
         </div>
       )}
       <div>
-        <label htmlFor="registrationPassword" className="field-label">Contrasena</label>
-        <input
-          id="registrationPassword"
-          type="password"
-          value={values.password}
-          onChange={(event) => updateValue("password", event.target.value)}
-          className="field"
-          placeholder="Minimo 8 caracteres"
-          autoComplete="new-password"
-          required
+        <label htmlFor="registrationCompanyDescription" className="field-label">Descripcion de la empresa</label>
+        <textarea
+          id="registrationCompanyDescription"
+          value={needsNewCompany ? values.companyDescription : selectedCompany?.description ?? ""}
+          onChange={(event) => updateValue("companyDescription", event.target.value)}
+          className="field min-h-28 resize-y"
+          placeholder="Descripcion general de la empresa"
+          readOnly={!needsNewCompany}
         />
       </div>
       <div>
-        <label htmlFor="registrationConfirmPassword" className="field-label">Confirmar contrasena</label>
+        <label htmlFor="registrationEconomicSector" className="field-label">Sector economico</label>
+        {needsNewCompany ? (
+          <select
+            id="registrationEconomicSector"
+            value={values.companyEconomicSector}
+            onChange={(event) => updateValue("companyEconomicSector", event.target.value)}
+            className="field-select"
+          >
+            <option value="">Seleccionar sector económico</option>
+            {ECONOMIC_SECTOR_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id="registrationEconomicSector"
+            type="text"
+            value={selectedCompany?.economicSector ?? ""}
+            className="field"
+            placeholder="Sin sector registrado"
+            readOnly
+          />
+        )}
+      </div>
+      <div>
+        <label htmlFor="registrationClassification" className="field-label">Clasificacion</label>
         <input
-          id="registrationConfirmPassword"
-          type="password"
-          value={values.confirmPassword}
-          onChange={(event) => updateValue("confirmPassword", event.target.value)}
+          id="registrationClassification"
+          type="text"
+          value={needsNewCompany ? values.companyClassification : selectedCompany?.classification ?? ""}
+          onChange={(event) => updateValue("companyClassification", event.target.value)}
           className="field"
-          placeholder="Repite la contrasena"
-          autoComplete="new-password"
-          required
+          placeholder="Clasificacion de la empresa"
+          readOnly={!needsNewCompany}
         />
       </div>
       {allowRoleSelection ? (

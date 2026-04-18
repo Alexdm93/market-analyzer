@@ -1,0 +1,4 @@
+ALTER TABLE "Company"
+ADD COLUMN "description" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "economicSector" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "classification" TEXT NOT NULL DEFAULT '';

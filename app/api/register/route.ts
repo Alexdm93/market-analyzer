@@ -9,6 +9,9 @@ import { DEFAULT_WORKSPACE } from "@/lib/workspace";
 type RegisterBody = {
   companyId?: string;
   companyName?: string;
+  companyDescription?: string;
+  companyEconomicSector?: string;
+  companyClassification?: string;
   name?: string;
   email?: string;
   password?: string;
@@ -19,6 +22,9 @@ export async function POST(request: Request) {
   const body = (await request.json()) as RegisterBody;
   const companyId = body.companyId?.trim() ?? "";
   const companyName = body.companyName?.trim() ?? "";
+  const companyDescription = body.companyDescription?.trim() ?? "";
+  const companyEconomicSector = body.companyEconomicSector?.trim() ?? "";
+  const companyClassification = body.companyClassification?.trim() ?? "";
   const name = body.name?.trim() ?? "";
   const email = body.email?.trim().toLowerCase() ?? "";
   const password = body.password ?? "";
@@ -55,13 +61,18 @@ export async function POST(request: Request) {
     const company = companyId
       ? await tx.company.findUnique({
           where: { id: companyId },
-          select: { id: true, name: true },
+          select: { id: true, name: true, description: true, economicSector: true, classification: true },
         })
       : await tx.company.upsert({
           where: { name: companyName },
           update: {},
-          create: { name: companyName },
-          select: { id: true, name: true },
+          create: {
+            name: companyName,
+            description: companyDescription,
+            economicSector: companyEconomicSector,
+            classification: companyClassification,
+          },
+          select: { id: true, name: true, description: true, economicSector: true, classification: true },
         });
 
     if (!company) {
@@ -115,6 +126,7 @@ export async function POST(request: Request) {
             companyInfoJson: JSON.stringify({
               ...DEFAULT_WORKSPACE.companyInfo,
               companyName: company.name,
+              sector: company.economicSector,
             }),
           },
         },

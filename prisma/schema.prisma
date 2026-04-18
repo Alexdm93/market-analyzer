@@ -16,6 +16,9 @@ enum UserRole {
 model Company {
   id         String         @id @default(cuid())
   name       String         @unique
+  description String        @default("")
+  economicSector String     @default("")
+  classification String     @default("")
   users      User[]
   snapshots  UserSnapshot[]
   positions  UserPosition[]

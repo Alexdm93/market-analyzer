@@ -9,6 +9,9 @@ export async function GET() {
     select: {
       id: true,
       name: true,
+      description: true,
+      economicSector: true,
+      classification: true,
     },
     orderBy: {
       name: "asc",
@@ -24,6 +27,9 @@ export async function GET() {
 
 type CreateCompanyBody = {
   name?: string;
+  description?: string;
+  economicSector?: string;
+  classification?: string;
 };
 
 export async function POST(request: Request) {
@@ -39,6 +45,9 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as CreateCompanyBody;
   const name = body.name?.trim() ?? "";
+  const description = body.description?.trim() ?? "";
+  const economicSector = body.economicSector?.trim() ?? "";
+  const classification = body.classification?.trim() ?? "";
 
   if (name.length < 2) {
     return Response.json({ message: "La empresa debe tener al menos 2 caracteres." }, { status: 400 });
@@ -54,10 +63,18 @@ export async function POST(request: Request) {
   }
 
   const company = await prisma.company.create({
-    data: { name },
+    data: {
+      name,
+      description,
+      economicSector,
+      classification,
+    },
     select: {
       id: true,
       name: true,
+      description: true,
+      economicSector: true,
+      classification: true,
       createdAt: true,
     },
   });

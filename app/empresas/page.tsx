@@ -2,15 +2,16 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Building2, CheckCircle2, LoaderCircle, Plus } from "lucide-react";
+import { ECONOMIC_SECTOR_OPTIONS, type CompanyCatalogEntry } from "@/lib/company";
 
-type Company = {
-  id: string;
-  name: string;
-};
+type Company = CompanyCatalogEntry;
 
 export default function EmpresasPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyName, setCompanyName] = useState("");
+  const [companyDescription, setCompanyDescription] = useState("");
+  const [companyEconomicSector, setCompanyEconomicSector] = useState("");
+  const [companyClassification, setCompanyClassification] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +72,12 @@ export default function EmpresasPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ name: nextCompanyName }),
+          body: JSON.stringify({
+            name: nextCompanyName,
+            description: companyDescription.trim(),
+            economicSector: companyEconomicSector,
+            classification: companyClassification.trim(),
+          }),
         });
 
         const payload = (await response.json().catch(() => null)) as { company?: Company; message?: string } | null;
@@ -87,6 +93,9 @@ export default function EmpresasPage() {
         }
 
         setCompanyName("");
+        setCompanyDescription("");
+        setCompanyEconomicSector("");
+        setCompanyClassification("");
         setStatusMessage("Empresa creada correctamente.");
       })();
     });
@@ -156,6 +165,41 @@ export default function EmpresasPage() {
                     required
                   />
                 </div>
+                <div>
+                  <label htmlFor="companyDescription" className="field-label">Descripcion</label>
+                  <textarea
+                    id="companyDescription"
+                    value={companyDescription}
+                    onChange={(event) => setCompanyDescription(event.target.value)}
+                    className="field min-h-28 resize-y"
+                    placeholder="Descripcion general de la empresa"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="companyEconomicSector" className="field-label">Sector economico</label>
+                  <select
+                    id="companyEconomicSector"
+                    value={companyEconomicSector}
+                    onChange={(event) => setCompanyEconomicSector(event.target.value)}
+                    className="field-select"
+                  >
+                    <option value="">Seleccionar sector económico</option>
+                    {ECONOMIC_SECTOR_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="companyClassification" className="field-label">Clasificacion</label>
+                  <input
+                    id="companyClassification"
+                    type="text"
+                    value={companyClassification}
+                    onChange={(event) => setCompanyClassification(event.target.value)}
+                    className="field"
+                    placeholder="Clasificacion interna o de mercado"
+                  />
+                </div>
 
                 <button type="submit" className="btn btn-primary w-full" disabled={isPending}>
                   {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -187,6 +231,11 @@ export default function EmpresasPage() {
               {companies.map((company) => (
                 <article key={company.id} className="metric-tile">
                   <div className="font-display text-lg font-bold text-slate-900">{company.name}</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-600">{company.description || "Sin descripción registrada."}</div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                    <span className="pill">{company.economicSector || "Sin sector"}</span>
+                    <span className="pill">{company.classification || "Sin clasificación"}</span>
+                  </div>
                   <div className="mt-2 text-xs text-slate-500 break-all">{company.id}</div>
                 </article>
               ))}

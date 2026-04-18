@@ -32,6 +32,9 @@ export default function RegisterPage() {
       body: JSON.stringify({
         companyId: values.companyId,
         companyName: values.companyName,
+        companyDescription: values.companyDescription,
+        companyEconomicSector: values.companyEconomicSector,
+        companyClassification: values.companyClassification,
         name: values.name,
         email: values.email,
         password: values.password,
