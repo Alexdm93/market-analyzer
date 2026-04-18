@@ -671,7 +671,7 @@ export default function DataPage() {
                     className="field-select"
                     disabled={isLoadingCompanies}
                   >
-                    <option value="">Mi data</option>
+                    <option value="">Seleccionar</option>
                     {companies.map((company) => (
                       <option key={company.id} value={company.id}>{company.name}</option>
                     ))}

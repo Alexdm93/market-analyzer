@@ -19,6 +19,18 @@ model Company {
   description String        @default("")
   economicSector String     @default("")
   classification String     @default("")
+  headcount String          @default("")
+  revenueUSD String         @default("")
+  avgProfitPercent String   @default("")
+  hrName String             @default("")
+  hrPosition String         @default("")
+  hrEmail String            @default("")
+  hrPhone String            @default("")
+  hrCell String             @default("")
+  minVacationDays String    @default("")
+  minUtilityDays String     @default("")
+  conversionRate String     @default("")
+  locality String           @default("")
   users      User[]
   snapshots  UserSnapshot[]
   positions  UserPosition[]

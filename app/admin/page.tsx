@@ -618,9 +618,9 @@ export default function AdminPage() {
       </div>
 
       {isCreateUserModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-4 md:py-6">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={handleCloseCreateUserModal} />
-          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-2xl rounded-[1.75rem] p-6 md:p-8">
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[1.75rem] p-6 md:max-h-[calc(100vh-3rem)] md:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="eyebrow mb-2">Alta controlada</div>
@@ -632,7 +632,7 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="mt-6">
+            <div className="mt-6 overflow-y-auto pr-1">
               <UserRegistrationForm
                 allowRoleSelection
                 forceExistingCompanySelector

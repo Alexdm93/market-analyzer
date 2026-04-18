@@ -39,6 +39,18 @@ async function getCompanyIdentity(userId: string) {
           description: true,
           economicSector: true,
           classification: true,
+          headcount: true,
+          revenueUSD: true,
+          avgProfitPercent: true,
+          hrName: true,
+          hrPosition: true,
+          hrEmail: true,
+          hrPhone: true,
+          hrCell: true,
+          minVacationDays: true,
+          minUtilityDays: true,
+          conversionRate: true,
+          locality: true,
         },
       },
     },
@@ -52,6 +64,18 @@ function mergeCompanyIdentity(companyInfo: CompanyInfo, company: {
   description: string;
   economicSector: string;
   classification: string;
+  headcount: string;
+  revenueUSD: string;
+  avgProfitPercent: string;
+  hrName: string;
+  hrPosition: string;
+  hrEmail: string;
+  hrPhone: string;
+  hrCell: string;
+  minVacationDays: string;
+  minUtilityDays: string;
+  conversionRate: string;
+  locality: string;
 } | null): CompanyInfo {
   if (!company) {
     return companyInfo;
@@ -63,7 +87,47 @@ function mergeCompanyIdentity(companyInfo: CompanyInfo, company: {
     sector: company.economicSector,
     classification: company.classification,
     description: company.description,
+    headcount: company.headcount,
+    revenueUSD: company.revenueUSD,
+    avgProfitPercent: company.avgProfitPercent,
+    hrName: company.hrName,
+    hrPosition: company.hrPosition,
+    hrEmail: company.hrEmail,
+    hrPhone: company.hrPhone,
+    hrCell: company.hrCell,
+    minVacationDays: company.minVacationDays,
+    minUtilityDays: company.minUtilityDays,
+    conversionRate: company.conversionRate,
+    locality: company.locality,
   };
+}
+
+async function syncCompanyInfo(
+  tx: TransactionClient,
+  companyId: string,
+  companyInfo: CompanyInfo
+) {
+  await tx.company.update({
+    where: { id: companyId },
+    data: {
+      name: companyInfo.companyName,
+      description: companyInfo.description,
+      economicSector: companyInfo.sector,
+      classification: companyInfo.classification,
+      headcount: companyInfo.headcount,
+      revenueUSD: companyInfo.revenueUSD,
+      avgProfitPercent: companyInfo.avgProfitPercent,
+      hrName: companyInfo.hrName,
+      hrPosition: companyInfo.hrPosition,
+      hrEmail: companyInfo.hrEmail,
+      hrPhone: companyInfo.hrPhone,
+      hrCell: companyInfo.hrCell,
+      minVacationDays: companyInfo.minVacationDays,
+      minUtilityDays: companyInfo.minUtilityDays,
+      conversionRate: companyInfo.conversionRate,
+      locality: companyInfo.locality,
+    },
+  });
 }
 
 async function ensureCompanyIdForUser(
@@ -268,6 +332,18 @@ function toPayload(workspace: {
   description: string;
   economicSector: string;
   classification: string;
+  headcount: string;
+  revenueUSD: string;
+  avgProfitPercent: string;
+  hrName: string;
+  hrPosition: string;
+  hrEmail: string;
+  hrPhone: string;
+  hrCell: string;
+  minVacationDays: string;
+  minUtilityDays: string;
+  conversionRate: string;
+  locality: string;
 } | null) {
   const parsedCompanyInfo = safeParseCompanyInfo(workspace.companyInfoJson);
 
@@ -288,6 +364,18 @@ async function buildCompanyPayload(companyId: string) {
       description: true,
       economicSector: true,
       classification: true,
+      headcount: true,
+      revenueUSD: true,
+      avgProfitPercent: true,
+      hrName: true,
+      hrPosition: true,
+      hrEmail: true,
+      hrPhone: true,
+      hrCell: true,
+      minVacationDays: true,
+      minUtilityDays: true,
+      conversionRate: true,
+      locality: true,
     },
   });
 
@@ -388,6 +476,18 @@ async function buildCompanyPayload(companyId: string) {
       sector: company.economicSector,
       classification: company.classification,
       description: company.description,
+      headcount: company.headcount,
+      revenueUSD: company.revenueUSD,
+      avgProfitPercent: company.avgProfitPercent,
+      hrName: company.hrName,
+      hrPosition: company.hrPosition,
+      hrEmail: company.hrEmail,
+      hrPhone: company.hrPhone,
+      hrCell: company.hrCell,
+      minVacationDays: company.minVacationDays,
+      minUtilityDays: company.minUtilityDays,
+      conversionRate: company.conversionRate,
+      locality: company.locality,
     },
   };
 }
@@ -454,6 +554,7 @@ export async function PUT(request: Request) {
 
   const workspace = await prisma.$transaction(async (tx) => {
     const { companyId, previousCompanyId } = await ensureCompanyIdForUser(tx, userId, nextCompanyInfo);
+    await syncCompanyInfo(tx, companyId, nextCompanyInfo);
 
     const updatedWorkspace = await tx.userWorkspace.update({
       where: { userId },
@@ -471,5 +572,7 @@ export async function PUT(request: Request) {
     return updatedWorkspace;
   });
 
-  return Response.json(toPayload(workspace, company));
+  const updatedCompany = await getCompanyIdentity(userId);
+
+  return Response.json(toPayload(workspace, updatedCompany));
 }

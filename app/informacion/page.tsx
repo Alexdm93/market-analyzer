@@ -119,8 +119,8 @@ export default function Informacion() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div className="md:col-span-2 xl:col-span-2">
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div>
                 <label className="field-label">Nombre de la empresa</label>
                 <input title="Nombre de la Empresa" aria-label="Nombre de la Empresa" value={companyInfo.companyName} className="field" readOnly />
               </div>
@@ -132,7 +132,7 @@ export default function Informacion() {
                 <label className="field-label">Clasificación</label>
                 <input title="Clasificación" aria-label="Clasificación" value={companyInfo.classification} className="field" readOnly />
               </div>
-              <div className="md:col-span-2 xl:col-span-3">
+              <div className="md:col-span-3">
                 <label className="field-label">Descripción de la empresa</label>
                 <textarea
                   title="Descripción de la empresa"
