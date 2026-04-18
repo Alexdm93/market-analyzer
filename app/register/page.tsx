@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { CheckCircle2, LoaderCircle, ShieldPlus, UserPlus } from "lucide-react";
@@ -14,6 +15,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { status } = useSession();
   const [companyId, setCompanyId] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -23,6 +25,7 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const isBootstrap = !isLoadingCompanies && companies.length === 0;
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -73,8 +76,14 @@ export default function RegisterPage() {
     setError("");
     setIsSubmitting(true);
 
-    if (!companyId) {
+    if (!isBootstrap && !companyId) {
       setError("Selecciona una empresa.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (isBootstrap && companyName.trim().length < 2) {
+      setError("Ingresa el nombre de la empresa inicial.");
       setIsSubmitting(false);
       return;
     }
@@ -90,10 +99,10 @@ export default function RegisterPage() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ companyId, name, email, password }),
+      body: JSON.stringify({ companyId, companyName, name, email, password }),
     });
 
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+    const payload = (await response.json().catch(() => null)) as { message?: string; user?: { companyId?: string } } | null;
 
     if (!response.ok) {
       setError(payload?.message ?? "No fue posible crear la cuenta.");
@@ -101,8 +110,16 @@ export default function RegisterPage() {
       return;
     }
 
+    const loginCompanyId = payload?.user?.companyId ?? companyId;
+
+    if (!loginCompanyId) {
+      setError("La cuenta fue creada, pero no se pudo resolver la empresa para iniciar sesión.");
+      setIsSubmitting(false);
+      return;
+    }
+
     const result = await signIn("credentials", {
-      companyId,
+      companyId: loginCompanyId,
       email,
       password,
       redirect: false,
@@ -127,7 +144,11 @@ export default function RegisterPage() {
         <section className="surface-card min-w-0 rounded-[2rem] p-6 md:p-8 lg:order-2">
           <div className="eyebrow mb-2">Registro</div>
           <h1 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">Crear cuenta</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">Esta cuenta sera la base para asociar datos y permisos por usuario.</p>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {isBootstrap
+              ? "Estás creando la cuenta inicial del sistema. Este primer usuario quedará como admin."
+              : "Esta cuenta sera la base para asociar datos y permisos por usuario."}
+          </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
@@ -169,24 +190,39 @@ export default function RegisterPage() {
                 required
               />
             </div>
-            <div>
-              <label htmlFor="companyId" className="field-label">Empresa</label>
-              <select
-                id="companyId"
-                value={companyId}
-                onChange={(event) => setCompanyId(event.target.value)}
-                className="field-select"
-                disabled={isLoadingCompanies || companies.length === 0}
-                required
-              >
-                {isLoadingCompanies ? <option value="">Cargando empresas...</option> : null}
-                {!isLoadingCompanies && companies.length === 0 ? <option value="">No hay empresas registradas</option> : null}
-                {!isLoadingCompanies && companies.length > 0 ? <option value="">Selecciona una empresa</option> : null}
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>{company.name}</option>
-                ))}
-              </select>
-            </div>
+            {isBootstrap ? (
+              <div>
+                <label htmlFor="companyName" className="field-label">Empresa inicial</label>
+                <input
+                  id="companyName"
+                  type="text"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                  className="field"
+                  placeholder="Nombre de la empresa"
+                  required
+                />
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="companyId" className="field-label">Empresa</label>
+                <select
+                  id="companyId"
+                  value={companyId}
+                  onChange={(event) => setCompanyId(event.target.value)}
+                  className="field-select"
+                  disabled={isLoadingCompanies || companies.length === 0}
+                  required
+                >
+                  {isLoadingCompanies ? <option value="">Cargando empresas...</option> : null}
+                  {!isLoadingCompanies && companies.length === 0 ? <option value="">No hay empresas registradas</option> : null}
+                  {!isLoadingCompanies && companies.length > 0 ? <option value="">Selecciona una empresa</option> : null}
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>{company.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label htmlFor="confirmPassword" className="field-label">Confirmar contrasena</label>
               <input
@@ -203,11 +239,17 @@ export default function RegisterPage() {
 
             {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
-            <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isPending || status === "loading" || isLoadingCompanies || companies.length === 0}>
+            <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isPending || status === "loading" || isLoadingCompanies}>
               {isSubmitting || isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              {isSubmitting || isPending ? "Registrando cuenta..." : "Crear cuenta"}
+              {isSubmitting || isPending ? "Registrando cuenta..." : isBootstrap ? "Crear admin inicial" : "Crear cuenta"}
             </button>
           </form>
+
+          <div className="mt-5 text-sm text-slate-600">
+            <Link href="/signin" className="font-semibold text-teal-700 hover:text-teal-800">
+              Volver a iniciar sesión
+            </Link>
+          </div>
         </section>
 
         <section className="surface-panel min-w-0 rounded-[2rem] p-6 md:p-8 lg:order-1 lg:p-10">

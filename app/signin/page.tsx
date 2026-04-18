@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { LoaderCircle, LockKeyhole, LogIn, ShieldCheck } from "lucide-react";
@@ -21,6 +22,7 @@ export default function SignInPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const isBootstrap = !isLoadingCompanies && companies.length === 0;
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -130,7 +132,11 @@ export default function SignInPage() {
         <section className="surface-card min-w-0 rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-2">Iniciar sesion</div>
           <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">Bienvenido</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">Usa el correo y la contrasena que registraste en la plataforma.</p>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {isBootstrap
+              ? "La base está vacía. Crea primero el usuario administrador inicial."
+              : "Usa el correo y la contrasena que registraste en la plataforma."}
+          </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
@@ -179,6 +185,13 @@ export default function SignInPage() {
             </div>
 
             {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
+
+            {isBootstrap ? (
+              <Link href="/register" className="btn btn-secondary w-full">
+                <LogIn className="h-4 w-4" />
+                Crear admin inicial
+              </Link>
+            ) : null}
 
             <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isPending || status === "loading" || isLoadingCompanies || companies.length === 0}>
               {isSubmitting || isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
