@@ -158,6 +158,32 @@ const empty = (i: number): ExtendedMarketPosition => ({
   beneficiosNoMonetarios: "",
 });
 
+function findDuplicateCargoTitles(rows: ExtendedMarketPosition[]) {
+  const seen = new Map<string, string>();
+  const duplicates = new Set<string>();
+
+  rows.forEach((row) => {
+    const rawTitle = (row.tituloCargo || "").trim();
+    const normalizedTitle = rawTitle.toLocaleLowerCase();
+
+    if (!normalizedTitle) {
+      return;
+    }
+
+    const previousTitle = seen.get(normalizedTitle);
+
+    if (previousTitle) {
+      duplicates.add(previousTitle);
+      duplicates.add(rawTitle);
+      return;
+    }
+
+    seen.set(normalizedTitle, rawTitle);
+  });
+
+  return Array.from(duplicates);
+}
+
 export default function DataPage() {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
@@ -189,6 +215,16 @@ export default function DataPage() {
   const [rows, setRows] = useState<ExtendedMarketPosition[]>([]);
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
   const draftSaveTimer = useRef<number | null>(null);
+
+  function getDuplicateCargoMessage(nextRows: ExtendedMarketPosition[]) {
+    const duplicates = findDuplicateCargoTitles(nextRows);
+
+    if (duplicates.length === 0) {
+      return null;
+    }
+
+    return `No puedes guardar cargos repetidos. Revisa: ${duplicates.join(", ")}.`;
+  }
 
   const reloadWorkspaceData = useCallback(async (options?: { showNotification?: boolean }) => {
     setIsRefreshing(true);
@@ -294,6 +330,19 @@ export default function DataPage() {
     nextSelectedSnapshotId = selectedSnapshotId,
     options?: { showErrorNotification?: boolean }
   ) => {
+    const activeSnapshot = nextSelectedSnapshotId ? next[nextSelectedSnapshotId] : null;
+    const duplicateMessage = activeSnapshot ? getDuplicateCargoMessage(activeSnapshot.rows ?? []) : null;
+
+    if (duplicateMessage) {
+      setSaveState("error");
+
+      if (options?.showErrorNotification) {
+        showNotification(duplicateMessage, 4000);
+      }
+
+      return false;
+    }
+
     setSnapshots(next);
     setSaveState("pending");
 
@@ -311,12 +360,12 @@ export default function DataPage() {
       setLastSavedAt(nextSelectedSnapshotId ? new Date() : null);
 
       return true;
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       setSaveState("error");
 
       if (options?.showErrorNotification) {
-        showNotification("Error al guardar cargos en Supabase");
+        showNotification(error instanceof Error ? error.message : "Error al guardar cargos en Supabase", 4000);
       }
 
       return false;

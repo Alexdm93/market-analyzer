@@ -1,6 +1,6 @@
 "use client";
 import { BarChart3, Database, Layers3 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition } from "@/types/salary";
@@ -112,6 +112,7 @@ export default function EstudioPage() {
   const [adminMessage, setAdminMessage] = useState("");
   const [selectedRawCargoTab, setSelectedRawCargoTab] = useState("");
   const [selectedProcessedCargoTab, setSelectedProcessedCargoTab] = useState("");
+  const adminStudyRequestId = useRef(0);
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
     if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
@@ -205,6 +206,8 @@ export default function EstudioPage() {
     let ignore = false;
 
     async function loadAdminStudy(snapshotId?: string) {
+      const requestId = ++adminStudyRequestId.current;
+
       try {
         const searchParams = new URLSearchParams();
 
@@ -226,25 +229,28 @@ export default function EstudioPage() {
           throw new Error(payload?.message ?? "No fue posible cargar el estudio administrativo.");
         }
 
-        if (ignore) {
+        if (ignore || requestId !== adminStudyRequestId.current) {
           return;
         }
 
         const nextSnapshots = Array.isArray(payload?.snapshots) ? payload.snapshots : [];
-        const nextSelectedSnapshotId = snapshotId || nextSnapshots[0]?.id || "";
+        const nextSelectedSnapshotId = snapshotId || "";
 
         setAdminSnapshots(nextSnapshots);
         setSelectedSnapshotId(nextSelectedSnapshotId);
         const nextPositions = Array.isArray(payload?.positions) ? payload.positions : [];
         setAdminPositions(nextPositions);
         const firstCargo = nextPositions[0]?.title?.trim() || "";
-        setSelectedRawCargoTab((current) => current || firstCargo);
-        setSelectedProcessedCargoTab((current) => current || firstCargo);
+        setSelectedRawCargoTab(firstCargo);
+        setSelectedProcessedCargoTab(firstCargo);
       } catch (error) {
-        if (!ignore) {
+        if (!ignore && requestId === adminStudyRequestId.current) {
           setAdminMessage(error instanceof Error ? error.message : "No fue posible cargar el estudio administrativo.");
           setAdminSnapshots([]);
           setAdminPositions([]);
+          setSelectedSnapshotId("");
+          setSelectedRawCargoTab("");
+          setSelectedProcessedCargoTab("");
         }
       }
     }
@@ -257,8 +263,16 @@ export default function EstudioPage() {
   }, [isAdmin]);
 
   async function handleAdminSnapshotChange(snapshotId: string) {
+    const requestId = ++adminStudyRequestId.current;
     setSelectedSnapshotId(snapshotId);
     setAdminMessage("");
+
+    if (!snapshotId) {
+      setAdminPositions([]);
+      setSelectedRawCargoTab("");
+      setSelectedProcessedCargoTab("");
+      return;
+    }
 
     const response = await fetch(`/api/admin/study?snapshotId=${encodeURIComponent(snapshotId)}`, {
       method: "GET",
@@ -271,7 +285,14 @@ export default function EstudioPage() {
     } | null;
 
     if (!response.ok) {
+      if (requestId !== adminStudyRequestId.current) {
+        return;
+      }
       setAdminMessage(payload?.message ?? "No fue posible cargar el corte seleccionado.");
+      return;
+    }
+
+    if (requestId !== adminStudyRequestId.current) {
       return;
     }
 

@@ -30,6 +30,35 @@ function resolveCompanyName(companyInfo: CompanyInfo, fallbackName: string) {
   return normalized || fallbackName;
 }
 
+function getDuplicateCargoTitles(snapshots: Record<string, Snapshot>) {
+  const duplicateTitles = new Set<string>();
+
+  Object.values(snapshots).forEach((snapshot) => {
+    const seen = new Map<string, string>();
+
+    (snapshot.rows ?? []).forEach((row) => {
+      const rawTitle = (row.tituloCargo ?? "").trim();
+      const normalizedTitle = rawTitle.toLocaleLowerCase();
+
+      if (!normalizedTitle) {
+        return;
+      }
+
+      const previousTitle = seen.get(normalizedTitle);
+
+      if (previousTitle) {
+        duplicateTitles.add(previousTitle);
+        duplicateTitles.add(rawTitle);
+        return;
+      }
+
+      seen.set(normalizedTitle, rawTitle);
+    });
+  });
+
+  return Array.from(duplicateTitles);
+}
+
 async function getCompanyIdentity(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -562,6 +591,16 @@ export async function PUT(request: Request) {
       : safeParseCompanyInfo(existingWorkspace.companyInfoJson);
   const company = await getCompanyIdentity(userId);
   const nextCompanyInfo = mergeCompanyIdentity(requestedCompanyInfo, company);
+  const duplicateCargoTitles = getDuplicateCargoTitles(nextSnapshots);
+
+  if (duplicateCargoTitles.length > 0) {
+    return Response.json(
+      {
+        message: `No puedes guardar cargos repetidos. Revisa: ${duplicateCargoTitles.join(", ")}.`,
+      },
+      { status: 400 }
+    );
+  }
 
   const snapshotsJson = JSON.stringify(nextSnapshots);
   const companyInfoJson = JSON.stringify(nextCompanyInfo);
