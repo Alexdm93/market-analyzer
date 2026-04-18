@@ -4,21 +4,6 @@ import { useEffect, useState } from "react";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
-const ECONOMIC_SECTOR_OPTIONS = [
-  "Comercio / Retail",
-  "Construcción / Ingeniería",
-  "Consumo Masivo",
-  "Educación",
-  "Energía",
-  "Entretenimiento",
-  "Farmacéutico / Salud",
-  "Hotelería / Turismo / Viajes",
-  "Industrial / Manufactura",
-  "Logística / Transporte",
-  "Publicidad / Medios Digitales",
-  "Banca / Seguros",
-] as const;
-
 const REVENUE_RANGE_OPTIONS = [
   "a. Hasta 500M USD",
   "b. Entre 500M USD hasta 5MM USD",
@@ -94,8 +79,8 @@ export default function Informacion() {
                   <div className="metric-value mt-3 text-xl">{companyInfo.sector || "ND"}</div>
                 </div>
                 <div className="metric-tile">
-                  <div className="metric-label">Localidad</div>
-                  <div className="metric-value mt-3 text-xl">{companyInfo.locality || "ND"}</div>
+                  <div className="metric-label">Clasificación</div>
+                  <div className="metric-value mt-3 text-xl">{companyInfo.classification || "ND"}</div>
                 </div>
               </div>
 
@@ -137,20 +122,25 @@ export default function Informacion() {
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="md:col-span-2 xl:col-span-2">
                 <label className="field-label">Nombre de la empresa</label>
-                <input title="Nombre de la Empresa" aria-label="Nombre de la Empresa" placeholder="Nombre de la empresa" value={companyInfo.companyName} onChange={(e) => updateCompany("companyName", e.target.value)} className="field" />
-              </div>
-              <div>
-                <label className="field-label">Fecha de llenado</label>
-                <input title="Fecha de Llenado" aria-label="Fecha de Llenado" placeholder="DD/MM/AAAA" value={companyInfo.dateFilled} onChange={(e) => updateCompany("dateFilled", e.target.value)} className="field" />
+                <input title="Nombre de la Empresa" aria-label="Nombre de la Empresa" value={companyInfo.companyName} className="field" readOnly />
               </div>
               <div>
                 <label className="field-label">Sector económico</label>
-                <select title="Sector Económico" aria-label="Sector Económico" value={companyInfo.sector} onChange={(e) => updateCompany("sector", e.target.value)} className="field-select">
-                  <option value="">Seleccionar sector económico</option>
-                  {ECONOMIC_SECTOR_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </select>
+                <input title="Sector Económico" aria-label="Sector Económico" value={companyInfo.sector} className="field" readOnly />
+              </div>
+              <div>
+                <label className="field-label">Clasificación</label>
+                <input title="Clasificación" aria-label="Clasificación" value={companyInfo.classification} className="field" readOnly />
+              </div>
+              <div className="md:col-span-2 xl:col-span-3">
+                <label className="field-label">Descripción de la empresa</label>
+                <textarea
+                  title="Descripción de la empresa"
+                  aria-label="Descripción de la empresa"
+                  value={companyInfo.description}
+                  className="field min-h-28 resize-y"
+                  readOnly
+                />
               </div>
               <div>
                 <label className="field-label">Headcount</label>

@@ -29,6 +29,43 @@ function resolveCompanyName(companyInfo: CompanyInfo, fallbackName: string) {
   return normalized || fallbackName;
 }
 
+async function getCompanyIdentity(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      company: {
+        select: {
+          name: true,
+          description: true,
+          economicSector: true,
+          classification: true,
+        },
+      },
+    },
+  });
+
+  return user?.company ?? null;
+}
+
+function mergeCompanyIdentity(companyInfo: CompanyInfo, company: {
+  name: string;
+  description: string;
+  economicSector: string;
+  classification: string;
+} | null): CompanyInfo {
+  if (!company) {
+    return companyInfo;
+  }
+
+  return {
+    ...companyInfo,
+    companyName: company.name,
+    sector: company.economicSector,
+    classification: company.classification,
+    description: company.description,
+  };
+}
+
 async function ensureCompanyIdForUser(
   tx: TransactionClient,
   userId: string,
@@ -226,12 +263,19 @@ function toPayload(workspace: {
   snapshotsJson: string;
   selectedSnapshotId: string | null;
   companyInfoJson: string;
-}) {
+}, company: {
+  name: string;
+  description: string;
+  economicSector: string;
+  classification: string;
+} | null) {
+  const parsedCompanyInfo = safeParseCompanyInfo(workspace.companyInfoJson);
+
   return {
     inflation: Number.isFinite(workspace.inflation) ? workspace.inflation : DEFAULT_WORKSPACE.inflation,
     snapshots: safeParseSnapshots(workspace.snapshotsJson),
     selectedSnapshotId: workspace.selectedSnapshotId ?? "",
-    companyInfo: safeParseCompanyInfo(workspace.companyInfoJson),
+    companyInfo: mergeCompanyIdentity(parsedCompanyInfo, company),
   };
 }
 
@@ -241,6 +285,9 @@ async function buildCompanyPayload(companyId: string) {
     select: {
       id: true,
       name: true,
+      description: true,
+      economicSector: true,
+      classification: true,
     },
   });
 
@@ -338,6 +385,9 @@ async function buildCompanyPayload(companyId: string) {
     companyInfo: {
       ...parsedCompanyInfo,
       companyName: company.name,
+      sector: company.economicSector,
+      classification: company.classification,
+      description: company.description,
     },
   };
 }
@@ -369,8 +419,9 @@ export async function GET(request: Request) {
 
   const workspace = await getOrCreateWorkspace(userId);
   await backfillRelationalWorkspace(userId, workspace.companyInfoJson, workspace.snapshotsJson);
+  const company = await getCompanyIdentity(userId);
 
-  return Response.json(toPayload(workspace));
+  return Response.json(toPayload(workspace, company));
 }
 
 export async function PUT(request: Request) {
@@ -391,10 +442,12 @@ export async function PUT(request: Request) {
 
   const nextSnapshots = body.snapshots && typeof body.snapshots === "object" ? body.snapshots : safeParseSnapshots(existingWorkspace.snapshotsJson);
   const nextSelectedSnapshotId = typeof body.selectedSnapshotId === "string" ? body.selectedSnapshotId : existingWorkspace.selectedSnapshotId ?? "";
-  const nextCompanyInfo =
+  const requestedCompanyInfo =
     body.companyInfo && typeof body.companyInfo === "object"
       ? { ...EMPTY_COMPANY_INFO, ...body.companyInfo }
       : safeParseCompanyInfo(existingWorkspace.companyInfoJson);
+  const company = await getCompanyIdentity(userId);
+  const nextCompanyInfo = mergeCompanyIdentity(requestedCompanyInfo, company);
 
   const snapshotsJson = JSON.stringify(nextSnapshots);
   const companyInfoJson = JSON.stringify(nextCompanyInfo);
@@ -418,5 +471,5 @@ export async function PUT(request: Request) {
     return updatedWorkspace;
   });
 
-  return Response.json(toPayload(workspace));
+  return Response.json(toPayload(workspace, company));
 }

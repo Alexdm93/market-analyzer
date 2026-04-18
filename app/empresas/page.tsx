@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Building2, CheckCircle2, LoaderCircle, Plus } from "lucide-react";
-import { ECONOMIC_SECTOR_OPTIONS, type CompanyCatalogEntry } from "@/lib/company";
+import {
+  COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
+  ECONOMIC_SECTOR_OPTIONS,
+  type CompanyCatalogEntry,
+} from "@/lib/company";
 
 type Company = CompanyCatalogEntry;
 
@@ -16,6 +20,7 @@ export default function EmpresasPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const classificationOptions = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[companyEconomicSector] ?? [];
 
   useEffect(() => {
     let ignore = false;
@@ -101,6 +106,14 @@ export default function EmpresasPage() {
     });
   }
 
+  function handleEconomicSectorChange(nextSector: string) {
+    setCompanyEconomicSector(nextSector);
+    setCompanyClassification((current) => {
+      const allowedClassifications = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[nextSector] ?? [];
+      return allowedClassifications.includes(current) ? current : "";
+    });
+  }
+
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
@@ -180,7 +193,7 @@ export default function EmpresasPage() {
                   <select
                     id="companyEconomicSector"
                     value={companyEconomicSector}
-                    onChange={(event) => setCompanyEconomicSector(event.target.value)}
+                    onChange={(event) => handleEconomicSectorChange(event.target.value)}
                     className="field-select"
                   >
                     <option value="">Seleccionar sector económico</option>
@@ -191,14 +204,18 @@ export default function EmpresasPage() {
                 </div>
                 <div>
                   <label htmlFor="companyClassification" className="field-label">Clasificacion</label>
-                  <input
+                  <select
                     id="companyClassification"
-                    type="text"
                     value={companyClassification}
                     onChange={(event) => setCompanyClassification(event.target.value)}
-                    className="field"
-                    placeholder="Clasificacion interna o de mercado"
-                  />
+                    className="field-select"
+                    disabled={!companyEconomicSector}
+                  >
+                    <option value="">{companyEconomicSector ? "Seleccionar clasificación" : "Selecciona primero un sector"}</option>
+                    {classificationOptions.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <button type="submit" className="btn btn-primary w-full" disabled={isPending}>

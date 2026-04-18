@@ -127,6 +127,8 @@ export async function POST(request: Request) {
               ...DEFAULT_WORKSPACE.companyInfo,
               companyName: company.name,
               sector: company.economicSector,
+              classification: company.classification,
+              description: company.description,
             }),
           },
         },

@@ -10,7 +10,8 @@ export type Snapshot = {
 export type CompanyInfo = {
   companyName: string;
   sector: string;
-  dateFilled: string;
+  classification: string;
+  description: string;
   headcount: string;
   revenueUSD: string;
   avgProfitPercent: string;
@@ -35,7 +36,8 @@ export type UserWorkspacePayload = {
 export const EMPTY_COMPANY_INFO: CompanyInfo = {
   companyName: "",
   sector: "",
-  dateFilled: "",
+  classification: "",
+  description: "",
   headcount: "",
   revenueUSD: "",
   avgProfitPercent: "",

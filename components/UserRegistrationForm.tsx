@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ECONOMIC_SECTOR_OPTIONS, type CompanyCatalogEntry } from "@/lib/company";
+import {
+  COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
+  ECONOMIC_SECTOR_OPTIONS,
+  type CompanyCatalogEntry,
+} from "@/lib/company";
 
 export type CompanyOption = CompanyCatalogEntry;
 
@@ -63,8 +67,11 @@ export default function UserRegistrationForm({
   const [localError, setLocalError] = useState("");
 
   const isBootstrap = !forceExistingCompanySelector && !isLoadingCompanies && bootstrapRequired;
-  const needsNewCompany = isBootstrap && companies.length === 0;
+  const needsNewCompany = isBootstrap;
   const selectedCompany = companies.find((company) => company.id === values.companyId) ?? null;
+  const classificationOptions = needsNewCompany
+    ? COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[values.companyEconomicSector] ?? []
+    : COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[selectedCompany?.economicSector ?? ""] ?? [];
 
   useEffect(() => {
     let ignore = false;
@@ -111,6 +118,17 @@ export default function UserRegistrationForm({
 
   function updateValue<Key extends keyof UserRegistrationValues>(key: Key, value: UserRegistrationValues[Key]) {
     setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateEconomicSector(sector: string) {
+    setValues((current) => {
+      const allowedClassifications = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[sector] ?? [];
+      return {
+        ...current,
+        companyEconomicSector: sector,
+        companyClassification: allowedClassifications.includes(current.companyClassification) ? current.companyClassification : "",
+      };
+    });
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -248,7 +266,7 @@ export default function UserRegistrationForm({
           <select
             id="registrationEconomicSector"
             value={values.companyEconomicSector}
-            onChange={(event) => updateValue("companyEconomicSector", event.target.value)}
+            onChange={(event) => updateEconomicSector(event.target.value)}
             className="field-select"
           >
             <option value="">Seleccionar sector económico</option>
@@ -269,15 +287,29 @@ export default function UserRegistrationForm({
       </div>
       <div>
         <label htmlFor="registrationClassification" className="field-label">Clasificacion</label>
-        <input
-          id="registrationClassification"
-          type="text"
-          value={needsNewCompany ? values.companyClassification : selectedCompany?.classification ?? ""}
-          onChange={(event) => updateValue("companyClassification", event.target.value)}
-          className="field"
-          placeholder="Clasificacion de la empresa"
-          readOnly={!needsNewCompany}
-        />
+        {needsNewCompany ? (
+          <select
+            id="registrationClassification"
+            value={values.companyClassification}
+            onChange={(event) => updateValue("companyClassification", event.target.value)}
+            className="field-select"
+            disabled={!values.companyEconomicSector}
+          >
+            <option value="">{values.companyEconomicSector ? "Seleccionar clasificación" : "Selecciona primero un sector"}</option>
+            {classificationOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id="registrationClassification"
+            type="text"
+            value={selectedCompany?.classification ?? ""}
+            className="field"
+            placeholder="Sin clasificación registrada"
+            readOnly
+          />
+        )}
       </div>
       {allowRoleSelection ? (
         <div>
