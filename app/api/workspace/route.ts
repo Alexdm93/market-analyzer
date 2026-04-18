@@ -398,6 +398,103 @@ function toPayload(workspace: {
   };
 }
 
+async function buildUserPayload(userId: string, workspace: {
+  inflation: number;
+  selectedSnapshotId: string | null;
+  companyInfoJson: string;
+}, company: {
+  name: string;
+  description: string;
+  economicSector: string;
+  classification: string;
+  headcount: string;
+  revenueUSD: string;
+  avgProfitPercent: string;
+  hrName: string;
+  hrPosition: string;
+  hrEmail: string;
+  hrPhone: string;
+  hrCell: string;
+  minVacationDays: string;
+  minUtilityDays: string;
+  conversionRate: string;
+  locality: string;
+} | null) {
+  const [snapshots, positions] = await Promise.all([
+    prisma.userSnapshot.findMany({
+      where: { userId },
+      select: {
+        snapshotId: true,
+        label: true,
+        date: true,
+      },
+      orderBy: [
+        { date: "desc" },
+        { snapshotId: "desc" },
+      ],
+    }),
+    prisma.userPosition.findMany({
+      where: { userId },
+      select: {
+        snapshotId: true,
+        positionId: true,
+        dataJson: true,
+      },
+      orderBy: [
+        { snapshotDate: "desc" },
+        { updatedAt: "desc" },
+      ],
+    }),
+  ]);
+
+  const relationalSnapshots = Object.fromEntries(
+    snapshots.map((snapshot) => [
+      snapshot.snapshotId,
+      {
+        id: snapshot.snapshotId,
+        label: snapshot.label,
+        date: snapshot.date.toISOString().split("T")[0],
+        rows: [],
+      },
+    ])
+  ) as Record<string, Snapshot>;
+
+  const seenPositions = new Set<string>();
+
+  for (const position of positions) {
+    const dedupeKey = `${position.snapshotId}:${position.positionId}`;
+
+    if (seenPositions.has(dedupeKey)) {
+      continue;
+    }
+
+    const targetSnapshot = relationalSnapshots[position.snapshotId];
+
+    if (!targetSnapshot) {
+      continue;
+    }
+
+    try {
+      targetSnapshot.rows.push(JSON.parse(position.dataJson));
+      seenPositions.add(dedupeKey);
+    } catch {
+      continue;
+    }
+  }
+
+  const parsedCompanyInfo = safeParseCompanyInfo(workspace.companyInfoJson);
+
+  return {
+    inflation: workspace.inflation,
+    snapshots: relationalSnapshots,
+    selectedSnapshotId:
+      (workspace.selectedSnapshotId && relationalSnapshots[workspace.selectedSnapshotId]
+        ? workspace.selectedSnapshotId
+        : snapshots[0]?.snapshotId) ?? "",
+    companyInfo: mergeCompanyIdentity(parsedCompanyInfo, company),
+  };
+}
+
 async function buildCompanyPayload(companyId: string) {
   const company = await prisma.company.findUnique({
     where: { id: companyId },
@@ -564,7 +661,7 @@ export async function GET(request: Request) {
   await backfillRelationalWorkspace(userId, workspace.companyInfoJson, workspace.snapshotsJson);
   const company = await getCompanyIdentity(userId);
 
-  return Response.json(toPayload(workspace, company));
+  return Response.json(await buildUserPayload(userId, workspace, company));
 }
 
 export async function PUT(request: Request) {
