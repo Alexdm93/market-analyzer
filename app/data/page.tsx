@@ -187,7 +187,7 @@ function findDuplicateCargoTitles(rows: ExtendedMarketPosition[]) {
 export default function DataPage() {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
-  const [saveState, setSaveState] = useState<"idle" | "pending" | "saved" | "error">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "dirty" | "pending" | "saved" | "error">("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -214,7 +214,6 @@ export default function DataPage() {
   // If no snapshot selected, show nothing (user requested empty view when "-- seleccionar --")
   const [rows, setRows] = useState<ExtendedMarketPosition[]>([]);
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
-  const draftSaveTimer = useRef<number | null>(null);
 
   function getDuplicateCargoMessage(nextRows: ExtendedMarketPosition[]) {
     const duplicates = findDuplicateCargoTitles(nextRows);
@@ -395,36 +394,9 @@ export default function DataPage() {
       return;
     }
 
-    setSaveState("pending");
-
-    if (draftSaveTimer.current) {
-      window.clearTimeout(draftSaveTimer.current);
-    }
-
-    draftSaveTimer.current = window.setTimeout(() => {
-      const currentSnapshot = snapshotsRef.current[selectedSnapshotId];
-
-      if (!currentSnapshot) {
-        return;
-      }
-
-      const nextSnapshots = {
-        ...snapshotsRef.current,
-        [selectedSnapshotId]: {
-          ...currentSnapshot,
-          rows: JSON.parse(nextRowsJson) as ExtendedMarketPosition[],
-        },
-      };
-
-      void persistSnapshots(nextSnapshots, selectedSnapshotId, { showErrorNotification: true });
-    }, 700);
-
-    return () => {
-      if (draftSaveTimer.current) {
-        window.clearTimeout(draftSaveTimer.current);
-      }
-    };
-  }, [isReadOnlyDataView, persistSnapshots, rows, selectedSnapshotId, snapshots]);
+    setSaveState("dirty");
+    setLastSavedAt(null);
+  }, [isReadOnlyDataView, rows, selectedSnapshotId, snapshots]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function toggleExpand(id: string) {
@@ -693,6 +665,9 @@ export default function DataPage() {
               {selectedSnapshotId ? (
                 <div
                   className={`mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+                    saveState === "dirty"
+                      ? "bg-slate-100 text-slate-700"
+                      :
                     saveState === "pending"
                       ? "bg-amber-50 text-amber-800"
                       : saveState === "error"
@@ -700,8 +675,10 @@ export default function DataPage() {
                         : "bg-teal-50 text-teal-800"
                   }`}
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full ${saveState === "pending" ? "animate-pulse bg-amber-500" : saveState === "error" ? "bg-red-500" : "bg-teal-500"}`} />
-                  {saveState === "pending"
+                  <span className={`h-2.5 w-2.5 rounded-full ${saveState === "dirty" ? "bg-slate-500" : saveState === "pending" ? "animate-pulse bg-amber-500" : saveState === "error" ? "bg-red-500" : "bg-teal-500"}`} />
+                  {saveState === "dirty"
+                    ? "Cambios sin guardar"
+                    : saveState === "pending"
                     ? "Guardando en Supabase..."
                     : saveState === "error"
                       ? "Error al guardar en Supabase"
@@ -768,9 +745,6 @@ export default function DataPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     onClick={() => {
-                      if (draftSaveTimer.current) {
-                        window.clearTimeout(draftSaveTimer.current);
-                      }
                       void reloadWorkspaceData({ showNotification: true });
                     }}
                     className="btn btn-secondary"
