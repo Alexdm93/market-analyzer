@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { UserRole } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_WORKSPACE } from "@/lib/workspace";
@@ -91,9 +92,13 @@ export async function POST(request: Request) {
       })
     );
 
+    const userCount = await tx.user.count();
+    const role = userCount === 0 ? UserRole.ADMIN : UserRole.USER;
+
     const createdUser = await tx.user.create({
       data: {
         companyId: company.id,
+        role,
         name,
         email,
         passwordHash,
