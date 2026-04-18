@@ -230,6 +230,36 @@ export default function DataPage() {
     snapshotsRef.current = snapshots;
   }, [snapshots]);
 
+  const persistSnapshots = useCallback(async (
+    next: Record<string, Snapshot>,
+    nextSelectedSnapshotId = selectedSnapshotId,
+    options?: { showErrorNotification?: boolean }
+  ) => {
+    setSnapshots(next);
+    setSaveState("pending");
+
+    try {
+      await updateWorkspace({
+        snapshots: next,
+        selectedSnapshotId: nextSelectedSnapshotId,
+      });
+
+      setSaveState(nextSelectedSnapshotId ? "saved" : "idle");
+      setLastSavedAt(nextSelectedSnapshotId ? new Date() : null);
+
+      return true;
+    } catch (e) {
+      console.error(e);
+      setSaveState("error");
+
+      if (options?.showErrorNotification) {
+        showNotification("Error al guardar cargos en Supabase");
+      }
+
+      return false;
+    }
+  }, [selectedSnapshotId]);
+
   useEffect(() => {
     if (!selectedSnapshotId) {
       return;
@@ -283,36 +313,6 @@ export default function DataPage() {
   function toggleExpand(id: string) {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
   }
-
-  const persistSnapshots = useCallback(async (
-    next: Record<string, Snapshot>,
-    nextSelectedSnapshotId = selectedSnapshotId,
-    options?: { showErrorNotification?: boolean }
-  ) => {
-    setSnapshots(next);
-    setSaveState("pending");
-
-    try {
-      await updateWorkspace({
-        snapshots: next,
-        selectedSnapshotId: nextSelectedSnapshotId,
-      });
-
-      setSaveState(nextSelectedSnapshotId ? "saved" : "idle");
-      setLastSavedAt(nextSelectedSnapshotId ? new Date() : null);
-
-      return true;
-    } catch (e) {
-      console.error(e);
-      setSaveState("error");
-
-      if (options?.showErrorNotification) {
-        showNotification("Error al guardar cargos en Supabase");
-      }
-
-      return false;
-    }
-  }, [selectedSnapshotId]);
 
   async function saveCurrentToSnapshot(id: string) {
     if (!id) return;
@@ -1107,19 +1107,6 @@ export default function DataPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setModal({ type: null })} />
           <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-md rounded-[1.75rem] p-6">
-            {modal.type === "rename" && (
-              <div>
-                <div className="eyebrow mb-2">Editar nombre</div>
-                <h3 className="font-display text-2xl font-bold text-slate-900">Renombrar corte</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Introduce un nuevo nombre para este corte.</p>
-                <label className="sr-only" htmlFor="renameInput">Nuevo nombre</label>
-                <input id="renameInput" value={modalInput} onChange={(e) => setModalInput(e.target.value)} className="field mt-5" placeholder="Nuevo nombre" />
-                <div className="mt-5 flex justify-end gap-3">
-                  <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
-                  <button onClick={() => { if (modal.id) { void renameSnapshotConfirmed(modal.id, modalInput); } setModal({ type: null }); }} className="btn btn-primary">Renombrar</button>
-                </div>
-              </div>
-            )}
             {modal.type === "save" && (
               <div>
                 <div className="eyebrow mb-2">Confirmar</div>
