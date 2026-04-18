@@ -44,6 +44,18 @@ type AdminStudyPosition = {
   totalCompensation: string;
 };
 
+type AdminProcessedMetric = {
+  count: number;
+  min: string;
+  p10: string;
+  p25: string;
+  p50: string;
+  p75: string;
+  p90: string;
+  max: string;
+  average: string;
+};
+
 function percentile(values: number[], p: number) {
   if (!values.length) return 0;
   const sorted = values.slice().sort((a, b) => a - b);
@@ -98,6 +110,8 @@ export default function EstudioPage() {
   const [adminPositions, setAdminPositions] = useState<AdminStudyPosition[]>([]);
   const [adminStatus, setAdminStatus] = useState<"idle" | "processing" | "done">("idle");
   const [adminMessage, setAdminMessage] = useState("");
+  const [selectedRawCargoTab, setSelectedRawCargoTab] = useState("");
+  const [selectedProcessedCargoTab, setSelectedProcessedCargoTab] = useState("");
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
     if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
@@ -106,6 +120,51 @@ export default function EstudioPage() {
 
     return [];
   }, [snapshots, selectedSnapshotId]);
+
+  const adminPositionsByCargo = useMemo(() => {
+    const grouped = new Map<string, AdminStudyPosition[]>();
+
+    adminPositions.forEach((position) => {
+      const key = position.title.trim() || "Sin título";
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key)?.push(position);
+    });
+
+    return Array.from(grouped.entries())
+      .map(([title, positions]) => ({
+        title,
+        positions: positions.slice().sort((left, right) => left.companyName.localeCompare(right.companyName)),
+      }))
+      .sort((left, right) => left.title.localeCompare(right.title));
+  }, [adminPositions]);
+
+  const adminProcessedMetrics = useMemo(() => {
+    const entries = new Map<string, AdminProcessedMetric>();
+
+    adminPositionsByCargo.forEach(({ title, positions }) => {
+      const totals = positions
+        .map((position) => Number(position.totalCompensation.replace(/[^0-9.-]+/g, "") || 0))
+        .filter((value) => Number.isFinite(value));
+
+      const average = totals.length ? Math.round(totals.reduce((sum, value) => sum + value, 0) / totals.length) : 0;
+
+      entries.set(title, {
+        count: totals.length,
+        min: formatMoney(totals.length ? Math.min(...totals) : 0),
+        p10: formatMoney(Math.round(percentile(totals, 10))),
+        p25: formatMoney(Math.round(percentile(totals, 25))),
+        p50: formatMoney(Math.round(percentile(totals, 50))),
+        p75: formatMoney(Math.round(percentile(totals, 75))),
+        p90: formatMoney(Math.round(percentile(totals, 90))),
+        max: formatMoney(totals.length ? Math.max(...totals) : 0),
+        average: formatMoney(average),
+      });
+    });
+
+    return entries;
+  }, [adminPositionsByCargo]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -176,7 +235,11 @@ export default function EstudioPage() {
 
         setAdminSnapshots(nextSnapshots);
         setSelectedSnapshotId(nextSelectedSnapshotId);
-        setAdminPositions(Array.isArray(payload?.positions) ? payload.positions : []);
+        const nextPositions = Array.isArray(payload?.positions) ? payload.positions : [];
+        setAdminPositions(nextPositions);
+        const firstCargo = nextPositions[0]?.title?.trim() || "";
+        setSelectedRawCargoTab((current) => current || firstCargo);
+        setSelectedProcessedCargoTab((current) => current || firstCargo);
       } catch (error) {
         if (!ignore) {
           setAdminMessage(error instanceof Error ? error.message : "No fue posible cargar el estudio administrativo.");
@@ -213,7 +276,11 @@ export default function EstudioPage() {
     }
 
     setAdminSnapshots(Array.isArray(payload?.snapshots) ? payload.snapshots : []);
-    setAdminPositions(Array.isArray(payload?.positions) ? payload.positions : []);
+    const nextPositions = Array.isArray(payload?.positions) ? payload.positions : [];
+    setAdminPositions(nextPositions);
+    const firstCargo = nextPositions[0]?.title?.trim() || "";
+    setSelectedRawCargoTab(firstCargo);
+    setSelectedProcessedCargoTab(firstCargo);
   }
 
   async function handleProcessSnapshot() {
@@ -258,6 +325,11 @@ export default function EstudioPage() {
 
   if (isAdmin) {
     const selectedAdminSnapshot = adminSnapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? null;
+    const rawCargoTabs = adminPositionsByCargo.map((entry) => entry.title);
+    const activeRawCargo = adminPositionsByCargo.find((entry) => entry.title === selectedRawCargoTab)?.title ?? rawCargoTabs[0] ?? "";
+    const activeProcessedCargo = adminPositionsByCargo.find((entry) => entry.title === selectedProcessedCargoTab)?.title ?? rawCargoTabs[0] ?? "";
+    const activeRawPositions = adminPositionsByCargo.find((entry) => entry.title === activeRawCargo)?.positions ?? [];
+    const activeProcessedMetric = adminProcessedMetrics.get(activeProcessedCargo);
 
     return (
       <main className="page-wrap">
@@ -332,44 +404,102 @@ export default function EstudioPage() {
               Selecciona un corte para revisar sus cargos consolidados.
             </section>
           ) : (
-            <section className="surface-card overflow-hidden rounded-[2rem]">
-              <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="eyebrow mb-2">Revisión</div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900">Cargos del corte</h2>
+            <>
+              <section className="surface-card overflow-hidden rounded-[2rem]">
+                <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="eyebrow mb-2">Data cruda</div>
+                    <h2 className="font-display text-2xl font-bold text-slate-900">Cargos cargados por empresa</h2>
+                  </div>
+                  <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
                 </div>
-                <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
-              </div>
 
-              <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
-                <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                  <thead>
-                    <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                      <th className="px-4 py-2">Empresa</th>
-                      <th className="px-4 py-2">Cargo</th>
-                      <th className="px-4 py-2">Nivel</th>
-                      <th className="px-4 py-2">Clasificación</th>
-                      <th className="px-4 py-2">Descripción</th>
-                      <th className="px-4 py-2 text-right">Base</th>
-                      <th className="px-4 py-2 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adminPositions.map((position) => (
-                      <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                        <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
-                        <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
-                        <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
-                        <td className="px-4 py-4 text-slate-600">{position.classification || "—"}</td>
-                        <td className="px-4 py-4 text-slate-600">{position.description || "—"}</td>
-                        <td className="px-4 py-4 text-right font-display text-slate-700">{position.baseSalary}</td>
-                        <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{position.totalCompensation}</td>
-                      </tr>
+                <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                  <div className="flex flex-wrap gap-2">
+                    {rawCargoTabs.map((cargo) => (
+                      <button
+                        key={`raw-${cargo}`}
+                        type="button"
+                        onClick={() => setSelectedRawCargoTab(cargo)}
+                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${activeRawCargo === cargo ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                      >
+                        {cargo}
+                      </button>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
+                  <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                    <thead>
+                      <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                        <th className="px-4 py-2">Empresa</th>
+                        <th className="px-4 py-2">Cargo</th>
+                        <th className="px-4 py-2">Nivel</th>
+                        <th className="px-4 py-2">Clasificación</th>
+                        <th className="px-4 py-2">Descripción</th>
+                        <th className="px-4 py-2 text-right">Base</th>
+                        <th className="px-4 py-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeRawPositions.map((position) => (
+                        <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                          <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
+                          <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
+                          <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
+                          <td className="px-4 py-4 text-slate-600">{position.classification || "—"}</td>
+                          <td className="px-4 py-4 text-slate-600">{position.description || "—"}</td>
+                          <td className="px-4 py-4 text-right font-display text-slate-700">{position.baseSalary}</td>
+                          <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{position.totalCompensation}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {selectedAdminSnapshot?.status === "PROCESSED" ? (
+                <section className="surface-card overflow-hidden rounded-[2rem]">
+                  <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="eyebrow mb-2">Resultado procesado</div>
+                      <h2 className="font-display text-2xl font-bold text-slate-900">Percentiles por cargo</h2>
+                    </div>
+                    <div className="pill">Procesada</div>
+                  </div>
+
+                  <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                    <div className="flex flex-wrap gap-2">
+                      {rawCargoTabs.map((cargo) => (
+                        <button
+                          key={`processed-${cargo}`}
+                          type="button"
+                          onClick={() => setSelectedProcessedCargoTab(cargo)}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${activeProcessedCargo === cargo ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                        >
+                          {cargo}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {activeProcessedMetric ? (
+                    <div className="grid gap-4 px-6 py-6 md:grid-cols-3 xl:grid-cols-5">
+                      <div className="metric-tile"><div className="metric-label">Observaciones</div><div className="metric-value mt-3">{activeProcessedMetric.count}</div></div>
+                      <div className="metric-tile"><div className="metric-label">Min</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.min}</div></div>
+                      <div className="metric-tile"><div className="metric-label">P10</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p10}</div></div>
+                      <div className="metric-tile"><div className="metric-label">P25</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p25}</div></div>
+                      <div className="metric-tile"><div className="metric-label">P50</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p50}</div></div>
+                      <div className="metric-tile"><div className="metric-label">P75</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p75}</div></div>
+                      <div className="metric-tile"><div className="metric-label">P90</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p90}</div></div>
+                      <div className="metric-tile"><div className="metric-label">Max</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.max}</div></div>
+                      <div className="metric-tile md:col-span-2 xl:col-span-2"><div className="metric-label">Promedio</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.average}</div></div>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+            </>
           )}
         </div>
       </main>

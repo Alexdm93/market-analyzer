@@ -168,6 +168,7 @@ export default function DataPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
 
+  const isReadOnlyDataView = isAdmin;
   const isAdminCompanyView = isAdmin && Boolean(selectedCompanyId);
 
   function getDisplayLabel(snapshot: Snapshot) {
@@ -218,7 +219,7 @@ export default function DataPage() {
         setRows([]);
       }
 
-      if (!isAdminCompanyView && Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
+      if (!isReadOnlyDataView && Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
         await updateWorkspace({ snapshots: filtered, selectedSnapshotId: selectedId });
       }
 
@@ -233,7 +234,7 @@ export default function DataPage() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [isAdminCompanyView, selectedCompanyId]);
+  }, [isAdminCompanyView, isReadOnlyDataView, selectedCompanyId]);
 
   useEffect(() => {
     if (status === "loading") {
@@ -297,8 +298,8 @@ export default function DataPage() {
     setSaveState("pending");
 
     try {
-      if (isAdminCompanyView) {
-        throw new Error("La vista de empresa para admin es solo lectura.");
+      if (isReadOnlyDataView) {
+        throw new Error("La vista de data para admin es solo lectura.");
       }
 
       await updateWorkspace({
@@ -320,10 +321,10 @@ export default function DataPage() {
 
       return false;
     }
-  }, [isAdminCompanyView, selectedSnapshotId]);
+  }, [isReadOnlyDataView, selectedSnapshotId]);
 
   useEffect(() => {
-    if (isAdminCompanyView) {
+    if (isReadOnlyDataView) {
       setSaveState("idle");
       return;
     }
@@ -374,7 +375,7 @@ export default function DataPage() {
         window.clearTimeout(draftSaveTimer.current);
       }
     };
-  }, [isAdminCompanyView, persistSnapshots, rows, selectedSnapshotId, snapshots]);
+  }, [isReadOnlyDataView, persistSnapshots, rows, selectedSnapshotId, snapshots]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function toggleExpand(id: string) {
@@ -408,7 +409,7 @@ export default function DataPage() {
       setSelectedSnapshotId("");
       setSaveState("idle");
       setLastSavedAt(null);
-      if (!isAdminCompanyView) {
+      if (!isReadOnlyDataView) {
         void updateWorkspace({ selectedSnapshotId: "" }).catch(() => {
           // ignore
         });
@@ -421,7 +422,7 @@ export default function DataPage() {
     setSelectedSnapshotId(id);
     setSaveState("saved");
     setLastSavedAt(null);
-    if (!isAdminCompanyView) {
+    if (!isReadOnlyDataView) {
       void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
         // ignore
       });
@@ -677,7 +678,7 @@ export default function DataPage() {
                     ))}
                   </select>
                   <p className="mt-2 text-xs leading-5 text-slate-500">
-                    {isAdminCompanyView
+                    {isReadOnlyDataView
                       ? "Estás viendo una vista consolidada por empresa en modo solo lectura."
                       : "Selecciona una empresa para consultar su data consolidada."}
                   </p>
@@ -710,30 +711,12 @@ export default function DataPage() {
                 </div>
 
                 <div className="rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-                  {isAdminCompanyView
-                    ? "Vista de consulta por empresa. Los cortes y cargos se muestran en modo solo lectura para el admin."
+                  {isReadOnlyDataView
+                    ? "Vista de consulta para admin. Los cortes y cargos se muestran en modo solo lectura."
                     : ""}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <button
-                    onClick={() => {
-                      if (!selectedSnapshotId) {
-                        showNotification("Seleccione un corte");
-                        return;
-                      }
-                        void saveCurrentToSnapshot(selectedSnapshotId);
-                    }}
-                    className="btn btn-secondary"
-                    disabled={isAdminCompanyView}
-                  >
-                    <Save className="h-4 w-4" />
-                    Guardar
-                  </button>
-                  <button onClick={addRow} className="btn btn-primary" disabled={isAdminCompanyView}>
-                    <Plus className="h-4 w-4" />
-                    Agregar cargo
-                  </button>
                   <button
                     onClick={() => {
                       if (draftSaveTimer.current) {
@@ -751,6 +734,27 @@ export default function DataPage() {
                     <Check className="h-4 w-4" />
                     Exportar JSON
                   </button>
+                  {!isReadOnlyDataView ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (!selectedSnapshotId) {
+                            showNotification("Seleccione un corte");
+                            return;
+                          }
+                          void saveCurrentToSnapshot(selectedSnapshotId);
+                        }}
+                        className="btn btn-secondary"
+                      >
+                        <Save className="h-4 w-4" />
+                        Guardar
+                      </button>
+                      <button onClick={addRow} className="btn btn-primary">
+                        <Plus className="h-4 w-4" />
+                        Agregar cargo
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -765,12 +769,16 @@ export default function DataPage() {
               </div>
               <h2 className="font-display mt-5 text-2xl font-bold text-slate-900">No hay cargos en este corte.</h2>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Si aún no ves cortes disponibles, solicita al admin que cree o sincronice los cortes globales. Cuando el corte exista, podrás agregar cargos y completar la información.
+                {isReadOnlyDataView
+                  ? "No hay cargos cargados para este corte en la vista seleccionada."
+                  : "Si aún no ves cortes disponibles, solicita al admin que cree o sincronice los cortes globales. Cuando el corte exista, podrás agregar cargos y completar la información."}
               </p>
-              <button onClick={addRow} className="btn btn-primary mt-6" disabled={isAdminCompanyView}>
-                <Plus className="h-4 w-4" />
-                Crear primer cargo
-              </button>
+              {!isReadOnlyDataView ? (
+                <button onClick={addRow} className="btn btn-primary mt-6">
+                  <Plus className="h-4 w-4" />
+                  Crear primer cargo
+                </button>
+              ) : null}
             </div>
           </section>
         ) : (
@@ -800,32 +808,35 @@ export default function DataPage() {
                   <div className="flex flex-wrap gap-3 xl:justify-end">
                     <button onClick={() => toggleExpand(r.id)} className="btn btn-secondary">
                       <Edit className="h-4 w-4" />
-                      {expanded[r.id] ? "Cerrar detalle" : isAdminCompanyView ? "Ver detalle" : "Editar cargo"}
+                      {expanded[r.id] ? "Cerrar detalle" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
                     </button>
-                    <button
-                      onClick={() => {
-                        if (!selectedSnapshotId) {
-                          showNotification("Seleccione un corte");
-                          return;
-                        }
-                        setModal({ type: 'save', id: r.id });
-                      }}
-                      className="btn btn-secondary"
-                      disabled={isAdminCompanyView}
-                    >
-                      <Save className="h-4 w-4" />
-                      Guardar cargo
-                    </button>
-                    <button onClick={() => removeRow(i)} className="btn btn-danger" disabled={isAdminCompanyView}>
-                      <Trash2 className="h-4 w-4" />
-                      Eliminar
-                    </button>
+                    {!isReadOnlyDataView ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (!selectedSnapshotId) {
+                              showNotification("Seleccione un corte");
+                              return;
+                            }
+                            setModal({ type: 'save', id: r.id });
+                          }}
+                          className="btn btn-secondary"
+                        >
+                          <Save className="h-4 w-4" />
+                          Guardar cargo
+                        </button>
+                        <button onClick={() => removeRow(i)} className="btn btn-danger">
+                          <Trash2 className="h-4 w-4" />
+                          Eliminar
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
 
                 {expanded[r.id] && (
                   <div className="border-t border-slate-200/70 bg-[rgba(255,248,241,0.76)] p-5 md:p-6">
-                    <fieldset disabled={isAdminCompanyView} className="space-y-5 disabled:opacity-90">
+                    <fieldset disabled={isReadOnlyDataView} className="space-y-5 disabled:opacity-90">
                       <section className="rounded-[1.5rem] border border-slate-200/80 bg-white/90 p-5">
                         <div className="eyebrow mb-3">Paso 1</div>
                         <h3 className="font-display text-xl font-bold text-slate-900">Identidad del cargo</h3>
