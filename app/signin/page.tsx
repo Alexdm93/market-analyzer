@@ -29,7 +29,7 @@ export default function SignInPage() {
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const isBootstrap = !isLoadingCompanies && bootstrapRequired;
+  const isBootstrap = !isLoadingCompanies && (bootstrapRequired || companies.length === 0);
 
   useEffect(() => {
     if (status === "authenticated") {

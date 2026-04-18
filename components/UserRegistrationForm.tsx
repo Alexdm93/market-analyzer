@@ -66,7 +66,7 @@ export default function UserRegistrationForm({
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
   const [localError, setLocalError] = useState("");
 
-  const isBootstrap = !forceExistingCompanySelector && !isLoadingCompanies && bootstrapRequired;
+  const isBootstrap = !forceExistingCompanySelector && !isLoadingCompanies && (bootstrapRequired || companies.length === 0);
   const needsNewCompany = isBootstrap;
   const selectedCompany = companies.find((company) => company.id === values.companyId) ?? null;
   const classificationOptions = needsNewCompany

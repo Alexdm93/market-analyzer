@@ -56,6 +56,11 @@ export async function POST(request: Request) {
 
   const passwordHash = await bcrypt.hash(password, 12);
   const session = await getServerSession(authOptions);
+  const existingUserCount = await prisma.user.count();
+
+  if (existingUserCount > 0 && session?.user?.role !== "ADMIN") {
+    return Response.json({ message: "Solo un administrador puede crear usuarios una vez inicializada la plataforma." }, { status: 403 });
+  }
 
   const user = await prisma.$transaction(async (tx) => {
     const company = companyId
@@ -109,7 +114,7 @@ export async function POST(request: Request) {
     );
 
     const userCount = await tx.user.count();
-    const role = userCount === 0 ? UserRole.ADMIN : session?.user?.role === "ADMIN" ? requestedRole : UserRole.USER;
+    const role = userCount === 0 ? UserRole.ADMIN : requestedRole;
 
     const createdUser = await tx.user.create({
       data: {

@@ -7,17 +7,62 @@ import { CheckCircle2, ShieldPlus } from "lucide-react";
 import { signIn, useSession } from "next-auth/react";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 
+type RegisterAvailabilityPayload = {
+  bootstrapRequired?: boolean;
+  message?: string;
+};
+
 export default function RegisterPage() {
   const router = useRouter();
   const { status } = useSession();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(true);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (status === "authenticated") {
       router.replace("/");
     }
+  }, [router, status]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function checkAvailability() {
+      try {
+        const response = await fetch("/api/companies", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as RegisterAvailabilityPayload | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "No fue posible validar el registro inicial.");
+        }
+
+        if (!ignore && !payload?.bootstrapRequired) {
+          router.replace("/signin");
+          return;
+        }
+      } catch (availabilityError) {
+        if (!ignore) {
+          setError(availabilityError instanceof Error ? availabilityError.message : "No fue posible validar el registro inicial.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsCheckingAvailability(false);
+        }
+      }
+    }
+
+    if (status !== "authenticated") {
+      void checkAvailability();
+    }
+
+    return () => {
+      ignore = true;
+    };
   }, [router, status]);
 
   async function handleSubmit(values: UserRegistrationValues) {
@@ -86,13 +131,19 @@ export default function RegisterPage() {
           <p className="mt-3 text-sm leading-6 text-slate-600">Esta cuenta sera la base para asociar datos y permisos por usuario.</p>
 
           <div className="mt-6">
-            <UserRegistrationForm
-              submitLabel={isSubmitting || isPending ? "Registrando cuenta..." : "Crear cuenta"}
-              submittingLabel="Registrando cuenta..."
-              isSubmitting={isSubmitting || isPending || status === "loading"}
-              externalError={error}
-              onSubmit={handleSubmit}
-            />
+            {isCheckingAvailability ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Validando disponibilidad del registro inicial...
+              </div>
+            ) : (
+              <UserRegistrationForm
+                submitLabel={isSubmitting || isPending ? "Registrando cuenta..." : "Crear cuenta"}
+                submittingLabel="Registrando cuenta..."
+                isSubmitting={isSubmitting || isPending || status === "loading"}
+                externalError={error}
+                onSubmit={handleSubmit}
+              />
+            )}
           </div>
 
           <div className="mt-5 text-sm text-slate-600">
