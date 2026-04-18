@@ -11,6 +11,12 @@ type CompanyOption = {
   name: string;
 };
 
+type CompaniesPayload = {
+  companies?: CompanyOption[];
+  bootstrapRequired?: boolean;
+  message?: string;
+};
+
 export default function SignInPage() {
   const router = useRouter();
   const { status } = useSession();
@@ -21,8 +27,9 @@ export default function SignInPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+  const [bootstrapRequired, setBootstrapRequired] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const isBootstrap = !isLoadingCompanies && companies.length === 0;
+  const isBootstrap = !isLoadingCompanies && bootstrapRequired;
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -39,7 +46,7 @@ export default function SignInPage() {
           method: "GET",
           cache: "no-store",
         });
-        const payload = (await response.json().catch(() => null)) as { companies?: CompanyOption[]; message?: string } | null;
+        const payload = (await response.json().catch(() => null)) as CompaniesPayload | null;
 
         if (!response.ok) {
           throw new Error(payload?.message ?? "No fue posible cargar las empresas.");
@@ -48,6 +55,7 @@ export default function SignInPage() {
         if (!ignore) {
           const nextCompanies = Array.isArray(payload?.companies) ? payload.companies : [];
           setCompanies(nextCompanies);
+          setBootstrapRequired(Boolean(payload?.bootstrapRequired));
           setCompanyId(nextCompanies[0]?.id ?? "");
         }
       } catch (loadError) {
@@ -139,50 +147,54 @@ export default function SignInPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label htmlFor="companyId" className="field-label">Empresa</label>
-              <select
-                id="companyId"
-                value={companyId}
-                onChange={(event) => setCompanyId(event.target.value)}
-                className="field-select"
-                disabled={isLoadingCompanies || companies.length === 0}
-                required
-              >
-                {isLoadingCompanies ? <option value="">Cargando empresas...</option> : null}
-                {!isLoadingCompanies && companies.length === 0 ? <option value="">No hay empresas registradas</option> : null}
-                {!isLoadingCompanies && companies.length > 0 ? <option value="">Selecciona una empresa</option> : null}
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>{company.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="email" className="field-label">Correo</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="field"
-                placeholder="equipo@empresa.com"
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="field-label">Contrasena</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="field"
-                placeholder="Minimo 8 caracteres"
-                autoComplete="current-password"
-                required
-              />
-            </div>
+            {!isBootstrap ? (
+              <>
+                <div>
+                  <label htmlFor="companyId" className="field-label">Empresa</label>
+                  <select
+                    id="companyId"
+                    value={companyId}
+                    onChange={(event) => setCompanyId(event.target.value)}
+                    className="field-select"
+                    disabled={isLoadingCompanies || companies.length === 0}
+                    required
+                  >
+                    {isLoadingCompanies ? <option value="">Cargando empresas...</option> : null}
+                    {!isLoadingCompanies && companies.length === 0 ? <option value="">No hay empresas registradas</option> : null}
+                    {!isLoadingCompanies && companies.length > 0 ? <option value="">Selecciona una empresa</option> : null}
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>{company.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="email" className="field-label">Correo</label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="field"
+                    placeholder="equipo@empresa.com"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="password" className="field-label">Contrasena</label>
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="field"
+                    placeholder="Minimo 8 caracteres"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+              </>
+            ) : null}
 
             {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
 
@@ -193,10 +205,12 @@ export default function SignInPage() {
               </Link>
             ) : null}
 
-            <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isPending || status === "loading" || isLoadingCompanies || companies.length === 0}>
-              {isSubmitting || isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-              {isSubmitting || isPending ? "Iniciando sesion..." : "Entrar"}
-            </button>
+            {!isBootstrap ? (
+              <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isPending || status === "loading" || isLoadingCompanies || companies.length === 0}>
+                {isSubmitting || isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                {isSubmitting || isPending ? "Iniciando sesion..." : "Entrar"}
+              </button>
+            ) : null}
           </form>
         </section>
       </div>

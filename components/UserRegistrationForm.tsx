@@ -161,6 +161,7 @@ export default function UserRegistrationForm({
   }
 
   const errorMessage = externalError || localError;
+  const isResolvingBootstrap = isLoadingCompanies;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -216,7 +217,11 @@ export default function UserRegistrationForm({
           required
         />
       </div>
-      {needsNewCompany ? (
+      {isResolvingBootstrap ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Cargando configuracion inicial...
+        </div>
+      ) : needsNewCompany ? (
         <div>
           <label htmlFor="registrationCompanyName" className="field-label">Empresa inicial</label>
           <input
