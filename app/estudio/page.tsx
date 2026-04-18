@@ -3,6 +3,7 @@ import { BarChart3, Database, Layers3 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import * as XLSX from "xlsx";
 import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { type Snapshot } from "@/lib/workspace";
@@ -74,6 +75,14 @@ function percentile(values: number[], p: number) {
 
 function formatMoney(n: number) {
   return n == null || Number.isNaN(n) ? "ND" : `$ ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function sanitizeFileSegment(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9-_]/g, "")
+    .toLowerCase() || "reporte";
 }
 
 function getDisplayLabel(snapshot: Snapshot) {
@@ -358,6 +367,58 @@ export default function EstudioPage() {
     }
   }
 
+  function exportAdminRawExcel(snapshotLabel: string, cargoTitle: string, positions: AdminStudyPosition[]) {
+    if (positions.length === 0) {
+      setAdminMessage("No hay data cruda para exportar en el cargo seleccionado.");
+      return;
+    }
+
+    const sheetRows = positions.map((position) => ({
+      Empresa: position.companyName,
+      Cargo: position.title,
+      Nivel: position.level || "—",
+      Clasificacion: position.classification || "—",
+      Descripcion: position.description || "—",
+      Base: position.baseSalary,
+      Total: position.totalCompensation,
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Data cruda");
+    XLSX.writeFile(
+      workbook,
+      `data-cruda-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`
+    );
+  }
+
+  function exportAdminProcessedExcel(snapshotLabel: string, cargoTitle: string, metrics: AdminConceptMetric[]) {
+    if (metrics.length === 0) {
+      setAdminMessage("No hay percentiles procesados para exportar en el cargo seleccionado.");
+      return;
+    }
+
+    const sheetRows = metrics.map((metric) => ({
+      Concepto: metric.concept,
+      Min: metric.min,
+      Max: metric.max,
+      Promedio: metric.average,
+      P10: metric.p10,
+      P25: metric.p25,
+      P50: metric.p50,
+      P75: metric.p75,
+      P90: metric.p90,
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Percentiles");
+    XLSX.writeFile(
+      workbook,
+      `percentiles-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`
+    );
+  }
+
   if (isAdmin) {
     const selectedAdminSnapshot = adminSnapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? null;
     const availableAdminCargos = adminPositionsByCargo.map((entry) => entry.title);
@@ -449,17 +510,28 @@ export default function EstudioPage() {
                 </div>
 
                 <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                  <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
-                  <select
-                    id="adminRawCargo"
-                    value={activeAdminCargo}
-                    onChange={(event) => setSelectedAdminCargo(event.target.value)}
-                    className="field-select"
-                  >
-                    {availableAdminCargos.map((cargo) => (
-                      <option key={cargo} value={cargo}>{cargo}</option>
-                    ))}
-                  </select>
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
+                    <div>
+                      <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
+                      <select
+                        id="adminRawCargo"
+                        value={activeAdminCargo}
+                        onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                        className="field-select"
+                      >
+                        {availableAdminCargos.map((cargo) => (
+                          <option key={cargo} value={cargo}>{cargo}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
+                      className="btn btn-secondary"
+                    >
+                      Exportar Excel
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
@@ -502,13 +574,37 @@ export default function EstudioPage() {
                     <div className="pill">Procesada</div>
                   </div>
 
+                  <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
+                      <div>
+                        <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
+                        <select
+                          id="adminProcessedCargo"
+                          value={activeAdminCargo}
+                          onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                          className="field-select"
+                        >
+                          {availableAdminCargos.map((cargo) => (
+                            <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeProcessedMetrics)}
+                        className="btn btn-secondary"
+                      >
+                        Exportar Excel
+                      </button>
+                    </div>
+                  </div>
+
                   {activeProcessedMetrics.length > 0 ? (
                     <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
                       <table className="min-w-full border-separate border-spacing-y-3 text-sm">
                         <thead>
                           <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                             <th className="px-4 py-2">Concepto</th>
-                            <th className="px-4 py-2 text-right">Obs.</th>
                             <th className="px-4 py-2 text-right">Min</th>
                             <th className="px-4 py-2 text-right">Max</th>
                             <th className="px-4 py-2 text-right">Promedio</th>
@@ -523,7 +619,6 @@ export default function EstudioPage() {
                           {activeProcessedMetrics.map((metric) => (
                             <tr key={metric.concept} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
                               <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{metric.concept}</td>
-                              <td className="px-4 py-4 text-right text-slate-600">{metric.count}</td>
                               <td className="px-4 py-4 text-right font-display text-slate-700">{metric.min}</td>
                               <td className="px-4 py-4 text-right font-display text-slate-700">{metric.max}</td>
                               <td className="px-4 py-4 text-right font-display text-slate-700">{metric.average}</td>
