@@ -56,6 +56,52 @@ function computeRowTotal(row: Record<string, unknown>) {
   return sum;
 }
 
+function collectConceptValues(row: Record<string, unknown>) {
+  const concepts = new Map<string, number>();
+
+  const addConcept = (label: string, value: unknown) => {
+    const amount = Number(value ?? 0);
+
+    if (!Number.isFinite(amount)) {
+      return;
+    }
+
+    concepts.set(label, (concepts.get(label) ?? 0) + amount);
+  };
+
+  addConcept("Sueldo básico", row.sueldoBasico);
+  addConcept("Bono alimentación", row.bonoAlimentacion);
+  addConcept("Bono movilización", row.bonoMovilizacion);
+  addConcept("Horas extras", row.horasExtras);
+  addConcept("Nocturnidad", row.nocturnidad);
+  addConcept("Pago transporte", row.pagoTransporte);
+  addConcept("Viáticos", row.viaticos);
+  addConcept("Otros pagos", row.otrosPagos);
+  addConcept("Bono desempeño", row.bonoDesempeno);
+  addConcept("Comisiones", row.comisiones);
+  addConcept("Otros variables", row.pagoVariableOtros);
+  addConcept("Aportes seguridad social", row.aportesSeguridadSocial);
+  addConcept("Prestaciones legales", row.prestacionesLegales);
+
+  if (Array.isArray(row.additionalFixedPayments)) {
+    row.additionalFixedPayments.forEach((item) => {
+      const concept = String((item as { concept?: string }).concept ?? "").trim() || "Pago fijo adicional";
+      addConcept(concept, (item as { amount?: number }).amount);
+    });
+  }
+
+  if (Array.isArray(row.additionalVariablePayments)) {
+    row.additionalVariablePayments.forEach((item) => {
+      const concept = String((item as { concept?: string }).concept ?? "").trim() || "Pago variable adicional";
+      addConcept(concept, (item as { amount?: number }).amount);
+    });
+  }
+
+  addConcept("Compensación total", computeRowTotal(row));
+
+  return Object.fromEntries(concepts.entries());
+}
+
 export async function GET(request: Request) {
   const auth = await requireAdminSession();
 
@@ -132,6 +178,7 @@ export async function GET(request: Request) {
         description: String(parsed.descripcion ?? ""),
         baseSalary: formatMoney(Number(parsed.sueldoBasico ?? 0)),
         totalCompensation: formatMoney(computeRowTotal(parsed)),
+        conceptValues: collectConceptValues(parsed),
       };
     }),
   });

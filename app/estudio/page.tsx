@@ -42,6 +42,7 @@ type AdminStudyPosition = {
   description: string;
   baseSalary: string;
   totalCompensation: string;
+  conceptValues: Record<string, number>;
 };
 
 type AdminProcessedMetric = {
@@ -54,6 +55,10 @@ type AdminProcessedMetric = {
   p90: string;
   max: string;
   average: string;
+};
+
+type AdminConceptMetric = AdminProcessedMetric & {
+  concept: string;
 };
 
 function percentile(values: number[], p: number) {
@@ -110,8 +115,7 @@ export default function EstudioPage() {
   const [adminPositions, setAdminPositions] = useState<AdminStudyPosition[]>([]);
   const [adminStatus, setAdminStatus] = useState<"idle" | "processing" | "done">("idle");
   const [adminMessage, setAdminMessage] = useState("");
-  const [selectedRawCargoTab, setSelectedRawCargoTab] = useState("");
-  const [selectedProcessedCargoTab, setSelectedProcessedCargoTab] = useState("");
+  const [selectedAdminCargo, setSelectedAdminCargo] = useState("");
   const adminStudyRequestId = useRef(0);
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
@@ -142,26 +146,40 @@ export default function EstudioPage() {
   }, [adminPositions]);
 
   const adminProcessedMetrics = useMemo(() => {
-    const entries = new Map<string, AdminProcessedMetric>();
+    const entries = new Map<string, AdminConceptMetric[]>();
 
     adminPositionsByCargo.forEach(({ title, positions }) => {
-      const totals = positions
-        .map((position) => Number(position.totalCompensation.replace(/[^0-9.-]+/g, "") || 0))
-        .filter((value) => Number.isFinite(value));
+      const conceptMap = new Map<string, number[]>();
 
-      const average = totals.length ? Math.round(totals.reduce((sum, value) => sum + value, 0) / totals.length) : 0;
-
-      entries.set(title, {
-        count: totals.length,
-        min: formatMoney(totals.length ? Math.min(...totals) : 0),
-        p10: formatMoney(Math.round(percentile(totals, 10))),
-        p25: formatMoney(Math.round(percentile(totals, 25))),
-        p50: formatMoney(Math.round(percentile(totals, 50))),
-        p75: formatMoney(Math.round(percentile(totals, 75))),
-        p90: formatMoney(Math.round(percentile(totals, 90))),
-        max: formatMoney(totals.length ? Math.max(...totals) : 0),
-        average: formatMoney(average),
+      positions.forEach((position) => {
+        Object.entries(position.conceptValues ?? {}).forEach(([concept, amount]) => {
+          const values = conceptMap.get(concept) ?? [];
+          values.push(Number(amount ?? 0));
+          conceptMap.set(concept, values);
+        });
       });
+
+      const conceptMetrics = Array.from(conceptMap.entries())
+        .map(([concept, values]) => {
+          const numericValues = values.filter((value) => Number.isFinite(value));
+          const average = numericValues.length ? Math.round(numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length) : 0;
+
+          return {
+            concept,
+            count: numericValues.length,
+            min: formatMoney(numericValues.length ? Math.min(...numericValues) : 0),
+            max: formatMoney(numericValues.length ? Math.max(...numericValues) : 0),
+            average: formatMoney(average),
+            p10: formatMoney(Math.round(percentile(numericValues, 10))),
+            p25: formatMoney(Math.round(percentile(numericValues, 25))),
+            p50: formatMoney(Math.round(percentile(numericValues, 50))),
+            p75: formatMoney(Math.round(percentile(numericValues, 75))),
+            p90: formatMoney(Math.round(percentile(numericValues, 90))),
+          };
+        })
+        .sort((left, right) => left.concept.localeCompare(right.concept));
+
+      entries.set(title, conceptMetrics);
     });
 
     return entries;
@@ -241,16 +259,14 @@ export default function EstudioPage() {
         const nextPositions = Array.isArray(payload?.positions) ? payload.positions : [];
         setAdminPositions(nextPositions);
         const firstCargo = nextPositions[0]?.title?.trim() || "";
-        setSelectedRawCargoTab(firstCargo);
-        setSelectedProcessedCargoTab(firstCargo);
+        setSelectedAdminCargo(firstCargo);
       } catch (error) {
         if (!ignore && requestId === adminStudyRequestId.current) {
           setAdminMessage(error instanceof Error ? error.message : "No fue posible cargar el estudio administrativo.");
           setAdminSnapshots([]);
           setAdminPositions([]);
           setSelectedSnapshotId("");
-          setSelectedRawCargoTab("");
-          setSelectedProcessedCargoTab("");
+          setSelectedAdminCargo("");
         }
       }
     }
@@ -269,8 +285,7 @@ export default function EstudioPage() {
 
     if (!snapshotId) {
       setAdminPositions([]);
-      setSelectedRawCargoTab("");
-      setSelectedProcessedCargoTab("");
+      setSelectedAdminCargo("");
       return;
     }
 
@@ -300,8 +315,7 @@ export default function EstudioPage() {
     const nextPositions = Array.isArray(payload?.positions) ? payload.positions : [];
     setAdminPositions(nextPositions);
     const firstCargo = nextPositions[0]?.title?.trim() || "";
-    setSelectedRawCargoTab(firstCargo);
-    setSelectedProcessedCargoTab(firstCargo);
+    setSelectedAdminCargo(firstCargo);
   }
 
   async function handleProcessSnapshot() {
@@ -346,11 +360,10 @@ export default function EstudioPage() {
 
   if (isAdmin) {
     const selectedAdminSnapshot = adminSnapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? null;
-    const rawCargoTabs = adminPositionsByCargo.map((entry) => entry.title);
-    const activeRawCargo = adminPositionsByCargo.find((entry) => entry.title === selectedRawCargoTab)?.title ?? rawCargoTabs[0] ?? "";
-    const activeProcessedCargo = adminPositionsByCargo.find((entry) => entry.title === selectedProcessedCargoTab)?.title ?? rawCargoTabs[0] ?? "";
-    const activeRawPositions = adminPositionsByCargo.find((entry) => entry.title === activeRawCargo)?.positions ?? [];
-    const activeProcessedMetric = adminProcessedMetrics.get(activeProcessedCargo);
+    const availableAdminCargos = adminPositionsByCargo.map((entry) => entry.title);
+    const activeAdminCargo = adminPositionsByCargo.find((entry) => entry.title === selectedAdminCargo)?.title ?? availableAdminCargos[0] ?? "";
+    const activeRawPositions = adminPositionsByCargo.find((entry) => entry.title === activeAdminCargo)?.positions ?? [];
+    const activeProcessedMetrics = adminProcessedMetrics.get(activeAdminCargo) ?? [];
 
     return (
       <main className="page-wrap">
@@ -436,18 +449,17 @@ export default function EstudioPage() {
                 </div>
 
                 <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                  <div className="flex flex-wrap gap-2">
-                    {rawCargoTabs.map((cargo) => (
-                      <button
-                        key={`raw-${cargo}`}
-                        type="button"
-                        onClick={() => setSelectedRawCargoTab(cargo)}
-                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${activeRawCargo === cargo ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-                      >
-                        {cargo}
-                      </button>
+                  <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
+                  <select
+                    id="adminRawCargo"
+                    value={activeAdminCargo}
+                    onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                    className="field-select"
+                  >
+                    {availableAdminCargos.map((cargo) => (
+                      <option key={cargo} value={cargo}>{cargo}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
 
                 <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
@@ -490,32 +502,40 @@ export default function EstudioPage() {
                     <div className="pill">Procesada</div>
                   </div>
 
-                  <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                    <div className="flex flex-wrap gap-2">
-                      {rawCargoTabs.map((cargo) => (
-                        <button
-                          key={`processed-${cargo}`}
-                          type="button"
-                          onClick={() => setSelectedProcessedCargoTab(cargo)}
-                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${activeProcessedCargo === cargo ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-                        >
-                          {cargo}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {activeProcessedMetric ? (
-                    <div className="grid gap-4 px-6 py-6 md:grid-cols-3 xl:grid-cols-5">
-                      <div className="metric-tile"><div className="metric-label">Observaciones</div><div className="metric-value mt-3">{activeProcessedMetric.count}</div></div>
-                      <div className="metric-tile"><div className="metric-label">Min</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.min}</div></div>
-                      <div className="metric-tile"><div className="metric-label">P10</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p10}</div></div>
-                      <div className="metric-tile"><div className="metric-label">P25</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p25}</div></div>
-                      <div className="metric-tile"><div className="metric-label">P50</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p50}</div></div>
-                      <div className="metric-tile"><div className="metric-label">P75</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p75}</div></div>
-                      <div className="metric-tile"><div className="metric-label">P90</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.p90}</div></div>
-                      <div className="metric-tile"><div className="metric-label">Max</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.max}</div></div>
-                      <div className="metric-tile md:col-span-2 xl:col-span-2"><div className="metric-label">Promedio</div><div className="metric-value mt-3 text-xl">{activeProcessedMetric.average}</div></div>
+                  {activeProcessedMetrics.length > 0 ? (
+                    <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
+                      <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                            <th className="px-4 py-2">Concepto</th>
+                            <th className="px-4 py-2 text-right">Obs.</th>
+                            <th className="px-4 py-2 text-right">Min</th>
+                            <th className="px-4 py-2 text-right">Max</th>
+                            <th className="px-4 py-2 text-right">Promedio</th>
+                            <th className="px-4 py-2 text-right">P10</th>
+                            <th className="px-4 py-2 text-right">P25</th>
+                            <th className="px-4 py-2 text-right">P50</th>
+                            <th className="px-4 py-2 text-right">P75</th>
+                            <th className="px-4 py-2 text-right">P90</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeProcessedMetrics.map((metric) => (
+                            <tr key={metric.concept} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                              <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{metric.concept}</td>
+                              <td className="px-4 py-4 text-right text-slate-600">{metric.count}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.min}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.max}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.average}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p10}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p25}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p50}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p75}</td>
+                              <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{metric.p90}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   ) : null}
                 </section>
