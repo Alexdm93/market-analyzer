@@ -1,6 +1,6 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
-import { BriefcaseBusiness, CalendarDays, Check, Edit, FolderPlus, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { JOB_TITLES } from "@/data/jobTitles";
 import { type Snapshot } from "@/lib/workspace";
@@ -176,7 +176,7 @@ export default function DataPage() {
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
   const draftSaveTimer = useRef<number | null>(null);
 
-  async function reloadWorkspaceData(options?: { showNotification?: boolean }) {
+  const reloadWorkspaceData = useCallback(async (options?: { showNotification?: boolean }) => {
     setIsRefreshing(true);
 
     try {
@@ -220,17 +220,11 @@ export default function DataPage() {
     } finally {
       setIsRefreshing(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    let ignore = false;
-
     void reloadWorkspaceData();
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  }, [reloadWorkspaceData]);
 
   useEffect(() => {
     snapshotsRef.current = snapshots;
@@ -283,18 +277,18 @@ export default function DataPage() {
         window.clearTimeout(draftSaveTimer.current);
       }
     };
-  }, [rows, selectedSnapshotId, snapshots]);
+  }, [persistSnapshots, rows, selectedSnapshotId, snapshots]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function toggleExpand(id: string) {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
   }
 
-  async function persistSnapshots(
+  const persistSnapshots = useCallback(async (
     next: Record<string, Snapshot>,
     nextSelectedSnapshotId = selectedSnapshotId,
     options?: { showErrorNotification?: boolean }
-  ) {
+  ) => {
     setSnapshots(next);
     setSaveState("pending");
 
@@ -318,22 +312,7 @@ export default function DataPage() {
 
       return false;
     }
-  }
-
-  async function createSnapshot(date?: string, label?: string, useCurrent = false) {
-    // normalize date to YYYY-MM-DD for uniqueness
-    const idDate = date ? new Date(date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
-    if (snapshots[idDate]) {
-      showNotification(`Ya existe un corte para la fecha ${idDate}`);
-      return;
-    }
-    const snap: Snapshot = { id: idDate, label: label ?? idDate, date: idDate, rows: useCurrent ? JSON.parse(JSON.stringify(rows)) : [empty(0)] };
-    const next = { ...snapshots, [idDate]: snap };
-    const wasPersisted = await persistSnapshots(next, idDate, { showErrorNotification: true });
-    setSelectedSnapshotId(idDate);
-    setRows(JSON.parse(JSON.stringify(snap.rows)));
-    showNotification(wasPersisted ? 'Corte creado' : 'Corte creado solo en esta sesión');
-  }
+  }, [selectedSnapshotId]);
 
   async function saveCurrentToSnapshot(id: string) {
     if (!id) return;
@@ -351,20 +330,8 @@ export default function DataPage() {
     notificationTimer.current = window.setTimeout(() => setNotification(""), ms);
   }
 
-  // legacy prompt-based rename removed; use modal + `renameSnapshotConfirmed`
-
-  async function renameSnapshotConfirmed(id: string, newLabel: string) {
-    if (!id) return;
-    const current = snapshots[id];
-    if (!current) return;
-    const next = { ...snapshots, [id]: { ...current, label: newLabel } };
-    const wasPersisted = await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
-    showNotification(wasPersisted ? 'Renombrado correctamente' : 'No se pudo renombrar en Supabase');
-  }
-
   // modal state
-  const [modal, setModal] = useState<{ type: 'rename' | 'delete' | 'save' | null; id?: string }>(() => ({ type: null }));
-  const [modalInput, setModalInput] = useState<string>('');
+  const [modal, setModal] = useState<{ type: 'save' | null; id?: string }>(() => ({ type: null }));
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
 
   function loadSnapshot(id: string) {
@@ -388,22 +355,6 @@ export default function DataPage() {
     void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
       // ignore
     });
-  }
-
-  async function deleteSnapshot(id: string) {
-    if (!id) return;
-    const next = { ...snapshots } as Record<string, Snapshot>;
-    delete next[id];
-    const remaining = Object.keys(next);
-    const newSelected = remaining[0] ?? "";
-    const wasPersisted = await persistSnapshots(next, newSelected, { showErrorNotification: true });
-    setSelectedSnapshotId(newSelected);
-    if (newSelected && next[newSelected]) {
-      setRows(JSON.parse(JSON.stringify(next[newSelected].rows)));
-    } else {
-      setRows([]);
-    }
-    showNotification(wasPersisted ? 'Eliminado correctamente' : 'No se pudo eliminar en Supabase');
   }
 
   function update(i: number, key: keyof ExtendedMarketPosition, value: string | number | boolean) {
@@ -536,7 +487,7 @@ export default function DataPage() {
 
   function addRow() {
     if (!selectedSnapshotId) {
-      showNotification("Crea o selecciona un corte antes de agregar cargos");
+      showNotification("Selecciona un corte asignado por el admin antes de agregar cargos");
       return;
     }
 
@@ -664,21 +615,9 @@ export default function DataPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label htmlFor="headerSnapshotDate" className="field-label">Nueva fecha</label>
-                  <input id="headerSnapshotDate" aria-label="Fecha del corte" type="date" className="field" />
+                <div className="rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                  Los cortes se crean, renombran y eliminan desde la vista admin. Aquí solo puedes trabajar sobre los cortes globales ya asignados.
                 </div>
-
-                <button
-                  onClick={() => {
-                    const d = (document.getElementById("headerSnapshotDate") as HTMLInputElement)?.value;
-                    void createSnapshot(d || undefined, undefined, false);
-                  }}
-                  className="btn btn-primary w-full"
-                >
-                  <FolderPlus className="h-4 w-4" />
-                  Crear corte
-                </button>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button
@@ -711,39 +650,11 @@ export default function DataPage() {
                     <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                     {isRefreshing ? "Actualizando..." : "Actualizar data"}
                   </button>
-                  <button
-                    onClick={() => {
-                      if (!selectedSnapshotId) {
-                        showNotification("Seleccione un corte");
-                        return;
-                      }
-                      setModal({ type: "rename", id: selectedSnapshotId });
-                      setModalInput(snapshots[selectedSnapshotId]?.label || "");
-                    }}
-                    className="btn btn-secondary"
-                  >
-                    <Edit className="h-4 w-4" />
-                    Renombrar
-                  </button>
                   <button onClick={exportJSON} className="btn btn-secondary">
                     <Check className="h-4 w-4" />
                     Exportar JSON
                   </button>
                 </div>
-
-                <button
-                  onClick={() => {
-                    if (!selectedSnapshotId) {
-                      showNotification("Seleccione un snapshot");
-                      return;
-                    }
-                    setModal({ type: "delete", id: selectedSnapshotId });
-                  }}
-                  className="btn btn-danger w-full"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Eliminar corte
-                </button>
               </div>
             </div>
           </div>
@@ -757,7 +668,7 @@ export default function DataPage() {
               </div>
               <h2 className="font-display mt-5 text-2xl font-bold text-slate-900">No hay cargos en este corte.</h2>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Crea un corte o agrega un cargo para comenzar a capturar estructura y compensación.
+                Si aún no ves cortes disponibles, solicita al admin que cree o sincronice los cortes globales. Cuando el corte exista, podrás agregar cargos y completar la información.
               </p>
               <button onClick={addRow} className="btn btn-primary mt-6">
                 <Plus className="h-4 w-4" />
@@ -1217,17 +1128,6 @@ export default function DataPage() {
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
                   <button onClick={() => { if (modal.id) { void saveRowById(modal.id); } setModal({ type: null }); }} className="btn btn-primary">Guardar</button>
-                </div>
-              </div>
-            )}
-            {modal.type === "delete" && (
-              <div>
-                <div className="eyebrow mb-2 text-red-700">Acción crítica</div>
-                <h3 className="font-display text-2xl font-bold text-slate-900">Eliminar corte</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">¿Estás seguro? Esta acción no se puede deshacer.</p>
-                <div className="mt-5 flex justify-end gap-3">
-                  <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
-                  <button onClick={() => { if (modal.id) { void deleteSnapshot(modal.id); } setModal({ type: null }); }} className="btn btn-danger">Eliminar</button>
                 </div>
               </div>
             )}

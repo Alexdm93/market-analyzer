@@ -1,0 +1,552 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState, useTransition } from "react";
+import { Building2, CalendarDays, LoaderCircle, RefreshCw, Shield, Trash2, UserPlus, Users } from "lucide-react";
+
+const adminActions = [
+  {
+    title: "Gestionar empresas",
+    description: "Crea y revisa las empresas disponibles para asignar usuarios.",
+    href: "/empresas",
+    icon: Building2,
+  },
+  {
+    title: "Crear usuarios",
+    description: "Accede al registro controlado para dar de alta nuevos usuarios.",
+    href: "/register",
+    icon: UserPlus,
+  },
+];
+
+type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: "USER" | "ADMIN";
+  createdAt: string;
+  company: {
+    id: string;
+    name: string;
+  };
+};
+
+type AdminSnapshot = {
+  id: string;
+  label: string;
+  date: string;
+};
+
+function getTodayDate() {
+  return new Date().toISOString().split("T")[0];
+}
+
+export default function AdminPage() {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
+  const [snapshots, setSnapshots] = useState<AdminSnapshot[]>([]);
+  const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(true);
+  const [snapshotDate, setSnapshotDate] = useState(getTodayDate);
+  const [snapshotLabel, setSnapshotLabel] = useState("");
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [isMutatingSnapshot, setIsMutatingSnapshot] = useState(false);
+  const [renamingSnapshotId, setRenamingSnapshotId] = useState("");
+  const [renameSnapshotLabel, setRenameSnapshotLabel] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadUsers() {
+      try {
+        const response = await fetch("/api/admin/users", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as { users?: AdminUser[]; message?: string } | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "No fue posible cargar los usuarios.");
+        }
+
+        if (!ignore) {
+          setUsers(Array.isArray(payload?.users) ? payload.users : []);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setErrorMessage(error instanceof Error ? error.message : "No fue posible cargar los usuarios.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingUsers(false);
+        }
+      }
+    }
+
+    void loadUsers();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSnapshots() {
+      try {
+        const response = await fetch("/api/admin/snapshots", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as { snapshots?: AdminSnapshot[]; userCount?: number; message?: string } | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "No fue posible cargar los cortes.");
+        }
+
+        if (!ignore) {
+          setSnapshots(Array.isArray(payload?.snapshots) ? payload.snapshots : []);
+          setTotalUsers(typeof payload?.userCount === "number" ? payload.userCount : 0);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setErrorMessage(error instanceof Error ? error.message : "No fue posible cargar los cortes.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingSnapshots(false);
+        }
+      }
+    }
+
+    void loadSnapshots();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function reloadSnapshots() {
+    const response = await fetch("/api/admin/snapshots", {
+      method: "GET",
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as { snapshots?: AdminSnapshot[]; userCount?: number; message?: string } | null;
+
+    if (!response.ok) {
+      throw new Error(payload?.message ?? "No fue posible cargar los cortes.");
+    }
+
+    setSnapshots(Array.isArray(payload?.snapshots) ? payload.snapshots : []);
+    setTotalUsers(typeof payload?.userCount === "number" ? payload.userCount : 0);
+  }
+
+  function handleRoleChange(userId: string, role: "USER" | "ADMIN") {
+    setErrorMessage("");
+    setStatusMessage("");
+
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch("/api/admin/users", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId, role }),
+        });
+
+        const payload = (await response.json().catch(() => null)) as { user?: AdminUser; message?: string } | null;
+
+        if (!response.ok || !payload?.user) {
+          setErrorMessage(payload?.message ?? "No fue posible actualizar el rol.");
+          return;
+        }
+
+        setUsers((current) =>
+          current.map((user) => (user.id === payload.user?.id ? payload.user : user))
+        );
+        setStatusMessage(`Rol actualizado para ${payload.user.name}.`);
+      })();
+    });
+  }
+
+  async function handleCreateSnapshot(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!snapshotDate) {
+      setErrorMessage("Selecciona una fecha para crear el corte.");
+      return;
+    }
+
+    setErrorMessage("");
+    setStatusMessage("");
+    setIsMutatingSnapshot(true);
+
+    try {
+      const response = await fetch("/api/admin/snapshots", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          date: snapshotDate,
+          label: snapshotLabel,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "No fue posible crear el corte.");
+      }
+
+      setStatusMessage(payload?.message ?? "Corte creado correctamente.");
+      setSnapshotLabel("");
+      await reloadSnapshots();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No fue posible crear el corte.");
+    } finally {
+      setIsMutatingSnapshot(false);
+    }
+  }
+
+  async function handleRenameSnapshot(snapshotId: string) {
+    if (!renameSnapshotLabel.trim()) {
+      setErrorMessage("Indica una nueva etiqueta para el corte.");
+      return;
+    }
+
+    setErrorMessage("");
+    setStatusMessage("");
+    setIsMutatingSnapshot(true);
+
+    try {
+      const response = await fetch("/api/admin/snapshots", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          snapshotId,
+          label: renameSnapshotLabel,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "No fue posible renombrar el corte.");
+      }
+
+      setStatusMessage(payload?.message ?? "Corte renombrado correctamente.");
+      setRenamingSnapshotId("");
+      setRenameSnapshotLabel("");
+      await reloadSnapshots();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No fue posible renombrar el corte.");
+    } finally {
+      setIsMutatingSnapshot(false);
+    }
+  }
+
+  async function handleDeleteSnapshot(snapshotId: string) {
+    setErrorMessage("");
+    setStatusMessage("");
+    setIsMutatingSnapshot(true);
+
+    try {
+      const response = await fetch("/api/admin/snapshots", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ snapshotId }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "No fue posible eliminar el corte.");
+      }
+
+      setStatusMessage(payload?.message ?? "Corte eliminado correctamente.");
+      if (renamingSnapshotId === snapshotId) {
+        setRenamingSnapshotId("");
+        setRenameSnapshotLabel("");
+      }
+      await reloadSnapshots();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No fue posible eliminar el corte.");
+    } finally {
+      setIsMutatingSnapshot(false);
+    }
+  }
+
+  async function handleSyncSnapshots() {
+    setErrorMessage("");
+    setStatusMessage("");
+    setIsMutatingSnapshot(true);
+
+    try {
+      const response = await fetch("/api/admin/snapshots", {
+        method: "PUT",
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "No fue posible sincronizar los cortes.");
+      }
+
+      setStatusMessage(payload?.message ?? "Cortes sincronizados correctamente.");
+      await reloadSnapshots();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No fue posible sincronizar los cortes.");
+    } finally {
+      setIsMutatingSnapshot(false);
+    }
+  }
+
+  return (
+    <main className="page-wrap">
+      <div className="flex w-full flex-col gap-6">
+        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_22rem]">
+            <div>
+              <div className="eyebrow mb-3">Control central</div>
+              <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Vista administrativa.</h1>
+              <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">
+                Desde aquí solo un usuario con rol admin puede gestionar el catálogo base y el alta controlada de accesos.
+              </p>
+            </div>
+
+            <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
+              <div className="rounded-full bg-teal-50 p-3 text-teal-700 w-fit">
+                <Shield size={18} aria-hidden />
+              </div>
+              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900">Acceso restringido</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Esta vista solo está disponible para usuarios con el rol administrativo persistido en base de datos.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {statusMessage ? (
+          <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
+            <Shield size={14} aria-hidden />
+            {statusMessage}
+          </div>
+        ) : null}
+
+        {errorMessage ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <section className="grid gap-5 md:grid-cols-2">
+          {adminActions.map((action) => {
+            const Icon = action.icon;
+
+            return (
+              <Link key={action.href} href={action.href} className="surface-card rounded-[2rem] p-6 md:p-8 hover:border-slate-300">
+                <div className="rounded-full bg-slate-100 p-3 text-slate-700 w-fit">
+                  <Icon size={18} aria-hidden />
+                </div>
+                <h2 className="font-display mt-5 text-2xl font-bold text-slate-900">{action.title}</h2>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{action.description}</p>
+              </Link>
+            );
+          })}
+        </section>
+
+        <section className="surface-card rounded-[2rem] p-6 md:p-8">
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-teal-50 p-3 text-teal-700">
+              <CalendarDays size={18} aria-hidden />
+            </div>
+            <div>
+              <h2 className="font-display text-2xl font-bold text-slate-900">Crear cortes</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Los cortes ya no se crean desde Data. Se crean aquí y se replican iguales para todos los usuarios.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleCreateSnapshot} className="mt-6 grid gap-4 lg:grid-cols-[12rem_minmax(0,1fr)_auto] lg:items-end">
+            <div>
+              <label htmlFor="snapshotDate" className="field-label">Fecha</label>
+              <input
+                id="snapshotDate"
+                type="date"
+                value={snapshotDate}
+                onChange={(event) => setSnapshotDate(event.target.value)}
+                className="field"
+                disabled={isMutatingSnapshot}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="snapshotLabel" className="field-label">Etiqueta opcional</label>
+              <input
+                id="snapshotLabel"
+                type="text"
+                value={snapshotLabel}
+                onChange={(event) => setSnapshotLabel(event.target.value)}
+                className="field"
+                placeholder="Ej. Corte abril 2026"
+                disabled={isMutatingSnapshot}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary w-full lg:w-auto" disabled={isMutatingSnapshot || totalUsers === 0}>
+              {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+              {isMutatingSnapshot ? "Procesando..." : "Crear corte"}
+            </button>
+          </form>
+
+          <div className="mt-4 rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            {totalUsers > 0
+              ? `Este corte se propagará a ${totalUsers} usuarios y también se copiará a los nuevos usuarios que se registren.`
+              : "Aún no hay usuarios registrados para recibir cortes globales."}
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button type="button" onClick={() => void handleSyncSnapshots()} className="btn btn-secondary" disabled={isMutatingSnapshot || totalUsers === 0}>
+              {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {isMutatingSnapshot ? "Sincronizando..." : "Sincronizar cortes globales"}
+            </button>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="font-display text-xl font-bold text-slate-900">Cortes globales</h3>
+            {isLoadingSnapshots ? (
+              <div className="mt-4 text-sm text-slate-600">Cargando cortes...</div>
+            ) : snapshots.length === 0 ? (
+              <div className="mt-4 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-sm text-slate-500">
+                Todavía no hay cortes globales creados.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {snapshots.map((snapshot) => (
+                  <div key={snapshot.id} className="rounded-[1.5rem] border border-slate-200/80 bg-white/90 p-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{snapshot.label}</div>
+                        <div className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-500">{snapshot.date}</div>
+                      </div>
+                      <div className="flex flex-col gap-3 lg:w-[36rem] lg:flex-row lg:items-end">
+                        <div className="flex-1">
+                          <label htmlFor={`rename-${snapshot.id}`} className="field-label">Renombrar</label>
+                          <input
+                            id={`rename-${snapshot.id}`}
+                            type="text"
+                            value={renamingSnapshotId === snapshot.id ? renameSnapshotLabel : snapshot.label}
+                            onFocus={() => {
+                              setRenamingSnapshotId(snapshot.id);
+                              setRenameSnapshotLabel(snapshot.label);
+                            }}
+                            onChange={(event) => {
+                              setRenamingSnapshotId(snapshot.id);
+                              setRenameSnapshotLabel(event.target.value);
+                            }}
+                            className="field"
+                            disabled={isMutatingSnapshot}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleRenameSnapshot(snapshot.id)}
+                          className="btn btn-secondary"
+                          disabled={isMutatingSnapshot}
+                        >
+                          <CalendarDays className="h-4 w-4" />
+                          Renombrar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteSnapshot(snapshot.id)}
+                          className="btn btn-danger"
+                          disabled={isMutatingSnapshot}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="surface-card rounded-[2rem] p-6 md:p-8">
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-slate-100 p-3 text-slate-700">
+              <Users size={18} aria-hidden />
+            </div>
+            <div>
+              <h2 className="font-display text-2xl font-bold text-slate-900">Usuarios y roles</h2>
+            </div>
+          </div>
+
+          {isLoadingUsers ? (
+            <div className="mt-6 text-sm text-slate-600">Cargando usuarios...</div>
+          ) : users.length === 0 ? (
+            <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-sm text-slate-500">
+              No hay usuarios registrados.
+            </div>
+          ) : (
+            <div className="mt-6 overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-y-3">
+                <thead>
+                  <tr className="text-left text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                    <th className="px-4">Usuario</th>
+                    <th className="px-4">Empresa</th>
+                    <th className="px-4">Rol</th>
+                    <th className="px-4">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.id} className="rounded-[1.25rem] bg-slate-50/80 text-sm text-slate-700">
+                      <td className="rounded-l-[1.25rem] px-4 py-4 align-top">
+                        <div className="font-display text-base font-bold text-slate-900">{user.name}</div>
+                        <div className="mt-1 text-xs text-slate-500">{user.email}</div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="font-semibold text-slate-900">{user.company.name}</div>
+                        <div className="mt-1 text-xs text-slate-500 break-all">{user.company.id}</div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${user.role === "ADMIN" ? "bg-teal-50 text-teal-800" : "bg-slate-200/70 text-slate-700"}`}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="rounded-r-[1.25rem] px-4 py-4 align-top">
+                        <select
+                          aria-label={`Rol de ${user.name}`}
+                          title={`Rol de ${user.name}`}
+                          value={user.role}
+                          onChange={(event) => handleRoleChange(user.id, event.target.value as "USER" | "ADMIN")}
+                          className="field-select min-w-36"
+                          disabled={isPending}
+                        >
+                          <option value="USER">USER</option>
+                          <option value="ADMIN">ADMIN</option>
+                        </select>
+                        {isPending ? <LoaderCircle className="mt-3 h-4 w-4 animate-spin text-slate-500" /> : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}

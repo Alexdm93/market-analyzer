@@ -1,8 +1,10 @@
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_WORKSPACE } from "@/lib/workspace";
 
 type RegisterBody = {
+  companyId?: string;
   companyName?: string;
   name?: string;
   email?: string;
@@ -11,13 +13,14 @@ type RegisterBody = {
 
 export async function POST(request: Request) {
   const body = (await request.json()) as RegisterBody;
+  const companyId = body.companyId?.trim() ?? "";
   const companyName = body.companyName?.trim() ?? "";
   const name = body.name?.trim() ?? "";
   const email = body.email?.trim().toLowerCase() ?? "";
   const password = body.password ?? "";
 
-  if (companyName.length < 2) {
-    return Response.json({ message: "La empresa debe tener al menos 2 caracteres." }, { status: 400 });
+  if (!companyId && companyName.length < 2) {
+    return Response.json({ message: "Selecciona una empresa válida." }, { status: 400 });
   }
 
   if (name.length < 2) {
@@ -43,19 +46,65 @@ export async function POST(request: Request) {
   const passwordHash = await bcrypt.hash(password, 12);
 
   const user = await prisma.$transaction(async (tx) => {
-    const company = await tx.company.upsert({
-      where: { name: companyName },
-      update: {},
-      create: { name: companyName },
-      select: { id: true },
+    const company = companyId
+      ? await tx.company.findUnique({
+          where: { id: companyId },
+          select: { id: true },
+        })
+      : await tx.company.upsert({
+          where: { name: companyName },
+          update: {},
+          create: { name: companyName },
+          select: { id: true },
+        });
+
+    if (!company) {
+      throw new Error("COMPANY_NOT_FOUND");
+    }
+
+    const globalSnapshots = await tx.userSnapshot.findMany({
+      select: {
+        snapshotId: true,
+        label: true,
+        date: true,
+      },
+      distinct: ["snapshotId"],
+      orderBy: [
+        { date: "desc" },
+        { snapshotId: "desc" },
+      ],
     });
 
-    return tx.user.create({
+    const snapshots = Object.fromEntries(
+      globalSnapshots.map((snapshot) => {
+        const snapshotDate = snapshot.date.toISOString().split("T")[0];
+
+        return [
+          snapshot.snapshotId,
+          {
+            id: snapshot.snapshotId,
+            label: snapshot.label,
+            date: snapshotDate,
+            rows: [],
+          },
+        ];
+      })
+    );
+
+    const createdUser = await tx.user.create({
       data: {
         companyId: company.id,
         name,
         email,
         passwordHash,
+        workspace: {
+          create: {
+            inflation: DEFAULT_WORKSPACE.inflation,
+            selectedSnapshotId: globalSnapshots[0]?.snapshotId ?? DEFAULT_WORKSPACE.selectedSnapshotId,
+            snapshotsJson: JSON.stringify(snapshots),
+            companyInfoJson: JSON.stringify(DEFAULT_WORKSPACE.companyInfo),
+          },
+        },
       },
       select: {
         id: true,
@@ -63,7 +112,31 @@ export async function POST(request: Request) {
         email: true,
       },
     });
+
+    if (globalSnapshots.length > 0) {
+      await tx.userSnapshot.createMany({
+        data: globalSnapshots.map((snapshot) => ({
+          userId: createdUser.id,
+          companyId: company.id,
+          snapshotId: snapshot.snapshotId,
+          label: snapshot.label,
+          date: snapshot.date,
+        })),
+      });
+    }
+
+    return createdUser;
+  }).catch((error: unknown) => {
+    if (error instanceof Error && error.message === "COMPANY_NOT_FOUND") {
+      return null;
+    }
+
+    throw error;
   });
+
+  if (!user) {
+    return Response.json({ message: "La empresa seleccionada no existe." }, { status: 404 });
+  }
 
   return Response.json({ user }, { status: 201 });
 }

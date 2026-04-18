@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { LoaderCircle, LockKeyhole, LogIn, ShieldCheck } from "lucide-react";
@@ -115,13 +114,6 @@ export default function SignInPage() {
               {isSubmitting || isPending ? "Iniciando sesion..." : "Entrar"}
             </button>
           </form>
-
-          <p className="mt-5 text-sm text-slate-600">
-            Aun no tienes cuenta?{" "}
-            <Link href="/register" className="font-bold text-teal-700 hover:text-teal-800">
-              Crear usuario
-            </Link>
-          </p>
         </section>
       </div>
     </main>

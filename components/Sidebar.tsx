@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Database, Info, LayoutDashboard, LineChart, LogIn, LogOut, UserPlus } from "lucide-react";
+import { Building2, Database, Info, LayoutDashboard, LineChart, LogIn, LogOut, Shield } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
 const menuItems = [
@@ -11,9 +11,15 @@ const menuItems = [
   { name: "Empresa", href: "/informacion", icon: Info, hint: "Contexto y contacto" },
 ];
 
+const adminMenuItems = [
+  { name: "Admin", href: "/admin", icon: Shield, hint: "Vista administrativa" },
+  { name: "Empresas", href: "/empresas", icon: Building2, hint: "Catálogo disponible" },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
 
   if (pathname === "/signin" || pathname === "/register") {
     return null;
@@ -36,7 +42,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="grid grid-cols-1 gap-2 pb-1 sm:grid-cols-2 md:flex md:flex-col">
-          {menuItems.map((item) => {
+          {[...menuItems, ...(isAdmin ? adminMenuItems : [])].map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
@@ -67,6 +73,7 @@ export default function Sidebar() {
             <>
               <div className="eyebrow mb-2">Sesion activa</div>
               <div className="break-words font-display text-lg font-bold text-slate-900">{session.user.name}</div>
+              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{isAdmin ? "Admin" : "Usuario"}</div>
               
               <button
                 onClick={() => signOut({ callbackUrl: "/signin" })}
@@ -83,16 +90,12 @@ export default function Sidebar() {
               <p className="text-sm leading-6 text-slate-600">
                 {status === "loading"
                   ? "Comprobando sesion..."
-                  : "Crea una cuenta local o entra con tus credenciales."}
+                  : "Entra con tus credenciales."}
               </p>
               <div className="mt-4 flex flex-col gap-2">
                 <Link href="/signin" className="btn btn-primary w-full">
                   <LogIn className="h-4 w-4" />
                   Iniciar sesion
-                </Link>
-                <Link href="/register" className="btn btn-secondary w-full">
-                  <UserPlus className="h-4 w-4" />
-                  Crear cuenta
                 </Link>
               </div>
             </>
