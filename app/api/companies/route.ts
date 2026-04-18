@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const userCount = await prisma.user.count();
   const companies = await prisma.company.findMany({
     select: {
       id: true,
@@ -14,7 +15,11 @@ export async function GET() {
     },
   });
 
-  return Response.json({ companies });
+  return Response.json({
+    companies,
+    userCount,
+    bootstrapRequired: userCount === 0,
+  });
 }
 
 type CreateCompanyBody = {
