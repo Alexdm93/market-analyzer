@@ -61,6 +61,7 @@ type BulkUserUpdate = {
   userId?: string;
   role?: "USER" | "ADMIN";
   password?: string;
+  companyId?: string;
 };
 
 type BulkUpdateUsersBody = {
@@ -129,10 +130,11 @@ export async function PUT(request: Request) {
     userId: update.userId?.trim() ?? "",
     role: update.role,
     password: update.password ?? "",
+    companyId: update.companyId?.trim() ?? "",
   }));
 
   const invalidUpdate = normalizedUpdates.find(
-    (update) => !update.userId || ((update.role !== "USER" && update.role !== "ADMIN") && update.password.trim().length === 0)
+    (update) => !update.userId || !update.companyId || ((update.role !== "USER" && update.role !== "ADMIN") && update.password.trim().length === 0)
   );
 
   if (invalidUpdate) {
@@ -155,11 +157,26 @@ export async function PUT(request: Request) {
     return Response.json({ message: "No puedes quitarte tu propio acceso admin desde aquí." }, { status: 400 });
   }
 
+  const companyIds = Array.from(new Set(normalizedUpdates.map((update) => update.companyId)));
+  const companies = await prisma.company.findMany({
+    where: {
+      id: {
+        in: companyIds,
+      },
+    },
+    select: { id: true },
+  });
+
+  if (companies.length !== companyIds.length) {
+    return Response.json({ message: "Una de las empresas seleccionadas no existe." }, { status: 400 });
+  }
+
   await prisma.$transaction(async (tx) => {
     for (const update of normalizedUpdates) {
       const data: {
         role?: "USER" | "ADMIN";
         passwordHash?: string;
+        companyId?: string;
       } = {};
 
       if (update.role === "USER" || update.role === "ADMIN") {
@@ -170,9 +187,21 @@ export async function PUT(request: Request) {
         data.passwordHash = await bcrypt.hash(update.password.trim(), 12);
       }
 
+      data.companyId = update.companyId;
+
       await tx.user.update({
         where: { id: update.userId },
         data,
+      });
+
+      await tx.userSnapshot.updateMany({
+        where: { userId: update.userId },
+        data: { companyId: update.companyId },
+      });
+
+      await tx.userPosition.updateMany({
+        where: { userId: update.userId },
+        data: { companyId: update.companyId },
       });
     }
   }).catch(() => null);

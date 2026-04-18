@@ -26,9 +26,15 @@ type AdminUser = {
   };
 };
 
+type CompanyOption = {
+  id: string;
+  name: string;
+};
+
 type PendingUserEdit = {
   role: "USER" | "ADMIN";
   password: string;
+  companyId: string;
 };
 
 type AdminSnapshot = {
@@ -59,6 +65,7 @@ export default function AdminPage() {
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
   const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
   const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -99,6 +106,28 @@ export default function AdminPage() {
   useEffect(() => {
     let ignore = false;
 
+    async function loadCompanies() {
+      try {
+        const response = await fetch("/api/companies", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as { companies?: CompanyOption[]; message?: string } | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "No fue posible cargar las empresas.");
+        }
+
+        if (!ignore) {
+          setCompanies(Array.isArray(payload?.companies) ? payload.companies : []);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setErrorMessage(error instanceof Error ? error.message : "No fue posible cargar las empresas.");
+        }
+      }
+    }
+
     async function loadSnapshots() {
       try {
         const response = await fetch("/api/admin/snapshots", {
@@ -126,6 +155,7 @@ export default function AdminPage() {
       }
     }
 
+    void loadCompanies();
     void loadSnapshots();
 
     return () => {
@@ -211,12 +241,13 @@ export default function AdminPage() {
 
   function updatePendingUserEdit(user: AdminUser, nextEdit: Partial<PendingUserEdit>) {
     setPendingUserEdits((current) => {
-      const previous = current[user.id] ?? { role: user.role, password: "" };
+      const previous = current[user.id] ?? { role: user.role, password: "", companyId: user.company.id };
       const merged = { ...previous, ...nextEdit };
       const hasRoleChange = merged.role !== user.role;
       const hasPasswordChange = merged.password.trim().length > 0;
+      const hasCompanyChange = merged.companyId !== user.company.id;
 
-      if (!hasRoleChange && !hasPasswordChange) {
+      if (!hasRoleChange && !hasPasswordChange && !hasCompanyChange) {
         const { [user.id]: _, ...rest } = current;
         return rest;
       }
@@ -244,7 +275,10 @@ export default function AdminPage() {
           userId: user.id,
           role: draft.role,
           password: draft.password.trim(),
+          companyId: draft.companyId,
           currentRole: user.role,
+          currentCompanyId: user.company.id,
+          currentCompanyName: user.company.name,
           name: user.name,
         };
       })
@@ -259,6 +293,13 @@ export default function AdminPage() {
 
     if (invalidPasswordUpdate) {
       setErrorMessage(`La nueva contrasena de ${invalidPasswordUpdate.name} debe tener al menos 8 caracteres.`);
+      return;
+    }
+
+    const invalidCompanyUpdate = updates.find((update) => !update.companyId);
+
+    if (invalidCompanyUpdate) {
+      setErrorMessage(`Selecciona una empresa válida para ${invalidCompanyUpdate.name}.`);
       return;
     }
 
@@ -277,7 +318,7 @@ export default function AdminPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          updates: updates.map(({ userId, role, password }) => ({ userId, role, password })),
+          updates: updates.map(({ userId, role, password, companyId }) => ({ userId, role, password, companyId })),
         }),
       });
 
@@ -654,9 +695,11 @@ export default function AdminPage() {
                 <tbody>
                   {users.map((user) => (
                     (() => {
-                      const draft = pendingUserEdits[user.id] ?? { role: user.role, password: "" };
+                      const draft = pendingUserEdits[user.id] ?? { role: user.role, password: "", companyId: user.company.id };
                       const hasRoleChange = draft.role !== user.role;
                       const hasPasswordChange = draft.password.trim().length > 0;
+                      const hasCompanyChange = draft.companyId !== user.company.id;
+                      const selectedCompany = companies.find((company) => company.id === draft.companyId);
 
                       return (
                     <tr key={user.id} className="rounded-[1.25rem] bg-slate-50/80 text-sm text-slate-700">
@@ -665,8 +708,24 @@ export default function AdminPage() {
                         <div className="mt-1 text-xs text-slate-500">{user.email}</div>
                       </td>
                       <td className="px-4 py-4 align-top">
-                        <div className="font-semibold text-slate-900">{user.company.name}</div>
-                        <div className="mt-1 text-xs text-slate-500 break-all">{user.company.id}</div>
+                        <div className="space-y-3">
+                          <div>
+                            <div className="font-semibold text-slate-900">{selectedCompany?.name ?? user.company.name}</div>
+                            <div className="mt-1 text-xs text-slate-500 break-all">{draft.companyId}</div>
+                          </div>
+                          <select
+                            aria-label={`Empresa de ${user.name}`}
+                            title={`Empresa de ${user.name}`}
+                            value={draft.companyId}
+                            onChange={(event) => updatePendingUserEdit(user, { companyId: event.target.value })}
+                            className="field-select min-w-44"
+                            disabled={isSavingUserChanges}
+                          >
+                            {companies.map((company) => (
+                              <option key={company.id} value={company.id}>{company.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </td>
                       <td className="px-4 py-4 align-top">
                         <div className="space-y-3">
@@ -699,8 +758,9 @@ export default function AdminPage() {
                         />
                       </td>
                       <td className="rounded-r-[1.25rem] px-4 py-4 align-top">
-                        {hasRoleChange || hasPasswordChange ? (
+                        {hasRoleChange || hasPasswordChange || hasCompanyChange ? (
                           <div className="space-y-2 text-xs text-slate-600">
+                            {hasCompanyChange ? <div>Empresa pendiente: {user.company.name} → {selectedCompany?.name ?? "Sin empresa"}</div> : null}
                             {hasRoleChange ? <div>Rol pendiente: {user.role} → {draft.role}</div> : null}
                             {hasPasswordChange ? <div>Contraseña pendiente de cambio</div> : null}
                           </div>
