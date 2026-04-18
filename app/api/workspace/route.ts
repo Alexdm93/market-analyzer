@@ -287,6 +287,7 @@ async function backfillRelationalWorkspace(userId: string, companyInfoJson: stri
 
   await prisma.$transaction(async (tx) => {
     const { companyId, previousCompanyId } = await ensureCompanyIdForUser(tx, userId, nextCompanyInfo);
+    await syncCompanyInfo(tx, companyId, nextCompanyInfo);
     const snapshotCount = await tx.userSnapshot.count({ where: { userId } });
 
     if (snapshotCount === 0 && Object.keys(nextSnapshots).length > 0) {
