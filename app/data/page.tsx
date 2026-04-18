@@ -712,7 +712,7 @@ export default function DataPage() {
                 <div className="rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
                   {isAdminCompanyView
                     ? "Vista de consulta por empresa. Los cortes y cargos se muestran en modo solo lectura para el admin."
-                    : "Los cortes se crean, renombran y eliminan desde la vista admin. Aquí solo puedes trabajar sobre los cortes globales ya asignados."}
+                    : ""}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">

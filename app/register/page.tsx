@@ -3,29 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { CheckCircle2, LoaderCircle, ShieldPlus, UserPlus } from "lucide-react";
+import { CheckCircle2, ShieldPlus } from "lucide-react";
 import { signIn, useSession } from "next-auth/react";
-
-type CompanyOption = {
-  id: string;
-  name: string;
-};
+import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { status } = useSession();
-  const [companyId, setCompanyId] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [isPending, startTransition] = useTransition();
-  const isBootstrap = !isLoadingCompanies && companies.length === 0;
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -33,73 +20,22 @@ export default function RegisterPage() {
     }
   }, [router, status]);
 
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadCompanies() {
-      try {
-        const response = await fetch("/api/companies", {
-          method: "GET",
-          cache: "no-store",
-        });
-        const payload = (await response.json().catch(() => null)) as { companies?: CompanyOption[]; message?: string } | null;
-
-        if (!response.ok) {
-          throw new Error(payload?.message ?? "No fue posible cargar las empresas.");
-        }
-
-        if (!ignore) {
-          const nextCompanies = Array.isArray(payload?.companies) ? payload.companies : [];
-          setCompanies(nextCompanies);
-          setCompanyId(nextCompanies[0]?.id ?? "");
-        }
-      } catch (loadError) {
-        if (!ignore) {
-          setError(loadError instanceof Error ? loadError.message : "No fue posible cargar las empresas.");
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoadingCompanies(false);
-        }
-      }
-    }
-
-    void loadCompanies();
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSubmit(values: UserRegistrationValues) {
     setError("");
     setIsSubmitting(true);
-
-    if (!isBootstrap && !companyId) {
-      setError("Selecciona una empresa.");
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (isBootstrap && companyName.trim().length < 2) {
-      setError("Ingresa el nombre de la empresa inicial.");
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Las contrasenas no coinciden.");
-      setIsSubmitting(false);
-      return;
-    }
 
     const response = await fetch("/api/register", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ companyId, companyName, name, email, password }),
+      body: JSON.stringify({
+        companyId: values.companyId,
+        companyName: values.companyName,
+        name: values.name,
+        email: values.email,
+        password: values.password,
+      }),
     });
 
     const payload = (await response.json().catch(() => null)) as { message?: string; user?: { companyId?: string } } | null;
@@ -110,7 +46,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const loginCompanyId = payload?.user?.companyId ?? companyId;
+    const loginCompanyId = payload?.user?.companyId ?? values.companyId;
 
     if (!loginCompanyId) {
       setError("La cuenta fue creada, pero no se pudo resolver la empresa para iniciar sesión.");
@@ -120,8 +56,8 @@ export default function RegisterPage() {
 
     const result = await signIn("credentials", {
       companyId: loginCompanyId,
-      email,
-      password,
+      email: values.email,
+      password: values.password,
       redirect: false,
     });
 
@@ -144,106 +80,17 @@ export default function RegisterPage() {
         <section className="surface-card min-w-0 rounded-[2rem] p-6 md:p-8 lg:order-2">
           <div className="eyebrow mb-2">Registro</div>
           <h1 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">Crear cuenta</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            {isBootstrap
-              ? "Estás creando la cuenta inicial del sistema. Este primer usuario quedará como admin."
-              : "Esta cuenta sera la base para asociar datos y permisos por usuario."}
-          </p>
+          <p className="mt-3 text-sm leading-6 text-slate-600">Esta cuenta sera la base para asociar datos y permisos por usuario.</p>
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label htmlFor="name" className="field-label">Nombre</label>
-              <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="field"
-                placeholder="Nombre del usuario"
-                autoComplete="name"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="email" className="field-label">Correo</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="field"
-                placeholder="equipo@empresa.com"
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="field-label">Contrasena</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="field"
-                placeholder="Minimo 8 caracteres"
-                autoComplete="new-password"
-                required
-              />
-            </div>
-            {isBootstrap ? (
-              <div>
-                <label htmlFor="companyName" className="field-label">Empresa inicial</label>
-                <input
-                  id="companyName"
-                  type="text"
-                  value={companyName}
-                  onChange={(event) => setCompanyName(event.target.value)}
-                  className="field"
-                  placeholder="Nombre de la empresa"
-                  required
-                />
-              </div>
-            ) : (
-              <div>
-                <label htmlFor="companyId" className="field-label">Empresa</label>
-                <select
-                  id="companyId"
-                  value={companyId}
-                  onChange={(event) => setCompanyId(event.target.value)}
-                  className="field-select"
-                  disabled={isLoadingCompanies || companies.length === 0}
-                  required
-                >
-                  {isLoadingCompanies ? <option value="">Cargando empresas...</option> : null}
-                  {!isLoadingCompanies && companies.length === 0 ? <option value="">No hay empresas registradas</option> : null}
-                  {!isLoadingCompanies && companies.length > 0 ? <option value="">Selecciona una empresa</option> : null}
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>{company.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div>
-              <label htmlFor="confirmPassword" className="field-label">Confirmar contrasena</label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                className="field"
-                placeholder="Repite la contrasena"
-                autoComplete="new-password"
-                required
-              />
-            </div>
-
-            {error ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
-
-            <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isPending || status === "loading" || isLoadingCompanies}>
-              {isSubmitting || isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              {isSubmitting || isPending ? "Registrando cuenta..." : isBootstrap ? "Crear admin inicial" : "Crear cuenta"}
-            </button>
-          </form>
+          <div className="mt-6">
+            <UserRegistrationForm
+              submitLabel={isSubmitting || isPending ? "Registrando cuenta..." : "Crear cuenta"}
+              submittingLabel="Registrando cuenta..."
+              isSubmitting={isSubmitting || isPending || status === "loading"}
+              externalError={error}
+              onSubmit={handleSubmit}
+            />
+          </div>
 
           <div className="mt-5 text-sm text-slate-600">
             <Link href="/signin" className="font-semibold text-teal-700 hover:text-teal-800">

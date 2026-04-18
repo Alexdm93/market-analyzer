@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import { UserRole } from "@prisma/client";
+import { getServerSession } from "next-auth";
 
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_WORKSPACE } from "@/lib/workspace";
 
@@ -10,6 +12,7 @@ type RegisterBody = {
   name?: string;
   email?: string;
   password?: string;
+  role?: "USER" | "ADMIN";
 };
 
 export async function POST(request: Request) {
@@ -19,6 +22,7 @@ export async function POST(request: Request) {
   const name = body.name?.trim() ?? "";
   const email = body.email?.trim().toLowerCase() ?? "";
   const password = body.password ?? "";
+  const requestedRole = body.role === "ADMIN" ? UserRole.ADMIN : UserRole.USER;
 
   if (!companyId && companyName.length < 2) {
     return Response.json({ message: "Selecciona una empresa válida." }, { status: 400 });
@@ -45,18 +49,19 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
+  const session = await getServerSession(authOptions);
 
   const user = await prisma.$transaction(async (tx) => {
     const company = companyId
       ? await tx.company.findUnique({
           where: { id: companyId },
-          select: { id: true },
+          select: { id: true, name: true },
         })
       : await tx.company.upsert({
           where: { name: companyName },
           update: {},
           create: { name: companyName },
-          select: { id: true },
+          select: { id: true, name: true },
         });
 
     if (!company) {
@@ -93,7 +98,7 @@ export async function POST(request: Request) {
     );
 
     const userCount = await tx.user.count();
-    const role = userCount === 0 ? UserRole.ADMIN : UserRole.USER;
+    const role = userCount === 0 ? UserRole.ADMIN : session?.user?.role === "ADMIN" ? requestedRole : UserRole.USER;
 
     const createdUser = await tx.user.create({
       data: {
@@ -107,7 +112,10 @@ export async function POST(request: Request) {
             inflation: DEFAULT_WORKSPACE.inflation,
             selectedSnapshotId: globalSnapshots[0]?.snapshotId ?? DEFAULT_WORKSPACE.selectedSnapshotId,
             snapshotsJson: JSON.stringify(snapshots),
-            companyInfoJson: JSON.stringify(DEFAULT_WORKSPACE.companyInfo),
+            companyInfoJson: JSON.stringify({
+              ...DEFAULT_WORKSPACE.companyInfo,
+              companyName: company.name,
+            }),
           },
         },
       },

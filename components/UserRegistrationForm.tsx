@@ -1,0 +1,249 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+export type CompanyOption = {
+  id: string;
+  name: string;
+};
+
+export type UserRegistrationValues = {
+  name: string;
+  email: string;
+  companyId: string;
+  companyName: string;
+  password: string;
+  confirmPassword: string;
+  role: "USER" | "ADMIN";
+};
+
+type CompaniesPayload = {
+  companies?: CompanyOption[];
+  bootstrapRequired?: boolean;
+  message?: string;
+};
+
+type UserRegistrationFormProps = {
+  allowRoleSelection?: boolean;
+  forceExistingCompanySelector?: boolean;
+  submitLabel: string;
+  submittingLabel: string;
+  isSubmitting?: boolean;
+  externalError?: string;
+  onSubmit: (values: UserRegistrationValues) => Promise<void> | void;
+};
+
+const DEFAULT_VALUES: UserRegistrationValues = {
+  name: "",
+  email: "",
+  companyId: "",
+  companyName: "",
+  password: "",
+  confirmPassword: "",
+  role: "USER",
+};
+
+export default function UserRegistrationForm({
+  allowRoleSelection = false,
+  forceExistingCompanySelector = false,
+  submitLabel,
+  submittingLabel,
+  isSubmitting = false,
+  externalError,
+  onSubmit,
+}: UserRegistrationFormProps) {
+  const [values, setValues] = useState<UserRegistrationValues>(DEFAULT_VALUES);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+  const [bootstrapRequired, setBootstrapRequired] = useState(false);
+  const [localError, setLocalError] = useState("");
+
+  const isBootstrap = !forceExistingCompanySelector && !isLoadingCompanies && bootstrapRequired;
+  const needsNewCompany = isBootstrap && companies.length === 0;
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadCompanies() {
+      try {
+        const response = await fetch("/api/companies", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as CompaniesPayload | null;
+
+        if (!response.ok) {
+          throw new Error(payload?.message ?? "No fue posible cargar las empresas.");
+        }
+
+        if (!ignore) {
+          const nextCompanies = Array.isArray(payload?.companies) ? payload.companies : [];
+          setCompanies(nextCompanies);
+          setBootstrapRequired(Boolean(payload?.bootstrapRequired));
+          setValues((current) => ({
+            ...current,
+            companyId: current.companyId || nextCompanies[0]?.id || "",
+            role: !allowRoleSelection && Boolean(payload?.bootstrapRequired) ? "ADMIN" : current.role,
+          }));
+        }
+      } catch (error) {
+        if (!ignore) {
+          setLocalError(error instanceof Error ? error.message : "No fue posible cargar las empresas.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingCompanies(false);
+        }
+      }
+    }
+
+    void loadCompanies();
+
+    return () => {
+      ignore = true;
+    };
+  }, [allowRoleSelection]);
+
+  function updateValue<Key extends keyof UserRegistrationValues>(key: Key, value: UserRegistrationValues[Key]) {
+    setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLocalError("");
+
+    if (!needsNewCompany && !values.companyId) {
+      setLocalError("Selecciona una empresa.");
+      return;
+    }
+
+    if (needsNewCompany && values.companyName.trim().length < 2) {
+      setLocalError("Ingresa el nombre de la empresa inicial.");
+      return;
+    }
+
+    if (values.password !== values.confirmPassword) {
+      setLocalError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    await onSubmit({
+      ...values,
+      companyName: needsNewCompany ? values.companyName : "",
+      role: allowRoleSelection ? values.role : isBootstrap ? "ADMIN" : "USER",
+    });
+  }
+
+  const errorMessage = externalError || localError;
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="registrationName" className="field-label">Nombre</label>
+        <input
+          id="registrationName"
+          type="text"
+          value={values.name}
+          onChange={(event) => updateValue("name", event.target.value)}
+          className="field"
+          placeholder="Nombre del usuario"
+          autoComplete="name"
+          required
+        />
+      </div>
+      <div>
+        <label htmlFor="registrationEmail" className="field-label">Correo</label>
+        <input
+          id="registrationEmail"
+          type="email"
+          value={values.email}
+          onChange={(event) => updateValue("email", event.target.value)}
+          className="field"
+          placeholder="equipo@empresa.com"
+          autoComplete="email"
+          required
+        />
+      </div>
+      {needsNewCompany ? (
+        <div>
+          <label htmlFor="registrationCompanyName" className="field-label">Empresa inicial</label>
+          <input
+            id="registrationCompanyName"
+            type="text"
+            value={values.companyName}
+            onChange={(event) => updateValue("companyName", event.target.value)}
+            className="field"
+            placeholder="Nombre de la empresa"
+            required
+          />
+        </div>
+      ) : (
+        <div>
+          <label htmlFor="registrationCompanyId" className="field-label">Empresa</label>
+          <select
+            id="registrationCompanyId"
+            value={values.companyId}
+            onChange={(event) => updateValue("companyId", event.target.value)}
+            className="field-select"
+            disabled={isLoadingCompanies || companies.length === 0}
+            required
+          >
+            {isLoadingCompanies ? <option value="">Cargando empresas...</option> : null}
+            {!isLoadingCompanies && companies.length === 0 ? <option value="">No hay empresas registradas</option> : null}
+            {!isLoadingCompanies && companies.length > 0 ? <option value="">Selecciona una empresa</option> : null}
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>{company.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div>
+        <label htmlFor="registrationPassword" className="field-label">Contrasena</label>
+        <input
+          id="registrationPassword"
+          type="password"
+          value={values.password}
+          onChange={(event) => updateValue("password", event.target.value)}
+          className="field"
+          placeholder="Minimo 8 caracteres"
+          autoComplete="new-password"
+          required
+        />
+      </div>
+      <div>
+        <label htmlFor="registrationConfirmPassword" className="field-label">Confirmar contrasena</label>
+        <input
+          id="registrationConfirmPassword"
+          type="password"
+          value={values.confirmPassword}
+          onChange={(event) => updateValue("confirmPassword", event.target.value)}
+          className="field"
+          placeholder="Repite la contrasena"
+          autoComplete="new-password"
+          required
+        />
+      </div>
+      {allowRoleSelection ? (
+        <div>
+          <label htmlFor="registrationRole" className="field-label">Rol inicial</label>
+          <select
+            id="registrationRole"
+            value={values.role}
+            onChange={(event) => updateValue("role", event.target.value as "USER" | "ADMIN")}
+            className="field-select"
+          >
+            <option value="USER">USER</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </div>
+      ) : null}
+
+      {errorMessage ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p> : null}
+
+      <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isLoadingCompanies}>
+        {isSubmitting ? submitLabel : submitLabel}
+        <span className="sr-only">{submittingLabel}</span>
+      </button>
+    </form>
+  );
+}

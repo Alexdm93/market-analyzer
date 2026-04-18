@@ -59,7 +59,7 @@ async function ensureCompanyIdForUser(
     throw new Error("User not found.");
   }
 
-  const fallbackCompanyName = user.name.trim() ? `Empresa ${user.name.trim()}` : `Empresa ${user.email}`;
+  const fallbackCompanyName = user.company?.name?.trim() || (user.name.trim() ? `Empresa ${user.name.trim()}` : `Empresa ${user.email}`);
   const companyName = resolveCompanyName(companyInfo, fallbackCompanyName);
 
   if (user.company?.name === companyName) {

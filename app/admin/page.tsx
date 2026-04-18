@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { Building2, CalendarDays, LoaderCircle, RefreshCw, Shield, Trash2, UserPlus, Users } from "lucide-react";
+import { Building2, CalendarDays, LoaderCircle, RefreshCw, Shield, Trash2, UserPlus, Users, X } from "lucide-react";
+import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 
 const adminActions = [
   {
@@ -10,12 +11,6 @@ const adminActions = [
     description: "Crea y revisa las empresas disponibles para asignar usuarios.",
     href: "/empresas",
     icon: Building2,
-  },
-  {
-    title: "Crear usuarios",
-    description: "Accede al registro controlado para dar de alta nuevos usuarios.",
-    href: "/register",
-    icon: UserPlus,
   },
 ];
 
@@ -55,6 +50,8 @@ export default function AdminPage() {
   const [isMutatingSnapshot, setIsMutatingSnapshot] = useState(false);
   const [renamingSnapshotId, setRenamingSnapshotId] = useState("");
   const [renameSnapshotLabel, setRenameSnapshotLabel] = useState("");
+  const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -142,6 +139,64 @@ export default function AdminPage() {
 
     setSnapshots(Array.isArray(payload?.snapshots) ? payload.snapshots : []);
     setTotalUsers(typeof payload?.userCount === "number" ? payload.userCount : 0);
+  }
+
+  async function handleOpenCreateUserModal() {
+    setErrorMessage("");
+    setStatusMessage("");
+    setIsCreateUserModalOpen(true);
+  }
+
+  function handleCloseCreateUserModal() {
+    setIsCreateUserModalOpen(false);
+    setIsSubmittingRegister(false);
+  }
+
+  async function handleCreateUser(values: UserRegistrationValues) {
+    setErrorMessage("");
+    setStatusMessage("");
+
+    setIsSubmittingRegister(true);
+
+    try {
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: values.name,
+          email: values.email,
+          companyId: values.companyId,
+          companyName: values.companyName,
+          password: values.password,
+          role: values.role,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string; user?: { name?: string } } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message ?? "No fue posible crear la cuenta.");
+      }
+
+      const usersResponse = await fetch("/api/admin/users", {
+        method: "GET",
+        cache: "no-store",
+      });
+      const usersPayload = (await usersResponse.json().catch(() => null)) as { users?: AdminUser[]; message?: string } | null;
+
+      if (!usersResponse.ok) {
+        throw new Error(usersPayload?.message ?? "La cuenta fue creada, pero no se pudo refrescar la lista de usuarios.");
+      }
+
+      setUsers(Array.isArray(usersPayload?.users) ? usersPayload.users : []);
+      setStatusMessage(`Usuario creado: ${payload?.user?.name ?? values.name}.`);
+      handleCloseCreateUserModal();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No fue posible crear la cuenta.");
+    } finally {
+      setIsSubmittingRegister(false);
+    }
   }
 
   function handleRoleChange(userId: string, role: "USER" | "ADMIN") {
@@ -346,6 +401,17 @@ export default function AdminPage() {
         ) : null}
 
         <section className="grid gap-5 md:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => void handleOpenCreateUserModal()}
+            className="surface-card rounded-[2rem] p-6 text-left hover:border-slate-300 md:p-8"
+          >
+            <div className="rounded-full bg-slate-100 p-3 text-slate-700 w-fit">
+              <UserPlus size={18} aria-hidden />
+            </div>
+            <h2 className="font-display mt-5 text-2xl font-bold text-slate-900">Crear usuarios</h2>
+            <p className="mt-3 text-sm leading-7 text-slate-600">Abre el alta controlada dentro de esta vista administrativa.</p>
+          </button>
           {adminActions.map((action) => {
             const Icon = action.icon;
 
@@ -547,6 +613,41 @@ export default function AdminPage() {
           )}
         </section>
       </div>
+
+      {isCreateUserModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={handleCloseCreateUserModal} />
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-2xl rounded-[1.75rem] p-6 md:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="eyebrow mb-2">Alta controlada</div>
+                <h2 className="font-display text-2xl font-bold text-slate-900">Crear usuario</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Completa el formulario sin salir de la vista admin.</p>
+              </div>
+              <button type="button" onClick={handleCloseCreateUserModal} className="btn btn-secondary px-3" aria-label="Cerrar modal crear usuario">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-6">
+              <UserRegistrationForm
+                allowRoleSelection
+                forceExistingCompanySelector
+                submitLabel={isSubmittingRegister ? "Creando usuario..." : "Crear usuario"}
+                submittingLabel="Creando usuario..."
+                isSubmitting={isSubmittingRegister}
+                externalError={errorMessage}
+                onSubmit={handleCreateUser}
+              />
+              <div className="mt-4 flex justify-end gap-3">
+                <button type="button" onClick={handleCloseCreateUserModal} className="btn btn-secondary" disabled={isSubmittingRegister}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
