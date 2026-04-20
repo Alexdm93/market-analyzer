@@ -294,7 +294,7 @@ export default function EmpresasPage() {
                     <div className="metric-value mt-3">{snapshotOptions.length}</div>
                   </div>
                   <div className="metric-tile">
-                    <div className="metric-label">Empresas con data cargada</div>
+                    <div className="metric-label">Empresas con data</div>
                     <div className="metric-value mt-3">{snapshotCompanies.length}</div>
                   </div>
                   <div className="metric-tile">
