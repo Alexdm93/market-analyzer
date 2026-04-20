@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Building2, CalendarDays, LoaderCircle, RefreshCw, Shield, Trash2, UserPlus, Users, X } from "lucide-react";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
+import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
 const adminActions = [
   {
@@ -18,7 +19,7 @@ type AdminUser = {
   id: string;
   name: string;
   email: string;
-  role: "USER" | "ADMIN";
+  role: AppUserRole;
   createdAt: string;
   company: {
     id: string;
@@ -32,10 +33,22 @@ type CompanyOption = {
 };
 
 type PendingUserEdit = {
-  role: "USER" | "ADMIN";
+  role: AppUserRole;
   password: string;
   companyId: string;
 };
+
+function getRoleBadgeClasses(role: AppUserRole) {
+  if (role === "ADMIN") {
+    return "bg-teal-50 text-teal-800";
+  }
+
+  if (role === "ANALYST") {
+    return "bg-amber-50 text-amber-800";
+  }
+
+  return "bg-slate-200/70 text-slate-700";
+}
 
 type AdminSnapshot = {
   id: string;
@@ -52,7 +65,6 @@ export default function AdminPage() {
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [isPending, startTransition] = useTransition();
   const [snapshots, setSnapshots] = useState<AdminSnapshot[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(true);
   const [snapshotDate, setSnapshotDate] = useState(getTodayDate);
@@ -248,8 +260,9 @@ export default function AdminPage() {
       const hasCompanyChange = merged.companyId !== user.company.id;
 
       if (!hasRoleChange && !hasPasswordChange && !hasCompanyChange) {
-        const { [user.id]: _, ...rest } = current;
-        return rest;
+        const nextEdits = { ...current };
+        delete nextEdits[user.id];
+        return nextEdits;
       }
 
       return {
@@ -729,19 +742,20 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-4 align-top">
                         <div className="space-y-3">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${draft.role === "ADMIN" ? "bg-teal-50 text-teal-800" : "bg-slate-200/70 text-slate-700"}`}>
-                            {draft.role}
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
+                            {getRoleLabel(draft.role)}
                           </span>
                           <select
                             aria-label={`Rol de ${user.name}`}
                             title={`Rol de ${user.name}`}
                             value={draft.role}
-                            onChange={(event) => updatePendingUserEdit(user, { role: event.target.value as "USER" | "ADMIN" })}
+                            onChange={(event) => updatePendingUserEdit(user, { role: event.target.value as AppUserRole })}
                             className="field-select min-w-36"
                             disabled={isSavingUserChanges}
                           >
-                            <option value="USER">USER</option>
-                            <option value="ADMIN">ADMIN</option>
+                            {ROLE_OPTIONS.map((roleOption) => (
+                              <option key={roleOption.value} value={roleOption.value}>{roleOption.label}</option>
+                            ))}
                           </select>
                         </div>
                       </td>
@@ -761,7 +775,7 @@ export default function AdminPage() {
                         {hasRoleChange || hasPasswordChange || hasCompanyChange ? (
                           <div className="space-y-2 text-xs text-slate-600">
                             {hasCompanyChange ? <div>Empresa pendiente: {user.company.name} → {selectedCompany?.name ?? "Sin empresa"}</div> : null}
-                            {hasRoleChange ? <div>Rol pendiente: {user.role} → {draft.role}</div> : null}
+                            {hasRoleChange ? <div>Rol pendiente: {getRoleLabel(user.role)} → {getRoleLabel(draft.role)}</div> : null}
                             {hasPasswordChange ? <div>Contraseña pendiente de cambio</div> : null}
                           </div>
                         ) : (

@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ANALYST_ROLE, type AppUserRole, isAppUserRole } from "@/lib/roles";
 import { DEFAULT_WORKSPACE } from "@/lib/workspace";
 
 type RegisterBody = {
@@ -15,8 +16,24 @@ type RegisterBody = {
   name?: string;
   email?: string;
   password?: string;
-  role?: "USER" | "ADMIN";
+  role?: AppUserRole;
 };
+
+function resolveRequestedRole(role: string | undefined) {
+  if (!isAppUserRole(role)) {
+    return UserRole.USER;
+  }
+
+  if (role === "ADMIN") {
+    return UserRole.ADMIN;
+  }
+
+  if (role === ANALYST_ROLE) {
+    return UserRole.ANALYST;
+  }
+
+  return UserRole.USER;
+}
 
 export async function POST(request: Request) {
   const body = (await request.json()) as RegisterBody;
@@ -28,7 +45,7 @@ export async function POST(request: Request) {
   const name = body.name?.trim() ?? "";
   const email = body.email?.trim().toLowerCase() ?? "";
   const password = body.password ?? "";
-  const requestedRole = body.role === "ADMIN" ? UserRole.ADMIN : UserRole.USER;
+  const requestedRole = resolveRequestedRole(body.role);
 
   if (!companyId && companyName.length < 2) {
     return Response.json({ message: "Selecciona una empresa válida." }, { status: 400 });

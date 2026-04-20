@@ -6,6 +6,7 @@ import {
   ECONOMIC_SECTOR_OPTIONS,
   type CompanyCatalogEntry,
 } from "@/lib/company";
+import { ROLE_OPTIONS, type AppUserRole } from "@/lib/roles";
 
 export type CompanyOption = CompanyCatalogEntry;
 
@@ -19,7 +20,7 @@ export type UserRegistrationValues = {
   companyClassification: string;
   password: string;
   confirmPassword: string;
-  role: "USER" | "ADMIN";
+  role: AppUserRole;
 };
 
 type CompaniesPayload = {
@@ -322,11 +323,12 @@ export default function UserRegistrationForm({
           <select
             id="registrationRole"
             value={values.role}
-            onChange={(event) => updateValue("role", event.target.value as "USER" | "ADMIN")}
+            onChange={(event) => updateValue("role", event.target.value as AppUserRole)}
             className="field-select"
           >
-            <option value="USER">USER</option>
-            <option value="ADMIN">ADMIN</option>
+            {ROLE_OPTIONS.map((roleOption) => (
+              <option key={roleOption.value} value={roleOption.value}>{roleOption.label}</option>
+            ))}
           </select>
         </div>
       ) : null}

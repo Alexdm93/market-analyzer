@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { type AppUserRole, isAppUserRole } from "@/lib/roles";
 
 function forbiddenResponse() {
   return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
@@ -54,12 +55,12 @@ export async function GET() {
 
 type UpdateUserRoleBody = {
   userId?: string;
-  role?: "USER" | "ADMIN";
+  role?: AppUserRole;
 };
 
 type BulkUserUpdate = {
   userId?: string;
-  role?: "USER" | "ADMIN";
+  role?: AppUserRole;
   password?: string;
   companyId?: string;
 };
@@ -79,7 +80,7 @@ export async function PATCH(request: Request) {
   const userId = body.userId?.trim() ?? "";
   const role = body.role;
 
-  if (!userId || (role !== "USER" && role !== "ADMIN")) {
+  if (!userId || !isAppUserRole(role)) {
     return Response.json({ message: "Datos inválidos para actualizar el rol." }, { status: 400 });
   }
 
@@ -134,7 +135,7 @@ export async function PUT(request: Request) {
   }));
 
   const invalidUpdate = normalizedUpdates.find(
-    (update) => !update.userId || !update.companyId || ((update.role !== "USER" && update.role !== "ADMIN") && update.password.trim().length === 0)
+    (update) => !update.userId || !update.companyId || !isAppUserRole(update.role)
   );
 
   if (invalidUpdate) {
@@ -150,7 +151,7 @@ export async function PUT(request: Request) {
   }
 
   const selfDemotion = normalizedUpdates.find(
-    (update) => update.userId === auth.session.user.id && update.role === "USER"
+    (update) => update.userId === auth.session.user.id && update.role !== "ADMIN"
   );
 
   if (selfDemotion) {
@@ -174,12 +175,12 @@ export async function PUT(request: Request) {
   await prisma.$transaction(async (tx) => {
     for (const update of normalizedUpdates) {
       const data: {
-        role?: "USER" | "ADMIN";
+        role?: AppUserRole;
         passwordHash?: string;
         companyId?: string;
       } = {};
 
-      if (update.role === "USER" || update.role === "ADMIN") {
+      if (isAppUserRole(update.role)) {
         data.role = update.role;
       }
 

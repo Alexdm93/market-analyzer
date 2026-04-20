@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { Building2, Database, Info, LayoutDashboard, LineChart, LogIn, LogOut, Shield } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
+import { canAccessEmpresas, getRoleLabel, isAdminRole } from "@/lib/roles";
+
 const menuItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
   { name: "Data", href: "/data", icon: Database, hint: "Captura por cargo" },
@@ -16,10 +18,16 @@ const adminMenuItems = [
   { name: "Empresas", href: "/empresas", icon: Building2, hint: "Catálogo disponible" },
 ];
 
+const analystMenuItems = [
+  { name: "Empresas", href: "/empresas", icon: Building2, hint: "Empresas por corte" },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const role = session?.user?.role;
+  const isAdmin = isAdminRole(role);
+  const canSeeEmpresas = canAccessEmpresas(role);
 
   if (pathname === "/signin" || pathname === "/register") {
     return null;
@@ -42,7 +50,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="grid min-w-0 grid-cols-1 gap-2 pb-1 sm:grid-cols-2 md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto md:pr-1">
-          {[...menuItems, ...(isAdmin ? adminMenuItems : [])].map((item) => {
+          {[...menuItems, ...(isAdmin ? adminMenuItems : canSeeEmpresas ? analystMenuItems : [])].map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
@@ -73,7 +81,7 @@ export default function Sidebar() {
             <>
               <div className="eyebrow mb-2">Sesion activa</div>
               <div className="break-words font-display text-lg font-bold text-slate-900">{session.user.name}</div>
-              <div className="mt-2 break-words text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{isAdmin ? "Admin" : "Usuario"}</div>
+              <div className="mt-2 break-words text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
               
               <button
                 onClick={() => signOut({ callbackUrl: "/signin" })}

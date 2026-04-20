@@ -117,6 +117,7 @@ function computeRowTotal(r: ExtendedMarketPosition) {
 
 export default function EstudioPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const isAdmin = session?.user?.role === "ADMIN";
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
@@ -689,7 +690,6 @@ export default function EstudioPage() {
     })
     .sort((a, b) => b.count - a.count);
 
-  const router = useRouter();
   const totalObservations = groups.reduce((acc, group) => acc + group.count, 0);
   const medianReference = groups[0]?.p50 ?? "ND";
   const topGroups = groups.slice(0, 6);

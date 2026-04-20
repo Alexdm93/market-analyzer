@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
+import { ADMIN_ROLE, canAccessEmpresas } from "./lib/roles";
+
 const authPages = new Set(["/signin", "/register"]);
 const protectedPages = new Set(["/", "/data", "/estudio", "/informacion", "/empresas", "/admin"]);
-const adminPages = new Set(["/admin", "/empresas", "/register"]);
+const adminPages = new Set(["/admin", "/register"]);
+const empresasPages = new Set(["/empresas"]);
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -21,7 +24,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(signInUrl);
   }
 
-  if (token && adminPages.has(pathname) && token.role !== "ADMIN") {
+  if (token && adminPages.has(pathname) && token.role !== ADMIN_ROLE) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  if (token && empresasPages.has(pathname) && !canAccessEmpresas(typeof token.role === "string" ? token.role : undefined)) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
