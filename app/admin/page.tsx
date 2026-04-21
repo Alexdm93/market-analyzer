@@ -695,14 +695,21 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="mt-5 overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-2.5 md:border-spacing-y-2">
+              <table className="min-w-full table-fixed border-separate border-spacing-y-2.5 md:border-spacing-y-2">
+                <colgroup>
+                  <col className="w-[18%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[22%]" />
+                </colgroup>
                 <thead>
                   <tr className="text-left text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                    <th className="px-4">Usuario</th>
-                    <th className="px-4">Empresa</th>
-                    <th className="px-4">Rol</th>
-                    <th className="px-4">Contraseña</th>
-                    <th className="px-4">Estado</th>
+                    <th className="px-4 pb-1 md:px-3">Usuario</th>
+                    <th className="px-4 pb-1 md:px-3">Empresa</th>
+                    <th className="px-4 pb-1 md:px-3">Rol</th>
+                    <th className="px-4 pb-1 md:px-3">Contraseña</th>
+                    <th className="px-4 pb-1 md:px-3">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -717,20 +724,22 @@ export default function AdminPage() {
                       return (
                     <tr key={user.id} className="rounded-[1.1rem] bg-slate-50/80 text-sm text-slate-700 md:text-[0.82rem]">
                       <td className="rounded-l-[1.1rem] px-4 py-4 align-top md:px-3 md:py-3">
-                        <div className="font-display text-base font-bold text-slate-900">{user.name}</div>
-                        <div className="mt-1 text-xs text-slate-500">{user.email}</div>
+                        <div className="flex min-h-[4.75rem] flex-col justify-start">
+                          <div className="font-display text-base font-bold text-slate-900 md:text-[0.98rem]">{user.name}</div>
+                          <div className="mt-1 break-words text-xs leading-5 text-slate-500">{user.email}</div>
+                        </div>
                       </td>
                       <td className="px-4 py-4 align-top md:px-3 md:py-3">
-                        <div className="space-y-2.5">
-                          <div>
-                            <div className="font-semibold text-slate-900">{selectedCompany?.name ?? user.company.name}</div>
+                        <div className="flex min-h-[4.75rem] flex-col justify-start gap-2.5">
+                          <div className="min-h-5">
+                            <div className="break-words font-semibold leading-5 text-slate-900">{selectedCompany?.name ?? user.company.name}</div>
                           </div>
                           <select
                             aria-label={`Empresa de ${user.name}`}
                             title={`Empresa de ${user.name}`}
                             value={draft.companyId}
                             onChange={(event) => updatePendingUserEdit(user, { companyId: event.target.value })}
-                            className="field-select min-w-40 md:min-w-36"
+                            className="field-select w-full min-w-0"
                             disabled={isSavingUserChanges}
                           >
                             {companies.map((company) => (
@@ -740,16 +749,18 @@ export default function AdminPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4 align-top md:px-3 md:py-3">
-                        <div className="space-y-2.5">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
-                            {getRoleLabel(draft.role)}
-                          </span>
+                        <div className="flex min-h-[4.75rem] flex-col justify-start gap-2.5">
+                          <div className="min-h-5">
+                            <span className={`inline-flex rounded-full px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
+                              {getRoleLabel(draft.role)}
+                            </span>
+                          </div>
                           <select
                             aria-label={`Rol de ${user.name}`}
                             title={`Rol de ${user.name}`}
                             value={draft.role}
                             onChange={(event) => updatePendingUserEdit(user, { role: event.target.value as AppUserRole })}
-                            className="field-select min-w-32 md:min-w-30"
+                            className="field-select w-full min-w-0"
                             disabled={isSavingUserChanges}
                           >
                             {ROLE_OPTIONS.map((roleOption) => (
@@ -759,26 +770,28 @@ export default function AdminPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4 align-top md:px-3 md:py-3">
-                        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Actual protegida</div>
-                        <input
-                          type="password"
-                          value={draft.password}
-                          onChange={(event) => updatePendingUserEdit(user, { password: event.target.value })}
-                          className="field mt-2.5 min-w-40 md:min-w-36"
-                          placeholder="Nueva contrasena"
-                          autoComplete="new-password"
-                          disabled={isSavingUserChanges}
-                        />
+                        <div className="flex min-h-[4.75rem] flex-col justify-start gap-2.5">
+                          <div className="min-h-5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Actual protegida</div>
+                          <input
+                            type="password"
+                            value={draft.password}
+                            onChange={(event) => updatePendingUserEdit(user, { password: event.target.value })}
+                            className="field w-full min-w-0"
+                            placeholder="Nueva contrasena"
+                            autoComplete="new-password"
+                            disabled={isSavingUserChanges}
+                          />
+                        </div>
                       </td>
                       <td className="rounded-r-[1.1rem] px-4 py-4 align-top md:px-3 md:py-3">
                         {hasRoleChange || hasPasswordChange || hasCompanyChange ? (
-                          <div className="space-y-2 text-xs text-slate-600">
+                          <div className="flex min-h-[4.75rem] flex-col justify-start space-y-2 text-xs leading-5 text-slate-600">
                             {hasCompanyChange ? <div>Empresa pendiente: {user.company.name} → {selectedCompany?.name ?? "Sin empresa"}</div> : null}
                             {hasRoleChange ? <div>Rol pendiente: {getRoleLabel(user.role)} → {getRoleLabel(draft.role)}</div> : null}
                             {hasPasswordChange ? <div>Contraseña pendiente de cambio</div> : null}
                           </div>
                         ) : (
-                          <div className="text-xs text-slate-500">Sin cambios</div>
+                          <div className="flex min-h-[4.75rem] items-start text-xs leading-5 text-slate-500">Sin cambios</div>
                         )}
                       </td>
                     </tr>
