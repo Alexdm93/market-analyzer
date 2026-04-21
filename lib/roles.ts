@@ -6,7 +6,7 @@ export type AppUserRole = typeof USER_ROLE | typeof ANALYST_ROLE | typeof ADMIN_
 
 export const ROLE_OPTIONS: Array<{ value: AppUserRole; label: string }> = [
   { value: USER_ROLE, label: "Usuario" },
-  { value: ANALYST_ROLE, label: "Intermedio" },
+  { value: ANALYST_ROLE, label: "Manager" },
   { value: ADMIN_ROLE, label: "Admin" },
 ];
 
@@ -28,7 +28,7 @@ export function getRoleLabel(role: string | null | undefined) {
   }
 
   if (role === ANALYST_ROLE) {
-    return "Intermedio";
+    return "Manager";
   }
 
   return "Usuario";

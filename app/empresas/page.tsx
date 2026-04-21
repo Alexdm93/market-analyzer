@@ -266,7 +266,7 @@ export default function EmpresasPage() {
     return (
       <main className="page-wrap">
         <div className="surface-card rounded-[2rem] p-6 text-sm text-slate-600 md:p-8">
-          Esta vista solo está disponible para administradores y usuarios intermedios.
+          Esta vista solo está disponible para administradores y managers.
         </div>
       </main>
     );

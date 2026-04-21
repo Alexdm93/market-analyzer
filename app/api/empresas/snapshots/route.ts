@@ -5,7 +5,7 @@ import { canAccessEmpresas } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 
 function forbiddenResponse() {
-  return Response.json({ message: "Acceso restringido a administradores y usuarios intermedios." }, { status: 403 });
+  return Response.json({ message: "Acceso restringido a administradores y managers." }, { status: 403 });
 }
 
 async function requireEmpresasSession() {
