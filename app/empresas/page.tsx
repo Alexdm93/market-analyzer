@@ -283,8 +283,8 @@ export default function EmpresasPage() {
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_22rem]">
               <div>
                 <div className="eyebrow mb-3">Empresas por corte</div>
-                <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Seguimiento de participación.</h1>
-                <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">
+                <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Seguimiento de participación.</h1>
+                <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
                   Selecciona un corte para ver qué empresas cargaron cargos y la fecha de su último guardado en ese período.
                 </p>
 
@@ -390,8 +390,8 @@ export default function EmpresasPage() {
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
             <div>
               <div className="eyebrow mb-3">Catálogo</div>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Empresas registradas.</h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">
+              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Empresas registradas.</h1>
+              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
                 Administra las empresas disponibles para que luego puedan seleccionarse en el registro de usuarios.
               </p>
 
@@ -424,17 +424,18 @@ export default function EmpresasPage() {
               ) : null}
             </div>
 
-            <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
-              <div className="rounded-full bg-teal-50 p-3 text-teal-700 w-fit">
+            <div className="surface-card rounded-[1.5rem] p-4 md:p-5">
+              <div className="rounded-full bg-teal-50 p-2.5 text-teal-700 w-fit">
                 <Building2 size={18} aria-hidden />
               </div>
-              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900">Nueva empresa</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900 md:text-[1.35rem]">Nueva empresa</h2>
+              <p className="mt-2.5 text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">
                 Cada usuario nuevo deberá elegir una empresa existente desde el selector del registro.
               </p>
 
-              <form onSubmit={handleCreateCompany} className="mt-6 space-y-4">
-                <div>
+              <form onSubmit={handleCreateCompany} className="mt-5 space-y-4 md:space-y-3">
+                <div className="md:grid md:grid-cols-2 md:gap-3">
+                  <div>
                   <label htmlFor="companyName" className="field-label">Nombre de la empresa</label>
                   <input
                     id="companyName"
@@ -446,6 +447,21 @@ export default function EmpresasPage() {
                     autoComplete="organization"
                     required
                   />
+                  </div>
+                  <div>
+                    <label htmlFor="companyEconomicSector" className="field-label">Sector economico</label>
+                    <select
+                      id="companyEconomicSector"
+                      value={companyEconomicSector}
+                      onChange={(event) => handleEconomicSectorChange(event.target.value)}
+                      className="field-select"
+                    >
+                      <option value="">Seleccionar sector económico</option>
+                      {ECONOMIC_SECTOR_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="companyDescription" className="field-label">Descripcion</label>
@@ -453,23 +469,9 @@ export default function EmpresasPage() {
                     id="companyDescription"
                     value={companyDescription}
                     onChange={(event) => setCompanyDescription(event.target.value)}
-                    className="field min-h-28 resize-y"
+                    className="field min-h-28 resize-y md:min-h-24"
                     placeholder="Descripcion general de la empresa"
                   />
-                </div>
-                <div>
-                  <label htmlFor="companyEconomicSector" className="field-label">Sector economico</label>
-                  <select
-                    id="companyEconomicSector"
-                    value={companyEconomicSector}
-                    onChange={(event) => handleEconomicSectorChange(event.target.value)}
-                    className="field-select"
-                  >
-                    <option value="">Seleccionar sector económico</option>
-                    {ECONOMIC_SECTOR_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
                 </div>
                 <div>
                   <label htmlFor="companyClassification" className="field-label">Clasificacion</label>
@@ -496,7 +498,7 @@ export default function EmpresasPage() {
           </div>
         </section>
 
-        <section className="surface-card rounded-[2rem] p-6 md:p-8">
+        <section className="surface-card rounded-[2rem] p-6 md:p-6">
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-slate-100 p-3 text-slate-700">
               <Building2 size={18} aria-hidden />
@@ -513,11 +515,11 @@ export default function EmpresasPage() {
               No hay empresas registradas todavía.
             </div>
           ) : (
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {companies.map((company) => (
                 <article key={company.id} className="metric-tile">
-                  <div className="font-display text-lg font-bold text-slate-900">{company.name}</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-600">{company.description || "Sin descripción registrada."}</div>
+                  <div className="font-display text-lg font-bold text-slate-900 md:text-[1rem]">{company.name}</div>
+                  <div className="mt-2 text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">{company.description || "Sin descripción registrada."}</div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
                     <span className="pill">{company.economicSector || "Sin sector"}</span>
                     <span className="pill">{company.classification || "Sin clasificación"}</span>

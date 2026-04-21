@@ -34,17 +34,17 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-4 md:py-4 lg:px-5 lg:py-6">
-      <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.75rem] p-3 md:h-full md:p-4 lg:p-5">
-        <div className="mb-5 flex items-start justify-between gap-3 lg:mb-8">
+    <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
+      <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
+        <div className="mb-4 flex items-start justify-between gap-3 lg:mb-6">
           <div className="min-w-0">
             <div className="eyebrow mb-2">Salary Intelligence</div>
-            <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-2xl">Market Analyzer</h1>
-            <p className="mt-2 max-w-none break-words text-sm leading-6 text-slate-600 md:max-w-52">
+            <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
+            <p className="mt-2 max-w-none break-words text-sm leading-6 text-slate-600 md:max-w-48 md:text-[0.82rem] md:leading-5">
               Carga, consolida y revisa mercado salarial desde una sola vista.
             </p>
           </div>
-          <div className="hidden rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 lg:inline-flex">
+          <div className="hidden rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[0.68rem] font-bold text-amber-700 lg:inline-flex">
             v2.0
           </div>
         </div>
@@ -57,31 +57,31 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group flex min-w-0 items-start gap-3 overflow-hidden rounded-[1.25rem] border px-3 py-3 ${
+                className={`group flex min-w-0 items-start gap-2.5 overflow-hidden rounded-[1.1rem] border px-2.5 py-2.5 ${
                   isActive
                     ? "border-teal-700/10 bg-[linear-gradient(135deg,rgba(15,118,110,0.14),rgba(17,94,89,0.06))] text-slate-900 shadow-[0_16px_36px_rgba(15,118,110,0.16)]"
                     : "border-transparent bg-white/55 text-slate-600 hover:border-slate-200 hover:bg-white/80"
                 }`}
                 aria-current={isActive ? "page" : undefined}
               >
-                <div className={`inline-flex shrink-0 rounded-2xl p-2 ${isActive ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-slate-900 group-hover:text-white"}`}>
-                  <Icon size={18} aria-hidden />
+                <div className={`inline-flex shrink-0 rounded-xl p-2 ${isActive ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-slate-900 group-hover:text-white"}`}>
+                  <Icon size={16} aria-hidden />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="font-display break-words text-sm font-bold">{item.name}</div>
-                  <div className="break-words text-xs text-slate-500">{item.hint}</div>
+                  <div className="font-display break-words text-[0.82rem] font-bold leading-5">{item.name}</div>
+                  <div className="break-words text-[0.7rem] leading-4 text-slate-500">{item.hint}</div>
                 </div>
               </Link>
             );
           })}
         </nav>
 
-        <div className="mt-4 min-w-0 rounded-[1.5rem] border border-slate-200/70 bg-white/70 p-4 md:mt-auto">
+        <div className="mt-4 min-w-0 rounded-[1.3rem] border border-slate-200/70 bg-white/70 p-3.5 md:mt-auto">
           {session?.user ? (
             <>
               <div className="eyebrow mb-2">Sesion activa</div>
-              <div className="break-words font-display text-lg font-bold text-slate-900">{session.user.name}</div>
-              <div className="mt-2 break-words text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
+              <div className="break-words font-display text-base font-bold text-slate-900 md:text-[1rem]">{session.user.name}</div>
+              <div className="mt-2 break-words text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
               
               <button
                 onClick={() => signOut({ callbackUrl: "/signin" })}
@@ -95,7 +95,7 @@ export default function Sidebar() {
           ) : (
             <>
               <div className="eyebrow mb-2">Acceso</div>
-              <p className="text-sm leading-6 text-slate-600">
+              <p className="text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">
                 {status === "loading"
                   ? "Comprobando sesion..."
                   : "Entra con tus credenciales."}

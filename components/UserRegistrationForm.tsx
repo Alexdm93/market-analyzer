@@ -165,8 +165,9 @@ export default function UserRegistrationForm({
   const isResolvingBootstrap = isLoadingCompanies;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
+    <form onSubmit={handleSubmit} className="space-y-4 md:space-y-3">
+      <div className="md:grid md:grid-cols-2 md:gap-3">
+        <div>
         <label htmlFor="registrationName" className="field-label">Nombre</label>
         <input
           id="registrationName"
@@ -178,8 +179,8 @@ export default function UserRegistrationForm({
           autoComplete="name"
           required
         />
-      </div>
-      <div>
+        </div>
+        <div>
         <label htmlFor="registrationEmail" className="field-label">Correo</label>
         <input
           id="registrationEmail"
@@ -191,8 +192,10 @@ export default function UserRegistrationForm({
           autoComplete="email"
           required
         />
+        </div>
       </div>
-      <div>
+      <div className="md:grid md:grid-cols-2 md:gap-3">
+        <div>
         <label htmlFor="registrationPassword" className="field-label">Contrasena</label>
         <input
           id="registrationPassword"
@@ -204,8 +207,8 @@ export default function UserRegistrationForm({
           autoComplete="new-password"
           required
         />
-      </div>
-      <div>
+        </div>
+        <div>
         <label htmlFor="registrationConfirmPassword" className="field-label">Confirmar contrasena</label>
         <input
           id="registrationConfirmPassword"
@@ -217,6 +220,7 @@ export default function UserRegistrationForm({
           autoComplete="new-password"
           required
         />
+        </div>
       </div>
       {isResolvingBootstrap ? (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -261,61 +265,63 @@ export default function UserRegistrationForm({
           id="registrationCompanyDescription"
           value={needsNewCompany ? values.companyDescription : selectedCompany?.description ?? ""}
           onChange={(event) => updateValue("companyDescription", event.target.value)}
-          className="field min-h-28 resize-y"
+          className="field min-h-28 resize-y md:min-h-24"
           placeholder="Descripcion general de la empresa"
           readOnly={!needsNewCompany}
         />
       </div>
-      <div>
-        <label htmlFor="registrationEconomicSector" className="field-label">Sector economico</label>
-        {needsNewCompany ? (
-          <select
-            id="registrationEconomicSector"
-            value={values.companyEconomicSector}
-            onChange={(event) => updateEconomicSector(event.target.value)}
-            className="field-select"
-          >
-            <option value="">Seleccionar sector económico</option>
-            {ECONOMIC_SECTOR_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        ) : (
-          <input
-            id="registrationEconomicSector"
-            type="text"
-            value={selectedCompany?.economicSector ?? ""}
-            className="field"
-            placeholder="Sin sector registrado"
-            readOnly
-          />
-        )}
-      </div>
-      <div>
-        <label htmlFor="registrationClassification" className="field-label">Clasificacion</label>
-        {needsNewCompany ? (
-          <select
-            id="registrationClassification"
-            value={values.companyClassification}
-            onChange={(event) => updateValue("companyClassification", event.target.value)}
-            className="field-select"
-            disabled={!values.companyEconomicSector}
-          >
-            <option value="">{values.companyEconomicSector ? "Seleccionar clasificación" : "Selecciona primero un sector"}</option>
-            {classificationOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        ) : (
-          <input
-            id="registrationClassification"
-            type="text"
-            value={selectedCompany?.classification ?? ""}
-            className="field"
-            placeholder="Sin clasificación registrada"
-            readOnly
-          />
-        )}
+      <div className="md:grid md:grid-cols-2 md:gap-3">
+        <div>
+          <label htmlFor="registrationEconomicSector" className="field-label">Sector economico</label>
+          {needsNewCompany ? (
+            <select
+              id="registrationEconomicSector"
+              value={values.companyEconomicSector}
+              onChange={(event) => updateEconomicSector(event.target.value)}
+              className="field-select"
+            >
+              <option value="">Seleccionar sector económico</option>
+              {ECONOMIC_SECTOR_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id="registrationEconomicSector"
+              type="text"
+              value={selectedCompany?.economicSector ?? ""}
+              className="field"
+              placeholder="Sin sector registrado"
+              readOnly
+            />
+          )}
+        </div>
+        <div>
+          <label htmlFor="registrationClassification" className="field-label">Clasificacion</label>
+          {needsNewCompany ? (
+            <select
+              id="registrationClassification"
+              value={values.companyClassification}
+              onChange={(event) => updateValue("companyClassification", event.target.value)}
+              className="field-select"
+              disabled={!values.companyEconomicSector}
+            >
+              <option value="">{values.companyEconomicSector ? "Seleccionar clasificación" : "Selecciona primero un sector"}</option>
+              {classificationOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id="registrationClassification"
+              type="text"
+              value={selectedCompany?.classification ?? ""}
+              className="field"
+              placeholder="Sin clasificación registrada"
+              readOnly
+            />
+          )}
+        </div>
       </div>
       {allowRoleSelection ? (
         <div>

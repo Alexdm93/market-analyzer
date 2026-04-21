@@ -630,17 +630,17 @@ export default function DataPage() {
 
   return (
     <main className="page-wrap">
-      <div className="flex w-full flex-col gap-6">
-        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_26rem]">
+      <div className="flex w-full flex-col gap-5">
+        <section className="surface-panel rounded-[2rem] p-6 md:p-6">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_22rem]">
             <div>
               <div className="eyebrow mb-3">Captura por corte</div>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Suministro de data por cargo.</h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">
+              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Suministro de data por cargo.</h1>
+              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
                 Ordena la información del cargo desde la identidad del rol hasta su compensación fija, con una lectura mucho más clara para edición continua.
               </p>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
+              <div className="mt-6 grid gap-3 md:grid-cols-3">
                 <div className="metric-tile">
                   <div className="metric-label">Cargos cargados</div>
                   <div className="metric-value mt-3">{rows.length}</div>
@@ -689,7 +689,7 @@ export default function DataPage() {
               ) : null}
 
               {isAdmin ? (
-                <div className="mt-6 max-w-md">
+                <div className="mt-5 max-w-md">
                   <label htmlFor="companyFilter" className="field-label">Empresa</label>
                   <select
                     id="companyFilter"
@@ -703,7 +703,7 @@ export default function DataPage() {
                       <option key={company.id} value={company.id}>{company.name}</option>
                     ))}
                   </select>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                  <p className="mt-2 text-xs leading-4 text-slate-500">
                     {isReadOnlyDataView
                       ? "Estás viendo una vista consolidada por empresa en modo solo lectura."
                       : "Selecciona una empresa para consultar su data consolidada."}
@@ -712,18 +712,18 @@ export default function DataPage() {
               ) : null}
             </div>
 
-            <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
+            <div className="surface-card rounded-[1.5rem] p-4 md:p-5">
               <div className="flex items-center gap-3">
-                <div className="rounded-full bg-teal-50 p-3 text-teal-700">
-                  <CalendarDays size={18} aria-hidden />
+                <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
+                  <CalendarDays size={16} aria-hidden />
                 </div>
                 <div>
                   <div className="eyebrow mb-1">Control de versión</div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900">Cortes</h2>
+                  <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.35rem]">Cortes</h2>
                 </div>
               </div>
 
-              <div className="mt-5 space-y-4">
+              <div className="mt-4 space-y-3">
                 <div>
                   <label htmlFor="snapshotSelect" className="field-label">Seleccionar corte</label>
                   <select id="snapshotSelect" value={selectedSnapshotId} onChange={(e) => loadSnapshot(e.target.value)} className="field-select">
@@ -736,13 +736,13 @@ export default function DataPage() {
                   </select>
                 </div>
 
-                <div className="rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                <div className="rounded-[1.1rem] bg-slate-50 px-3.5 py-3 text-sm leading-5 text-slate-600 md:text-[0.82rem]">
                   {isReadOnlyDataView
                     ? "Vista de consulta para admin. Los cortes y cargos se muestran en modo solo lectura."
                     : ""}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-2.5 sm:grid-cols-2">
                   <button
                     onClick={() => {
                       void reloadWorkspaceData({ showNotification: true });
@@ -785,13 +785,13 @@ export default function DataPage() {
         </section>
 
         {rows.length === 0 ? (
-          <section className="surface-card rounded-[2rem] p-10 text-center">
+          <section className="surface-card rounded-[2rem] p-8 text-center md:p-8">
             <div className="mx-auto flex max-w-xl flex-col items-center">
               <div className="rounded-full bg-teal-50 p-4 text-teal-700">
                 <BriefcaseBusiness size={24} aria-hidden />
               </div>
-              <h2 className="font-display mt-5 text-2xl font-bold text-slate-900">No hay cargos en este corte.</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
+              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900 md:text-[1.35rem]">No hay cargos en este corte.</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600 md:text-[0.82rem]">
                 {isReadOnlyDataView
                   ? "No hay cargos cargados para este corte en la vista seleccionada."
                   : "Si aún no ves cortes disponibles, solicita al admin que cree o sincronice los cortes globales. Cuando el corte exista, podrás agregar cargos y completar la información."}
@@ -805,22 +805,22 @@ export default function DataPage() {
             </div>
           </section>
         ) : (
-          <section className="space-y-5">
+          <section className="space-y-4">
             {rows.map((r, i) => (
               <article key={r.id} className="surface-card overflow-hidden rounded-[2rem]">
-                <div className="flex flex-col gap-5 p-5 md:p-6 xl:flex-row xl:items-start xl:justify-between">
+                <div className="flex flex-col gap-4 p-5 md:p-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex-1">
                     <div className="mb-3 inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
                       Cargo {String(i + 1).padStart(2, "0")}
                     </div>
-                    <h2 className="font-display text-2xl font-bold text-slate-900">
+                    <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.35rem]">
                       {r.tituloCargo || `Cargo ${i + 1}`}
                     </h2>
-                    <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-600">
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">
                       {r.descripcion || "Completa primero identidad, nivel y clasificación para dejar el cargo listo antes de cargar su compensación."}
                     </p>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <div className="pill">{r.nivelOrganizacional || "Sin nivel"}</div>
                       <div className="pill">{r.clasificacion || "Sin clasificación"}</div>
                       <div className="pill">{(r.additionalFixedPayments || []).length} conceptos fijos</div>
@@ -828,7 +828,7 @@ export default function DataPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-3 xl:justify-end">
+                  <div className="flex flex-wrap gap-2.5 xl:justify-end">
                     <button onClick={() => toggleExpand(r.id)} className="btn btn-secondary">
                       <Edit className="h-4 w-4" />
                       {expanded[r.id] ? "Cerrar detalle" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
@@ -858,12 +858,12 @@ export default function DataPage() {
                 </div>
 
                 {expanded[r.id] && (
-                  <div className="border-t border-slate-200/70 bg-[rgba(255,248,241,0.76)] p-5 md:p-6">
-                    <fieldset disabled={isReadOnlyDataView} className="space-y-5 disabled:opacity-90">
-                      <section className="rounded-[1.5rem] border border-slate-200/80 bg-white/90 p-5">
+                  <div className="border-t border-slate-200/70 bg-[rgba(255,248,241,0.76)] p-4 md:p-5">
+                    <fieldset disabled={isReadOnlyDataView} className="space-y-4 disabled:opacity-90">
+                      <section className="rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 md:p-4.5">
                         <div className="eyebrow mb-3">Paso 1</div>
-                        <h3 className="font-display text-xl font-bold text-slate-900">Identidad del cargo</h3>
-                        <div className="mt-5 grid gap-4 md:grid-cols-2">
+                        <h3 className="font-display text-xl font-bold text-slate-900 md:text-[1.12rem]">Identidad del cargo</h3>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
                           <div className="md:col-span-2">
                             <label className="field-label">Título del cargo</label>
                             <select
@@ -930,20 +930,20 @@ export default function DataPage() {
                         </div>
                       </section>
 
-                      <section className="rounded-[1.5rem] border border-slate-200/80 bg-white/90 p-5">
+                      <section className="rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 md:p-4.5">
                         <div className="eyebrow mb-3">Paso 2</div>
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                           <div>
-                            <h3 className="font-display text-xl font-bold text-slate-900">Compensación fija</h3>
+                            <h3 className="font-display text-xl font-bold text-slate-900 md:text-[1.12rem]">Compensación fija</h3>
                           </div>
                           <button onClick={() => addAdditionalFixed(i)} className="btn btn-primary">
                             <Plus className="h-4 w-4" />
                             Agregar concepto
                           </button>
                         </div>
-                        <div className="mt-5 space-y-4">
-                          <div className="rounded-[1.25rem] border border-slate-200/80 bg-slate-50/70 p-4">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_8.5rem_8.5rem_8.5rem_9rem] xl:items-end">
+                        <div className="mt-4 space-y-3">
+                          <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem] xl:items-end">
                               <div>
                                 <label className="field-label min-h-8">Concepto</label>
                                 <input aria-label="Concepto sueldo basico" value="Sueldo Básico" readOnly className="field bg-slate-100" />
@@ -984,8 +984,8 @@ export default function DataPage() {
                             </div>
                           </div>
 
-                          <div className="rounded-[1.25rem] border border-slate-200/80 bg-slate-50/70 p-4">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_8.5rem_8.5rem_8.5rem_9rem] xl:items-end">
+                          <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem] xl:items-end">
                               <div>
                                 <label className="field-label min-h-8">Concepto</label>
                                 <input aria-label="Concepto bono alimentacion" value="Bono Alimentación" readOnly className="field bg-slate-100" />
@@ -1028,8 +1028,8 @@ export default function DataPage() {
 
                           {(r.additionalFixedPayments || []).length > 0 && (
                             (r.additionalFixedPayments || []).map((p, idx) => (
-                              <div key={p.id} className="rounded-[1.25rem] border border-slate-200/80 bg-slate-50/70 p-4">
-                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_8.5rem_8.5rem_8.5rem_9rem_auto] xl:items-end">
+                              <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
+                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_auto] xl:items-end">
                                   <div>
                                     <label className="field-label min-h-8">Concepto</label>
                                     <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalFixed(i, idx, "concept", e.target.value)} className="field" />
@@ -1078,11 +1078,11 @@ export default function DataPage() {
                         </div>
                       </section>
 
-                      <section className="rounded-[1.5rem] border border-slate-200/80 bg-white/90 p-5">
+                      <section className="rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 md:p-4.5">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                           <div className="eyebrow mb-2">Paso 3</div>
-                            <h3 className="font-display text-xl font-bold text-slate-900">Compensación variable</h3>
+                            <h3 className="font-display text-xl font-bold text-slate-900 md:text-[1.12rem]">Compensación variable</h3>
                         </div>
                           <button onClick={() => addAdditionalVariable(i)} className="btn btn-primary">
                           <Plus className="h-4 w-4" />
@@ -1090,11 +1090,11 @@ export default function DataPage() {
                           </button>
                         </div>
 
-                        <div className="mt-5 space-y-4">
+                        <div className="mt-4 space-y-3">
                           {(r.additionalVariablePayments || []).length > 0 && (
                             (r.additionalVariablePayments || []).map((p, idx) => (
-                              <div key={p.id} className="rounded-[1.25rem] border border-slate-200/80 bg-slate-50/70 p-4">
-                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[12rem_minmax(0,1.05fr)_minmax(0,0.8fr)_8.5rem_8.5rem_8.5rem_9rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
+                              <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
+                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
                                   <div>
                                     <label className="field-label min-h-8">Tipo de bono</label>
                                     <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
@@ -1217,7 +1217,7 @@ export default function DataPage() {
                                   </button>
                                     </>
                                   ) : (
-                                    <div className="md:col-span-1 xl:col-span-10 rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-sm text-slate-500">
+                                    <div className="md:col-span-1 xl:col-span-10 rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-3.5 text-sm text-slate-500 md:text-[0.82rem]">
                                       Selecciona si el concepto corresponde a bono por desempeño o bono por comisiones para continuar.
                                     </div>
                                   )}

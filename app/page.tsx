@@ -51,19 +51,19 @@ export default function Home() {
 
   return (
     <main className="page-wrap">
-      <div className="flex w-full flex-col gap-6">
-        <section className="surface-panel overflow-hidden rounded-[2rem] p-6 md:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_24rem]">
+      <div className="flex w-full flex-col gap-5">
+        <section className="surface-panel overflow-hidden rounded-[1.75rem] p-5 md:p-6">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.72fr)_20rem] xl:items-start">
             <div>
               <div className="eyebrow mb-3">Panel principal</div>
-              <h1 className="font-display max-w-3xl text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
+              <h1 className="dashboard-title font-display max-w-3xl font-bold tracking-tight text-slate-900">
                 Vista salarial con una interfaz más editorial y legible.
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
+              <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
                 Sigue el comportamiento del mercado, ajusta inflación mensual y revisa el efecto inmediato sobre la mediana salarial proyectada.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-5 flex flex-wrap gap-2.5">
                 <div className="pill">
                   <Sparkles size={14} aria-hidden />
                   Lectura rápida de percentiles
@@ -74,7 +74,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
+              <div className="mt-6 grid gap-3 md:grid-cols-3">
                 <div className="metric-tile">
                   <div className="metric-label">Cargos en muestra</div>
                   <div className="metric-value mt-3">{mockMarketData.length}</div>
@@ -90,20 +90,20 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
+            <div className="surface-card rounded-[1.5rem] p-4 md:p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="eyebrow mb-2">Supuesto clave</div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900">Inflación mensual</h2>
+                  <h2 className="font-display text-xl font-bold text-slate-900 md:text-[1.35rem]">Inflación mensual</h2>
                 </div>
-                <div className="rounded-full bg-teal-50 p-3 text-teal-700">
-                  <ArrowUpRight size={18} aria-hidden />
+                <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
+                  <ArrowUpRight size={16} aria-hidden />
                 </div>
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-5 text-slate-600 md:text-[0.82rem]">
                 Ajusta este valor para recalcular de inmediato las bandas proyectadas del tablero.
               </p>
-              <div className="mt-6">
+              <div className="mt-5">
                 <label htmlFor="inflation" className="field-label">Inflación mensual estimada (%)</label>
                 <input
                   id="inflation"
@@ -112,15 +112,15 @@ export default function Home() {
                   placeholder="5"
                   title="Inflación mensual estimada en %"
                   onChange={(e) => setInflation(Number(e.target.value))}
-                  className="field text-3xl font-semibold"
+                  className="field text-[1.8rem] font-semibold md:text-[1.95rem]"
                 />
               </div>
-              <div className="mt-5 rounded-[1.25rem] bg-slate-900 p-4 text-white">
-                <div className="flex items-center gap-3 text-sm text-slate-300">
+              <div className="mt-4 rounded-[1.1rem] bg-slate-900 p-3.5 text-white">
+                <div className="flex items-center gap-2.5 text-sm text-slate-300 md:text-[0.8rem]">
                   <BriefcaseBusiness size={16} aria-hidden />
                   Ajuste aplicado a toda la muestra simulada.
                 </div>
-                <p className="mt-3 font-display text-3xl font-bold">{inflation}%</p>
+                <p className="mt-2.5 font-display text-[2rem] font-bold md:text-[2.15rem]">{inflation}%</p>
               </div>
             </div>
           </div>

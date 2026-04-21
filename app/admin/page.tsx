@@ -492,8 +492,8 @@ export default function AdminPage() {
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_22rem]">
             <div>
               <div className="eyebrow mb-3">Control central</div>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Vista administrativa.</h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">
+              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Vista administrativa.</h1>
+              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
                 Desde aquí solo un usuario con rol admin puede gestionar el catálogo base y el alta controlada de accesos.
               </p>
             </div>
@@ -550,7 +550,7 @@ export default function AdminPage() {
           })}
         </section>
 
-        <section className="surface-card rounded-[2rem] p-6 md:p-8">
+        <section className="surface-card rounded-[2rem] p-6 md:p-6">
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-teal-50 p-3 text-teal-700">
               <CalendarDays size={18} aria-hidden />
@@ -694,8 +694,8 @@ export default function AdminPage() {
               No hay usuarios registrados.
             </div>
           ) : (
-            <div className="mt-6 overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-3">
+            <div className="mt-5 overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-y-2.5 md:border-spacing-y-2">
                 <thead>
                   <tr className="text-left text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
                     <th className="px-4">Usuario</th>
@@ -715,23 +715,22 @@ export default function AdminPage() {
                       const selectedCompany = companies.find((company) => company.id === draft.companyId);
 
                       return (
-                    <tr key={user.id} className="rounded-[1.25rem] bg-slate-50/80 text-sm text-slate-700">
-                      <td className="rounded-l-[1.25rem] px-4 py-4 align-top">
+                    <tr key={user.id} className="rounded-[1.1rem] bg-slate-50/80 text-sm text-slate-700 md:text-[0.82rem]">
+                      <td className="rounded-l-[1.1rem] px-4 py-4 align-top md:px-3 md:py-3">
                         <div className="font-display text-base font-bold text-slate-900">{user.name}</div>
                         <div className="mt-1 text-xs text-slate-500">{user.email}</div>
                       </td>
-                      <td className="px-4 py-4 align-top">
-                        <div className="space-y-3">
+                      <td className="px-4 py-4 align-top md:px-3 md:py-3">
+                        <div className="space-y-2.5">
                           <div>
                             <div className="font-semibold text-slate-900">{selectedCompany?.name ?? user.company.name}</div>
-                            <div className="mt-1 text-xs text-slate-500 break-all">{draft.companyId}</div>
                           </div>
                           <select
                             aria-label={`Empresa de ${user.name}`}
                             title={`Empresa de ${user.name}`}
                             value={draft.companyId}
                             onChange={(event) => updatePendingUserEdit(user, { companyId: event.target.value })}
-                            className="field-select min-w-44"
+                            className="field-select min-w-40 md:min-w-36"
                             disabled={isSavingUserChanges}
                           >
                             {companies.map((company) => (
@@ -740,9 +739,9 @@ export default function AdminPage() {
                           </select>
                         </div>
                       </td>
-                      <td className="px-4 py-4 align-top">
-                        <div className="space-y-3">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
+                      <td className="px-4 py-4 align-top md:px-3 md:py-3">
+                        <div className="space-y-2.5">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
                             {getRoleLabel(draft.role)}
                           </span>
                           <select
@@ -750,7 +749,7 @@ export default function AdminPage() {
                             title={`Rol de ${user.name}`}
                             value={draft.role}
                             onChange={(event) => updatePendingUserEdit(user, { role: event.target.value as AppUserRole })}
-                            className="field-select min-w-36"
+                            className="field-select min-w-32 md:min-w-30"
                             disabled={isSavingUserChanges}
                           >
                             {ROLE_OPTIONS.map((roleOption) => (
@@ -759,19 +758,19 @@ export default function AdminPage() {
                           </select>
                         </div>
                       </td>
-                      <td className="px-4 py-4 align-top">
+                      <td className="px-4 py-4 align-top md:px-3 md:py-3">
                         <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Actual protegida</div>
                         <input
                           type="password"
                           value={draft.password}
                           onChange={(event) => updatePendingUserEdit(user, { password: event.target.value })}
-                          className="field mt-3 min-w-44"
+                          className="field mt-2.5 min-w-40 md:min-w-36"
                           placeholder="Nueva contrasena"
                           autoComplete="new-password"
                           disabled={isSavingUserChanges}
                         />
                       </td>
-                      <td className="rounded-r-[1.25rem] px-4 py-4 align-top">
+                      <td className="rounded-r-[1.1rem] px-4 py-4 align-top md:px-3 md:py-3">
                         {hasRoleChange || hasPasswordChange || hasCompanyChange ? (
                           <div className="space-y-2 text-xs text-slate-600">
                             {hasCompanyChange ? <div>Empresa pendiente: {user.company.name} → {selectedCompany?.name ?? "Sin empresa"}</div> : null}
@@ -794,21 +793,21 @@ export default function AdminPage() {
       </div>
 
       {isCreateUserModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-4 md:py-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-4 md:py-5">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={handleCloseCreateUserModal} />
-          <div role="dialog" aria-modal="true" className="surface-card relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[1.75rem] p-6 md:max-h-[calc(100vh-3rem)] md:p-8">
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[1.6rem] p-5 md:max-h-[calc(100vh-2.5rem)] md:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="eyebrow mb-2">Alta controlada</div>
-                <h2 className="font-display text-2xl font-bold text-slate-900">Crear usuario</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Completa el formulario sin salir de la vista admin.</p>
+                <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.35rem]">Crear usuario</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">Completa el formulario sin salir de la vista admin.</p>
               </div>
               <button type="button" onClick={handleCloseCreateUserModal} className="btn btn-secondary px-3" aria-label="Cerrar modal crear usuario">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-6 overflow-y-auto pr-1">
+            <div className="mt-5 overflow-y-auto pr-1">
               <UserRegistrationForm
                 allowRoleSelection
                 forceExistingCompanySelector
@@ -818,7 +817,7 @@ export default function AdminPage() {
                 externalError={errorMessage}
                 onSubmit={handleCreateUser}
               />
-              <div className="mt-4 flex justify-end gap-3">
+              <div className="mt-3 flex justify-end gap-3">
                 <button type="button" onClick={handleCloseCreateUserModal} className="btn btn-secondary" disabled={isSubmittingRegister}>
                   Cancelar
                 </button>

@@ -434,8 +434,8 @@ export default function EstudioPage() {
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
               <div>
                 <div className="eyebrow mb-3">Estudio administrativo</div>
-                <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Revisión de cargos por corte.</h1>
-                <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">
+                <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Revisión de cargos por corte.</h1>
+                <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
                   Selecciona un corte global, revisa todos los cargos consolidados y marca el corte como procesado cuando termine la revisión.
                 </p>
 
@@ -705,8 +705,8 @@ export default function EstudioPage() {
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
             <div>
               <div className="eyebrow mb-3">Estudio agregado</div>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Lectura consolidada por cargo.</h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">
+              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Lectura consolidada por cargo.</h1>
+              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
                 Analiza observaciones, percentiles y rangos sobre la data activa sin perder trazabilidad del corte que estás leyendo.
               </p>
 

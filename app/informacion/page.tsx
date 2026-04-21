@@ -64,8 +64,8 @@ export default function Informacion() {
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_24rem]">
             <div>
               <div className="eyebrow mb-3">Contexto de la muestra</div>
-              <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Información de la empresa participante.</h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">
+              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Información de la empresa participante.</h1>
+              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
                 Organiza los datos de contexto corporativo y del contacto de RR. HH. en un formato más limpio, útil para revisión y carga rápida.
               </p>
 

@@ -15,8 +15,14 @@
   --accent-soft: rgba(15, 118, 110, 0.12);
   --highlight: #d97706;
   --shadow: 0 24px 80px rgba(24, 52, 45, 0.12);
-  --sidebar-width: 15.5rem;
+  --sidebar-width: 100%;
   --shell-gap: 1rem;
+  --button-font-size: 0.86rem;
+  --button-padding-y: 0.8rem;
+  --button-padding-x: 1.05rem;
+  --metric-value-size: 1.32rem;
+  --dashboard-title-size: 2.4rem;
+  --dashboard-lead-size: 0.98rem;
 }
 
 @theme inline {
@@ -93,15 +99,21 @@ textarea {
 
 @media (min-width: 1024px) {
   :root {
-    --sidebar-width: 19rem;
-    --shell-gap: 1.25rem;
+    --sidebar-width: 15.5rem;
+    --shell-gap: 0.95rem;
   }
 }
 
 @media (min-width: 768px) {
   :root {
-    --sidebar-width: 17rem;
-    --shell-gap: 1.1rem;
+    --sidebar-width: 15.5rem;
+    --shell-gap: 1rem;
+    --button-font-size: 0.8rem;
+    --button-padding-y: 0.72rem;
+    --button-padding-x: 1rem;
+    --metric-value-size: 1.2rem;
+    --dashboard-title-size: 2.15rem;
+    --dashboard-lead-size: 0.95rem;
   }
 }
 
@@ -168,8 +180,8 @@ textarea {
   justify-content: center;
   gap: 0.6rem;
   border-radius: 999px;
-  padding: 0.85rem 1.15rem;
-  font-size: 0.92rem;
+  padding: var(--button-padding-y) var(--button-padding-x);
+  font-size: var(--button-font-size);
   font-weight: 800;
   letter-spacing: 0.01em;
 }
@@ -241,8 +253,46 @@ textarea {
 
 .metric-value {
   font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 1.5rem;
+  font-size: var(--metric-value-size);
   line-height: 1.1;
   font-weight: 700;
   color: var(--foreground);
+}
+
+.dashboard-title {
+  font-size: clamp(2.1rem, 5vw, 2.6rem);
+  line-height: 0.98;
+}
+
+.dashboard-lead {
+  font-size: var(--dashboard-lead-size);
+  line-height: 1.65;
+}
+
+@media (min-width: 768px) {
+  .dashboard-title {
+    font-size: var(--dashboard-title-size);
+  }
+
+  .metric-tile {
+    padding: 0.9rem;
+  }
+
+  .field-label {
+    font-size: 0.72rem;
+    line-height: 0.95rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .field,
+  .field-select,
+  .field-textarea {
+    border-radius: 0.9rem;
+    padding: 0.72rem 0.9rem;
+    font-size: 0.9rem;
+  }
+
+  .field-textarea {
+    min-height: 6.25rem;
+  }
 }
