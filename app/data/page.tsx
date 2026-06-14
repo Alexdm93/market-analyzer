@@ -580,7 +580,7 @@ export default function DataPage() {
 
   function addRow() {
     if (!selectedSnapshotId) {
-      showNotification("Selecciona un corte asignado por el admin antes de agregar cargos");
+      showNotification("Selecciona una actualización asignada por el admin antes de agregar cargos");
       return;
     }
 
@@ -602,7 +602,7 @@ export default function DataPage() {
 
   async function saveRowById(rowId: string) {
     if (!selectedSnapshotId) {
-      showNotification("Seleccione un corte");
+      showNotification("Seleccione una actualización");
       return;
     }
     const current: Snapshot = snapshots[selectedSnapshotId] || { id: selectedSnapshotId, label: selectedSnapshotId, date: selectedSnapshotId, rows: [] };
@@ -630,17 +630,17 @@ export default function DataPage() {
 
   return (
     <main className="page-wrap">
-      <div className="flex w-full flex-col gap-5">
-        <section className="surface-panel rounded-[2rem] p-6 md:p-6">
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_22rem]">
+      <div className="flex w-full flex-col gap-3">
+        <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_20rem]">
             <div>
-              <div className="eyebrow mb-3">Actualización de Data</div>
-              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Suministro de data por cargo.</h1>
-              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
+              <div className="eyebrow mb-2">Actualización de Data</div>
+              <h1 className="font-display text-[1.6rem] font-bold tracking-tight text-slate-900 md:text-[1.85rem]">Suministro de data por cargo.</h1>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
                 Actualizar la data de compensación y la identidad del rol bajo una estructura jerárquica que permita una edición continua y una lectura clara de la arquitectura del cargo.
               </p>
 
-              <div className="mt-6 grid gap-3 md:grid-cols-3">
+              <div className="mt-4 grid gap-2 md:grid-cols-3">
                 <div className="metric-tile">
                   <div className="metric-label">Cargos cargados</div>
                   <div className="metric-value mt-3">{rows.length}</div>
@@ -662,7 +662,7 @@ export default function DataPage() {
               </div>
 
               {notification && (
-                <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
                   <Sparkles size={14} aria-hidden />
                   {notification}
                 </div>
@@ -670,7 +670,7 @@ export default function DataPage() {
 
               {selectedSnapshotId ? (
                 <div
-                  className={`mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+                  className={`mt-2 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
                     saveState === "dirty"
                       ? "bg-slate-100 text-slate-700"
                       :
@@ -718,18 +718,18 @@ export default function DataPage() {
               ) : null}
             </div>
 
-            <div className="surface-card rounded-[1.5rem] p-4 md:p-5">
+            <div className="surface-card rounded-[1.25rem] p-3.5 md:p-4">
               <div className="flex items-center gap-3">
                 <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
                   <CalendarDays size={16} aria-hidden />
                 </div>
                 <div>
                   <div className="eyebrow mb-1">Control de actualización</div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.35rem]">Actualización</h2>
+                  <h2 className="font-display text-xl font-bold text-slate-900 md:text-[1.15rem]">Actualización</h2>
                 </div>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-3 space-y-2.5">
                 <div>
                   <label htmlFor="snapshotSelect" className="field-label">Seleccionar actualización</label>
                   <select id="snapshotSelect" value={selectedSnapshotId} onChange={(e) => loadSnapshot(e.target.value)} className="field-select">
@@ -744,7 +744,7 @@ export default function DataPage() {
 
                 <div className="rounded-[1.1rem] bg-slate-50 px-3.5 py-3 text-sm leading-5 text-slate-600 md:text-[0.82rem]">
                   {isReadOnlyDataView
-                    ? "Vista de consulta para admin. Los cortes y cargos se muestran en modo solo lectura."
+                    ? "Vista de consulta para admin. Las actualizaciones y cargos se muestran en modo solo lectura."
                     : ""}
                 </div>
 
@@ -768,7 +768,7 @@ export default function DataPage() {
                       <button
                         onClick={() => {
                           if (!selectedSnapshotId) {
-                            showNotification("Seleccione un corte");
+                            showNotification("Seleccione una actualización");
                             return;
                           }
                           void saveCurrentToSnapshot(selectedSnapshotId);
@@ -791,16 +791,16 @@ export default function DataPage() {
         </section>
 
         {rows.length === 0 ? (
-          <section className="surface-card rounded-[2rem] p-8 text-center md:p-8">
+          <section className="surface-card rounded-[1.5rem] p-6 text-center">
             <div className="mx-auto flex max-w-xl flex-col items-center">
               <div className="rounded-full bg-teal-50 p-4 text-teal-700">
                 <BriefcaseBusiness size={24} aria-hidden />
               </div>
-              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900 md:text-[1.35rem]">No hay cargos en este corte.</h2>
+              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900 md:text-[1.35rem]">No hay cargos en esta actualización.</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600 md:text-[0.82rem]">
                 {isReadOnlyDataView
-                  ? "No hay cargos cargados para este corte en la vista seleccionada."
-                  : "Si aún no ves cortes disponibles, solicita al admin que cree o sincronice los cortes globales. Cuando el corte exista, podrás agregar cargos y completar la información."}
+                  ? "No hay cargos cargados para esta actualización en la vista seleccionada."
+                  : "Si aún no ves actualizaciones disponibles, solicita al admin que cree o sincronice las actualizaciones globales. Cuando la actualización exista, podrás agregar cargos y completar la información."}
               </p>
               {!isReadOnlyDataView ? (
                 <button onClick={addRow} className="btn btn-primary mt-6">
@@ -811,22 +811,22 @@ export default function DataPage() {
             </div>
           </section>
         ) : (
-          <section className="space-y-4">
+          <section className="space-y-3">
             {rows.map((r, i) => (
-              <article key={r.id} className="surface-card overflow-hidden rounded-[2rem]">
-                <div className="flex flex-col gap-4 p-5 md:p-5 xl:flex-row xl:items-start xl:justify-between">
+              <article key={r.id} className="surface-card overflow-hidden rounded-[1.5rem]">
+                <div className="flex flex-col gap-3 p-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex-1">
-                    <div className="mb-3 inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
+                    <div className="mb-1.5 inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
                       Cargo {String(i + 1).padStart(2, "0")}
                     </div>
-                    <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.35rem]">
+                    <h2 className="font-display text-xl font-bold text-slate-900 md:text-[1.1rem]">
                       {r.tituloCargo || `Cargo ${i + 1}`}
                     </h2>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">
+                    <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-600 md:text-[0.82rem]">
                       {r.descripcion || "Completa primero identidad, nivel y clasificación para dejar el cargo listo antes de cargar su compensación."}
                     </p>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       <div className="pill">{r.nivelOrganizacional || "Sin nivel"}</div>
                       <div className="pill">{r.clasificacion || "Sin clasificación"}</div>
                       <div className="pill">{(r.additionalFixedPayments || []).length} conceptos fijos</div>
@@ -844,7 +844,7 @@ export default function DataPage() {
                         <button
                           onClick={() => {
                             if (!selectedSnapshotId) {
-                              showNotification("Seleccione un corte");
+                              showNotification("Seleccione una actualización");
                               return;
                             }
                             setModal({ type: 'save', id: r.id });
@@ -864,7 +864,7 @@ export default function DataPage() {
                 </div>
 
                 {expanded[r.id] && (
-                  <div className="border-t border-slate-200/70 bg-[rgba(255,248,241,0.76)] p-4 md:p-5">
+                  <div className="border-t border-slate-200/70 bg-[rgba(255,248,241,0.76)] p-3.5 md:p-4">
                     <fieldset disabled={isReadOnlyDataView} className="space-y-4 disabled:opacity-90">
                       <section className="rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 md:p-4.5">
                         <div className="eyebrow mb-3">Paso 1</div>
@@ -1249,7 +1249,7 @@ export default function DataPage() {
               <div>
                 <div className="eyebrow mb-2">Confirmar</div>
                 <h3 className="font-display text-2xl font-bold text-slate-900">Guardar cargo</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">¿Deseas guardar los cambios de este cargo en el corte seleccionado?</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">¿Deseas guardar los cambios de este cargo en la actualización seleccionada?</p>
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
                   <button onClick={() => { if (modal.id) { void saveRowById(modal.id); } setModal({ type: null }); }} className="btn btn-primary">Guardar</button>
