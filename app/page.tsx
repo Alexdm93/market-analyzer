@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { legacyMockMarketData as mockMarketData } from "@/data/mockSalaries";
+import { projectSalary } from "@/lib/projections";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { Snapshot, CompanyInfo } from "@/lib/workspace";
 import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
@@ -49,6 +51,7 @@ export default function Home() {
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
+  const [inflation, setInflation] = useState<number>(5);
 
   useEffect(() => {
     let ignore = false;
@@ -60,6 +63,7 @@ export default function Home() {
           setSnapshots(workspace.snapshots);
           setSelectedSnapshotId(workspace.selectedSnapshotId || Object.keys(workspace.snapshots)[0] || "");
           setCompanyInfo(workspace.companyInfo);
+          setInflation(workspace.inflation);
         }
       } catch {
         // ignore
@@ -164,29 +168,31 @@ export default function Home() {
                 Información de compensación: {companyName}
               </h2>
             </div>
-            <p className="text-sm text-slate-500">Mediana (P50) de compensación total por nivel organizacional</p>
           </div>
 
           <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
             <table className="min-w-full border-separate border-spacing-y-3 text-sm">
               <thead>
                 <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                  {NIVELES.map((nivel) => (
-                    <th key={nivel} className="px-4 py-2 text-center">{nivel}</th>
-                  ))}
+                  <th className="px-4 py-2">Cargo</th>
+                  <th className="px-4 py-2 text-right">P50 Base</th>
+                  <th className="px-4 py-2 text-right">Mes 1</th>
+                  <th className="px-4 py-2 text-right">Mes 2</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                  {NIVELES.map((nivel, i) => (
-                    <td
-                      key={nivel}
-                      className={`px-4 py-4 text-center font-display font-semibold ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""} ${medianasPorNivel[nivel] === "ND" ? "text-slate-400" : "text-teal-700"}`}
-                    >
-                      {medianasPorNivel[nivel]}
+                {mockMarketData.map((job) => (
+                  <tr key={job.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{job.jobTitle}</td>
+                    <td className="px-4 py-4 text-right font-display text-slate-700">${job.basePercentiles.p50}</td>
+                    <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
+                      ${projectSalary(job.basePercentiles, inflation, 1).p50}
                     </td>
-                  ))}
-                </tr>
+                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
+                      ${projectSalary(job.basePercentiles, inflation, 2).p50}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
