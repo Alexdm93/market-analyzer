@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { fetchWorkspace } from "@/lib/workspace-client";
-import type { Snapshot } from "@/lib/workspace";
+import type { Snapshot, CompanyInfo } from "@/lib/workspace";
+import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { type ExtendedMarketPosition } from "@/types/salary";
 
 const NIVELES = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
@@ -47,6 +48,7 @@ function formatMoney(n: number) {
 export default function Home() {
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
 
   useEffect(() => {
     let ignore = false;
@@ -57,6 +59,7 @@ export default function Home() {
         if (!ignore) {
           setSnapshots(workspace.snapshots);
           setSelectedSnapshotId(workspace.selectedSnapshotId || Object.keys(workspace.snapshots)[0] || "");
+          setCompanyInfo(workspace.companyInfo);
         }
       } catch {
         // ignore
@@ -94,6 +97,7 @@ export default function Home() {
   const totalPositions = rows.length;
   const globalP50 = allTotals.length ? Math.round(percentile(allTotals, 50)) : 0;
   const nivelesConData = NIVELES.filter((n) => medianasPorNivel[n] !== "ND").length;
+  const companyName = companyInfo.companyName || "Sin nombre";
 
   return (
     <main className="page-wrap">
@@ -122,6 +126,33 @@ export default function Home() {
                 <div className="metric-value mt-3">{nivelesConData}</div>
               </div>
             </div>
+
+            <div className="mt-8">
+              <div className="eyebrow mb-3">Información de compensación</div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-separate border-spacing-y-2 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                      {NIVELES.map((nivel) => (
+                        <th key={nivel} className="px-4 py-2 text-center">{nivel}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="bg-white/60 rounded-[1.25rem]">
+                      {NIVELES.map((nivel, i) => (
+                        <td
+                          key={nivel}
+                          className={`px-4 py-4 text-center font-display font-semibold ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""} ${medianasPorNivel[nivel] === "ND" ? "text-slate-400" : "text-teal-700"}`}
+                        >
+                          {medianasPorNivel[nivel]}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -129,7 +160,9 @@ export default function Home() {
           <div className="flex flex-col gap-2 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="eyebrow mb-2">Data</div>
-              <h2 className="font-display text-2xl font-bold text-slate-900">Información de compensación</h2>
+              <h2 className="font-display text-2xl font-bold text-slate-900">
+                Información de compensación: {companyName}
+              </h2>
             </div>
             <p className="text-sm text-slate-500">Mediana (P50) de compensación total por nivel organizacional</p>
           </div>
