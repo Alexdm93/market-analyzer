@@ -967,7 +967,7 @@ export default function DataPage() {
                         </div>
                         <div className="mt-4 space-y-3">
                           <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_8rem] xl:items-end">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem] xl:items-end">
                               <div>
                                 <label className="field-label">Concepto</label>
                                 <input aria-label="Concepto sueldo basico" value="Sueldo Básico" readOnly className="field bg-slate-100" />
@@ -1019,7 +1019,7 @@ export default function DataPage() {
                           </div>
 
                           <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_8rem] xl:items-end">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem] xl:items-end">
                               <div>
                                 <label className="field-label">Concepto</label>
                                 <input aria-label="Concepto bono alimentacion" value="Bono Alimentación" readOnly className="field bg-slate-100" />
@@ -1073,7 +1073,7 @@ export default function DataPage() {
                           {(r.additionalFixedPayments || []).length > 0 && (
                             (r.additionalFixedPayments || []).map((p, idx) => (
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_8rem_auto] xl:items-end">
+                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem_auto] xl:items-end">
                                   <div>
                                     <label className="field-label">Concepto</label>
                                     <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalFixed(i, idx, "concept", e.target.value)} className="field" />
@@ -1154,7 +1154,7 @@ export default function DataPage() {
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
                                 <div className="space-y-2">
                                   {p.variableType === "performance" ? (
-                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_8rem_auto] xl:items-end">
+                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem_auto] xl:items-end">
                                       <div>
                                         <label className="field-label">Variable</label>
                                         <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
@@ -1222,7 +1222,7 @@ export default function DataPage() {
                                     </div>
                                   ) : p.variableType === "commission" ? (
                                     <>
-                                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_8rem] xl:items-end">
+                                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem] xl:items-end">
                                         <div>
                                           <label className="field-label">Variable</label>
                                           <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
