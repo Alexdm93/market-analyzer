@@ -57,13 +57,13 @@ export default function Home() {
             <div>
               <div className="eyebrow mb-3">Panel principal</div>
               <h1 className="dashboard-title font-display max-w-3xl font-bold tracking-tight text-slate-900">
-                Vista salarial con una interfaz más editorial y legible.
+                Resumen Empresa
               </h1>
               <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
                 Sigue el comportamiento del mercado, ajusta inflación mensual y revisa el efecto inmediato sobre la mediana salarial proyectada.
               </p>
 
-              <div className="mt-5 flex flex-wrap gap-2.5">
+              {/*<div className="mt-5 flex flex-wrap gap-2.5">
                 <div className="pill">
                   <Sparkles size={14} aria-hidden />
                   Lectura rápida de percentiles
@@ -72,11 +72,11 @@ export default function Home() {
                   <TrendingUp size={14} aria-hidden />
                   Simulación a 2 meses
                 </div>
-              </div>
+              </div>*/}
 
               <div className="mt-6 grid gap-3 md:grid-cols-3">
                 <div className="metric-tile">
-                  <div className="metric-label">Cargos en muestra</div>
+                  <div className="metric-label">Cantidad de cargos reportados</div>
                   <div className="metric-value mt-3">{mockMarketData.length}</div>
                 </div>
                 <div className="metric-tile">
@@ -129,12 +129,9 @@ export default function Home() {
         <section className="surface-card overflow-hidden rounded-[2rem]">
           <div className="flex flex-col gap-2 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="eyebrow mb-2">Muestra base</div>
-              <h2 className="font-display text-2xl font-bold text-slate-900">Proyección salarial por cargo</h2>
+              <div className="eyebrow mb-2">Data</div>
+              <h2 className="font-display text-2xl font-bold text-slate-900">Información de compensación</h2>
             </div>
-            <p className="max-w-xl text-sm leading-6 text-slate-600">
-              La tabla prioriza comparación inmediata entre el P50 actual y sus dos cortes proyectados.
-            </p>
           </div>
 
           <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
