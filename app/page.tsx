@@ -1,13 +1,52 @@
 "use client";
-import { useEffect, useState } from "react";
-import { ArrowUpRight, BriefcaseBusiness, Sparkles, TrendingUp } from "lucide-react";
-import { legacyMockMarketData as mockMarketData } from "@/data/mockSalaries";
-import { projectSalary } from "@/lib/projections";
-import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
+import { useEffect, useMemo, useState } from "react";
+import { fetchWorkspace } from "@/lib/workspace-client";
+import type { Snapshot } from "@/lib/workspace";
+import { type ExtendedMarketPosition } from "@/types/salary";
+
+const NIVELES = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
+type Nivel = (typeof NIVELES)[number];
+
+function computeRowTotal(r: ExtendedMarketPosition) {
+  let sum = 0;
+  sum += Number(r.sueldoBasico ?? 0);
+  sum += Number(r.bonoAlimentacion ?? 0);
+  sum += Number(r.bonoMovilizacion ?? 0);
+  if (Array.isArray(r.additionalFixedPayments)) {
+    sum += r.additionalFixedPayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
+  }
+  sum += Number(r.bonoDesempeno ?? 0);
+  sum += Number(r.comisiones ?? 0);
+  sum += Number(r.pagoVariableOtros ?? 0);
+  if (Array.isArray(r.additionalVariablePayments)) {
+    sum += r.additionalVariablePayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
+  }
+  sum += Number(r.pagoTransporte ?? 0);
+  sum += Number(r.viaticos ?? 0);
+  sum += Number(r.otrosPagos ?? 0);
+  sum += Number(r.aportesSeguridadSocial ?? 0);
+  sum += Number(r.prestacionesLegales ?? 0);
+  return sum;
+}
+
+function percentile(values: number[], p: number) {
+  if (!values.length) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function formatMoney(n: number) {
+  if (!n || Number.isNaN(n)) return "ND";
+  return `$ ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
 
 export default function Home() {
-  const [inflation, setInflation] = useState<number>(5);
-  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
+  const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
 
   useEffect(() => {
     let ignore = false;
@@ -16,113 +55,73 @@ export default function Home() {
       try {
         const workspace = await fetchWorkspace();
         if (!ignore) {
-          setInflation(workspace.inflation);
+          setSnapshots(workspace.snapshots);
+          setSelectedSnapshotId(workspace.selectedSnapshotId || Object.keys(workspace.snapshots)[0] || "");
         }
       } catch {
         // ignore
-      } finally {
-        if (!ignore) {
-          setWorkspaceLoaded(true);
-        }
       }
     }
 
     void loadWorkspace();
-
-    return () => {
-      ignore = true;
-    };
+    return () => { ignore = true; };
   }, []);
 
-  useEffect(() => {
-    if (!workspaceLoaded) {
-      return;
+  const rows = useMemo<ExtendedMarketPosition[]>(() => {
+    if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
+      return snapshots[selectedSnapshotId].rows || [];
     }
+    return [];
+  }, [snapshots, selectedSnapshotId]);
 
-    void updateWorkspace({ inflation }).catch(() => {
-      // ignore
-    });
-  }, [inflation, workspaceLoaded]);
+  const medianasPorNivel = useMemo(() => {
+    const result = {} as Record<Nivel, string>;
+    for (const nivel of NIVELES) {
+      const totals = rows
+        .filter((r) => r.nivelOrganizacional?.trim() === nivel)
+        .map(computeRowTotal)
+        .filter((v) => v > 0 && Number.isFinite(v));
+      result[nivel] = formatMoney(totals.length ? Math.round(percentile(totals, 50)) : 0);
+    }
+    return result;
+  }, [rows]);
 
-  const averageBase = Math.round(
-    mockMarketData.reduce((acc, job) => acc + job.basePercentiles.p50, 0) / mockMarketData.length
+  const allTotals = useMemo(
+    () => rows.map(computeRowTotal).filter((v) => v > 0 && Number.isFinite(v)),
+    [rows]
   );
-  const maxProjected = Math.max(...mockMarketData.map((job) => projectSalary(job.basePercentiles, inflation, 2).p50));
+
+  const totalPositions = rows.length;
+  const globalP50 = allTotals.length ? Math.round(percentile(allTotals, 50)) : 0;
+  const nivelesConData = NIVELES.filter((n) => medianasPorNivel[n] !== "ND").length;
 
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-5">
         <section className="surface-panel overflow-hidden rounded-[1.75rem] p-5 md:p-6">
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.72fr)_20rem] xl:items-start">
-            <div>
-              <div className="eyebrow mb-3">Panel principal</div>
-              <h1 className="dashboard-title font-display max-w-3xl font-bold tracking-tight text-slate-900">
-                Resumen Empresa
-              </h1>
-              <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
-                Sigue el comportamiento del mercado, ajusta inflación mensual y revisa el efecto inmediato sobre la mediana salarial proyectada.
-              </p>
+          <div>
+            <div className="eyebrow mb-3">Panel principal</div>
+            <h1 className="dashboard-title font-display max-w-3xl font-bold tracking-tight text-slate-900">
+              Resumen Empresa
+            </h1>
+            <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
+              Sigue el comportamiento salarial por nivel organizacional basado en el corte activo de tu empresa.
+            </p>
 
-              {/*<div className="mt-5 flex flex-wrap gap-2.5">
-                <div className="pill">
-                  <Sparkles size={14} aria-hidden />
-                  Lectura rápida de percentiles
-                </div>
-                <div className="pill">
-                  <TrendingUp size={14} aria-hidden />
-                  Simulación a 2 meses
-                </div>
-              </div>*/}
-
-              <div className="mt-6 grid gap-3 md:grid-cols-3">
-                <div className="metric-tile">
-                  <div className="metric-label">Cantidad de cargos reportados</div>
-                  <div className="metric-value mt-3">{mockMarketData.length}</div>
-                </div>
-                <div className="metric-tile">
-                  <div className="metric-label">P50 base promedio</div>
-                  <div className="metric-value mt-3">${averageBase.toLocaleString()}</div>
-                </div>
-                <div className="metric-tile">
-                  <div className="metric-label">P50 máximo proyectado</div>
-                  <div className="metric-value mt-3">${maxProjected.toLocaleString()}</div>
-                </div>
+            <div className="mt-6 grid gap-3 md:grid-cols-3">
+              <div className="metric-tile">
+                <div className="metric-label">Total de posiciones</div>
+                <div className="metric-value mt-3">{totalPositions}</div>
+              </div>
+              <div className="metric-tile">
+                <div className="metric-label">Mediana global</div>
+                <div className="metric-value mt-3">{formatMoney(globalP50)}</div>
+              </div>
+              <div className="metric-tile">
+                <div className="metric-label">Niveles con data</div>
+                <div className="metric-value mt-3">{nivelesConData}</div>
               </div>
             </div>
-
-            {/*<div className="surface-card rounded-[1.5rem] p-4 md:p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="eyebrow mb-2">Supuesto clave</div>
-                  <h2 className="font-display text-xl font-bold text-slate-900 md:text-[1.35rem]">Inflación mensual</h2>
-                </div>
-                <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
-                  <ArrowUpRight size={16} aria-hidden />
-                </div>
-              </div>
-              <p className="mt-3 text-sm leading-5 text-slate-600 md:text-[0.82rem]">
-                Ajusta este valor para recalcular de inmediato las bandas proyectadas del tablero.
-              </p>
-              <div className="mt-5">
-                <label htmlFor="inflation" className="field-label">Inflación mensual estimada (%)</label>
-                <input
-                  id="inflation"
-                  type="number"
-                  value={inflation}
-                  placeholder="5"
-                  title="Inflación mensual estimada en %"
-                  onChange={(e) => setInflation(Number(e.target.value))}
-                  className="field text-[1.8rem] font-semibold md:text-[1.95rem]"
-                />
-              </div>
-              <div className="mt-4 rounded-[1.1rem] bg-slate-900 p-3.5 text-white">
-                <div className="flex items-center gap-2.5 text-sm text-slate-300 md:text-[0.8rem]">
-                  <BriefcaseBusiness size={16} aria-hidden />
-                  Ajuste aplicado a toda la muestra simulada.
-                </div>
-                <p className="mt-2.5 font-display text-[2rem] font-bold md:text-[2.15rem]">{inflation}%</p>
-              </div>
-            </div>*/}
           </div>
         </section>
 
@@ -132,31 +131,29 @@ export default function Home() {
               <div className="eyebrow mb-2">Data</div>
               <h2 className="font-display text-2xl font-bold text-slate-900">Información de compensación</h2>
             </div>
+            <p className="text-sm text-slate-500">Mediana (P50) de compensación total por nivel organizacional</p>
           </div>
 
           <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
             <table className="min-w-full border-separate border-spacing-y-3 text-sm">
               <thead>
                 <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                  <th className="px-4 py-2">Cargo</th>
-                  <th className="px-4 py-2 text-right">P50 Base</th>
-                  <th className="px-4 py-2 text-right">Mes 1</th>
-                  <th className="px-4 py-2 text-right">Mes 2</th>
+                  {NIVELES.map((nivel) => (
+                    <th key={nivel} className="px-4 py-2 text-center">{nivel}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {mockMarketData.map((job) => (
-                  <tr key={job.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{job.jobTitle}</td>
-                    <td className="px-4 py-4 text-right font-display text-slate-700">${job.basePercentiles.p50}</td>
-                    <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
-                      ${projectSalary(job.basePercentiles, inflation, 1).p50}
+                <tr className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                  {NIVELES.map((nivel, i) => (
+                    <td
+                      key={nivel}
+                      className={`px-4 py-4 text-center font-display font-semibold ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""} ${medianasPorNivel[nivel] === "ND" ? "text-slate-400" : "text-teal-700"}`}
+                    >
+                      {medianasPorNivel[nivel]}
                     </td>
-                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
-                      ${projectSalary(job.basePercentiles, inflation, 2).p50}
-                    </td>
-                  </tr>
-                ))}
+                  ))}
+                </tr>
               </tbody>
             </table>
           </div>
