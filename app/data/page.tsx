@@ -984,7 +984,10 @@ export default function DataPage() {
                               </div>
                               <div>
                                 <label className="field-label">Monto</label>
-                                <input type="number" aria-label="Monto sueldo basico" placeholder="Monto" value={r.sueldoBasico} onChange={(e) => update(i, "sueldoBasico", Number(e.target.value))} className="field" />
+                                <div className="relative">
+                                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">{r.sueldoBasicoCuentaMoneda === "VES" ? "Bs." : "$"}</span>
+                                  <input type="number" aria-label="Monto sueldo basico" placeholder="0" value={r.sueldoBasico} onChange={(e) => update(i, "sueldoBasico", Number(e.target.value))} className="field pr-9" />
+                                </div>
                               </div>
                               <div>
                                 <label className="field-label">Moneda de Cuenta</label>
@@ -1024,7 +1027,10 @@ export default function DataPage() {
                               </div>
                               <div>
                                 <label className="field-label">Monto</label>
-                                <input type="number" aria-label="Monto bono alimentacion" placeholder="Monto" value={r.bonoAlimentacion} onChange={(e) => update(i, "bonoAlimentacion", Number(e.target.value))} className="field" />
+                                <div className="relative">
+                                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">{r.bonoAlimentacionCuentaMoneda === "VES" ? "Bs." : "$"}</span>
+                                  <input type="number" aria-label="Monto bono alimentacion" placeholder="0" value={r.bonoAlimentacion} onChange={(e) => update(i, "bonoAlimentacion", Number(e.target.value))} className="field pr-9" />
+                                </div>
                               </div>
                               <div>
                                 <label className="field-label">Moneda de Cuenta</label>
@@ -1067,10 +1073,10 @@ export default function DataPage() {
                                   <div>
                                     <label className="field-label">Monto</label>
                                     <div className="relative">
-                                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
                                         {p.accountCurrency === "VES" ? "Bs." : "$"}
                                       </span>
-                                      <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalFixed(i, idx, "amount", Number(e.target.value))} className="field pl-9" />
+                                      <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalFixed(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
                                     </div>
                                   </div>
                                   <div>
@@ -1129,18 +1135,18 @@ export default function DataPage() {
                           {(r.additionalVariablePayments || []).length > 0 && (
                             (r.additionalVariablePayments || []).map((p, idx) => (
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
-                                  <div>
-                                    <label className="field-label">Tipo de bono</label>
-                                    <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
-                                      <option value="">Seleccionar</option>
-                                      {VARIABLE_BONUS_TYPES.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </select>
-                                  </div>
+                                <div className="space-y-2">
                                   {p.variableType === "performance" ? (
-                                    <>
+                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_auto] xl:items-end">
+                                      <div>
+                                        <label className="field-label">Variable</label>
+                                        <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
+                                          <option value="">Seleccionar</option>
+                                          {VARIABLE_BONUS_TYPES.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                          ))}
+                                        </select>
+                                      </div>
                                       <div>
                                         <label className="field-label">Concepto</label>
                                         <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field" />
@@ -1148,10 +1154,10 @@ export default function DataPage() {
                                       <div>
                                         <label className="field-label">Monto</label>
                                         <div className="relative">
-                                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
                                             {p.accountCurrency === "VES" ? "Bs." : "$"}
                                           </span>
-                                          <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pl-9" />
+                                          <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
                                         </div>
                                       </div>
                                       <div>
@@ -1183,87 +1189,111 @@ export default function DataPage() {
                                           ))}
                                         </select>
                                       </div>
-                                      <button onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger">
-                                        <Trash2 className="h-4 w-4" />
+                                      <button onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger btn-xs">
+                                        <Trash2 className="h-3 w-3" />
                                         Eliminar
                                       </button>
-                                    </>
+                                    </div>
                                   ) : p.variableType === "commission" ? (
                                     <>
-                                  <div>
-                                    <label className="field-label">Concepto</label>
-                                    <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field" />
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Monto</label>
-                                    <div className="relative">
-                                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                                        {p.accountCurrency === "VES" ? "Bs." : "$"}
-                                      </span>
-                                      <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pl-9" />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Moneda de Cuenta</label>
-                                    <select aria-label="Moneda de cuenta concepto variable" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "accountCurrency", e.target.value)} className="field-select">
-                                      <option value="USD">Dólares (USD)</option>
-                                      <option value="VES">Bolívares (Bs.)</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Moneda de Pago</label>
-                                    <select aria-label="Moneda de pago concepto variable" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "paymentCurrency", e.target.value)} className="field-select">
-                                      <option value="USD">Dólares (USD)</option>
-                                      <option value="VES">Bolívares (Bs.)</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Impacto en Pasivos</label>
-                                    <select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
-                                      <option value="yes">Sí</option>
-                                      <option value="no">No</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Frecuencia</label>
-                                    <select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
-                                      {FREQUENCY_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Tipo de comision</label>
-                                    <select aria-label="Tipo de comision" value={p.commissionType || "simple"} onChange={(e) => updateAdditionalVariable(i, idx, "commissionType", e.target.value)} className="field-select">
-                                      {VARIABLE_COMMISSION_TYPES.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Detalle de calculo</label>
-                                    <select aria-label="Detalle de calculo" value={p.calculationDetail || "sale_value"} onChange={(e) => updateAdditionalVariable(i, idx, "calculationDetail", e.target.value)} className="field-select">
-                                      {VARIABLE_CALCULATION_DETAILS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Objetivos y metas</label>
-                                    <select aria-label="Objetivos y metas" value={p.goalsTarget || "sales_quota"} onChange={(e) => updateAdditionalVariable(i, idx, "goalsTarget", e.target.value)} className="field-select">
-                                      {VARIABLE_GOALS_TARGETS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <button onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger">
-                                    <Trash2 className="h-4 w-4" />
-                                    Eliminar
-                                  </button>
+                                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem] xl:items-end">
+                                        <div>
+                                          <label className="field-label">Variable</label>
+                                          <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
+                                            <option value="">Seleccionar</option>
+                                            {VARIABLE_BONUS_TYPES.map((option) => (
+                                              <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Concepto</label>
+                                          <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field" />
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Monto</label>
+                                          <div className="relative">
+                                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                                              {p.accountCurrency === "VES" ? "Bs." : "$"}
+                                            </span>
+                                            <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Moneda de Cuenta</label>
+                                          <select aria-label="Moneda de cuenta concepto variable" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "accountCurrency", e.target.value)} className="field-select">
+                                            <option value="USD">Dólares (USD)</option>
+                                            <option value="VES">Bolívares (Bs.)</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Moneda de Pago</label>
+                                          <select aria-label="Moneda de pago concepto variable" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "paymentCurrency", e.target.value)} className="field-select">
+                                            <option value="USD">Dólares (USD)</option>
+                                            <option value="VES">Bolívares (Bs.)</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Impacto en Pasivos</label>
+                                          <select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
+                                            <option value="yes">Sí</option>
+                                            <option value="no">No</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Frecuencia</label>
+                                          <select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
+                                            {FREQUENCY_OPTIONS.map((option) => (
+                                              <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      </div>
+                                      <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
+                                        <div>
+                                          <label className="field-label">Tipo de comisión</label>
+                                          <select aria-label="Tipo de comision" value={p.commissionType || "simple"} onChange={(e) => updateAdditionalVariable(i, idx, "commissionType", e.target.value)} className="field-select">
+                                            {VARIABLE_COMMISSION_TYPES.map((option) => (
+                                              <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Detalle de cálculo</label>
+                                          <select aria-label="Detalle de calculo" value={p.calculationDetail || "sale_value"} onChange={(e) => updateAdditionalVariable(i, idx, "calculationDetail", e.target.value)} className="field-select">
+                                            {VARIABLE_CALCULATION_DETAILS.map((option) => (
+                                              <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Objetivos y metas</label>
+                                          <select aria-label="Objetivos y metas" value={p.goalsTarget || "sales_quota"} onChange={(e) => updateAdditionalVariable(i, idx, "goalsTarget", e.target.value)} className="field-select">
+                                            {VARIABLE_GOALS_TARGETS.map((option) => (
+                                              <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger btn-xs">
+                                          <Trash2 className="h-3 w-3" />
+                                          Eliminar
+                                        </button>
+                                      </div>
                                     </>
                                   ) : (
-                                    <div className="md:col-span-1 xl:col-span-10 rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-3.5 text-sm text-slate-500 md:text-[0.82rem]">
-                                      Selecciona si el concepto corresponde a bono por desempeño o bono por comisiones para continuar.
+                                    <div className="grid gap-2 xl:grid-cols-[10rem_minmax(0,1fr)] xl:items-end">
+                                      <div>
+                                        <label className="field-label">Variable</label>
+                                        <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
+                                          <option value="">Seleccionar</option>
+                                          {VARIABLE_BONUS_TYPES.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div className="rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-3.5 text-sm text-slate-500 md:text-[0.82rem]">
+                                        Selecciona si el concepto corresponde a bono por desempeño o bono por comisiones para continuar.
+                                      </div>
                                     </div>
                                   )}
                                 </div>
