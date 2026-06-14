@@ -634,10 +634,10 @@ export default function DataPage() {
         <section className="surface-panel rounded-[2rem] p-6 md:p-6">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_22rem]">
             <div>
-              <div className="eyebrow mb-3">Captura por corte</div>
+              <div className="eyebrow mb-3">Actualización de Data</div>
               <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Suministro de data por cargo.</h1>
               <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-                Ordena la información del cargo desde la identidad del rol hasta su compensación fija, con una lectura mucho más clara para edición continua.
+                Actualizar la data de compensación y la identidad del rol bajo una estructura jerárquica que permita una edición continua y una lectura clara de la arquitectura del cargo.
               </p>
 
               <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -646,8 +646,14 @@ export default function DataPage() {
                   <div className="metric-value mt-3">{rows.length}</div>
                 </div>
                 <div className="metric-tile">
-                  <div className="metric-label">Versiones guardadas</div>
-                  <div className="metric-value mt-3">{Object.keys(snapshots).length}</div>
+                  <div className="metric-label">Última actualización</div>
+                  <div className="metric-value mt-3 text-base">
+                    {Object.values(snapshots).length
+                      ? new Date(
+                          Object.values(snapshots).sort((a, b) => b.date.localeCompare(a.date))[0].date
+                        ).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })
+                      : "—"}
+                  </div>
                 </div>
                 <div className="metric-tile">
                   <div className="metric-label">Estado</div>
@@ -718,14 +724,14 @@ export default function DataPage() {
                   <CalendarDays size={16} aria-hidden />
                 </div>
                 <div>
-                  <div className="eyebrow mb-1">Control de versión</div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.35rem]">Cortes</h2>
+                  <div className="eyebrow mb-1">Control de actualización</div>
+                  <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.35rem]">Actualización</h2>
                 </div>
               </div>
 
               <div className="mt-4 space-y-3">
                 <div>
-                  <label htmlFor="snapshotSelect" className="field-label">Seleccionar corte</label>
+                  <label htmlFor="snapshotSelect" className="field-label">Seleccionar actualización</label>
                   <select id="snapshotSelect" value={selectedSnapshotId} onChange={(e) => loadSnapshot(e.target.value)} className="field-select">
                     <option value="">-- seleccionar --</option>
                     {Object.values(snapshots)
