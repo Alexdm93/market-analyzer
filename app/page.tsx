@@ -132,7 +132,7 @@ export default function Home() {
             </div>
 
             <div className="mt-8">
-              <div className="eyebrow mb-3">Información de compensación</div>
+              <div className="eyebrow mb-3"></div>
               <div className="overflow-x-auto">
                 <table className="min-w-full border-separate border-spacing-y-2 text-sm">
                   <thead>
