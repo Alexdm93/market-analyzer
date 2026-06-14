@@ -753,14 +753,14 @@ export default function DataPage() {
                     onClick={() => {
                       void reloadWorkspaceData({ showNotification: true });
                     }}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary whitespace-nowrap"
                     disabled={isRefreshing}
                   >
-                    <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                    <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
                     {isRefreshing ? "Actualizando..." : "Actualizar data"}
                   </button>
-                  <button onClick={exportJSON} className="btn btn-secondary">
-                    <Check className="h-4 w-4" />
+                  <button onClick={exportJSON} className="btn btn-secondary whitespace-nowrap">
+                    <Check className="h-3.5 w-3.5" />
                     Exportar JSON
                   </button>
                   {!isReadOnlyDataView ? (
@@ -834,9 +834,9 @@ export default function DataPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2.5 xl:justify-end">
-                    <button onClick={() => toggleExpand(r.id)} className="btn btn-secondary">
-                      <Edit className="h-4 w-4" />
+                  <div className="flex flex-wrap gap-2 xl:justify-end">
+                    <button onClick={() => toggleExpand(r.id)} className="btn btn-secondary btn-xs">
+                      <Edit className="h-3 w-3" />
                       {expanded[r.id] ? "Cerrar cargo" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
                     </button>
                     {!isReadOnlyDataView ? (
@@ -849,13 +849,13 @@ export default function DataPage() {
                             }
                             setModal({ type: 'save', id: r.id });
                           }}
-                          className="btn btn-secondary"
+                          className="btn btn-secondary btn-xs"
                         >
-                          <Save className="h-4 w-4" />
+                          <Save className="h-3 w-3" />
                           Guardar cargo
                         </button>
-                        <button onClick={() => removeRow(i)} className="btn btn-danger">
-                          <Trash2 className="h-4 w-4" />
+                        <button onClick={() => removeRow(i)} className="btn btn-danger btn-xs">
+                          <Trash2 className="h-3 w-3" />
                           Eliminar
                         </button>
                       </>
