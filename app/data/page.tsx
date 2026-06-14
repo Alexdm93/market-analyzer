@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
-import { JOB_TITLES } from "@/data/jobTitles";
+import { DEPARTMENTS, JOB_TITLES_BY_DEPARTMENT, JOB_TITLES } from "@/data/jobTitles";
 import { type Snapshot } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
@@ -100,6 +100,7 @@ const VARIABLE_BONUS_TYPES = [
 
 const empty = (i: number): ExtendedMarketPosition => ({
   id: `r-${Date.now()}-${i}`,
+  departamento: "",
   tituloCargo: "",
   nivelOrganizacional: "",
   clasificacion: "",
@@ -471,6 +472,20 @@ export default function DataPage() {
         ...current,
         nivelOrganizacional: normalizedLevel,
         clasificacion: allowedClassifications.includes(current.clasificacion || "") ? current.clasificacion : "",
+      } as ExtendedMarketPosition;
+      return next;
+    });
+  }
+
+  function updateDepartamento(i: number, dept: string) {
+    setRows((prev) => {
+      const next = [...prev];
+      const current = next[i];
+      const titlesForDept = JOB_TITLES_BY_DEPARTMENT[dept] || [];
+      next[i] = {
+        ...current,
+        departamento: dept,
+        tituloCargo: titlesForDept.includes(current.tituloCargo) ? current.tituloCargo : "",
       } as ExtendedMarketPosition;
       return next;
     });
@@ -870,19 +885,32 @@ export default function DataPage() {
                         <div className="eyebrow mb-3">Paso 1</div>
                         <h3 className="font-display text-xl font-bold text-slate-900 md:text-[1.12rem]">Identidad del cargo</h3>
                         <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          <div className="md:col-span-2">
+                          <div>
+                            <label className="field-label">Unidad / Departamento</label>
+                            <select
+                              value={r.departamento || ""}
+                              onChange={(e) => updateDepartamento(i, e.target.value)}
+                              className="field-select"
+                              aria-label="Unidad organizacional o departamento"
+                            >
+                              <option value="">Seleccionar unidad</option>
+                              {DEPARTMENTS.map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
                             <label className="field-label">Título del cargo</label>
                             <select
-                              ref={(el) => {
-                                titleRefs.current[r.id] = el;
-                              }}
+                              ref={(el) => { titleRefs.current[r.id] = el; }}
                               value={r.tituloCargo}
                               onChange={(e) => update(i, "tituloCargo", e.target.value)}
                               className="field-select"
                               aria-label="Título del cargo"
+                              disabled={!r.departamento}
                             >
                               <option value="">Seleccionar cargo</option>
-                              {JOB_TITLES.map((t) => (
+                              {(r.departamento ? JOB_TITLES_BY_DEPARTMENT[r.departamento] ?? [] : JOB_TITLES).map((t) => (
                                 <option key={t} value={t}>{t}</option>
                               ))}
                             </select>
@@ -951,40 +979,38 @@ export default function DataPage() {
                           <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem] xl:items-end">
                               <div>
-                                <label className="field-label min-h-8">Concepto</label>
+                                <label className="field-label">Concepto</label>
                                 <input aria-label="Concepto sueldo basico" value="Sueldo Básico" readOnly className="field bg-slate-100" />
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Monto</label>
+                                <label className="field-label">Monto</label>
                                 <input type="number" aria-label="Monto sueldo basico" placeholder="Monto" value={r.sueldoBasico} onChange={(e) => update(i, "sueldoBasico", Number(e.target.value))} className="field" />
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Moneda de Cuenta</label>
+                                <label className="field-label">Moneda de Cuenta</label>
                                 <select aria-label="Moneda de cuenta sueldo basico" value={r.sueldoBasicoCuentaMoneda || "USD"} onChange={(e) => update(i, "sueldoBasicoCuentaMoneda", e.target.value)} className="field-select">
-                                  <option value="USD">$</option>
-                                  <option value="VES">BS</option>
+                                  <option value="USD">Dólares (USD)</option>
+                                  <option value="VES">Bolívares (Bs.)</option>
                                 </select>
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Moneda de Pago</label>
+                                <label className="field-label">Moneda de Pago</label>
                                 <select aria-label="Moneda de pago sueldo basico" value={r.sueldoBasicoMonedaPago || "USD"} onChange={(e) => update(i, "sueldoBasicoMonedaPago", e.target.value)} className="field-select">
-                                  <option value="USD">$</option>
-                                  <option value="VES">BS</option>
+                                  <option value="USD">Dólares (USD)</option>
+                                  <option value="VES">Bolívares (Bs.)</option>
                                 </select>
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Impacto en Pasivos</label>
-                                <select aria-label="Impacto salarial sueldo basico" value={r.sueldoBasicoImpacto ? "yes" : "no"} onChange={(e) => update(i, "sueldoBasicoImpacto", e.target.value === "yes")} className="field-select">
+                                <label className="field-label">Impacto en Pasivos</label>
+                                <select aria-label="Impacto salarial sueldo basico" value="yes" disabled className="field-select opacity-60">
                                   <option value="yes">Sí</option>
-                                  <option value="no">No</option>
                                 </select>
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Frecuencia</label>
-                                <select aria-label="Frecuencia sueldo basico" value={r.sueldoBasicoFreq || "monthly"} onChange={(e) => update(i, "sueldoBasicoFreq", e.target.value)} className="field-select">
-                                  {FREQUENCY_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                  ))}
+                                <label className="field-label">Frecuencia</label>
+                                <select aria-label="Frecuencia sueldo basico" value={r.sueldoBasicoFreq || "biweekly"} onChange={(e) => update(i, "sueldoBasicoFreq", e.target.value)} className="field-select">
+                                  <option value="biweekly">Quincenal</option>
+                                  <option value="monthly">Mensual</option>
                                 </select>
                               </div>
                             </div>
@@ -993,40 +1019,38 @@ export default function DataPage() {
                           <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem] xl:items-end">
                               <div>
-                                <label className="field-label min-h-8">Concepto</label>
+                                <label className="field-label">Concepto</label>
                                 <input aria-label="Concepto bono alimentacion" value="Bono Alimentación" readOnly className="field bg-slate-100" />
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Monto</label>
+                                <label className="field-label">Monto</label>
                                 <input type="number" aria-label="Monto bono alimentacion" placeholder="Monto" value={r.bonoAlimentacion} onChange={(e) => update(i, "bonoAlimentacion", Number(e.target.value))} className="field" />
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Moneda de Cuenta</label>
+                                <label className="field-label">Moneda de Cuenta</label>
                                 <select aria-label="Moneda de cuenta bono alimentacion" value={r.bonoAlimentacionCuentaMoneda || "USD"} onChange={(e) => update(i, "bonoAlimentacionCuentaMoneda", e.target.value)} className="field-select">
-                                  <option value="USD">$</option>
-                                  <option value="VES">BS</option>
+                                  <option value="USD">Dólares (USD)</option>
+                                  <option value="VES">Bolívares (Bs.)</option>
                                 </select>
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Moneda de Pago</label>
+                                <label className="field-label">Moneda de Pago</label>
                                 <select aria-label="Moneda de pago bono alimentacion" value={r.bonoAlimentacionMonedaPago || "USD"} onChange={(e) => update(i, "bonoAlimentacionMonedaPago", e.target.value)} className="field-select">
-                                  <option value="USD">$</option>
-                                  <option value="VES">BS</option>
+                                  <option value="USD">Dólares (USD)</option>
+                                  <option value="VES">Bolívares (Bs.)</option>
                                 </select>
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Impacto en Pasivos</label>
-                                <select aria-label="Impacto salarial bono alimentacion" value={r.bonoAlimentacionImpacto ? "yes" : "no"} onChange={(e) => update(i, "bonoAlimentacionImpacto", e.target.value === "yes")} className="field-select">
-                                  <option value="yes">Sí</option>
+                                <label className="field-label">Impacto en Pasivos</label>
+                                <select aria-label="Impacto salarial bono alimentacion" value="no" disabled className="field-select opacity-60">
                                   <option value="no">No</option>
                                 </select>
                               </div>
                               <div>
-                                <label className="field-label min-h-8">Frecuencia</label>
+                                <label className="field-label">Frecuencia</label>
                                 <select aria-label="Frecuencia bono alimentacion" value={r.bonoAlimentacionFreq || "monthly"} onChange={(e) => update(i, "bonoAlimentacionFreq", e.target.value)} className="field-select">
-                                  {FREQUENCY_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                  ))}
+                                  <option value="monthly">Mensual</option>
+                                  <option value="biweekly">Quincenal</option>
                                 </select>
                               </div>
                             </div>
@@ -1037,36 +1061,41 @@ export default function DataPage() {
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
                                 <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_auto] xl:items-end">
                                   <div>
-                                    <label className="field-label min-h-8">Concepto</label>
+                                    <label className="field-label">Concepto</label>
                                     <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalFixed(i, idx, "concept", e.target.value)} className="field" />
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Monto</label>
-                                    <input type="number" placeholder="Monto" value={p.amount ?? 0} onChange={(e) => updateAdditionalFixed(i, idx, "amount", Number(e.target.value))} className="field" />
+                                    <label className="field-label">Monto</label>
+                                    <div className="relative">
+                                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                                        {p.accountCurrency === "VES" ? "Bs." : "$"}
+                                      </span>
+                                      <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalFixed(i, idx, "amount", Number(e.target.value))} className="field pl-9" />
+                                    </div>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Moneda de Cuenta</label>
+                                    <label className="field-label">Moneda de Cuenta</label>
                                     <select aria-label="Moneda de cuenta concepto fijo" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalFixed(i, idx, "accountCurrency", e.target.value)} className="field-select">
-                                      <option value="USD">$</option>
-                                      <option value="VES">BS</option>
+                                      <option value="USD">Dólares (USD)</option>
+                                      <option value="VES">Bolívares (Bs.)</option>
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Moneda de Pago</label>
+                                    <label className="field-label">Moneda de Pago</label>
                                     <select aria-label="Moneda de pago concepto fijo" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalFixed(i, idx, "paymentCurrency", e.target.value)} className="field-select">
-                                      <option value="USD">$</option>
-                                      <option value="VES">BS</option>
+                                      <option value="USD">Dólares (USD)</option>
+                                      <option value="VES">Bolívares (Bs.)</option>
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Impacto en Pasivos</label>
+                                    <label className="field-label">Impacto en Pasivos</label>
                                     <select aria-label="Impacto concepto fijo" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalFixed(i, idx, "impacto", e.target.value === "yes")} className="field-select">
                                       <option value="yes">Sí</option>
                                       <option value="no">No</option>
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Frecuencia</label>
+                                    <label className="field-label">Frecuencia</label>
                                     <select aria-label="Frecuencia concepto fijo" value={p.freq || "monthly"} onChange={(e) => updateAdditionalFixed(i, idx, "freq", e.target.value)} className="field-select">
                                       {FREQUENCY_OPTIONS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -1102,7 +1131,7 @@ export default function DataPage() {
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
                                 <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
                                   <div>
-                                    <label className="field-label min-h-8">Tipo de bono</label>
+                                    <label className="field-label">Tipo de bono</label>
                                     <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
                                       <option value="">Seleccionar</option>
                                       {VARIABLE_BONUS_TYPES.map((option) => (
@@ -1113,36 +1142,41 @@ export default function DataPage() {
                                   {p.variableType === "performance" ? (
                                     <>
                                       <div>
-                                        <label className="field-label min-h-8">Concepto</label>
+                                        <label className="field-label">Concepto</label>
                                         <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field" />
                                       </div>
                                       <div>
-                                        <label className="field-label min-h-8">Monto</label>
-                                        <input type="number" placeholder="Monto" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field" />
+                                        <label className="field-label">Monto</label>
+                                        <div className="relative">
+                                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                                            {p.accountCurrency === "VES" ? "Bs." : "$"}
+                                          </span>
+                                          <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pl-9" />
+                                        </div>
                                       </div>
                                       <div>
-                                        <label className="field-label min-h-8">Moneda de Cuenta</label>
+                                        <label className="field-label">Moneda de Cuenta</label>
                                         <select aria-label="Moneda de cuenta concepto variable" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "accountCurrency", e.target.value)} className="field-select">
-                                          <option value="USD">$</option>
-                                          <option value="VES">BS</option>
+                                          <option value="USD">Dólares (USD)</option>
+                                          <option value="VES">Bolívares (Bs.)</option>
                                         </select>
                                       </div>
                                       <div>
-                                        <label className="field-label min-h-8">Moneda de Pago</label>
+                                        <label className="field-label">Moneda de Pago</label>
                                         <select aria-label="Moneda de pago concepto variable" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "paymentCurrency", e.target.value)} className="field-select">
-                                          <option value="USD">$</option>
-                                          <option value="VES">BS</option>
+                                          <option value="USD">Dólares (USD)</option>
+                                          <option value="VES">Bolívares (Bs.)</option>
                                         </select>
                                       </div>
                                       <div>
-                                        <label className="field-label min-h-8">Impacto en Pasivos</label>
+                                        <label className="field-label">Impacto en Pasivos</label>
                                         <select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
                                           <option value="yes">Sí</option>
                                           <option value="no">No</option>
                                         </select>
                                       </div>
                                       <div>
-                                        <label className="field-label min-h-8">Frecuencia</label>
+                                        <label className="field-label">Frecuencia</label>
                                         <select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
                                           {FREQUENCY_OPTIONS.map((option) => (
                                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -1157,36 +1191,41 @@ export default function DataPage() {
                                   ) : p.variableType === "commission" ? (
                                     <>
                                   <div>
-                                    <label className="field-label min-h-8">Concepto</label>
+                                    <label className="field-label">Concepto</label>
                                     <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field" />
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Monto</label>
-                                    <input type="number" placeholder="Monto" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field" />
+                                    <label className="field-label">Monto</label>
+                                    <div className="relative">
+                                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                                        {p.accountCurrency === "VES" ? "Bs." : "$"}
+                                      </span>
+                                      <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pl-9" />
+                                    </div>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Moneda de Cuenta</label>
+                                    <label className="field-label">Moneda de Cuenta</label>
                                     <select aria-label="Moneda de cuenta concepto variable" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "accountCurrency", e.target.value)} className="field-select">
-                                      <option value="USD">$</option>
-                                      <option value="VES">BS</option>
+                                      <option value="USD">Dólares (USD)</option>
+                                      <option value="VES">Bolívares (Bs.)</option>
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Moneda de Pago</label>
+                                    <label className="field-label">Moneda de Pago</label>
                                     <select aria-label="Moneda de pago concepto variable" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "paymentCurrency", e.target.value)} className="field-select">
-                                      <option value="USD">$</option>
-                                      <option value="VES">BS</option>
+                                      <option value="USD">Dólares (USD)</option>
+                                      <option value="VES">Bolívares (Bs.)</option>
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Impacto en Pasivos</label>
+                                    <label className="field-label">Impacto en Pasivos</label>
                                     <select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
                                       <option value="yes">Sí</option>
                                       <option value="no">No</option>
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Frecuencia</label>
+                                    <label className="field-label">Frecuencia</label>
                                     <select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
                                       {FREQUENCY_OPTIONS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -1194,7 +1233,7 @@ export default function DataPage() {
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Tipo de comision</label>
+                                    <label className="field-label">Tipo de comision</label>
                                     <select aria-label="Tipo de comision" value={p.commissionType || "simple"} onChange={(e) => updateAdditionalVariable(i, idx, "commissionType", e.target.value)} className="field-select">
                                       {VARIABLE_COMMISSION_TYPES.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -1202,7 +1241,7 @@ export default function DataPage() {
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Detalle de calculo</label>
+                                    <label className="field-label">Detalle de calculo</label>
                                     <select aria-label="Detalle de calculo" value={p.calculationDetail || "sale_value"} onChange={(e) => updateAdditionalVariable(i, idx, "calculationDetail", e.target.value)} className="field-select">
                                       {VARIABLE_CALCULATION_DETAILS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -1210,7 +1249,7 @@ export default function DataPage() {
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="field-label min-h-8">Objetivos y metas</label>
+                                    <label className="field-label">Objetivos y metas</label>
                                     <select aria-label="Objetivos y metas" value={p.goalsTarget || "sales_quota"} onChange={(e) => updateAdditionalVariable(i, idx, "goalsTarget", e.target.value)} className="field-select">
                                       {VARIABLE_GOALS_TARGETS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>

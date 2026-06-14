@@ -39,6 +39,7 @@ export interface LegacyMarketPosition {
 // Campos fijos que vienen en el Excel (por cada cargo)
 export interface ExtendedMarketPosition {
   id: string;
+  departamento?: string;
   tituloCargo: string;
   nivelOrganizacional?: string;
   clasificacion?: string;
