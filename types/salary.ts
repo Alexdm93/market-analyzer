@@ -22,6 +22,7 @@ export interface CompensationConcept {
   accountCurrency?: 'USD' | 'VES';
   paymentCurrency?: 'USD' | 'VES';
   impacto?: boolean;
+  tasaId?: string;
   variableType?: 'performance' | 'commission';
   commissionType?: 'simple' | 'tiered' | 'product' | 'service' | 'other';
   calculationDetail?: 'sale_value' | 'profit_margin' | 'units_sold' | 'other';
@@ -60,10 +61,12 @@ export interface ExtendedMarketPosition {
   sueldoBasicoCuentaMoneda?: 'USD' | 'VES';
   sueldoBasicoMonedaPago?: 'USD' | 'VES';
   sueldoBasicoImpacto?: boolean;
+  sueldoBasicoTasaId?: string;
 
   bonoAlimentacionCuentaMoneda?: 'USD' | 'VES';
   bonoAlimentacionMonedaPago?: 'USD' | 'VES';
   bonoAlimentacionImpacto?: boolean;
+  bonoAlimentacionTasaId?: string;
 
   bonoMovilizacionCuentaMoneda?: 'USD' | 'VES';
   bonoMovilizacionMonedaPago?: 'USD' | 'VES';

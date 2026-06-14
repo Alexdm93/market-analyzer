@@ -4,7 +4,7 @@ import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sp
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { DEPARTMENTS, JOB_TITLES_BY_DEPARTMENT, JOB_TITLES } from "@/data/jobTitles";
-import { type Snapshot } from "@/lib/workspace";
+import { type Snapshot, type ExchangeRate } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 type CompanyOption = {
@@ -117,10 +117,12 @@ const empty = (i: number): ExtendedMarketPosition => ({
   sueldoBasicoCuentaMoneda: 'USD',
   sueldoBasicoMonedaPago: 'USD',
   sueldoBasicoImpacto: true,
+  sueldoBasicoTasaId: '',
 
   bonoAlimentacionCuentaMoneda: 'USD',
   bonoAlimentacionMonedaPago: 'USD',
   bonoAlimentacionImpacto: true,
+  bonoAlimentacionTasaId: '',
 
   bonoMovilizacionCuentaMoneda: 'USD',
   bonoMovilizacionMonedaPago: 'USD',
@@ -191,6 +193,7 @@ export default function DataPage() {
   const [saveState, setSaveState] = useState<"idle" | "dirty" | "pending" | "saved" | "error">("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [tasas, setTasas] = useState<ExchangeRate[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
@@ -248,6 +251,7 @@ export default function DataPage() {
       setSelectedSnapshotId(selectedId);
       setSaveState(selectedId ? "saved" : "idle");
       setLastSavedAt(null);
+      setTasas(workspace.companyInfo?.tasas ?? []);
 
       if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
         setRows(filtered[selectedId].rows);
@@ -497,14 +501,14 @@ export default function DataPage() {
       const next = [...prev];
       const row = { ...next[rowIndex] } as ExtendedMarketPosition;
       const list = row.additionalFixedPayments ? [...row.additionalFixedPayments] : [];
-      list.unshift({ id, concept: '', amount: 0, freq: 'monthly', accountCurrency: 'USD', paymentCurrency: 'USD', impacto: true });
+      list.unshift({ id, concept: '', amount: 0, freq: 'monthly', accountCurrency: 'USD', paymentCurrency: 'USD', impacto: true, tasaId: '' });
       row.additionalFixedPayments = list;
       next[rowIndex] = row;
       return next;
     });
   }
 
-  function updateAdditionalFixed(rowIndex: number, idx: number, key: 'concept' | 'amount' | 'freq' | 'accountCurrency' | 'paymentCurrency' | 'impacto', value: string | number | boolean) {
+  function updateAdditionalFixed(rowIndex: number, idx: number, key: 'concept' | 'amount' | 'freq' | 'accountCurrency' | 'paymentCurrency' | 'impacto' | 'tasaId', value: string | number | boolean) {
     setRows((prev) => {
       const next = [...prev];
       const row = { ...next[rowIndex] } as ExtendedMarketPosition;
@@ -552,6 +556,7 @@ export default function DataPage() {
         accountCurrency: "USD",
         paymentCurrency: "USD",
         impacto: true,
+        tasaId: "",
         variableType: undefined,
         commissionType: "simple",
         calculationDetail: "sale_value",
@@ -566,7 +571,7 @@ export default function DataPage() {
   function updateAdditionalVariable(
     rowIndex: number,
     idx: number,
-    key: 'concept' | 'amount' | 'freq' | 'accountCurrency' | 'paymentCurrency' | 'impacto' | 'variableType' | 'commissionType' | 'calculationDetail' | 'goalsTarget',
+    key: 'concept' | 'amount' | 'freq' | 'accountCurrency' | 'paymentCurrency' | 'impacto' | 'tasaId' | 'variableType' | 'commissionType' | 'calculationDetail' | 'goalsTarget',
     value: string | number | boolean
   ) {
     setRows((prev) => {
@@ -962,7 +967,7 @@ export default function DataPage() {
                         </div>
                         <div className="mt-4 space-y-3">
                           <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem] xl:items-end">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_8rem] xl:items-end">
                               <div>
                                 <label className="field-label">Concepto</label>
                                 <input aria-label="Concepto sueldo basico" value="Sueldo Básico" readOnly className="field bg-slate-100" />
@@ -1001,11 +1006,20 @@ export default function DataPage() {
                                   <option value="monthly">Mensual</option>
                                 </select>
                               </div>
+                              <div>
+                                <label className="field-label">Tasa</label>
+                                <select aria-label="Tasa sueldo basico" value={r.sueldoBasicoTasaId || ""} onChange={(e) => update(i, "sueldoBasicoTasaId", e.target.value)} className="field-select">
+                                  <option value="">Sin tasa</option>
+                                  {tasas.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
                           </div>
 
                           <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem] xl:items-end">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_8rem] xl:items-end">
                               <div>
                                 <label className="field-label">Concepto</label>
                                 <input aria-label="Concepto bono alimentacion" value="Bono Alimentación" readOnly className="field bg-slate-100" />
@@ -1044,13 +1058,22 @@ export default function DataPage() {
                                   <option value="biweekly">Quincenal</option>
                                 </select>
                               </div>
+                              <div>
+                                <label className="field-label">Tasa</label>
+                                <select aria-label="Tasa bono alimentacion" value={r.bonoAlimentacionTasaId || ""} onChange={(e) => update(i, "bonoAlimentacionTasaId", e.target.value)} className="field-select">
+                                  <option value="">Sin tasa</option>
+                                  {tasas.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
                           </div>
 
                           {(r.additionalFixedPayments || []).length > 0 && (
                             (r.additionalFixedPayments || []).map((p, idx) => (
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_auto] xl:items-end">
+                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_7.5rem_7.5rem_7.75rem_8rem_8rem_auto] xl:items-end">
                                   <div>
                                     <label className="field-label">Concepto</label>
                                     <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalFixed(i, idx, "concept", e.target.value)} className="field" />
@@ -1093,6 +1116,15 @@ export default function DataPage() {
                                       ))}
                                     </select>
                                   </div>
+                                  <div>
+                                    <label className="field-label">Tasa</label>
+                                    <select aria-label="Tasa concepto fijo" value={p.tasaId || ""} onChange={(e) => updateAdditionalFixed(i, idx, "tasaId", e.target.value)} className="field-select">
+                                      <option value="">Sin tasa</option>
+                                      {tasas.map((t) => (
+                                        <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                   <button onClick={() => removeAdditionalFixed(i, idx)} className="btn btn-danger">
                                     <Trash2 className="h-4 w-4" />
                                     Eliminar
@@ -1122,7 +1154,7 @@ export default function DataPage() {
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
                                 <div className="space-y-2">
                                   {p.variableType === "performance" ? (
-                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_auto] xl:items-end">
+                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_8rem_auto] xl:items-end">
                                       <div>
                                         <label className="field-label">Variable</label>
                                         <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
@@ -1174,6 +1206,15 @@ export default function DataPage() {
                                           ))}
                                         </select>
                                       </div>
+                                      <div>
+                                        <label className="field-label">Tasa</label>
+                                        <select aria-label="Tasa concepto variable desempeño" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select">
+                                          <option value="">Sin tasa</option>
+                                          {tasas.map((t) => (
+                                            <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                          ))}
+                                        </select>
+                                      </div>
                                       <button onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger btn-xs">
                                         <Trash2 className="h-3 w-3" />
                                         Eliminar
@@ -1181,7 +1222,7 @@ export default function DataPage() {
                                     </div>
                                   ) : p.variableType === "commission" ? (
                                     <>
-                                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem] xl:items-end">
+                                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[10rem_minmax(0,1.05fr)_minmax(0,0.8fr)_7.5rem_7.5rem_7.75rem_8rem_8rem] xl:items-end">
                                         <div>
                                           <label className="field-label">Variable</label>
                                           <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
@@ -1230,6 +1271,15 @@ export default function DataPage() {
                                           <select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
                                             {FREQUENCY_OPTIONS.map((option) => (
                                               <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="field-label">Tasa</label>
+                                          <select aria-label="Tasa concepto variable comisión" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select">
+                                            <option value="">Sin tasa</option>
+                                            {tasas.map((t) => (
+                                              <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
                                             ))}
                                           </select>
                                         </div>
@@ -1299,9 +1349,9 @@ export default function DataPage() {
                             }
                             setModal({ type: "save", id: r.id });
                           }}
-                          className="btn btn-primary"
+                          className="btn btn-secondary btn-xs"
                         >
-                          <Save className="h-4 w-4" />
+                          <Save className="h-3 w-3" />
                           Guardar cargo
                         </button>
                       </div>

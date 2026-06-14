@@ -314,7 +314,7 @@ export default function Informacion() {
                     <label className="field-label md:hidden">Nombre de la tasa</label>
                     <input
                       type="text"
-                      placeholder="Ej. Tasa Binance"
+                      placeholder="Nombre de la tasa"
                       value={tasa.nombre}
                       onChange={(e) => updateTasa(idx, "nombre", e.target.value)}
                       className="field"
