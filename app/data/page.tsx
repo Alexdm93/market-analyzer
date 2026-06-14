@@ -986,7 +986,7 @@ export default function DataPage() {
                                 <label className="field-label">Monto</label>
                                 <div className="relative">
                                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">{r.sueldoBasicoCuentaMoneda === "VES" ? "Bs." : "$"}</span>
-                                  <input type="number" aria-label="Monto sueldo basico" placeholder="0" value={r.sueldoBasico} onChange={(e) => update(i, "sueldoBasico", Number(e.target.value))} className="field pr-9" />
+                                  <input type="number" aria-label="Monto sueldo basico" placeholder="0" value={r.sueldoBasico || ""} onChange={(e) => update(i, "sueldoBasico", Number(e.target.value))} className="field pr-9" />
                                 </div>
                               </div>
                               <div>
@@ -1029,7 +1029,7 @@ export default function DataPage() {
                                 <label className="field-label">Monto</label>
                                 <div className="relative">
                                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">{r.bonoAlimentacionCuentaMoneda === "VES" ? "Bs." : "$"}</span>
-                                  <input type="number" aria-label="Monto bono alimentacion" placeholder="0" value={r.bonoAlimentacion} onChange={(e) => update(i, "bonoAlimentacion", Number(e.target.value))} className="field pr-9" />
+                                  <input type="number" aria-label="Monto bono alimentacion" placeholder="0" value={r.bonoAlimentacion || ""} onChange={(e) => update(i, "bonoAlimentacion", Number(e.target.value))} className="field pr-9" />
                                 </div>
                               </div>
                               <div>
@@ -1076,7 +1076,7 @@ export default function DataPage() {
                                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
                                         {p.accountCurrency === "VES" ? "Bs." : "$"}
                                       </span>
-                                      <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalFixed(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
+                                      <input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalFixed(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
                                     </div>
                                   </div>
                                   <div>
@@ -1157,7 +1157,7 @@ export default function DataPage() {
                                           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
                                             {p.accountCurrency === "VES" ? "Bs." : "$"}
                                           </span>
-                                          <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
+                                          <input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
                                         </div>
                                       </div>
                                       <div>
@@ -1216,7 +1216,7 @@ export default function DataPage() {
                                             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
                                               {p.accountCurrency === "VES" ? "Bs." : "$"}
                                             </span>
-                                            <input type="number" placeholder="0" value={p.amount ?? 0} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
+                                            <input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
                                           </div>
                                         </div>
                                         <div>
