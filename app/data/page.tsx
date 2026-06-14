@@ -855,25 +855,10 @@ export default function DataPage() {
                       {expanded[r.id] ? "Cerrar cargo" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
                     </button>
                     {!isReadOnlyDataView ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            if (!selectedSnapshotId) {
-                              showNotification("Seleccione una actualización");
-                              return;
-                            }
-                            setModal({ type: 'save', id: r.id });
-                          }}
-                          className="btn btn-secondary btn-xs"
-                        >
-                          <Save className="h-3 w-3" />
-                          Guardar cargo
-                        </button>
-                        <button onClick={() => removeRow(i)} className="btn btn-danger btn-xs">
-                          <Trash2 className="h-3 w-3" />
-                          Eliminar
-                        </button>
-                      </>
+                      <button onClick={() => removeRow(i)} className="btn btn-danger btn-xs">
+                        <Trash2 className="h-3 w-3" />
+                        Eliminar
+                      </button>
                     ) : null}
                   </div>
                 </div>
@@ -1303,6 +1288,24 @@ export default function DataPage() {
                         </div>
                       </section>
                     </fieldset>
+                    {!isReadOnlyDataView && (
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!selectedSnapshotId) {
+                              showNotification("Seleccione una actualización");
+                              return;
+                            }
+                            setModal({ type: "save", id: r.id });
+                          }}
+                          className="btn btn-primary"
+                        >
+                          <Save className="h-4 w-4" />
+                          Guardar cargo
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </article>

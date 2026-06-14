@@ -1,8 +1,16 @@
 "use client";
-import { Building2, Contact2, Globe2, Save, Sparkles } from "lucide-react";
+import { Building2, Contact2, Globe2, Plus, Save, Sparkles, Trash2, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
-import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
+import { EMPTY_COMPANY_INFO, type CompanyInfo, type ExchangeRate } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
+
+const MAX_TASAS = 5;
+
+const REFERENCIA_OPTIONS = [
+  "Tasa BCV (Bs./USD)",
+  "Tasa BCV (Bs./EUR)",
+  "Tasa de Referencia Externa",
+] as const;
 
 const REVENUE_RANGE_OPTIONS = [
   "a. Hasta 500M USD",
@@ -41,6 +49,34 @@ export default function Informacion() {
 
   function updateCompany<K extends keyof CompanyInfo>(key: K, value: string) {
     setCompanyInfo((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function addTasa() {
+    const current = companyInfo.tasas ?? [];
+    if (current.length >= MAX_TASAS) return;
+    const newTasa: ExchangeRate = {
+      id: `t-${Date.now()}`,
+      nombre: "",
+      referencia: REFERENCIA_OPTIONS[0],
+      valor: "",
+    };
+    setCompanyInfo((prev) => ({ ...prev, tasas: [...(prev.tasas ?? []), newTasa] }));
+  }
+
+  function updateTasa(idx: number, key: keyof ExchangeRate, value: string) {
+    setCompanyInfo((prev) => {
+      const next = [...(prev.tasas ?? [])];
+      next[idx] = { ...next[idx], [key]: value };
+      return { ...prev, tasas: next };
+    });
+  }
+
+  function removeTasa(idx: number) {
+    setCompanyInfo((prev) => {
+      const next = [...(prev.tasas ?? [])];
+      next.splice(idx, 1);
+      return { ...prev, tasas: next };
+    });
   }
 
   async function saveCompanyInfo() {
@@ -236,6 +272,92 @@ export default function Informacion() {
               </select>
             </div>
           </div>
+        </section>
+
+        <section className="surface-card rounded-[2rem] p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-slate-100 p-3 text-slate-700">
+                <TrendingUp size={18} aria-hidden />
+              </div>
+              <div>
+                <h2 className="font-display text-2xl font-bold text-slate-900">Tasas de cambio</h2>
+                <p className="mt-0.5 text-sm text-slate-500">Máximo {MAX_TASAS} tasas. Se usarán en los selectores de cada concepto de compensación.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={addTasa}
+              disabled={(companyInfo.tasas ?? []).length >= MAX_TASAS}
+              className="btn btn-primary"
+            >
+              <Plus className="h-4 w-4" />
+              Agregar tasa
+            </button>
+          </div>
+
+          {(companyInfo.tasas ?? []).length === 0 ? (
+            <div className="mt-5 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-center text-sm text-slate-500">
+              No hay tasas configuradas. Agrega al menos una para que esté disponible en los conceptos de compensación.
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
+              <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto] gap-3 px-1 md:grid">
+                <span className="field-label">Nombre de la tasa</span>
+                <span className="field-label">Referencia</span>
+                <span className="field-label">Valor de conversión</span>
+                <span />
+              </div>
+              {(companyInfo.tasas ?? []).map((tasa, idx) => (
+                <div key={tasa.id} className="grid gap-3 rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto] md:items-center">
+                  <div>
+                    <label className="field-label md:hidden">Nombre de la tasa</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Tasa Binance"
+                      value={tasa.nombre}
+                      onChange={(e) => updateTasa(idx, "nombre", e.target.value)}
+                      className="field"
+                      aria-label="Nombre de la tasa"
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label md:hidden">Referencia</label>
+                    <select
+                      value={tasa.referencia}
+                      onChange={(e) => updateTasa(idx, "referencia", e.target.value)}
+                      className="field-select"
+                      aria-label="Referencia de la tasa"
+                    >
+                      {REFERENCIA_OPTIONS.map((ref) => (
+                        <option key={ref} value={ref}>{ref}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="field-label md:hidden">Valor de conversión</label>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={tasa.valor || ""}
+                      onChange={(e) => updateTasa(idx, "valor", e.target.value)}
+                      className="field"
+                      aria-label="Valor de conversión"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeTasa(idx)}
+                    className="btn btn-danger btn-xs self-end"
+                    aria-label="Eliminar tasa"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Eliminar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </main>

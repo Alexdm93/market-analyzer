@@ -1,5 +1,12 @@
 import { ExtendedMarketPosition } from "@/types/salary";
 
+export type ExchangeRate = {
+  id: string;
+  nombre: string;
+  referencia: string;
+  valor: string;
+};
+
 export type Snapshot = {
   id: string;
   label: string;
@@ -24,6 +31,7 @@ export type CompanyInfo = {
   minUtilityDays: string;
   conversionRate: string;
   locality: string;
+  tasas?: ExchangeRate[];
 };
 
 export type UserWorkspacePayload = {
@@ -50,6 +58,7 @@ export const EMPTY_COMPANY_INFO: CompanyInfo = {
   minUtilityDays: "",
   conversionRate: "",
   locality: "",
+  tasas: [],
 };
 
 export const DEFAULT_WORKSPACE: UserWorkspacePayload = {
