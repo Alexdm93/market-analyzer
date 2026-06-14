@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { legacyMockMarketData as mockMarketData } from "@/data/mockSalaries";
-import { projectSalary } from "@/lib/projections";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { Snapshot, CompanyInfo } from "@/lib/workspace";
 import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
@@ -51,7 +50,6 @@ export default function Home() {
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
-  const [inflation, setInflation] = useState<number>(5);
 
   useEffect(() => {
     let ignore = false;
@@ -63,7 +61,7 @@ export default function Home() {
           setSnapshots(workspace.snapshots);
           setSelectedSnapshotId(workspace.selectedSnapshotId || Object.keys(workspace.snapshots)[0] || "");
           setCompanyInfo(workspace.companyInfo);
-          setInflation(workspace.inflation);
+
         }
       } catch {
         // ignore
@@ -176,20 +174,20 @@ export default function Home() {
                 <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                   <th className="px-4 py-2">Cargo</th>
                   <th className="px-4 py-2 text-right">P50 Base</th>
-                  <th className="px-4 py-2 text-right">Mes 1</th>
-                  <th className="px-4 py-2 text-right">Mes 2</th>
+                  <th className="px-4 py-2 text-right">Compensación Mensual</th>
+                  <th className="px-4 py-2 text-right">Compensación Anual</th>
                 </tr>
               </thead>
               <tbody>
                 {mockMarketData.map((job) => (
                   <tr key={job.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
                     <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{job.jobTitle}</td>
-                    <td className="px-4 py-4 text-right font-display text-slate-700">${job.basePercentiles.p50}</td>
+                    <td className="px-4 py-4 text-right font-display text-slate-700">${job.basePercentiles.p50.toLocaleString()}</td>
                     <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
-                      ${projectSalary(job.basePercentiles, inflation, 1).p50}
+                      ${job.basePercentiles.p50.toLocaleString()}
                     </td>
                     <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
-                      ${projectSalary(job.basePercentiles, inflation, 2).p50}
+                      ${(job.basePercentiles.p50 * 12).toLocaleString()}
                     </td>
                   </tr>
                 ))}
