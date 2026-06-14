@@ -718,18 +718,18 @@ export default function DataPage() {
               ) : null}
             </div>
 
-            <div className="surface-card rounded-[1.25rem] p-3.5 md:p-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
-                  <CalendarDays size={16} aria-hidden />
+            <div className="btn-compact-zone surface-card rounded-[1.25rem] p-3 md:p-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-full bg-teal-50 p-2 text-teal-700">
+                  <CalendarDays size={14} aria-hidden />
                 </div>
                 <div>
-                  <div className="eyebrow mb-1">Control de actualización</div>
-                  <h2 className="font-display text-xl font-bold text-slate-900 md:text-[1.15rem]">Actualización</h2>
+                  <div className="eyebrow-xs eyebrow mb-0.5">Control de actualización</div>
+                  <h2 className="font-display text-base font-bold text-slate-900">Actualización</h2>
                 </div>
               </div>
 
-              <div className="mt-3 space-y-2.5">
+              <div className="mt-2.5 space-y-2">
                 <div>
                   <label htmlFor="snapshotSelect" className="field-label">Seleccionar actualización</label>
                   <select id="snapshotSelect" value={selectedSnapshotId} onChange={(e) => loadSnapshot(e.target.value)} className="field-select">
@@ -742,13 +742,13 @@ export default function DataPage() {
                   </select>
                 </div>
 
-                <div className="rounded-[1.1rem] bg-slate-50 px-3.5 py-3 text-sm leading-5 text-slate-600 md:text-[0.82rem]">
-                  {isReadOnlyDataView
-                    ? "Vista de consulta para admin. Las actualizaciones y cargos se muestran en modo solo lectura."
-                    : ""}
-                </div>
+                {isReadOnlyDataView && (
+                  <div className="rounded-[0.9rem] bg-slate-50 px-3 py-2 text-xs leading-4 text-slate-600">
+                    Vista de consulta para admin. Las actualizaciones y cargos se muestran en modo solo lectura.
+                  </div>
+                )}
 
-                <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="grid gap-2 sm:grid-cols-2">
                   <button
                     onClick={() => {
                       void reloadWorkspaceData({ showNotification: true });
@@ -837,7 +837,7 @@ export default function DataPage() {
                   <div className="flex flex-wrap gap-2.5 xl:justify-end">
                     <button onClick={() => toggleExpand(r.id)} className="btn btn-secondary">
                       <Edit className="h-4 w-4" />
-                      {expanded[r.id] ? "Cerrar detalle" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
+                      {expanded[r.id] ? "Cerrar cargo" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
                     </button>
                     {!isReadOnlyDataView ? (
                       <>

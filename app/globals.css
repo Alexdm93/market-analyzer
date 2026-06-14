@@ -225,6 +225,16 @@ textarea {
   color: var(--muted);
 }
 
+.btn-compact-zone {
+  --button-padding-y: 0.45rem;
+  --button-padding-x: 0.75rem;
+  --button-font-size: 0.78rem;
+}
+
+.eyebrow-xs {
+  font-size: 0.6rem;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
