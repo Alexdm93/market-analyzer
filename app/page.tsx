@@ -90,7 +90,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="surface-card rounded-[1.5rem] p-4 md:p-5">
+            {/*<div className="surface-card rounded-[1.5rem] p-4 md:p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="eyebrow mb-2">Supuesto clave</div>
@@ -122,7 +122,7 @@ export default function Home() {
                 </div>
                 <p className="mt-2.5 font-display text-[2rem] font-bold md:text-[2.15rem]">{inflation}%</p>
               </div>
-            </div>
+            </div>*/}
           </div>
         </section>
 
