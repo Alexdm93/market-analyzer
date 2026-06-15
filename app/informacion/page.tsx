@@ -117,7 +117,7 @@ export default function Informacion() {
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-3">
         <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_20rem]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
             <div>
               <div className="eyebrow mb-2">Contexto de la muestra</div>
               <h1 className="font-display text-[1.6rem] font-bold tracking-tight text-slate-900 md:text-[1.85rem]">Información de la empresa participante.</h1>
@@ -125,18 +125,18 @@ export default function Informacion() {
                 Organiza los datos de contexto corporativo y del contacto de RR. HH. en un formato más limpio, útil para revisión y carga rápida.
               </p>
 
-              <div className="mt-4 grid gap-2 md:grid-cols-3">
-                <div className="metric-tile">
+              <div className="mt-4 flex flex-wrap gap-2">
+                <div className="metric-tile max-w-[14rem] min-w-0 flex-1">
                   <div className="metric-label">Compañía</div>
-                  <div className="metric-value mt-3 text-xl">{companyInfo.companyName || "Sin nombre"}</div>
+                  <div className="metric-value mt-2 truncate text-lg">{companyInfo.companyName || "Sin nombre"}</div>
                 </div>
-                <div className="metric-tile">
+                <div className="metric-tile w-[10rem] shrink-0">
                   <div className="metric-label">Sector</div>
-                  <div className="metric-value mt-3 text-xl">{companyInfo.sector || "ND"}</div>
+                  <div className="metric-value mt-2 truncate text-lg">{companyInfo.sector || "ND"}</div>
                 </div>
-                <div className="metric-tile">
+                <div className="metric-tile w-[10rem] shrink-0">
                   <div className="metric-label">Clasificación</div>
-                  <div className="metric-value mt-3 text-xl">{companyInfo.classification || "ND"}</div>
+                  <div className="metric-value mt-2 truncate text-lg">{companyInfo.classification || "ND"}</div>
                 </div>
               </div>
 
@@ -207,18 +207,21 @@ export default function Informacion() {
                 <label className="field-label">Headcount</label>
                 <input title="Headcount" aria-label="Headcount" type="number" placeholder="0" value={companyInfo.headcount} onChange={(e) => updateCompany("headcount", e.target.value)} className="field" />
               </div>
-              <div>
+              <div className="flex flex-col">
                 <label className="field-label">Facturación (USD)</label>
-                <select title="Facturación USD" aria-label="Facturación USD" value={companyInfo.revenueUSD} onChange={(e) => updateCompany("revenueUSD", e.target.value)} className="field-select">
-                  <option value="">Seleccionar rango de facturación</option>
+                <select title="Facturación USD" aria-label="Facturación USD" value={companyInfo.revenueUSD} onChange={(e) => updateCompany("revenueUSD", e.target.value)} className="field-select flex-1">
+                  <option value="">Seleccionar rango</option>
                   {REVENUE_RANGE_OPTIONS.map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="field-label">Utilidades antes de ISLR (%)</label>
-                <input title="% utilidades" aria-label="% utilidades" type="number" placeholder="%" value={companyInfo.avgProfitPercent} onChange={(e) => updateCompany("avgProfitPercent", e.target.value)} className="field" />
+                <label className="field-label">Utilidades antes de ISLR</label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">%</span>
+                  <input title="% utilidades" aria-label="% utilidades" type="number" placeholder="0" value={companyInfo.avgProfitPercent || ""} onChange={(e) => updateCompany("avgProfitPercent", e.target.value)} className="field pr-9" />
+                </div>
               </div>
             </div>
           </div>

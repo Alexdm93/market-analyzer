@@ -4,7 +4,7 @@ import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sp
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { DEPARTMENTS, JOB_TITLES_BY_DEPARTMENT, JOB_TITLES } from "@/data/jobTitles";
-import { type Snapshot, type ExchangeRate } from "@/lib/workspace";
+import { type Snapshot, type ExchangeRate, type CompanyInfo, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 type CompanyOption = {
@@ -223,6 +223,7 @@ export default function DataPage() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [tasas, setTasas] = useState<ExchangeRate[]>([]);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
@@ -281,6 +282,7 @@ export default function DataPage() {
       setSaveState(selectedId ? "saved" : "idle");
       setLastSavedAt(null);
       setTasas(workspace.companyInfo?.tasas ?? []);
+      setCompanyInfo(workspace.companyInfo ?? EMPTY_COMPANY_INFO);
 
       if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
         setRows(filtered[selectedId].rows);
@@ -704,6 +706,15 @@ export default function DataPage() {
     : 0;
 
   const modalAnnualTotal = modalMonthlyFixed * 12 + modalAnnualVariable;
+
+  const missingCompanyFields: string[] = [];
+  if (modal.type === "save") {
+    if (!companyInfo.headcount) missingCompanyFields.push("Headcount");
+    if (!companyInfo.revenueUSD) missingCompanyFields.push("Facturación");
+    if (!companyInfo.avgProfitPercent) missingCompanyFields.push("Utilidades antes de ISLR (%)");
+    if (!companyInfo.hrName) missingCompanyFields.push("Nombre de contacto de RRHH");
+    if (!companyInfo.hrEmail) missingCompanyFields.push("Correo de contacto de RRHH");
+  }
 
   return (
     <main className="page-wrap">
@@ -1452,6 +1463,23 @@ export default function DataPage() {
                 <p className="mt-3 text-xs leading-5 text-slate-500">
                   El total anual incluye todos los conceptos fijos (×12) y variables anualizado según su frecuencia.
                 </p>
+
+                {missingCompanyFields.length > 0 && (
+                  <div className="mt-4 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-700">Información de empresa incompleta</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-700">
+                      Completa estos campos en la sección Empresa antes de guardar:
+                    </p>
+                    <ul className="mt-2 space-y-0.5">
+                      {missingCompanyFields.map((f) => (
+                        <li key={f} className="flex items-center gap-1.5 text-xs text-amber-800">
+                          <span className="h-1 w-1 rounded-full bg-amber-500 shrink-0" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
