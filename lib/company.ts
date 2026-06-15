@@ -94,4 +94,10 @@ export type CompanyCatalogEntry = {
   description: string;
   economicSector: string;
   classification: string;
+  headcount: string;
+  revenueUSD: string;
+  locality: string;
+  hrName: string;
+  hrEmail: string;
+  createdAt: string;
 };

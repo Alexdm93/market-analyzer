@@ -41,7 +41,6 @@ export default function Sidebar() {
             <div className="eyebrow mb-2">Salary Intelligence</div>
             <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
             <p className="mt-2 max-w-none break-words text-sm leading-6 text-slate-600 md:max-w-48 md:text-[0.82rem] md:leading-5">
-              Carga, consolida y revisa mercado salarial desde una sola vista.
             </p>
           </div>
           <div className="hidden rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[0.68rem] font-bold text-amber-700 lg:inline-flex">

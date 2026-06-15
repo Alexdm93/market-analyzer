@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Building2, CalendarDays, CheckCircle2, LoaderCircle, Plus } from "lucide-react";
+import * as XLSX from "xlsx";
+import { Building2, CalendarDays, CheckCircle2, Download, LoaderCircle, Plus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import {
   COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
@@ -383,80 +384,67 @@ export default function EmpresasPage() {
     );
   }
 
+  const sixtyDaysAgo = new Date();
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+  const newLast60 = companies.filter((c) => new Date(c.createdAt) >= sixtyDaysAgo).length;
+
+  function exportCompaniesExcel() {
+    if (companies.length === 0) return;
+    const rows = companies.map((c) => ({
+      Empresa: c.name,
+      Sector: c.economicSector || "—",
+      Clasificación: c.classification || "—",
+      Descripción: c.description || "—",
+      Localidad: c.locality || "—",
+      Headcount: c.headcount || "—",
+      "Facturación USD": c.revenueUSD || "—",
+      "Contacto RRHH": c.hrName || "—",
+      "Correo RRHH": c.hrEmail || "—",
+      "Fecha registro": new Date(c.createdAt).toLocaleDateString("es-VE"),
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Empresas");
+    XLSX.writeFile(wb, "empresas.xlsx");
+  }
+
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
-            <div>
-              <div className="eyebrow mb-3">Catálogo</div>
-              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Empresas registradas.</h1>
-              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-                Administra las empresas disponibles para que luego puedan seleccionarse en el registro de usuarios.
-              </p>
-
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
-                <div className="metric-tile">
-                  <div className="metric-label">Empresas cargadas</div>
-                  <div className="metric-value mt-3">{companies.length}</div>
+          <div className="grid items-stretch gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+            {/* Left: form */}
+            <div className="surface-card rounded-[1.5rem] p-5 md:p-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
+                  <Building2 size={18} aria-hidden />
                 </div>
-                <div className="metric-tile">
-                  <div className="metric-label">Estado</div>
-                  <div className="metric-value mt-3 text-xl">{isLoading ? "Cargando" : "Disponible"}</div>
-                </div>
-                <div className="metric-tile">
-                  <div className="metric-label">Registro</div>
-                  <div className="metric-value mt-3 text-xl">Selector activo</div>
-                </div>
+                <h2 className="font-display text-xl font-bold text-slate-900">Nueva empresa</h2>
               </div>
 
-              {statusMessage ? (
-                <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
-                  <CheckCircle2 size={14} aria-hidden />
-                  {statusMessage}
-                </div>
-              ) : null}
-
-              {errorMessage ? (
-                <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {errorMessage}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="surface-card rounded-[1.5rem] p-4 md:p-5">
-              <div className="rounded-full bg-teal-50 p-2.5 text-teal-700 w-fit">
-                <Building2 size={18} aria-hidden />
-              </div>
-              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900 md:text-[1.35rem]">Nueva empresa</h2>
-              <p className="mt-2.5 text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">
-                Cada usuario nuevo deberá elegir una empresa existente desde el selector del registro.
-              </p>
-
-              <form onSubmit={handleCreateCompany} className="mt-5 space-y-4 md:space-y-3">
-                <div className="md:grid md:grid-cols-2 md:gap-3">
+              <form onSubmit={handleCreateCompany} className="mt-5 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                  <label htmlFor="companyName" className="field-label">Nombre de la empresa</label>
-                  <input
-                    id="companyName"
-                    type="text"
-                    value={companyName}
-                    onChange={(event) => setCompanyName(event.target.value)}
-                    className="field"
-                    placeholder="Nombre comercial o legal"
-                    autoComplete="organization"
-                    required
-                  />
+                    <label htmlFor="companyName" className="field-label">Nombre de la empresa</label>
+                    <input
+                      id="companyName"
+                      type="text"
+                      value={companyName}
+                      onChange={(event) => setCompanyName(event.target.value)}
+                      className="field"
+                      placeholder="Nombre comercial o legal"
+                      autoComplete="organization"
+                      required
+                    />
                   </div>
                   <div>
-                    <label htmlFor="companyEconomicSector" className="field-label">Sector economico</label>
+                    <label htmlFor="companyEconomicSector" className="field-label">Sector económico</label>
                     <select
                       id="companyEconomicSector"
                       value={companyEconomicSector}
                       onChange={(event) => handleEconomicSectorChange(event.target.value)}
                       className="field-select"
                     >
-                      <option value="">Seleccionar sector económico</option>
+                      <option value="">Seleccionar sector</option>
                       {ECONOMIC_SECTOR_OPTIONS.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
@@ -464,17 +452,17 @@ export default function EmpresasPage() {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="companyDescription" className="field-label">Descripcion</label>
+                  <label htmlFor="companyDescription" className="field-label">Descripción</label>
                   <textarea
                     id="companyDescription"
                     value={companyDescription}
                     onChange={(event) => setCompanyDescription(event.target.value)}
-                    className="field min-h-28 resize-y md:min-h-24"
-                    placeholder="Descripcion general de la empresa"
+                    className="field min-h-20 resize-y"
+                    placeholder="Descripción general de la empresa"
                   />
                 </div>
                 <div>
-                  <label htmlFor="companyClassification" className="field-label">Clasificacion</label>
+                  <label htmlFor="companyClassification" className="field-label">Clasificación</label>
                   <select
                     id="companyClassification"
                     value={companyClassification}
@@ -493,7 +481,48 @@ export default function EmpresasPage() {
                   {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   {isPending ? "Creando empresa..." : "Crear empresa"}
                 </button>
+
+                {statusMessage ? (
+                  <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
+                    <CheckCircle2 size={14} aria-hidden />
+                    {statusMessage}
+                  </div>
+                ) : null}
+                {errorMessage ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {errorMessage}
+                  </div>
+                ) : null}
               </form>
+            </div>
+
+            {/* Right: summary + export */}
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="eyebrow mb-1.5">Empresas</div>
+                <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Empresas registradas.</h1>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="metric-tile py-3">
+                  <div className="metric-label">Total en base de datos</div>
+                  <div className="metric-value mt-2">{isLoading ? "—" : companies.length}</div>
+                </div>
+                <div className="metric-tile py-3">
+                  <div className="metric-label">Nuevas (60 días)</div>
+                  <div className="metric-value mt-2">{isLoading ? "—" : newLast60}</div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={exportCompaniesExcel}
+                disabled={companies.length === 0 || isLoading}
+                className="btn btn-secondary w-full disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4" />
+                Exportar a Excel
+              </button>
             </div>
           </div>
         </section>

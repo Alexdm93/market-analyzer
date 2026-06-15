@@ -12,6 +12,12 @@ export async function GET() {
       description: true,
       economicSector: true,
       classification: true,
+      headcount: true,
+      revenueUSD: true,
+      locality: true,
+      hrName: true,
+      hrEmail: true,
+      createdAt: true,
     },
     orderBy: {
       name: "asc",
