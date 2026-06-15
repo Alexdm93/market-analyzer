@@ -12,6 +12,18 @@ const REFERENCIA_OPTIONS = [
   "Tasa de Referencia Externa",
 ] as const;
 
+const LOCALITY_OPTIONS = [
+  "Capital",
+  "Central",
+  "Centroccidental",
+  "Guayana",
+  "Insular",
+  "Los Andes",
+  "Los Llanos",
+  "Nororiental",
+  "Zuliana",
+] as const;
+
 const REVENUE_RANGE_OPTIONS = [
   "a. Hasta 500M USD",
   "b. Entre 500M USD hasta 5MM USD",
@@ -49,6 +61,14 @@ export default function Informacion() {
 
   function updateCompany<K extends keyof CompanyInfo>(key: K, value: string) {
     setCompanyInfo((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleLocality(loc: string) {
+    const current = (companyInfo.locality || "").split(",").filter(Boolean);
+    const next = current.includes(loc)
+      ? current.filter((l) => l !== loc)
+      : [...current, loc];
+    updateCompany("locality", next.join(","));
   }
 
   function addTasa() {
@@ -95,17 +115,17 @@ export default function Informacion() {
 
   return (
     <main className="page-wrap">
-      <div className="flex w-full flex-col gap-6">
-        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_24rem]">
+      <div className="flex w-full flex-col gap-3">
+        <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_20rem]">
             <div>
-              <div className="eyebrow mb-3">Contexto de la muestra</div>
-              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Información de la empresa participante.</h1>
-              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
+              <div className="eyebrow mb-2">Contexto de la muestra</div>
+              <h1 className="font-display text-[1.6rem] font-bold tracking-tight text-slate-900 md:text-[1.85rem]">Información de la empresa participante.</h1>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
                 Organiza los datos de contexto corporativo y del contacto de RR. HH. en un formato más limpio, útil para revisión y carga rápida.
               </p>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
+              <div className="mt-4 grid gap-2 md:grid-cols-3">
                 <div className="metric-tile">
                   <div className="metric-label">Compañía</div>
                   <div className="metric-value mt-3 text-xl">{companyInfo.companyName || "Sin nombre"}</div>
@@ -121,24 +141,29 @@ export default function Informacion() {
               </div>
 
               {notification && (
-                <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
                   <Sparkles size={14} aria-hidden />
                   {notification}
                 </div>
               )}
             </div>
 
-            <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
-              <div className="rounded-full bg-teal-50 p-3 text-teal-700 w-fit">
-                <Building2 size={18} aria-hidden />
+            <div className="btn-compact-zone surface-card rounded-[1.25rem] p-3 md:p-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-full bg-teal-50 p-2 text-teal-700">
+                  <Building2 size={14} aria-hidden />
+                </div>
+                <div>
+                  <div className="eyebrow-xs eyebrow mb-0.5">Empresa</div>
+                  <h2 className="font-display text-base font-bold text-slate-900">Resumen de llenado</h2>
+                </div>
               </div>
-              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900">Resumen de llenado</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                Completa primero datos de empresa, luego contacto y finalmente parámetros generales del estudio.
+              <p className="mt-2.5 text-xs leading-5 text-slate-600">
+                Completa datos de empresa, contacto y parámetros generales antes de guardar.
               </p>
-              <button onClick={() => void saveCompanyInfo()} className="btn btn-primary mt-6 w-full">
-                <Save className="h-4 w-4" />
-                Guardar información de la empresa
+              <button onClick={() => void saveCompanyInfo()} className="btn btn-primary mt-3 w-full">
+                <Save className="h-3.5 w-3.5" />
+                Guardar información
               </button>
             </div>
           </div>
@@ -256,20 +281,27 @@ export default function Informacion() {
               <label className="field-label">Tasa Bs / USD</label>
               <input title="Tasa conversión" aria-label="Tasa conversión" type="number" placeholder="Tasa" value={companyInfo.conversionRate} onChange={(e) => updateCompany("conversionRate", e.target.value)} className="field" />
             </div>
-            <div>
+            <div className="md:col-span-2 xl:col-span-4">
               <label className="field-label">Localidad</label>
-              <select title="Localidad" aria-label="Localidad" value={companyInfo.locality} onChange={(e) => updateCompany("locality", e.target.value)} className="field-select">
-                <option value="">-- Seleccionar localidad --</option>
-                <option value="Capital">Capital</option>
-                <option value="Central">Central</option>
-                <option value="Centroccidental">Centroccidental</option>
-                <option value="Guayana">Guayana</option>
-                <option value="Insular">Insular</option>
-                <option value="Los Andes">Los Andes</option>
-                <option value="Los Llanos">Los Llanos</option>
-                <option value="Nororiental">Nororiental</option>
-                <option value="Zuliana">Zuliana</option>
-              </select>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {LOCALITY_OPTIONS.map((loc) => {
+                  const isSelected = (companyInfo.locality || "").split(",").filter(Boolean).includes(loc);
+                  return (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => toggleLocality(loc)}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                        isSelected
+                          ? "border-teal-600 bg-teal-600 text-white"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700"
+                      }`}
+                    >
+                      {loc}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </section>
