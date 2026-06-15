@@ -1035,7 +1035,7 @@ export default function DataPage() {
                         </div>
                         <div className="mt-4 space-y-3">
                           <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem] xl:items-end">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem] xl:items-end">
                               <div>
                                 <label className="field-label">Concepto</label>
                                 <input aria-label="Concepto sueldo basico" value="Sueldo Básico" readOnly className="field bg-slate-100" />
@@ -1062,6 +1062,15 @@ export default function DataPage() {
                                 </select>
                               </div>
                               <div>
+                                <label className="field-label">Tasa</label>
+                                <select aria-label="Tasa sueldo basico" value={r.sueldoBasicoTasaId || ""} onChange={(e) => update(i, "sueldoBasicoTasaId", e.target.value)} className="field-select">
+                                  <option value="">Sin tasa</option>
+                                  {tasas.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
                                 <label className="field-label">Impacto en Pasivos</label>
                                 <select aria-label="Impacto salarial sueldo basico" value="yes" disabled className="field-select opacity-60">
                                   <option value="yes">Sí</option>
@@ -1074,20 +1083,11 @@ export default function DataPage() {
                                   <option value="monthly">Mensual</option>
                                 </select>
                               </div>
-                              <div>
-                                <label className="field-label">Tasa</label>
-                                <select aria-label="Tasa sueldo basico" value={r.sueldoBasicoTasaId || ""} onChange={(e) => update(i, "sueldoBasicoTasaId", e.target.value)} className="field-select">
-                                  <option value="">Sin tasa</option>
-                                  {tasas.map((t) => (
-                                    <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
-                                  ))}
-                                </select>
-                              </div>
                             </div>
                           </div>
 
                           <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem] xl:items-end">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem] xl:items-end">
                               <div>
                                 <label className="field-label">Concepto</label>
                                 <input aria-label="Concepto bono alimentacion" value="Bono Alimentación" readOnly className="field bg-slate-100" />
@@ -1114,6 +1114,15 @@ export default function DataPage() {
                                 </select>
                               </div>
                               <div>
+                                <label className="field-label">Tasa</label>
+                                <select aria-label="Tasa bono alimentacion" value={r.bonoAlimentacionTasaId || ""} onChange={(e) => update(i, "bonoAlimentacionTasaId", e.target.value)} className="field-select">
+                                  <option value="">Sin tasa</option>
+                                  {tasas.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
                                 <label className="field-label">Impacto en Pasivos</label>
                                 <select aria-label="Impacto salarial bono alimentacion" value="no" disabled className="field-select opacity-60">
                                   <option value="no">No</option>
@@ -1126,22 +1135,13 @@ export default function DataPage() {
                                   <option value="biweekly">Quincenal</option>
                                 </select>
                               </div>
-                              <div>
-                                <label className="field-label">Tasa</label>
-                                <select aria-label="Tasa bono alimentacion" value={r.bonoAlimentacionTasaId || ""} onChange={(e) => update(i, "bonoAlimentacionTasaId", e.target.value)} className="field-select">
-                                  <option value="">Sin tasa</option>
-                                  {tasas.map((t) => (
-                                    <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
-                                  ))}
-                                </select>
-                              </div>
                             </div>
                           </div>
 
                           {(r.additionalFixedPayments || []).length > 0 && (
                             (r.additionalFixedPayments || []).map((p, idx) => (
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem_auto] xl:items-end">
+                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem_auto] xl:items-end">
                                   <div>
                                     <label className="field-label">Concepto</label>
                                     <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalFixed(i, idx, "concept", e.target.value)} className="field" />
@@ -1170,6 +1170,15 @@ export default function DataPage() {
                                     </select>
                                   </div>
                                   <div>
+                                    <label className="field-label">Tasa</label>
+                                    <select aria-label="Tasa concepto fijo" value={p.tasaId || ""} onChange={(e) => updateAdditionalFixed(i, idx, "tasaId", e.target.value)} className="field-select">
+                                      <option value="">Sin tasa</option>
+                                      {tasas.map((t) => (
+                                        <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
                                     <label className="field-label">Impacto en Pasivos</label>
                                     <select aria-label="Impacto concepto fijo" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalFixed(i, idx, "impacto", e.target.value === "yes")} className="field-select">
                                       <option value="yes">Sí</option>
@@ -1181,15 +1190,6 @@ export default function DataPage() {
                                     <select aria-label="Frecuencia concepto fijo" value={p.freq || "monthly"} onChange={(e) => updateAdditionalFixed(i, idx, "freq", e.target.value)} className="field-select">
                                       {FREQUENCY_OPTIONS.map((option) => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Tasa</label>
-                                    <select aria-label="Tasa concepto fijo" value={p.tasaId || ""} onChange={(e) => updateAdditionalFixed(i, idx, "tasaId", e.target.value)} className="field-select">
-                                      <option value="">Sin tasa</option>
-                                      {tasas.map((t) => (
-                                        <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
                                       ))}
                                     </select>
                                   </div>
@@ -1222,7 +1222,7 @@ export default function DataPage() {
                               <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
                                 <div className="space-y-2">
                                   {p.variableType === "performance" ? (
-                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem_auto] xl:items-end">
+                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem_auto] xl:items-end">
                                       <div>
                                         <label className="field-label">Variable</label>
                                         <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
@@ -1260,6 +1260,15 @@ export default function DataPage() {
                                         </select>
                                       </div>
                                       <div>
+                                        <label className="field-label">Tasa</label>
+                                        <select aria-label="Tasa concepto variable desempeño" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select">
+                                          <option value="">Sin tasa</option>
+                                          {tasas.map((t) => (
+                                            <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div>
                                         <label className="field-label">Impacto en Pasivos</label>
                                         <select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
                                           <option value="yes">Sí</option>
@@ -1274,23 +1283,14 @@ export default function DataPage() {
                                           ))}
                                         </select>
                                       </div>
-                                      <div>
-                                        <label className="field-label">Tasa</label>
-                                        <select aria-label="Tasa concepto variable desempeño" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select">
-                                          <option value="">Sin tasa</option>
-                                          {tasas.map((t) => (
-                                            <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      <button onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger btn-xs">
-                                        <Trash2 className="h-3 w-3" />
+                                      <button onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger">
+                                        <Trash2 className="h-4 w-4" />
                                         Eliminar
                                       </button>
                                     </div>
                                   ) : p.variableType === "commission" ? (
                                     <>
-                                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_7rem_7rem_6rem] xl:items-end">
+                                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem] xl:items-end">
                                         <div>
                                           <label className="field-label">Variable</label>
                                           <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
@@ -1328,26 +1328,26 @@ export default function DataPage() {
                                           </select>
                                         </div>
                                         <div>
+                                          <label className="field-label">Tasa</label>
+                                          <select aria-label="Tasa concepto variable comisión" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select">
+                                            <option value="">Sin tasa</option>
+                                            {tasas.map((t) => (
+                                              <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
                                           <label className="field-label">Impacto en Pasivos</label>
-                                          <select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
+                                          <select aria-label="Impacto concepto variable comisión" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
                                             <option value="yes">Sí</option>
                                             <option value="no">No</option>
                                           </select>
                                         </div>
                                         <div>
                                           <label className="field-label">Frecuencia</label>
-                                          <select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
+                                          <select aria-label="Frecuencia concepto variable comisión" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
                                             {FREQUENCY_OPTIONS.map((option) => (
                                               <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Tasa</label>
-                                          <select aria-label="Tasa concepto variable comisión" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select">
-                                            <option value="">Sin tasa</option>
-                                            {tasas.map((t) => (
-                                              <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
                                             ))}
                                           </select>
                                         </div>
@@ -1377,8 +1377,8 @@ export default function DataPage() {
                                             ))}
                                           </select>
                                         </div>
-                                        <button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger btn-xs">
-                                          <Trash2 className="h-3 w-3" />
+                                        <button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger">
+                                          <Trash2 className="h-4 w-4" />
                                           Eliminar
                                         </button>
                                       </div>

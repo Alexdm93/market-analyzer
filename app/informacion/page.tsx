@@ -118,25 +118,22 @@ export default function Informacion() {
       <div className="flex w-full flex-col gap-3">
         <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
-            <div>
-              <div className="eyebrow mb-2">Contexto de la muestra</div>
-              <h1 className="font-display text-[1.6rem] font-bold tracking-tight text-slate-900 md:text-[1.85rem]">Información de la empresa participante.</h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-600">
-                Organiza los datos de contexto corporativo y del contacto de RR. HH. en un formato más limpio, útil para revisión y carga rápida.
-              </p>
+            <div className="flex flex-col justify-center">
+              <div className="eyebrow mb-1.5">Contexto de la muestra</div>
+              <h1 className="font-display text-[1.25rem] font-bold tracking-tight text-slate-900 md:text-[1.4rem]">Información de la empresa participante.</h1>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <div className="metric-tile max-w-[14rem] min-w-0 flex-1">
+              <div className="mt-3 flex flex-wrap gap-2">
+                <div className="metric-tile max-w-[14rem] min-w-0 flex-1 py-2.5">
                   <div className="metric-label">Compañía</div>
-                  <div className="metric-value mt-2 truncate text-lg">{companyInfo.companyName || "Sin nombre"}</div>
+                  <div className="metric-value mt-1 truncate text-base">{companyInfo.companyName || "Sin nombre"}</div>
                 </div>
-                <div className="metric-tile w-[10rem] shrink-0">
+                <div className="metric-tile w-[10rem] shrink-0 py-2.5">
                   <div className="metric-label">Sector</div>
-                  <div className="metric-value mt-2 truncate text-lg">{companyInfo.sector || "ND"}</div>
+                  <div className="metric-value mt-1 truncate text-base">{companyInfo.sector || "ND"}</div>
                 </div>
-                <div className="metric-tile w-[10rem] shrink-0">
+                <div className="metric-tile w-[10rem] shrink-0 py-2.5">
                   <div className="metric-label">Clasificación</div>
-                  <div className="metric-value mt-2 truncate text-lg">{companyInfo.classification || "ND"}</div>
+                  <div className="metric-value mt-1 truncate text-base">{companyInfo.classification || "ND"}</div>
                 </div>
               </div>
 

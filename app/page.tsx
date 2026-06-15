@@ -114,14 +114,10 @@ export default function Home() {
               Sigue el comportamiento salarial por nivel organizacional basado en el corte activo de tu empresa.
             </p>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-3">
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
               <div className="metric-tile">
                 <div className="metric-label">Total de posiciones</div>
                 <div className="metric-value mt-3">{totalPositions}</div>
-              </div>
-              <div className="metric-tile">
-                <div className="metric-label">Mediana global</div>
-                <div className="metric-value mt-3">{formatMoney(globalP50)}</div>
               </div>
               <div className="metric-tile">
                 <div className="metric-label">Niveles con data</div>
@@ -173,7 +169,6 @@ export default function Home() {
               <thead>
                 <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                   <th className="px-4 py-2">Cargo</th>
-                  <th className="px-4 py-2 text-right">P50 Base</th>
                   <th className="px-4 py-2 text-right">Compensación Mensual</th>
                   <th className="px-4 py-2 text-right">Compensación Anual</th>
                 </tr>
@@ -182,7 +177,6 @@ export default function Home() {
                 {mockMarketData.map((job) => (
                   <tr key={job.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
                     <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{job.jobTitle}</td>
-                    <td className="px-4 py-4 text-right font-display text-slate-700">${job.basePercentiles.p50.toLocaleString()}</td>
                     <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
                       ${job.basePercentiles.p50.toLocaleString()}
                     </td>
