@@ -104,52 +104,48 @@ export default function Home() {
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-5">
-        <section className="surface-panel overflow-hidden rounded-[1.75rem] p-5 md:p-6">
-          <div>
-            <div className="eyebrow mb-3">Panel principal</div>
-            <h1 className="dashboard-title font-display max-w-3xl font-bold tracking-tight text-slate-900">
-              Resumen Empresa
-            </h1>
-            <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
-              Sigue el comportamiento salarial por nivel organizacional basado en el corte activo de tu empresa.
-            </p>
+        <section className="surface-panel overflow-hidden rounded-[1.75rem] p-4 md:p-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+            <div>
+              <div className="eyebrow mb-1.5">Panel principal</div>
+              <h1 className="font-display text-[1.25rem] font-bold tracking-tight text-slate-900 md:text-[1.4rem]">
+                Resumen Empresa
+              </h1>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
-              <div className="metric-tile">
-                <div className="metric-label">Total de posiciones</div>
-                <div className="metric-value mt-3">{totalPositions}</div>
-              </div>
-              <div className="metric-tile">
-                <div className="metric-label">Niveles con data</div>
-                <div className="metric-value mt-3">{nivelesConData}</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <div className="metric-tile w-44 shrink-0 py-2.5">
+                  <div className="metric-label">Total de posiciones</div>
+                  <div className="metric-value mt-1">{totalPositions}</div>
+                </div>
+                <div className="metric-tile w-44 shrink-0 py-2.5">
+                  <div className="metric-label">Niveles con data</div>
+                  <div className="metric-value mt-1">{nivelesConData}</div>
+                </div>
               </div>
             </div>
 
-            <div className="mt-8">
-              <div className="eyebrow mb-3"></div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-y-2 text-sm">
-                  <thead>
-                    <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                      {NIVELES.map((nivel) => (
-                        <th key={nivel} className="px-4 py-2 text-center">{nivel}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="bg-white/60 rounded-[1.25rem]">
-                      {NIVELES.map((nivel, i) => (
-                        <td
-                          key={nivel}
-                          className={`px-4 py-4 text-center font-display font-semibold ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""} ${medianasPorNivel[nivel] === "ND" ? "text-slate-400" : "text-teal-700"}`}
-                        >
-                          {medianasPorNivel[nivel]}
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+            <div className="overflow-x-auto xl:self-end">
+              <table className="min-w-full border-separate border-spacing-y-1.5 text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                    {NIVELES.map((nivel) => (
+                      <th key={nivel} className="px-4 py-1.5 text-center">{nivel}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white/60 rounded-[1.25rem]">
+                    {NIVELES.map((nivel, i) => (
+                      <td
+                        key={nivel}
+                        className={`px-4 py-3 text-center font-display font-semibold ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""} ${medianasPorNivel[nivel] === "ND" ? "text-slate-400" : "text-teal-700"}`}
+                      >
+                        {medianasPorNivel[nivel]}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
