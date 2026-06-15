@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Building2, CalendarDays, LoaderCircle, RefreshCw, Shield, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Building2, CalendarDays, ChevronDown, ChevronRight, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
@@ -56,6 +56,11 @@ type AdminSnapshot = {
   date: string;
 };
 
+type SectorEntry = {
+  name: string;
+  classifications: string[];
+};
+
 function getTodayDate() {
   return new Date().toISOString().split("T")[0];
 }
@@ -78,6 +83,12 @@ export default function AdminPage() {
   const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
   const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [sectors, setSectors] = useState<SectorEntry[]>([]);
+  const [isLoadingSectors, setIsLoadingSectors] = useState(true);
+  const [isSavingSectors, setIsSavingSectors] = useState(false);
+  const [newSectorName, setNewSectorName] = useState("");
+  const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>({});
+  const [newClassification, setNewClassification] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let ignore = false;
@@ -174,6 +185,84 @@ export default function AdminPage() {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSectors() {
+      try {
+        const response = await fetch("/api/admin/config", { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as { sectors?: SectorEntry[] } | null;
+        if (!ignore && Array.isArray(payload?.sectors)) {
+          setSectors(payload.sectors);
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!ignore) setIsLoadingSectors(false);
+      }
+    }
+
+    void loadSectors();
+    return () => { ignore = true; };
+  }, []);
+
+  async function saveSectors(next: SectorEntry[]) {
+    setIsSavingSectors(true);
+    try {
+      const response = await fetch("/api/admin/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectors: next }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) throw new Error(payload?.message ?? "No se pudo guardar.");
+      setSectors(next);
+      setStatusMessage(payload?.message ?? "Sectores guardados.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar los sectores.");
+    } finally {
+      setIsSavingSectors(false);
+    }
+  }
+
+  function addSector() {
+    const name = newSectorName.trim();
+    if (!name) return;
+    if (sectors.some((s) => s.name.toLowerCase() === name.toLowerCase())) {
+      setErrorMessage("Ese sector ya existe.");
+      return;
+    }
+    const next = [...sectors, { name, classifications: [] }];
+    setNewSectorName("");
+    void saveSectors(next);
+  }
+
+  function removeSector(name: string) {
+    if (!window.confirm(`¿Eliminar el sector "${name}" y todas sus clasificaciones?`)) return;
+    void saveSectors(sectors.filter((s) => s.name !== name));
+  }
+
+  function addClassification(sectorName: string) {
+    const value = (newClassification[sectorName] ?? "").trim();
+    if (!value) return;
+    const next = sectors.map((s) =>
+      s.name === sectorName && !s.classifications.includes(value)
+        ? { ...s, classifications: [...s.classifications, value] }
+        : s
+    );
+    setNewClassification((c) => ({ ...c, [sectorName]: "" }));
+    void saveSectors(next);
+  }
+
+  function removeClassification(sectorName: string, cls: string) {
+    const next = sectors.map((s) =>
+      s.name === sectorName
+        ? { ...s, classifications: s.classifications.filter((c) => c !== cls) }
+        : s
+    );
+    void saveSectors(next);
+  }
 
   async function reloadSnapshots() {
     const response = await fetch("/api/admin/snapshots", {
@@ -430,6 +519,13 @@ export default function AdminPage() {
   }
 
   async function handleDeleteSnapshot(snapshotId: string) {
+    const snap = snapshots.find((s) => s.id === snapshotId);
+    const label = snap?.label || snapshotId;
+    const confirmed = window.confirm(
+      `¿Eliminar el corte "${label}"?\n\nToda la data que las empresas hayan ingresado para este corte se perderá permanentemente. Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+
     setErrorMessage("");
     setStatusMessage("");
     setIsMutatingSnapshot(true);
@@ -629,6 +725,123 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
+          </div>
+        </section>
+
+        {/* Sector / classification management */}
+        <section className="surface-card rounded-[1.75rem] p-4 md:p-5">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-full bg-indigo-50 p-2.5 text-indigo-700">
+              <Tag size={16} aria-hidden />
+            </div>
+            <h2 className="font-display text-base font-bold text-slate-900">Sectores económicos y clasificaciones</h2>
+          </div>
+          <p className="mt-1.5 text-xs text-slate-500">
+            Administra la lista de sectores económicos y sus clasificaciones. Se utilizan al registrar y editar empresas.
+          </p>
+
+          {/* Add new sector */}
+          <div className="mt-3 flex gap-2 items-end">
+            <div className="flex-1">
+              <label htmlFor="newSectorName" className="field-label">Nuevo sector</label>
+              <input
+                id="newSectorName"
+                type="text"
+                value={newSectorName}
+                onChange={(e) => setNewSectorName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSector(); } }}
+                className="field"
+                placeholder="Ej. Tecnología / Software"
+                disabled={isSavingSectors}
+              />
+            </div>
+            <button type="button" onClick={addSector} className="btn btn-primary shrink-0" disabled={!newSectorName.trim() || isSavingSectors}>
+              <Plus className="h-4 w-4" />
+              Agregar sector
+            </button>
+          </div>
+
+          {/* Sector list */}
+          <div className="mt-3 space-y-2">
+            {isLoadingSectors ? (
+              <div className="text-xs text-slate-500">Cargando sectores...</div>
+            ) : sectors.length === 0 ? (
+              <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-xs text-slate-500">
+                No hay sectores definidos.
+              </div>
+            ) : sectors.map((sector) => {
+              const isExpanded = expandedSectors[sector.name] ?? false;
+              return (
+                <div key={sector.name} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
+                  {/* Sector header */}
+                  <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSectors((s) => ({ ...s, [sector.name]: !isExpanded }))}
+                      className="flex flex-1 items-center gap-2 text-left"
+                    >
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                      <span className="text-sm font-semibold text-slate-900">{sector.name}</span>
+                      <span className="text-xs text-slate-400">{sector.classifications.length} clasificaciones</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeSector(sector.name)}
+                      className="btn btn-danger btn-xs"
+                      disabled={isSavingSectors}
+                      aria-label={`Eliminar sector ${sector.name}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {/* Classifications (expanded) */}
+                  {isExpanded && (
+                    <div className="border-t border-slate-200/60 px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {sector.classifications.map((cls) => (
+                          <div key={cls} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
+                            {cls}
+                            <button
+                              type="button"
+                              onClick={() => removeClassification(sector.name, cls)}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
+                              aria-label={`Eliminar clasificación ${cls}`}
+                              disabled={isSavingSectors}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {sector.classifications.length === 0 && (
+                          <span className="text-xs text-slate-400">Sin clasificaciones aún.</span>
+                        )}
+                      </div>
+                      <div className="mt-2.5 flex gap-2">
+                        <input
+                          type="text"
+                          value={newClassification[sector.name] ?? ""}
+                          onChange={(e) => setNewClassification((c) => ({ ...c, [sector.name]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addClassification(sector.name); } }}
+                          className="field flex-1 py-1 text-xs"
+                          placeholder="Nueva clasificación"
+                          disabled={isSavingSectors}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addClassification(sector.name)}
+                          className="btn btn-secondary btn-xs"
+                          disabled={!(newClassification[sector.name] ?? "").trim() || isSavingSectors}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Agregar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
 

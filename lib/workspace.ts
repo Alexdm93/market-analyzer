@@ -7,11 +7,18 @@ export type ExchangeRate = {
   valor: string;
 };
 
+export type RequiredPosition = {
+  id: string;
+  departamento: string;
+  tituloCargo: string;
+};
+
 export type Snapshot = {
   id: string;
   label: string;
   date: string;
   rows: ExtendedMarketPosition[];
+  requiredPositions?: RequiredPosition[];
 };
 
 export type CompanyInfo = {

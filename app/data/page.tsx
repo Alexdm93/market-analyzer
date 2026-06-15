@@ -1,10 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { DEPARTMENTS, JOB_TITLES_BY_DEPARTMENT, JOB_TITLES } from "@/data/jobTitles";
-import { type Snapshot, type ExchangeRate, type CompanyInfo, EMPTY_COMPANY_INFO } from "@/lib/workspace";
+import { type Snapshot, type ExchangeRate, type CompanyInfo, type RequiredPosition, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 type CompanyOption = {
@@ -695,6 +695,56 @@ export default function DataPage() {
 
   // legacy save function removed (use snapshots / saveCurrentToSnapshot instead)
 
+  // Required positions (cargo catalog per snapshot — only editable in global admin view)
+  const [newPosDept, setNewPosDept] = useState("");
+  const [newPosCargo, setNewPosCargo] = useState("");
+
+  const currentRequiredPositions: RequiredPosition[] = useMemo(() => {
+    if (!selectedSnapshotId || !snapshots[selectedSnapshotId]) return [];
+    return snapshots[selectedSnapshotId].requiredPositions ?? [];
+  }, [selectedSnapshotId, snapshots]);
+
+  const availableCargosForDept = useMemo(() => {
+    if (!newPosDept) return [];
+    return JOB_TITLES_BY_DEPARTMENT[newPosDept] ?? [];
+  }, [newPosDept]);
+
+  async function addRequiredPosition() {
+    if (!newPosDept || !newPosCargo || !selectedSnapshotId) return;
+    const snapshot = snapshots[selectedSnapshotId];
+    if (!snapshot) return;
+    const existing = snapshot.requiredPositions ?? [];
+    if (existing.some((p) => p.departamento === newPosDept && p.tituloCargo === newPosCargo)) {
+      showNotification("Ese cargo ya está en la lista");
+      return;
+    }
+    const newEntry: RequiredPosition = {
+      id: `rp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      departamento: newPosDept,
+      tituloCargo: newPosCargo,
+    };
+    const next = {
+      ...snapshots,
+      [selectedSnapshotId]: { ...snapshot, requiredPositions: [...existing, newEntry] },
+    };
+    await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
+    setNewPosCargo("");
+  }
+
+  async function removeRequiredPosition(id: string) {
+    if (!selectedSnapshotId) return;
+    const snapshot = snapshots[selectedSnapshotId];
+    if (!snapshot) return;
+    const next = {
+      ...snapshots,
+      [selectedSnapshotId]: {
+        ...snapshot,
+        requiredPositions: (snapshot.requiredPositions ?? []).filter((p) => p.id !== id),
+      },
+    };
+    await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
+  }
+
   function exportJSON() {
     navigator.clipboard?.writeText(JSON.stringify(rows, null, 2));
     showNotification("JSON copiado al portapapeles");
@@ -830,30 +880,108 @@ export default function DataPage() {
           </section>
         )}
 
+        {/* Admin: cargos a documentar por corte */}
+        {isAdmin && !isAdminCompanyView && selectedSnapshotId && (
+          <section className="surface-card overflow-hidden rounded-[1.75rem] p-4 md:p-5">
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-full bg-teal-50 p-2 text-teal-700">
+                <BookOpen size={14} aria-hidden />
+              </div>
+              <div>
+                <div className="eyebrow mb-0.5">Plantilla del corte</div>
+                <h2 className="font-display text-base font-bold text-slate-900">Cargos a documentar</h2>
+              </div>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              Define qué cargos deben reportar las empresas participantes en este corte. Organiza por unidad organizacional.
+            </p>
+
+            {/* Add new required position */}
+            <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+              <div>
+                <label className="field-label">Unidad / Departamento</label>
+                <select
+                  value={newPosDept}
+                  onChange={(e) => { setNewPosDept(e.target.value); setNewPosCargo(""); }}
+                  className="field-select"
+                  title="Departamento del cargo a documentar"
+                >
+                  <option value="">Seleccionar departamento</option>
+                  {DEPARTMENTS.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="field-label">Cargo</label>
+                <select
+                  value={newPosCargo}
+                  onChange={(e) => setNewPosCargo(e.target.value)}
+                  className="field-select"
+                  disabled={!newPosDept}
+                  title="Cargo a documentar"
+                >
+                  <option value="">{newPosDept ? "Seleccionar cargo" : "Selecciona primero un departamento"}</option>
+                  {availableCargosForDept.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => void addRequiredPosition()}
+                className="btn btn-primary"
+                disabled={!newPosDept || !newPosCargo}
+              >
+                <Plus className="h-4 w-4" />
+                Agregar
+              </button>
+            </div>
+
+            {/* List grouped by departamento */}
+            {currentRequiredPositions.length === 0 ? (
+              <div className="mt-3 rounded-[1.1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-4 text-xs text-slate-500">
+                No hay cargos definidos para este corte todavía.
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {Object.entries(
+                  currentRequiredPositions.reduce<Record<string, RequiredPosition[]>>((acc, p) => {
+                    (acc[p.departamento] ??= []).push(p);
+                    return acc;
+                  }, {})
+                ).map(([dept, positions]) => (
+                  <div key={dept} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80 px-4 py-3">
+                    <div className="mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">{dept}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {positions.map((p) => (
+                        <div key={p.id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
+                          {p.tituloCargo}
+                          <button
+                            type="button"
+                            onClick={() => void removeRequiredPosition(p.id)}
+                            className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
+                            aria-label={`Eliminar ${p.tituloCargo}`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_20rem]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_20rem] xl:items-start">
             <div>
               <div className="eyebrow mb-2">{isAdmin ? "Vista Admin" : "Actualización de Data"}</div>
               <h1 className="font-display text-[1.6rem] font-bold tracking-tight text-slate-900 md:text-[1.85rem]">
                 {isAdmin ? "Resumen / Revisión de data por empresa" : "Suministro de data por cargo."}
               </h1>
-              {isAdmin && (
-                <div className="mt-3 max-w-md">
-                  <label htmlFor="companyFilter" className="field-label">Empresa</label>
-                  <select
-                    id="companyFilter"
-                    value={selectedCompanyId}
-                    onChange={(event) => setSelectedCompanyId(event.target.value)}
-                    className="field-select"
-                    disabled={isLoadingCompanies}
-                  >
-                    <option value="">Seleccionar empresa</option>
-                    {companies.map((company) => (
-                      <option key={company.id} value={company.id}>{company.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               {!isAdmin && (
                 <p className="mt-2 max-w-3xl text-sm text-slate-600">
                   Actualizar la data de compensación y la identidad del rol bajo una estructura jerárquica que permita una edición continua y una lectura clara de la arquitectura del cargo.
@@ -861,13 +989,13 @@ export default function DataPage() {
               )}
 
               {isAdmin ? (
-                <div className="mt-4 space-y-3">
+                <div className="mt-3 space-y-2">
                   <div className="flex flex-wrap gap-2">
-                    <div className="metric-tile w-44 shrink-0 py-2.5">
+                    <div className="metric-tile w-40 shrink-0 py-2">
                       <div className="metric-label">Cargos reportados</div>
                       <div className="metric-value mt-1">{rows.length}</div>
                     </div>
-                    <div className={`metric-tile w-44 shrink-0 py-2.5 ${outOfRangeRows.length > 0 ? "border-amber-200 bg-amber-50/60" : ""}`}>
+                    <div className={`metric-tile w-40 shrink-0 py-2 ${outOfRangeRows.length > 0 ? "border-amber-200 bg-amber-50/60" : ""}`}>
                       <div className="metric-label">Estado de datos</div>
                       <div className={`metric-value mt-1 text-base ${outOfRangeRows.length > 0 ? "text-amber-700" : "text-teal-700"}`}>
                         {outOfRangeRows.length > 0 ? `${outOfRangeRows.length} fuera de rango` : selectedSnapshotId ? "Válidos" : "Sin corte"}
@@ -969,6 +1097,23 @@ export default function DataPage() {
               </div>
 
               <div className="mt-2.5 space-y-2">
+                {isAdmin && (
+                  <div>
+                    <label htmlFor="companyFilter" className="field-label">Empresa</label>
+                    <select
+                      id="companyFilter"
+                      value={selectedCompanyId}
+                      onChange={(event) => setSelectedCompanyId(event.target.value)}
+                      className="field-select"
+                      disabled={isLoadingCompanies}
+                    >
+                      <option value="">Seleccionar empresa</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>{company.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label htmlFor="snapshotSelect" className="field-label">Seleccionar actualización</label>
                   <select id="snapshotSelect" value={selectedSnapshotId} onChange={(e) => loadSnapshot(e.target.value)} className="field-select">
