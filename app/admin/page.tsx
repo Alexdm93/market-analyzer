@@ -488,13 +488,10 @@ export default function AdminPage() {
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
-        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+        <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
           <div>
-            <div className="eyebrow mb-3">Control central</div>
-            <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Vista administrativa.</h1>
-            <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-              Desde aquí solo un usuario con rol admin puede gestionar el catálogo base y el alta controlada de accesos.
-            </p>
+            <div className="eyebrow mb-1.5">Control central</div>
+            <h1 className="font-display text-[1.4rem] font-bold tracking-tight text-slate-900">Vista administrativa.</h1>
           </div>
         </section>
 
@@ -511,47 +508,42 @@ export default function AdminPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 md:grid-cols-2">
+        <section className="grid gap-3 md:grid-cols-2">
           <button
             type="button"
             onClick={() => void handleOpenCreateUserModal()}
-            className="surface-card rounded-[2rem] p-6 text-left hover:border-slate-300 md:p-8"
+            className="surface-card rounded-[1.5rem] p-4 text-left hover:border-slate-300"
           >
-            <div className="rounded-full bg-slate-100 p-3 text-slate-700 w-fit">
-              <UserPlus size={18} aria-hidden />
+            <div className="rounded-full bg-slate-100 p-2.5 text-slate-700 w-fit">
+              <UserPlus size={16} aria-hidden />
             </div>
-            <h2 className="font-display mt-5 text-2xl font-bold text-slate-900">Crear usuarios</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">Abre el alta controlada dentro de esta vista administrativa.</p>
+            <h2 className="font-display mt-3 text-base font-bold text-slate-900">Crear usuarios</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Abre el alta controlada dentro de esta vista administrativa.</p>
           </button>
           {adminActions.map((action) => {
             const Icon = action.icon;
 
             return (
-              <Link key={action.href} href={action.href} className="surface-card rounded-[2rem] p-6 md:p-8 hover:border-slate-300">
-                <div className="rounded-full bg-slate-100 p-3 text-slate-700 w-fit">
-                  <Icon size={18} aria-hidden />
+              <Link key={action.href} href={action.href} className="surface-card rounded-[1.5rem] p-4 hover:border-slate-300">
+                <div className="rounded-full bg-slate-100 p-2.5 text-slate-700 w-fit">
+                  <Icon size={16} aria-hidden />
                 </div>
-                <h2 className="font-display mt-5 text-2xl font-bold text-slate-900">{action.title}</h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">{action.description}</p>
+                <h2 className="font-display mt-3 text-base font-bold text-slate-900">{action.title}</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{action.description}</p>
               </Link>
             );
           })}
         </section>
 
-        <section className="surface-card rounded-[2rem] p-6 md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-teal-50 p-3 text-teal-700">
-              <CalendarDays size={18} aria-hidden />
+        <section className="surface-card rounded-[1.75rem] p-4 md:p-5">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
+              <CalendarDays size={16} aria-hidden />
             </div>
-            <div>
-              <h2 className="font-display text-2xl font-bold text-slate-900">Crear cortes</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                Los cortes ya no se crean desde Data. Se crean aquí y se replican iguales para todos los usuarios.
-              </p>
-            </div>
+            <h2 className="font-display text-base font-bold text-slate-900">Crear cortes</h2>
           </div>
 
-          <form onSubmit={handleCreateSnapshot} className="mt-6 grid gap-4 lg:grid-cols-[12rem_minmax(0,1fr)_auto] lg:items-end">
+          <form onSubmit={handleCreateSnapshot} className="mt-3 grid gap-3 lg:grid-cols-[11rem_minmax(0,1fr)_auto] lg:items-end">
             <div>
               <label htmlFor="snapshotDate" className="field-label">Fecha</label>
               <input
@@ -563,7 +555,6 @@ export default function AdminPage() {
                 disabled={isMutatingSnapshot}
               />
             </div>
-
             <div>
               <label htmlFor="snapshotLabel" className="field-label">Etiqueta opcional</label>
               <input
@@ -576,77 +567,59 @@ export default function AdminPage() {
                 disabled={isMutatingSnapshot}
               />
             </div>
-
             <button type="submit" className="btn btn-primary w-full lg:w-auto" disabled={isMutatingSnapshot || totalUsers === 0}>
               {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
               {isMutatingSnapshot ? "Procesando..." : "Crear corte"}
             </button>
           </form>
 
-          <div className="mt-4 rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            {totalUsers > 0
-              ? `Este corte se propagará a ${totalUsers} usuarios y también se copiará a los nuevos usuarios que se registren.`
-              : "Aún no hay usuarios registrados para recibir cortes globales."}
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <button type="button" onClick={() => void handleSyncSnapshots()} className="btn btn-secondary" disabled={isMutatingSnapshot || totalUsers === 0}>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">
+              {totalUsers > 0
+                ? `Este corte se propagará a ${totalUsers} usuarios y también se copiará a los nuevos usuarios que se registren.`
+                : "Aún no hay usuarios registrados para recibir cortes globales."}
+            </p>
+            <button type="button" onClick={() => void handleSyncSnapshots()} className="btn btn-secondary shrink-0" disabled={isMutatingSnapshot || totalUsers === 0}>
               {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {isMutatingSnapshot ? "Sincronizando..." : "Sincronizar cortes globales"}
             </button>
           </div>
 
-          <div className="mt-6">
-            <h3 className="font-display text-xl font-bold text-slate-900">Cortes globales</h3>
+          <div className="mt-4">
+            <h3 className="font-display text-sm font-bold text-slate-700">Cortes globales</h3>
             {isLoadingSnapshots ? (
-              <div className="mt-4 text-sm text-slate-600">Cargando cortes...</div>
+              <div className="mt-3 text-xs text-slate-600">Cargando cortes...</div>
             ) : snapshots.length === 0 ? (
-              <div className="mt-4 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-sm text-slate-500">
+              <div className="mt-3 rounded-[1.25rem] border border-dashed border-slate-300 bg-white/70 px-4 py-5 text-xs text-slate-500">
                 Todavía no hay cortes globales creados.
               </div>
             ) : (
-              <div className="mt-4 space-y-3">
+              <div className="mt-3 space-y-2">
                 {snapshots.map((snapshot) => (
-                  <div key={snapshot.id} className="rounded-[1.5rem] border border-slate-200/80 bg-white/90 p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div key={snapshot.id} className="rounded-[1.1rem] border border-slate-200/80 bg-white/90 px-4 py-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">{snapshot.label}</div>
-                        <div className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-500">{snapshot.date}</div>
+                        <div className="mt-0.5 text-xs uppercase tracking-[0.12em] text-slate-500">{snapshot.date}</div>
                       </div>
-                      <div className="flex flex-col gap-3 lg:w-[36rem] lg:flex-row lg:items-end">
+                      <div className="flex flex-col gap-2 lg:w-[34rem] lg:flex-row lg:items-end">
                         <div className="flex-1">
                           <label htmlFor={`rename-${snapshot.id}`} className="field-label">Renombrar</label>
                           <input
                             id={`rename-${snapshot.id}`}
                             type="text"
                             value={renamingSnapshotId === snapshot.id ? renameSnapshotLabel : snapshot.label}
-                            onFocus={() => {
-                              setRenamingSnapshotId(snapshot.id);
-                              setRenameSnapshotLabel(snapshot.label);
-                            }}
-                            onChange={(event) => {
-                              setRenamingSnapshotId(snapshot.id);
-                              setRenameSnapshotLabel(event.target.value);
-                            }}
+                            onFocus={() => { setRenamingSnapshotId(snapshot.id); setRenameSnapshotLabel(snapshot.label); }}
+                            onChange={(event) => { setRenamingSnapshotId(snapshot.id); setRenameSnapshotLabel(event.target.value); }}
                             className="field"
                             disabled={isMutatingSnapshot}
                           />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleRenameSnapshot(snapshot.id)}
-                          className="btn btn-secondary"
-                          disabled={isMutatingSnapshot}
-                        >
+                        <button type="button" onClick={() => void handleRenameSnapshot(snapshot.id)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
                           <CalendarDays className="h-4 w-4" />
                           Renombrar
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteSnapshot(snapshot.id)}
-                          className="btn btn-danger"
-                          disabled={isMutatingSnapshot}
-                        >
+                        <button type="button" onClick={() => void handleDeleteSnapshot(snapshot.id)} className="btn btn-danger" disabled={isMutatingSnapshot}>
                           <Trash2 className="h-4 w-4" />
                           Eliminar
                         </button>
@@ -659,15 +632,13 @@ export default function AdminPage() {
           </div>
         </section>
 
-        <section className="surface-card rounded-[2rem] p-6 md:p-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-slate-100 p-3 text-slate-700">
-                <Users size={18} aria-hidden />
+        <section className="surface-card rounded-[1.75rem] p-4 md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-full bg-slate-100 p-2.5 text-slate-700">
+                <Users size={16} aria-hidden />
               </div>
-              <div>
-                <h2 className="font-display text-2xl font-bold text-slate-900">Usuarios y roles</h2>
-              </div>
+              <h2 className="font-display text-base font-bold text-slate-900">Usuarios y roles</h2>
             </div>
             <button type="button" onClick={() => void handleSaveUserChanges()} className="btn btn-primary" disabled={isSavingUserChanges || Object.keys(pendingUserEdits).length === 0}>
               {isSavingUserChanges ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
@@ -676,13 +647,13 @@ export default function AdminPage() {
           </div>
 
           {isLoadingUsers ? (
-            <div className="mt-6 text-sm text-slate-600">Cargando usuarios...</div>
+            <div className="mt-4 text-sm text-slate-600">Cargando usuarios...</div>
           ) : users.length === 0 ? (
-            <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-sm text-slate-500">
+            <div className="mt-4 rounded-[1.25rem] border border-dashed border-slate-300 bg-white/70 px-4 py-6 text-sm text-slate-500">
               No hay usuarios registrados.
             </div>
           ) : (
-            <div className="mt-5 space-y-3">
+            <div className="mt-3 space-y-2">
               {users.map((user) => {
                 const draft = pendingUserEdits[user.id] ?? { role: user.role, password: "", companyId: user.company.id };
                 const hasRoleChange = draft.role !== user.role;
@@ -692,20 +663,20 @@ export default function AdminPage() {
                 const selectedCompany = companies.find((c) => c.id === draft.companyId);
 
                 return (
-                  <div key={user.id} className={`rounded-[1.25rem] border p-4 transition-colors ${hasPending ? "border-amber-200 bg-amber-50/40" : "border-slate-200/70 bg-white/80"}`}>
+                  <div key={user.id} className={`rounded-[1.1rem] border px-4 py-3 transition-colors ${hasPending ? "border-amber-200 bg-amber-50/40" : "border-slate-200/70 bg-white/80"}`}>
                     {/* User header */}
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <div className="font-display font-bold text-slate-900">{user.name}</div>
-                        <div className="mt-0.5 text-xs text-slate-500">{user.email}</div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-sm font-bold text-slate-900">{user.name}</div>
+                        <div className="text-xs text-slate-400">{user.email}</div>
                       </div>
-                      <span className={`inline-flex rounded-full px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
                         {getRoleLabel(draft.role)}
                       </span>
                     </div>
 
                     {/* Controls */}
-                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
                       <div>
                         <label className="field-label text-[0.7rem]">Empresa</label>
                         <select
@@ -790,12 +761,12 @@ export default function AdminPage() {
                 isSubmitting={isSubmittingRegister}
                 externalError={errorMessage}
                 onSubmit={handleCreateUser}
+                secondaryAction={
+                  <button type="button" onClick={handleCloseCreateUserModal} className="btn btn-secondary" disabled={isSubmittingRegister}>
+                    Cancelar
+                  </button>
+                }
               />
-              <div className="mt-3 flex justify-end gap-3">
-                <button type="button" onClick={handleCloseCreateUserModal} className="btn btn-secondary" disabled={isSubmittingRegister}>
-                  Cancelar
-                </button>
-              </div>
             </div>
           </div>
         </div>

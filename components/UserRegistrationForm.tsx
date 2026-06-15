@@ -37,6 +37,7 @@ type UserRegistrationFormProps = {
   isSubmitting?: boolean;
   externalError?: string;
   onSubmit: (values: UserRegistrationValues) => Promise<void> | void;
+  secondaryAction?: React.ReactNode;
 };
 
 const DEFAULT_VALUES: UserRegistrationValues = {
@@ -60,6 +61,7 @@ export default function UserRegistrationForm({
   isSubmitting = false,
   externalError,
   onSubmit,
+  secondaryAction,
 }: UserRegistrationFormProps) {
   const [values, setValues] = useState<UserRegistrationValues>(DEFAULT_VALUES);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -341,10 +343,13 @@ export default function UserRegistrationForm({
 
       {errorMessage ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p> : null}
 
-      <button type="submit" className="btn btn-primary w-full" disabled={isSubmitting || isLoadingCompanies}>
-        {isSubmitting ? submitLabel : submitLabel}
-        <span className="sr-only">{submittingLabel}</span>
-      </button>
+      <div className={`flex gap-3 ${secondaryAction ? "" : ""}`}>
+        {secondaryAction}
+        <button type="submit" className="btn btn-primary flex-1" disabled={isSubmitting || isLoadingCompanies}>
+          {isSubmitting ? submitLabel : submitLabel}
+          <span className="sr-only">{submittingLabel}</span>
+        </button>
+      </div>
     </form>
   );
 }
