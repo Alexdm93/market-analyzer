@@ -861,7 +861,7 @@ export default function DataPage() {
               )}
 
               {isAdmin ? (
-                <div className="mt-4 grid gap-4 xl:grid-cols-[auto_1fr]">
+                <div className="mt-4 space-y-3">
                   <div className="flex flex-wrap gap-2">
                     <div className="metric-tile w-44 shrink-0 py-2.5">
                       <div className="metric-label">Cargos reportados</div>
