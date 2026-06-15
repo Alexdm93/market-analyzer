@@ -30,8 +30,11 @@ export async function fetchWorkspace(companyId?: string) {
   return parseWorkspaceResponse(response);
 }
 
-export async function updateWorkspace(patch: WorkspacePatch) {
-  const response = await fetch("/api/workspace", {
+export async function updateWorkspace(patch: WorkspacePatch, companyId?: string) {
+  const searchParams = new URLSearchParams();
+  if (companyId) searchParams.set("companyId", companyId);
+
+  const response = await fetch(`/api/workspace${searchParams.size ? `?${searchParams.toString()}` : ""}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

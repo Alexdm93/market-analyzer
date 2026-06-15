@@ -672,7 +672,41 @@ export async function PUT(request: Request) {
     return Response.json({ message: "No autorizado." }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const targetCompanyId = searchParams.get("companyId")?.trim() ?? "";
+
   const body = (await request.json()) as UpdateWorkspaceBody;
+
+  if (targetCompanyId) {
+    if (session.user.role !== "ADMIN") {
+      return Response.json({ message: "Acceso restringido." }, { status: 403 });
+    }
+
+    const nextSnapshots = body.snapshots && typeof body.snapshots === "object" ? body.snapshots : {};
+    const duplicateCargoTitles = getDuplicateCargoTitles(nextSnapshots);
+
+    if (duplicateCargoTitles.length > 0) {
+      return Response.json(
+        { message: `No puedes guardar cargos repetidos. Revisa: ${duplicateCargoTitles.join(", ")}.` },
+        { status: 400 }
+      );
+    }
+
+    const companyUser = await prisma.user.findFirst({
+      where: { companyId: targetCompanyId },
+      select: { id: true },
+    });
+
+    if (!companyUser) {
+      return Response.json({ message: "No se encontró usuario para esta empresa." }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await syncRelationalWorkspace(tx, companyUser.id, targetCompanyId, nextSnapshots);
+    });
+
+    return Response.json({ message: "Guardado correctamente." });
+  }
   const existingWorkspace = await getOrCreateWorkspace(userId);
 
   const nextInflation =

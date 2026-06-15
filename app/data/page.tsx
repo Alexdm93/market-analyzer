@@ -251,7 +251,7 @@ export default function DataPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
 
-  const isReadOnlyDataView = isAdmin;
+  const isReadOnlyDataView = isAdmin && !selectedCompanyId;
   const isAdminCompanyView = isAdmin && Boolean(selectedCompanyId);
 
   function getDisplayLabel(snapshot: Snapshot) {
@@ -315,7 +315,7 @@ export default function DataPage() {
         setRows([]);
       }
 
-      if (!isReadOnlyDataView && Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
+      if (!isReadOnlyDataView && !isAdminCompanyView && Object.keys(filtered).length !== Object.keys(workspace.snapshots).length) {
         await updateWorkspace({ snapshots: filtered, selectedSnapshotId: selectedId });
       }
 
@@ -407,14 +407,10 @@ export default function DataPage() {
     setSaveState("pending");
 
     try {
-      if (isReadOnlyDataView) {
-        throw new Error("La vista de data para admin es solo lectura.");
-      }
-
-      await updateWorkspace({
-        snapshots: next,
-        selectedSnapshotId: nextSelectedSnapshotId,
-      });
+      await updateWorkspace(
+        { snapshots: next, selectedSnapshotId: nextSelectedSnapshotId },
+        isAdmin && selectedCompanyId ? selectedCompanyId : undefined
+      );
 
       setSaveState(nextSelectedSnapshotId ? "saved" : "idle");
       setLastSavedAt(nextSelectedSnapshotId ? new Date() : null);
@@ -430,7 +426,7 @@ export default function DataPage() {
 
       return false;
     }
-  }, [isReadOnlyDataView, selectedSnapshotId]);
+  }, [isAdmin, selectedCompanyId, selectedSnapshotId]);
 
   useEffect(() => {
     if (isReadOnlyDataView) {
@@ -491,7 +487,7 @@ export default function DataPage() {
       setSelectedSnapshotId("");
       setSaveState("idle");
       setLastSavedAt(null);
-      if (!isReadOnlyDataView) {
+      if (!isReadOnlyDataView && !isAdminCompanyView) {
         void updateWorkspace({ selectedSnapshotId: "" }).catch(() => {
           // ignore
         });
@@ -504,7 +500,7 @@ export default function DataPage() {
     setSelectedSnapshotId(id);
     setSaveState("saved");
     setLastSavedAt(null);
-    if (!isReadOnlyDataView) {
+    if (!isReadOnlyDataView && !isAdminCompanyView) {
       void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
         // ignore
       });
@@ -771,52 +767,56 @@ export default function DataPage() {
 
         {/* Admin: rangos de referencia por nivel */}
         {isAdmin && (
-          <section className="surface-card overflow-hidden rounded-[1.75rem] p-4 md:p-5">
-            <div className="eyebrow mb-1.5">Rangos de referencia</div>
-            <h2 className="font-display text-[1.1rem] font-bold text-slate-900">Valores mínimos y máximos aceptables por nivel</h2>
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-2 text-sm">
+          <section className="surface-card overflow-hidden rounded-[1.75rem] px-4 py-3 md:px-5">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <div className="shrink-0">
+                <div className="eyebrow mb-0.5">Rangos de referencia</div>
+                <h2 className="font-display text-[0.95rem] font-bold text-slate-900">Valores mínimos y máximos por nivel</h2>
+              </div>
+              <div className="overflow-x-auto">
+              <table className="border-separate border-spacing-x-2 border-spacing-y-1 text-sm">
                 <thead>
-                  <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                    <th className="px-3 py-1.5 text-left">Rango</th>
+                  <tr className="text-left text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-2 py-0.5 text-left">Rango</th>
                     {NIVELES_ADMIN.map((n) => (
-                      <th key={n} className="px-3 py-1.5 text-center">{n}</th>
+                      <th key={n} className="px-2 py-0.5 text-center">{n}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="rounded-[1.25rem] bg-white/80">
-                    <td className="rounded-l-[1.25rem] px-3 py-2 text-xs font-bold text-teal-700">Mínimo</td>
+                  <tr className="rounded-[1rem] bg-white/80">
+                    <td className="rounded-l-[1rem] px-2 py-1 text-xs font-bold text-teal-700">Mínimo</td>
                     {NIVELES_ADMIN.map((n) => (
-                      <td key={n} className="px-2 py-1.5">
+                      <td key={n} className="px-1.5 py-1">
                         <input
                           type="number"
                           placeholder="$ 0"
                           value={nivelMin[n] ?? ""}
                           onChange={(e) => setNivelMin((prev) => ({ ...prev, [n]: e.target.value }))}
-                          className="field w-28 text-right text-sm"
+                          className="field w-24 py-1 text-right text-xs"
                         />
                       </td>
                     ))}
-                    <td className="rounded-r-[1.25rem]" />
+                    <td className="rounded-r-[1rem]" />
                   </tr>
-                  <tr className="rounded-[1.25rem] bg-white/80">
-                    <td className="rounded-l-[1.25rem] px-3 py-2 text-xs font-bold text-amber-700">Máximo</td>
+                  <tr className="rounded-[1rem] bg-white/80">
+                    <td className="rounded-l-[1rem] px-2 py-1 text-xs font-bold text-amber-700">Máximo</td>
                     {NIVELES_ADMIN.map((n) => (
-                      <td key={n} className="px-2 py-1.5">
+                      <td key={n} className="px-1.5 py-1">
                         <input
                           type="number"
                           placeholder="$ 0"
                           value={nivelMax[n] ?? ""}
                           onChange={(e) => setNivelMax((prev) => ({ ...prev, [n]: e.target.value }))}
-                          className="field w-28 text-right text-sm"
+                          className="field w-24 py-1 text-right text-xs"
                         />
                       </td>
                     ))}
-                    <td className="rounded-r-[1.25rem]" />
+                    <td className="rounded-r-[1rem]" />
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
             {outOfRangeRows.length > 0 && (
               <div className="mt-3 flex items-start gap-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3">
