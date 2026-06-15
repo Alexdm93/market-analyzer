@@ -1483,7 +1483,7 @@ export default function DataPage() {
 
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
-                  <button onClick={() => { if (modal.id) { void saveRowById(modal.id); } setModal({ type: null }); }} className="btn btn-primary">Guardar</button>
+                  <button onClick={() => { if (modal.id) { void saveRowById(modal.id); } setModal({ type: null }); }} disabled={missingCompanyFields.length > 0} className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">Guardar</button>
                 </div>
               </div>
             )}
