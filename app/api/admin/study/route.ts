@@ -149,6 +149,8 @@ export async function GET(request: Request) {
       company: {
         select: {
           name: true,
+          economicSector: true,
+          headcount: true,
         },
       },
     },
@@ -172,6 +174,8 @@ export async function GET(request: Request) {
       return {
         id: position.id,
         companyName: position.company.name,
+        sector: position.company.economicSector || "",
+        headcount: position.company.headcount || "",
         title: position.title || String(parsed.tituloCargo ?? "Sin título"),
         level: String(parsed.nivelOrganizacional ?? ""),
         classification: String(parsed.clasificacion ?? ""),

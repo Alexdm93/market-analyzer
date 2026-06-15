@@ -37,6 +37,8 @@ type AdminStudySnapshot = {
 type AdminStudyPosition = {
   id: string;
   companyName: string;
+  sector: string;
+  headcount: string;
   title: string;
   level: string;
   classification: string;
@@ -126,6 +128,10 @@ export default function EstudioPage() {
   const [adminStatus, setAdminStatus] = useState<"idle" | "processing" | "done">("idle");
   const [adminMessage, setAdminMessage] = useState("");
   const [selectedAdminCargo, setSelectedAdminCargo] = useState("");
+  const [studyView, setStudyView] = useState<"cargo" | "grado">("cargo");
+  const [filterSector, setFilterSector] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
+  const [filterSize, setFilterSize] = useState("");
   const adminStudyRequestId = useRef(0);
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
@@ -136,10 +142,36 @@ export default function EstudioPage() {
     return [];
   }, [snapshots, selectedSnapshotId]);
 
+  const availableSectors = useMemo(() => {
+    const set = new Set<string>();
+    adminPositions.forEach((p) => { if (p.sector) set.add(p.sector); });
+    return Array.from(set).sort();
+  }, [adminPositions]);
+
+  const availableCompanies = useMemo(() => {
+    const set = new Set<string>();
+    adminPositions.forEach((p) => { if (p.companyName) set.add(p.companyName); });
+    return Array.from(set).sort();
+  }, [adminPositions]);
+
+  const filteredPositions = useMemo(() => {
+    return adminPositions.filter((p) => {
+      if (filterSector && p.sector !== filterSector) return false;
+      if (filterCompany && p.companyName !== filterCompany) return false;
+      if (filterSize) {
+        const hc = parseInt(p.headcount || "0");
+        if (filterSize === "pequeña" && hc >= 50) return false;
+        if (filterSize === "mediana" && (hc < 50 || hc > 200)) return false;
+        if (filterSize === "grande" && hc <= 200) return false;
+      }
+      return true;
+    });
+  }, [adminPositions, filterSector, filterCompany, filterSize]);
+
   const adminPositionsByCargo = useMemo(() => {
     const grouped = new Map<string, AdminStudyPosition[]>();
 
-    adminPositions.forEach((position) => {
+    filteredPositions.forEach((position) => {
       const key = position.title.trim() || "Sin título";
       if (!grouped.has(key)) {
         grouped.set(key, []);
@@ -153,7 +185,7 @@ export default function EstudioPage() {
         positions: positions.slice().sort((left, right) => left.companyName.localeCompare(right.companyName)),
       }))
       .sort((left, right) => left.title.localeCompare(right.title));
-  }, [adminPositions]);
+  }, [filteredPositions]);
 
   const adminProcessedMetrics = useMemo(() => {
     const entries = new Map<string, AdminConceptMetric[]>();
@@ -194,6 +226,38 @@ export default function EstudioPage() {
 
     return entries;
   }, [adminPositionsByCargo]);
+
+  const NIVELES_ESTUDIO = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
+
+  const adminPositionsByGrado = useMemo(() => {
+    const map = new Map<string, { companies: Set<string>; totals: number[] }>();
+    filteredPositions.forEach((p) => {
+      const nivel = p.level.trim();
+      const normalized = NIVELES_ESTUDIO.find((n) => nivel.toLowerCase().includes(n.toLowerCase())) ?? nivel;
+      if (!normalized) return;
+      if (!map.has(normalized)) map.set(normalized, { companies: new Set(), totals: [] });
+      const entry = map.get(normalized)!;
+      entry.companies.add(p.companyName);
+      const total = p.conceptValues["Compensación total"] ?? 0;
+      if (total > 0) entry.totals.push(Number(total));
+    });
+    return NIVELES_ESTUDIO.map((nivel) => {
+      const entry = map.get(nivel);
+      const totals = entry?.totals ?? [];
+      return {
+        nivel,
+        empresas: entry?.companies.size ?? 0,
+        obs: totals.length,
+        min: totals.length ? formatMoney(Math.min(...totals)) : "—",
+        p25: totals.length ? formatMoney(Math.round(percentile(totals, 25))) : "—",
+        p50: totals.length ? formatMoney(Math.round(percentile(totals, 50))) : "—",
+        p75: totals.length ? formatMoney(Math.round(percentile(totals, 75))) : "—",
+        p90: totals.length ? formatMoney(Math.round(percentile(totals, 90))) : "—",
+        max: totals.length ? formatMoney(Math.max(...totals)) : "—",
+        promedio: totals.length ? formatMoney(Math.round(totals.reduce((a, b) => a + b, 0) / totals.length)) : "—",
+      };
+    }).filter((g) => g.obs > 0);
+  }, [filteredPositions]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -426,18 +490,16 @@ export default function EstudioPage() {
     const activeAdminCargo = adminPositionsByCargo.find((entry) => entry.title === selectedAdminCargo)?.title ?? availableAdminCargos[0] ?? "";
     const activeRawPositions = adminPositionsByCargo.find((entry) => entry.title === activeAdminCargo)?.positions ?? [];
     const activeProcessedMetrics = adminProcessedMetrics.get(activeAdminCargo) ?? [];
+    const hasActiveFilters = Boolean(filterSector || filterCompany || filterSize);
 
     return (
       <main className="page-wrap">
         <div className="flex w-full flex-col gap-6">
           <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_26rem]">
               <div>
-                <div className="eyebrow mb-3">Estudio administrativo</div>
-                <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Revisión de cargos por corte.</h1>
-                <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-                  Selecciona un corte global, revisa todos los cargos consolidados y marca el corte como procesado cuando termine la revisión.
-                </p>
+                <div className="eyebrow mb-3">Salary Survey</div>
+                <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Procesamiento de data de mercado.</h1>
 
                 <div className="mt-8 grid gap-4 md:grid-cols-3">
                   <div className="metric-tile">
@@ -445,8 +507,8 @@ export default function EstudioPage() {
                     <div className="metric-value mt-3 text-xl">{selectedAdminSnapshot ? selectedAdminSnapshot.label : "Sin corte"}</div>
                   </div>
                   <div className="metric-tile">
-                    <div className="metric-label">Cargos</div>
-                    <div className="metric-value mt-3">{adminPositions.length}</div>
+                    <div className="metric-label">Posiciones{hasActiveFilters ? " (filtradas)" : ""}</div>
+                    <div className="metric-value mt-3">{filteredPositions.length}{hasActiveFilters ? <span className="ml-1 text-sm text-slate-500">/ {adminPositions.length}</span> : null}</div>
                   </div>
                   <div className="metric-tile">
                     <div className="metric-label">Estado</div>
@@ -466,17 +528,22 @@ export default function EstudioPage() {
                     <Database size={18} aria-hidden />
                   </div>
                   <div>
-                    <div className="eyebrow mb-1">Control</div>
-                    <h2 className="font-display text-2xl font-bold text-slate-900">Corte</h2>
+                    <div className="eyebrow mb-1">Control de versiones / cortes</div>
+                    <h2 className="font-display text-xl font-bold text-slate-900">Actualización</h2>
                   </div>
                 </div>
 
-                <div className="mt-5">
+                <div className="mt-4">
                   <label htmlFor="adminStudySnapshot" className="field-label">Seleccionar corte</label>
                   <select
                     id="adminStudySnapshot"
                     value={selectedSnapshotId}
-                    onChange={(event) => void handleAdminSnapshotChange(event.target.value)}
+                    onChange={(event) => {
+                      setFilterSector("");
+                      setFilterCompany("");
+                      setFilterSize("");
+                      void handleAdminSnapshotChange(event.target.value);
+                    }}
                     className="field-select"
                   >
                     <option value="">Seleccionar</option>
@@ -486,8 +553,42 @@ export default function EstudioPage() {
                   </select>
                 </div>
 
-                <button onClick={() => void handleProcessSnapshot()} className="btn btn-primary mt-5 w-full" disabled={!selectedSnapshotId || selectedAdminSnapshot?.status === "PROCESSED" || adminStatus === "processing"}>
-                  {adminStatus === "processing" ? "Procesando..." : "Procesar"}
+                {adminPositions.length > 0 && (
+                  <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                    <p className="text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-400">Segmentar por</p>
+                    <div>
+                      <label htmlFor="filterSector" className="field-label text-[0.7rem]">Sector</label>
+                      <select id="filterSector" value={filterSector} onChange={(e) => setFilterSector(e.target.value)} className="field-select py-1.5 text-sm">
+                        <option value="">Todos</option>
+                        {availableSectors.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="filterCompany" className="field-label text-[0.7rem]">Empresa</label>
+                      <select id="filterCompany" value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)} className="field-select py-1.5 text-sm">
+                        <option value="">Todas</option>
+                        {availableCompanies.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="filterSize" className="field-label text-[0.7rem]">Tamaño</label>
+                      <select id="filterSize" value={filterSize} onChange={(e) => setFilterSize(e.target.value)} className="field-select py-1.5 text-sm">
+                        <option value="">Todos</option>
+                        <option value="pequeña">Pequeña (&lt; 50)</option>
+                        <option value="mediana">Mediana (50 – 200)</option>
+                        <option value="grande">Grande (&gt; 200)</option>
+                      </select>
+                    </div>
+                    {hasActiveFilters && (
+                      <button type="button" onClick={() => { setFilterSector(""); setFilterCompany(""); setFilterSize(""); }} className="text-xs text-teal-700 underline underline-offset-2">
+                        Limpiar filtros
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <button type="button" onClick={() => void handleProcessSnapshot()} className="btn btn-primary mt-4 w-full" disabled={!selectedSnapshotId || selectedAdminSnapshot?.status === "PROCESSED" || adminStatus === "processing"}>
+                  {adminStatus === "processing" ? "Procesando..." : "Procesar corte"}
                 </button>
 
                 {adminMessage ? <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{adminMessage}</div> : null}
@@ -501,141 +602,212 @@ export default function EstudioPage() {
             </section>
           ) : (
             <>
-              <section className="surface-card overflow-hidden rounded-[2rem]">
-                <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="eyebrow mb-2">Data cruda</div>
-                    <h2 className="font-display text-2xl font-bold text-slate-900">Cargos cargados por empresa</h2>
-                  </div>
-                  <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
-                </div>
+              {/* View toggle */}
+              <div className="flex gap-1.5 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60 self-start">
+                <button
+                  type="button"
+                  onClick={() => setStudyView("cargo")}
+                  className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "cargo" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  Por cargo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudyView("grado")}
+                  className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "grado" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  Por grados
+                </button>
+              </div>
 
-                <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
-                    <div>
-                      <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
-                      <select
-                        id="adminRawCargo"
-                        value={activeAdminCargo}
-                        onChange={(event) => setSelectedAdminCargo(event.target.value)}
-                        className="field-select"
-                      >
-                        {availableAdminCargos.map((cargo) => (
-                          <option key={cargo} value={cargo}>{cargo}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
-                      className="btn btn-secondary"
-                    >
-                      Exportar Excel
-                    </button>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
-                  <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                    <thead>
-                      <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                        <th className="px-4 py-2">Empresa</th>
-                        <th className="px-4 py-2">Cargo</th>
-                        <th className="px-4 py-2">Nivel</th>
-                        <th className="px-4 py-2">Clasificación</th>
-                        <th className="px-4 py-2">Descripción</th>
-                        <th className="px-4 py-2 text-right">Base</th>
-                        <th className="px-4 py-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeRawPositions.map((position) => (
-                        <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                          <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
-                          <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
-                          <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
-                          <td className="px-4 py-4 text-slate-600">{position.classification || "—"}</td>
-                          <td className="px-4 py-4 text-slate-600">{position.description || "—"}</td>
-                          <td className="px-4 py-4 text-right font-display text-slate-700">{position.baseSalary}</td>
-                          <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{position.totalCompensation}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              {selectedAdminSnapshot?.status === "PROCESSED" ? (
-                <section className="surface-card overflow-hidden rounded-[2rem]">
-                  <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="eyebrow mb-2">Resultado procesado</div>
-                      <h2 className="font-display text-2xl font-bold text-slate-900">Percentiles por cargo</h2>
-                    </div>
-                    <div className="pill">Procesada</div>
-                  </div>
-
-                  <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
+              {studyView === "cargo" ? (
+                <>
+                  <section className="surface-card overflow-hidden rounded-[2rem]">
+                    <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
-                        <select
-                          id="adminProcessedCargo"
-                          value={activeAdminCargo}
-                          onChange={(event) => setSelectedAdminCargo(event.target.value)}
-                          className="field-select"
-                        >
-                          {availableAdminCargos.map((cargo) => (
-                            <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
-                          ))}
-                        </select>
+                        <div className="eyebrow mb-2">Data cruda</div>
+                        <h2 className="font-display text-2xl font-bold text-slate-900">Cargos cargados por empresa</h2>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeProcessedMetrics)}
-                        className="btn btn-secondary"
-                      >
-                        Exportar Excel
-                      </button>
+                      <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
                     </div>
-                  </div>
 
-                  {activeProcessedMetrics.length > 0 ? (
-                    <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
+                    <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
+                        <div>
+                          <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
+                          <select
+                            id="adminRawCargo"
+                            value={activeAdminCargo}
+                            onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                            className="field-select"
+                          >
+                            {availableAdminCargos.map((cargo) => (
+                              <option key={cargo} value={cargo}>{cargo}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
+                          className="btn btn-secondary"
+                        >
+                          Exportar Excel
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
                       <table className="min-w-full border-separate border-spacing-y-3 text-sm">
                         <thead>
                           <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                            <th className="px-4 py-2">Concepto</th>
-                            <th className="px-4 py-2 text-right">Min</th>
-                            <th className="px-4 py-2 text-right">Max</th>
-                            <th className="px-4 py-2 text-right">Promedio</th>
-                            <th className="px-4 py-2 text-right">P10</th>
-                            <th className="px-4 py-2 text-right">P25</th>
-                            <th className="px-4 py-2 text-right">P50</th>
-                            <th className="px-4 py-2 text-right">P75</th>
-                            <th className="px-4 py-2 text-right">P90</th>
+                            <th className="px-4 py-2">Empresa</th>
+                            <th className="px-4 py-2">Cargo</th>
+                            <th className="px-4 py-2">Nivel</th>
+                            <th className="px-4 py-2">Clasificación</th>
+                            <th className="px-4 py-2">Descripción</th>
+                            <th className="px-4 py-2 text-right">Base</th>
+                            <th className="px-4 py-2 text-right">Total</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {activeProcessedMetrics.map((metric) => (
-                            <tr key={metric.concept} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                              <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{metric.concept}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.min}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.max}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.average}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p10}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p25}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p50}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p75}</td>
-                              <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{metric.p90}</td>
+                          {activeRawPositions.map((position) => (
+                            <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                              <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
+                              <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
+                              <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
+                              <td className="px-4 py-4 text-slate-600">{position.classification || "—"}</td>
+                              <td className="px-4 py-4 text-slate-600">{position.description || "—"}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{position.baseSalary}</td>
+                              <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{position.totalCompensation}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                  </section>
+
+                  {selectedAdminSnapshot?.status === "PROCESSED" ? (
+                    <section className="surface-card overflow-hidden rounded-[2rem]">
+                      <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="eyebrow mb-2">Resultado procesado</div>
+                          <h2 className="font-display text-2xl font-bold text-slate-900">Percentiles por cargo</h2>
+                        </div>
+                        <div className="pill">Procesada</div>
+                      </div>
+
+                      <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
+                          <div>
+                            <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
+                            <select
+                              id="adminProcessedCargo"
+                              value={activeAdminCargo}
+                              onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                              className="field-select"
+                            >
+                              {availableAdminCargos.map((cargo) => (
+                                <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeProcessedMetrics)}
+                            className="btn btn-secondary"
+                          >
+                            Exportar Excel
+                          </button>
+                        </div>
+                      </div>
+
+                      {activeProcessedMetrics.length > 0 ? (
+                        <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
+                          <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                            <thead>
+                              <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                                <th className="px-4 py-2">Concepto</th>
+                                <th className="px-4 py-2 text-right">Min</th>
+                                <th className="px-4 py-2 text-right">Max</th>
+                                <th className="px-4 py-2 text-right">Promedio</th>
+                                <th className="px-4 py-2 text-right">P10</th>
+                                <th className="px-4 py-2 text-right">P25</th>
+                                <th className="px-4 py-2 text-right">P50</th>
+                                <th className="px-4 py-2 text-right">P75</th>
+                                <th className="px-4 py-2 text-right">P90</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {activeProcessedMetrics.map((metric) => (
+                                <tr key={metric.concept} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                  <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{metric.concept}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.min}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.max}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.average}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p10}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p25}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p50}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p75}</td>
+                                  <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{metric.p90}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : null}
+                    </section>
                   ) : null}
+                </>
+              ) : (
+                <section className="surface-card overflow-hidden rounded-[2rem]">
+                  <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="eyebrow mb-2">Compensación total mensualizada</div>
+                      <h2 className="font-display text-2xl font-bold text-slate-900">Percentiles por grado</h2>
+                    </div>
+                    {hasActiveFilters && <div className="pill">Filtrado</div>}
+                  </div>
+
+                  {adminPositionsByGrado.length === 0 ? (
+                    <div className="px-6 py-8 text-sm text-slate-500">No hay posiciones con nivel asignado en el corte actual.</div>
+                  ) : (
+                    <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
+                      <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                            <th className="px-4 py-2">Grado</th>
+                            <th className="px-4 py-2 text-center">Empresas</th>
+                            <th className="px-4 py-2 text-center">Obs.</th>
+                            <th className="px-4 py-2 text-right">Min</th>
+                            <th className="px-4 py-2 text-right">P25</th>
+                            <th className="px-4 py-2 text-right">P50</th>
+                            <th className="px-4 py-2 text-right">P75</th>
+                            <th className="px-4 py-2 text-right">P90</th>
+                            <th className="px-4 py-2 text-right">Max</th>
+                            <th className="px-4 py-2 text-right">Promedio</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adminPositionsByGrado.map((g) => (
+                            <tr key={g.nivel} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                              <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{g.nivel}</td>
+                              <td className="px-4 py-4 text-center text-slate-600">{g.empresas}</td>
+                              <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.obs}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-600">{g.min}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{g.p25}</td>
+                              <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{g.p50}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{g.p75}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-700">{g.p90}</td>
+                              <td className="px-4 py-4 text-right font-display text-slate-600">{g.max}</td>
+                              <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{g.promedio}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </section>
-              ) : null}
+              )}
             </>
           )}
         </div>
@@ -760,6 +932,7 @@ export default function EstudioPage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => {
                   router.push("/data");
                 }}
