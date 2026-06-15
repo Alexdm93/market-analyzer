@@ -495,6 +495,7 @@ export default function DataPage() {
   const cargosUnconfigured = snapshotCargos !== null && snapshotCargos.length === 0;
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<Record<string, "identidad" | "fija" | "variable">>({});
 
   function toggleExpand(id: string) {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
@@ -1199,477 +1200,200 @@ export default function DataPage() {
                 </div>
 
                 {expanded[r.id] && (
-                  <div className="border-t border-slate-200/70 bg-[rgba(255,248,241,0.76)] p-3.5 md:p-4">
-                    <fieldset disabled={isReadOnlyDataView} className="space-y-4 disabled:opacity-90">
-                      <section className="rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 md:p-4.5">
-                        <div className="eyebrow mb-3">Paso 1</div>
-                        <h3 className="font-display text-xl font-bold text-slate-900 md:text-[1.12rem]">Identidad del cargo</h3>
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          <div>
-                            <label className="field-label">Unidad / Departamento</label>
-                            <select
-                              value={r.departamento || ""}
-                              onChange={(e) => updateDepartamento(i, e.target.value)}
-                              className="field-select"
-                              aria-label="Unidad organizacional o departamento"
-                            >
-                              <option value="">Seleccionar unidad</option>
-                              {availableDepts.map((d) => (
-                                <option key={d} value={d}>{d}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="field-label">Título del cargo</label>
-                            <select
-                              ref={(el) => { titleRefs.current[r.id] = el; }}
-                              value={r.tituloCargo}
-                              onChange={(e) => update(i, "tituloCargo", e.target.value)}
-                              className="field-select"
-                              aria-label="Título del cargo"
-                              disabled={!r.departamento}
-                            >
-                              <option value="">Seleccionar cargo</option>
-                              {(r.departamento ? availableCargosByDept[r.departamento] ?? [] : []).map((t: string) => (
-                                <option key={t} value={t}>{t}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="field-label">Nivel organizacional</label>
-                            <select
-                              value={r.nivelOrganizacional}
-                              onChange={(e) => updateOrganizationalLevel(i, e.target.value)}
-                              className="field-select"
-                              aria-label="Nivel organizacional"
-                            >
-                              <option value="">Seleccionar nivel</option>
-                              {ORGANIZATIONAL_LEVEL_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="field-label">Clasificación</label>
-                            {(() => {
-                              const classificationOptions: string[] = r.nivelOrganizacional
-                                ? CLASSIFICATION_OPTIONS_BY_LEVEL[r.nivelOrganizacional] ?? []
-                                : [];
-
-                              return (
-                            <select
-                              value={r.clasificacion}
-                              onChange={(e) => update(i, "clasificacion", e.target.value)}
-                              className="field-select"
-                              aria-label="Clasificación"
-                              disabled={!r.nivelOrganizacional}
-                            >
-                              <option value="">Seleccionar clasificación</option>
-                              {classificationOptions.map((option: string) => (
-                                <option key={option} value={option}>{option === "AnalistaJR" ? "Analista JR" : option}</option>
-                              ))}
-                            </select>
-                              );
-                            })()}
-                          </div>
-                          <div className="md:col-span-2">
-                            <label className="field-label">Descripción</label>
-                            <textarea
-                              placeholder="Resume alcance, foco funcional y responsabilidades principales"
-                              value={r.descripcion}
-                              onChange={(e) => update(i, "descripcion", e.target.value)}
-                              className="field-textarea"
-                            />
-                          </div>
-                        </div>
-                      </section>
-
-                      <section className="rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 md:p-4.5">
-                        <div className="eyebrow mb-3">Paso 2</div>
-                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                          <div>
-                            <h3 className="font-display text-xl font-bold text-slate-900 md:text-[1.12rem]">Compensación fija</h3>
-                          </div>
-                          <button onClick={() => addAdditionalFixed(i)} className="btn btn-primary">
-                            <Plus className="h-4 w-4" />
-                            Agregar concepto
+                  <div className="border-t border-slate-200/70">
+                    {/* Tab bar */}
+                    <div className="flex border-b border-slate-200 bg-slate-50/80 px-4">
+                      {(["identidad", "fija", "variable"] as const).map((tab) => {
+                        const labels = { identidad: "Identidad", fija: "Comp. Fija", variable: "Comp. Variable" };
+                        const isActive = (activeTab[r.id] ?? "identidad") === tab;
+                        return (
+                          <button
+                            key={tab}
+                            type="button"
+                            onClick={() => setActiveTab((prev) => ({ ...prev, [r.id]: tab }))}
+                            className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${isActive ? "border-teal-600 bg-white text-teal-700" : "border-transparent bg-transparent text-slate-500 hover:text-slate-800"}`}
+                          >
+                            {labels[tab]}
                           </button>
-                        </div>
-                        <div className="mt-4 space-y-3">
-                          <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem] xl:items-end">
-                              <div>
-                                <label className="field-label">Concepto</label>
-                                <input aria-label="Concepto sueldo basico" value="Sueldo Básico" readOnly className="field bg-slate-100" />
-                              </div>
-                              <div>
-                                <label className="field-label">Monto</label>
-                                <div className="relative">
-                                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">{r.sueldoBasicoCuentaMoneda === "VES" ? "Bs." : "$"}</span>
-                                  <input type="number" aria-label="Monto sueldo basico" placeholder="0" value={r.sueldoBasico || ""} onChange={(e) => update(i, "sueldoBasico", Number(e.target.value))} className="field pr-9" />
-                                </div>
-                              </div>
-                              <div>
-                                <label className="field-label">Moneda de Cuenta</label>
-                                <select aria-label="Moneda de cuenta sueldo basico" value={r.sueldoBasicoCuentaMoneda || "USD"} onChange={(e) => update(i, "sueldoBasicoCuentaMoneda", e.target.value)} className="field-select">
-                                  <option value="USD">Dólares (USD)</option>
-                                  <option value="VES">Bolívares (Bs.)</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="field-label">Moneda de Pago</label>
-                                <select aria-label="Moneda de pago sueldo basico" value={r.sueldoBasicoMonedaPago || "USD"} onChange={(e) => update(i, "sueldoBasicoMonedaPago", e.target.value)} className="field-select">
-                                  <option value="USD">Dólares (USD)</option>
-                                  <option value="VES">Bolívares (Bs.)</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="field-label">Tasa</label>
-                                <select aria-label="Tasa sueldo basico" value={r.sueldoBasicoTasaId || ""} onChange={(e) => update(i, "sueldoBasicoTasaId", e.target.value)} className="field-select">
-                                  <option value="">Sin tasa</option>
-                                  {tasas.map((t) => (
-                                    <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="field-label">Impacto en Pasivos</label>
-                                <select aria-label="Impacto salarial sueldo basico" value="yes" disabled className="field-select opacity-60">
-                                  <option value="yes">Sí</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="field-label">Frecuencia</label>
-                                <select aria-label="Frecuencia sueldo basico" value={r.sueldoBasicoFreq || "biweekly"} onChange={(e) => update(i, "sueldoBasicoFreq", e.target.value)} className="field-select">
-                                  <option value="biweekly">Quincenal</option>
-                                  <option value="monthly">Mensual</option>
-                                </select>
-                              </div>
+                        );
+                      })}
+                    </div>
+
+                    <fieldset disabled={isReadOnlyDataView} className="disabled:opacity-90">
+                      <div className="p-4 md:p-5">
+
+                        {/* Tab: Identidad */}
+                        {(activeTab[r.id] ?? "identidad") === "identidad" && (
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div>
+                              <label className="field-label">Unidad / Departamento</label>
+                              <select value={r.departamento || ""} onChange={(e) => updateDepartamento(i, e.target.value)} className="field-select" aria-label="Unidad organizacional o departamento">
+                                <option value="">Seleccionar unidad</option>
+                                {availableDepts.map((d) => <option key={d} value={d}>{d}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="field-label">Título del cargo</label>
+                              <select ref={(el) => { titleRefs.current[r.id] = el; }} value={r.tituloCargo} onChange={(e) => update(i, "tituloCargo", e.target.value)} className="field-select" aria-label="Título del cargo" disabled={!r.departamento}>
+                                <option value="">Seleccionar cargo</option>
+                                {(r.departamento ? availableCargosByDept[r.departamento] ?? [] : []).map((t: string) => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="field-label">Nivel organizacional</label>
+                              <select value={r.nivelOrganizacional} onChange={(e) => updateOrganizationalLevel(i, e.target.value)} className="field-select" aria-label="Nivel organizacional">
+                                <option value="">Seleccionar nivel</option>
+                                {ORGANIZATIONAL_LEVEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="field-label">Clasificación</label>
+                              <select value={r.clasificacion} onChange={(e) => update(i, "clasificacion", e.target.value)} className="field-select" aria-label="Clasificación" disabled={!r.nivelOrganizacional}>
+                                <option value="">Seleccionar clasificación</option>
+                                {(r.nivelOrganizacional ? CLASSIFICATION_OPTIONS_BY_LEVEL[r.nivelOrganizacional] ?? [] : []).map((option: string) => (
+                                  <option key={option} value={option}>{option === "AnalistaJR" ? "Analista JR" : option}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="field-label">Descripción</label>
+                              <textarea placeholder="Resume alcance, foco funcional y responsabilidades principales" value={r.descripcion} onChange={(e) => update(i, "descripcion", e.target.value)} className="field-textarea" />
                             </div>
                           </div>
+                        )}
 
-                          <div className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem] xl:items-end">
-                              <div>
-                                <label className="field-label">Concepto</label>
-                                <input aria-label="Concepto bono alimentacion" value="Bono Alimentación" readOnly className="field bg-slate-100" />
-                              </div>
-                              <div>
-                                <label className="field-label">Monto</label>
-                                <div className="relative">
-                                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">{r.bonoAlimentacionCuentaMoneda === "VES" ? "Bs." : "$"}</span>
-                                  <input type="number" aria-label="Monto bono alimentacion" placeholder="0" value={r.bonoAlimentacion || ""} onChange={(e) => update(i, "bonoAlimentacion", Number(e.target.value))} className="field pr-9" />
-                                </div>
-                              </div>
-                              <div>
-                                <label className="field-label">Moneda de Cuenta</label>
-                                <select aria-label="Moneda de cuenta bono alimentacion" value={r.bonoAlimentacionCuentaMoneda || "USD"} onChange={(e) => update(i, "bonoAlimentacionCuentaMoneda", e.target.value)} className="field-select">
-                                  <option value="USD">Dólares (USD)</option>
-                                  <option value="VES">Bolívares (Bs.)</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="field-label">Moneda de Pago</label>
-                                <select aria-label="Moneda de pago bono alimentacion" value={r.bonoAlimentacionMonedaPago || "USD"} onChange={(e) => update(i, "bonoAlimentacionMonedaPago", e.target.value)} className="field-select">
-                                  <option value="USD">Dólares (USD)</option>
-                                  <option value="VES">Bolívares (Bs.)</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="field-label">Tasa</label>
-                                <select aria-label="Tasa bono alimentacion" value={r.bonoAlimentacionTasaId || ""} onChange={(e) => update(i, "bonoAlimentacionTasaId", e.target.value)} className="field-select">
-                                  <option value="">Sin tasa</option>
-                                  {tasas.map((t) => (
-                                    <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+                        {/* Tab: Compensación Fija */}
+                        {(activeTab[r.id] ?? "identidad") === "fija" && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-slate-500">Compensación fija del cargo</p>
+                              <button type="button" onClick={() => addAdditionalFixed(i)} className="btn btn-primary">
+                                <Plus className="h-4 w-4" />
+                                Agregar concepto
+                              </button>
+                            </div>
+                            <div className="overflow-x-auto rounded-[1.1rem] border border-slate-200/80">
+                              <table className="w-full min-w-[720px] border-collapse text-sm">
+                                <thead>
+                                  <tr className="border-b border-slate-200 bg-slate-50">
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Concepto</th>
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Monto</th>
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Mon. Cuenta</th>
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Mon. Pago</th>
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Tasa</th>
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Pasivos</th>
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Frecuencia</th>
+                                    <th className="w-8" />
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  <tr className="bg-white">
+                                    <td className="px-3 py-2"><input aria-label="Concepto sueldo basico" value="Sueldo Básico" readOnly className="field bg-slate-100 text-sm w-full" /></td>
+                                    <td className="px-3 py-2"><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{r.sueldoBasicoCuentaMoneda === "VES" ? "Bs." : "$"}</span><input type="number" aria-label="Monto sueldo basico" placeholder="0" value={r.sueldoBasico || ""} onChange={(e) => update(i, "sueldoBasico", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></td>
+                                    <td className="px-3 py-2"><select aria-label="Moneda de cuenta sueldo basico" value={r.sueldoBasicoCuentaMoneda || "USD"} onChange={(e) => update(i, "sueldoBasicoCuentaMoneda", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                                    <td className="px-3 py-2"><select aria-label="Moneda de pago sueldo basico" value={r.sueldoBasicoMonedaPago || "USD"} onChange={(e) => update(i, "sueldoBasicoMonedaPago", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                                    <td className="px-3 py-2"><select aria-label="Tasa sueldo basico" value={r.sueldoBasicoTasaId || ""} onChange={(e) => update(i, "sueldoBasicoTasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></td>
+                                    <td className="px-3 py-2"><select aria-label="Impacto salarial sueldo basico" value="yes" disabled className="field-select opacity-60 text-sm w-full"><option value="yes">Sí</option></select></td>
+                                    <td className="px-3 py-2"><select aria-label="Frecuencia sueldo basico" value={r.sueldoBasicoFreq || "monthly"} onChange={(e) => update(i, "sueldoBasicoFreq", e.target.value)} className="field-select text-sm w-full"><option value="biweekly">Quincenal</option><option value="monthly">Mensual</option></select></td>
+                                    <td className="px-3 py-2" />
+                                  </tr>
+                                  <tr className="bg-white">
+                                    <td className="px-3 py-2"><input aria-label="Concepto bono alimentacion" value="Bono Alimentación" readOnly className="field bg-slate-100 text-sm w-full" /></td>
+                                    <td className="px-3 py-2"><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{r.bonoAlimentacionCuentaMoneda === "VES" ? "Bs." : "$"}</span><input type="number" aria-label="Monto bono alimentacion" placeholder="0" value={r.bonoAlimentacion || ""} onChange={(e) => update(i, "bonoAlimentacion", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></td>
+                                    <td className="px-3 py-2"><select aria-label="Moneda de cuenta bono alimentacion" value={r.bonoAlimentacionCuentaMoneda || "USD"} onChange={(e) => update(i, "bonoAlimentacionCuentaMoneda", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                                    <td className="px-3 py-2"><select aria-label="Moneda de pago bono alimentacion" value={r.bonoAlimentacionMonedaPago || "USD"} onChange={(e) => update(i, "bonoAlimentacionMonedaPago", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                                    <td className="px-3 py-2"><select aria-label="Tasa bono alimentacion" value={r.bonoAlimentacionTasaId || ""} onChange={(e) => update(i, "bonoAlimentacionTasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></td>
+                                    <td className="px-3 py-2"><select aria-label="Impacto salarial bono alimentacion" value="no" disabled className="field-select opacity-60 text-sm w-full"><option value="no">No</option></select></td>
+                                    <td className="px-3 py-2"><select aria-label="Frecuencia bono alimentacion" value={r.bonoAlimentacionFreq || "monthly"} onChange={(e) => update(i, "bonoAlimentacionFreq", e.target.value)} className="field-select text-sm w-full"><option value="monthly">Mensual</option><option value="biweekly">Quincenal</option></select></td>
+                                    <td className="px-3 py-2" />
+                                  </tr>
+                                  {(r.additionalFixedPayments || []).map((p, idx) => (
+                                    <tr key={p.id} className="bg-white">
+                                      <td className="px-3 py-2"><input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalFixed(i, idx, "concept", e.target.value)} className="field text-sm w-full" /></td>
+                                      <td className="px-3 py-2"><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{p.accountCurrency === "VES" ? "Bs." : "$"}</span><input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalFixed(i, idx, "amount", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></td>
+                                      <td className="px-3 py-2"><select aria-label="Moneda de cuenta concepto fijo" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalFixed(i, idx, "accountCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                                      <td className="px-3 py-2"><select aria-label="Moneda de pago concepto fijo" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalFixed(i, idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                                      <td className="px-3 py-2"><select aria-label="Tasa concepto fijo" value={p.tasaId || ""} onChange={(e) => updateAdditionalFixed(i, idx, "tasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></td>
+                                      <td className="px-3 py-2"><select aria-label="Impacto concepto fijo" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalFixed(i, idx, "impacto", e.target.value === "yes")} className="field-select text-sm w-full"><option value="yes">Sí</option><option value="no">No</option></select></td>
+                                      <td className="px-3 py-2"><select aria-label="Frecuencia concepto fijo" value={p.freq || "monthly"} onChange={(e) => updateAdditionalFixed(i, idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
+                                      <td className="px-3 py-2"><button type="button" onClick={() => removeAdditionalFixed(i, idx)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button></td>
+                                    </tr>
                                   ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="field-label">Impacto en Pasivos</label>
-                                <select aria-label="Impacto salarial bono alimentacion" value="no" disabled className="field-select opacity-60">
-                                  <option value="no">No</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="field-label">Frecuencia</label>
-                                <select aria-label="Frecuencia bono alimentacion" value={r.bonoAlimentacionFreq || "monthly"} onChange={(e) => update(i, "bonoAlimentacionFreq", e.target.value)} className="field-select">
-                                  <option value="monthly">Mensual</option>
-                                  <option value="biweekly">Quincenal</option>
-                                </select>
-                              </div>
+                                </tbody>
+                              </table>
                             </div>
                           </div>
+                        )}
 
-                          {(r.additionalFixedPayments || []).length > 0 && (
-                            (r.additionalFixedPayments || []).map((p, idx) => (
-                              <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem_auto] xl:items-end">
-                                  <div>
-                                    <label className="field-label">Concepto</label>
-                                    <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalFixed(i, idx, "concept", e.target.value)} className="field" />
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Monto</label>
-                                    <div className="relative">
-                                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                                        {p.accountCurrency === "VES" ? "Bs." : "$"}
-                                      </span>
-                                      <input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalFixed(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Moneda de Cuenta</label>
-                                    <select aria-label="Moneda de cuenta concepto fijo" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalFixed(i, idx, "accountCurrency", e.target.value)} className="field-select">
-                                      <option value="USD">Dólares (USD)</option>
-                                      <option value="VES">Bolívares (Bs.)</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Moneda de Pago</label>
-                                    <select aria-label="Moneda de pago concepto fijo" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalFixed(i, idx, "paymentCurrency", e.target.value)} className="field-select">
-                                      <option value="USD">Dólares (USD)</option>
-                                      <option value="VES">Bolívares (Bs.)</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Tasa</label>
-                                    <select aria-label="Tasa concepto fijo" value={p.tasaId || ""} onChange={(e) => updateAdditionalFixed(i, idx, "tasaId", e.target.value)} className="field-select">
-                                      <option value="">Sin tasa</option>
-                                      {tasas.map((t) => (
-                                        <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Impacto en Pasivos</label>
-                                    <select aria-label="Impacto concepto fijo" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalFixed(i, idx, "impacto", e.target.value === "yes")} className="field-select">
-                                      <option value="yes">Sí</option>
-                                      <option value="no">No</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label className="field-label">Frecuencia</label>
-                                    <select aria-label="Frecuencia concepto fijo" value={p.freq || "monthly"} onChange={(e) => updateAdditionalFixed(i, idx, "freq", e.target.value)} className="field-select">
-                                      {FREQUENCY_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.label}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <button onClick={() => removeAdditionalFixed(i, idx)} className="btn btn-danger">
-                                    <Trash2 className="h-4 w-4" />
-                                    Eliminar
-                                  </button>
-                                </div>
+                        {/* Tab: Compensación Variable */}
+                        {(activeTab[r.id] ?? "identidad") === "variable" && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-slate-500">Bonos y comisiones variables del cargo</p>
+                              <button type="button" onClick={() => addAdditionalVariable(i)} className="btn btn-primary">
+                                <Plus className="h-4 w-4" />
+                                Agregar concepto
+                              </button>
+                            </div>
+                            {(r.additionalVariablePayments || []).length === 0 ? (
+                              <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-slate-50/50 px-4 py-8 text-center text-sm text-slate-400">
+                                Sin conceptos variables. Haz clic en "Agregar concepto" para añadir bonos o comisiones.
                               </div>
-                            ))
-                          )}
-                        </div>
-                      </section>
-
-                      <section className="rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 md:p-4.5">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <div className="eyebrow mb-2">Paso 3</div>
-                            <h3 className="font-display text-xl font-bold text-slate-900 md:text-[1.12rem]">Compensación variable</h3>
-                        </div>
-                          <button onClick={() => addAdditionalVariable(i)} className="btn btn-primary">
-                          <Plus className="h-4 w-4" />
-                            Agregar concepto
-                          </button>
-                        </div>
-
-                        <div className="mt-4 space-y-3">
-                          {(r.additionalVariablePayments || []).length > 0 && (
-                            (r.additionalVariablePayments || []).map((p, idx) => (
-                              <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5">
-                                <div className="space-y-2">
-                                  {p.variableType === "performance" ? (
-                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem_auto] xl:items-end">
-                                      <div>
-                                        <label className="field-label">Variable</label>
-                                        <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
-                                          <option value="">Seleccionar</option>
-                                          {VARIABLE_BONUS_TYPES.map((option) => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                          ))}
-                                        </select>
+                            ) : (
+                              <div className="space-y-2">
+                                {(r.additionalVariablePayments || []).map((p, idx) => (
+                                  <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-white p-3.5 space-y-2.5">
+                                    {p.variableType === "performance" ? (
+                                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_5rem_4.5rem_6.5rem_auto] lg:items-center">
+                                        <div><label className="field-label">Variable</label><select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                                        <div><label className="field-label">Concepto</label><input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field text-sm w-full" /></div>
+                                        <div><label className="field-label">Monto</label><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{p.accountCurrency === "VES" ? "Bs." : "$"}</span><input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></div>
+                                        <div><label className="field-label">Mon. Cuenta</label><select aria-label="Moneda de cuenta concepto variable" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "accountCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></div>
+                                        <div><label className="field-label">Mon. Pago</label><select aria-label="Moneda de pago concepto variable" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></div>
+                                        <div><label className="field-label">Tasa</label><select aria-label="Tasa concepto variable desempeño" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></div>
+                                        <div><label className="field-label">Pasivos</label><select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select text-sm w-full"><option value="yes">Sí</option><option value="no">No</option></select></div>
+                                        <div><label className="field-label">Frecuencia</label><select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                                        <div className="flex items-end"><button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button></div>
                                       </div>
-                                      <div>
-                                        <label className="field-label">Concepto</label>
-                                        <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field" />
-                                      </div>
-                                      <div>
-                                        <label className="field-label">Monto</label>
-                                        <div className="relative">
-                                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                                            {p.accountCurrency === "VES" ? "Bs." : "$"}
-                                          </span>
-                                          <input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
+                                    ) : p.variableType === "commission" ? (
+                                      <>
+                                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_5rem_4.5rem_6.5rem] lg:items-center">
+                                          <div><label className="field-label">Variable</label><select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                                          <div><label className="field-label">Concepto</label><input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field text-sm w-full" /></div>
+                                          <div><label className="field-label">Monto</label><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{p.accountCurrency === "VES" ? "Bs." : "$"}</span><input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></div>
+                                          <div><label className="field-label">Mon. Cuenta</label><select aria-label="Moneda de cuenta concepto variable" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "accountCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></div>
+                                          <div><label className="field-label">Mon. Pago</label><select aria-label="Moneda de pago concepto variable" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></div>
+                                          <div><label className="field-label">Tasa</label><select aria-label="Tasa concepto variable comisión" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></div>
+                                          <div><label className="field-label">Pasivos</label><select aria-label="Impacto concepto variable comisión" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select text-sm w-full"><option value="yes">Sí</option><option value="no">No</option></select></div>
+                                          <div><label className="field-label">Frecuencia</label><select aria-label="Frecuencia concepto variable comisión" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                                        </div>
+                                        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+                                          <div><label className="field-label">Tipo de comisión</label><select aria-label="Tipo de comision" value={p.commissionType || "simple"} onChange={(e) => updateAdditionalVariable(i, idx, "commissionType", e.target.value)} className="field-select text-sm w-full">{VARIABLE_COMMISSION_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                                          <div><label className="field-label">Detalle de cálculo</label><select aria-label="Detalle de calculo" value={p.calculationDetail || "sale_value"} onChange={(e) => updateAdditionalVariable(i, idx, "calculationDetail", e.target.value)} className="field-select text-sm w-full">{VARIABLE_CALCULATION_DETAILS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                                          <div><label className="field-label">Objetivos y metas</label><select aria-label="Objetivos y metas" value={p.goalsTarget || "sales_quota"} onChange={(e) => updateAdditionalVariable(i, idx, "goalsTarget", e.target.value)} className="field-select text-sm w-full">{VARIABLE_GOALS_TARGETS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                                          <div className="flex items-end"><button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button></div>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="grid gap-2 lg:grid-cols-[10rem_minmax(0,1fr)] lg:items-center">
+                                        <div><label className="field-label">Variable</label><select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                                        <div className="rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3.5 text-sm text-slate-500">
+                                          Selecciona si el concepto corresponde a bono por desempeño o bono por comisiones para continuar.
                                         </div>
                                       </div>
-                                      <div>
-                                        <label className="field-label">Moneda de Cuenta</label>
-                                        <select aria-label="Moneda de cuenta concepto variable" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "accountCurrency", e.target.value)} className="field-select">
-                                          <option value="USD">Dólares (USD)</option>
-                                          <option value="VES">Bolívares (Bs.)</option>
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label className="field-label">Moneda de Pago</label>
-                                        <select aria-label="Moneda de pago concepto variable" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "paymentCurrency", e.target.value)} className="field-select">
-                                          <option value="USD">Dólares (USD)</option>
-                                          <option value="VES">Bolívares (Bs.)</option>
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label className="field-label">Tasa</label>
-                                        <select aria-label="Tasa concepto variable desempeño" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select">
-                                          <option value="">Sin tasa</option>
-                                          {tasas.map((t) => (
-                                            <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label className="field-label">Impacto en Pasivos</label>
-                                        <select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
-                                          <option value="yes">Sí</option>
-                                          <option value="no">No</option>
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label className="field-label">Frecuencia</label>
-                                        <select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
-                                          {FREQUENCY_OPTIONS.map((option) => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      <button onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger">
-                                        <Trash2 className="h-4 w-4" />
-                                        Eliminar
-                                      </button>
-                                    </div>
-                                  ) : p.variableType === "commission" ? (
-                                    <>
-                                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[9rem_minmax(0,1.4fr)_minmax(0,1fr)_7rem_7rem_6rem_5.5rem_7rem] xl:items-end">
-                                        <div>
-                                          <label className="field-label">Variable</label>
-                                          <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
-                                            <option value="">Seleccionar</option>
-                                            {VARIABLE_BONUS_TYPES.map((option) => (
-                                              <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Concepto</label>
-                                          <input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field" />
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Monto</label>
-                                          <div className="relative">
-                                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                                              {p.accountCurrency === "VES" ? "Bs." : "$"}
-                                            </span>
-                                            <input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-9" />
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Moneda de Cuenta</label>
-                                          <select aria-label="Moneda de cuenta concepto variable" value={p.accountCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "accountCurrency", e.target.value)} className="field-select">
-                                            <option value="USD">Dólares (USD)</option>
-                                            <option value="VES">Bolívares (Bs.)</option>
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Moneda de Pago</label>
-                                          <select aria-label="Moneda de pago concepto variable" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalVariable(i, idx, "paymentCurrency", e.target.value)} className="field-select">
-                                            <option value="USD">Dólares (USD)</option>
-                                            <option value="VES">Bolívares (Bs.)</option>
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Tasa</label>
-                                          <select aria-label="Tasa concepto variable comisión" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select">
-                                            <option value="">Sin tasa</option>
-                                            {tasas.map((t) => (
-                                              <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Impacto en Pasivos</label>
-                                          <select aria-label="Impacto concepto variable comisión" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select">
-                                            <option value="yes">Sí</option>
-                                            <option value="no">No</option>
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Frecuencia</label>
-                                          <select aria-label="Frecuencia concepto variable comisión" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select">
-                                            {FREQUENCY_OPTIONS.map((option) => (
-                                              <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                      </div>
-                                      <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
-                                        <div>
-                                          <label className="field-label">Tipo de comisión</label>
-                                          <select aria-label="Tipo de comision" value={p.commissionType || "simple"} onChange={(e) => updateAdditionalVariable(i, idx, "commissionType", e.target.value)} className="field-select">
-                                            {VARIABLE_COMMISSION_TYPES.map((option) => (
-                                              <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Detalle de cálculo</label>
-                                          <select aria-label="Detalle de calculo" value={p.calculationDetail || "sale_value"} onChange={(e) => updateAdditionalVariable(i, idx, "calculationDetail", e.target.value)} className="field-select">
-                                            {VARIABLE_CALCULATION_DETAILS.map((option) => (
-                                              <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="field-label">Objetivos y metas</label>
-                                          <select aria-label="Objetivos y metas" value={p.goalsTarget || "sales_quota"} onChange={(e) => updateAdditionalVariable(i, idx, "goalsTarget", e.target.value)} className="field-select">
-                                            {VARIABLE_GOALS_TARGETS.map((option) => (
-                                              <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                        <button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="btn btn-danger">
-                                          <Trash2 className="h-4 w-4" />
-                                          Eliminar
-                                        </button>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <div className="grid gap-2 xl:grid-cols-[10rem_minmax(0,1fr)] xl:items-end">
-                                      <div>
-                                        <label className="field-label">Variable</label>
-                                        <select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select">
-                                          <option value="">Seleccionar</option>
-                                          {VARIABLE_BONUS_TYPES.map((option) => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      <div className="rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-3.5 text-sm text-slate-500 md:text-[0.82rem]">
-                                        Selecciona si el concepto corresponde a bono por desempeño o bono por comisiones para continuar.
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
-                            ))
-                          )}
-                        </div>
-                      </section>
+                            )}
+                          </div>
+                        )}
+
+                      </div>
                     </fieldset>
+
                     {!isReadOnlyDataView && (
-                      <div className="mt-4 flex justify-end">
+                      <div className="flex justify-end border-t border-slate-200/70 bg-slate-50/50 px-4 py-3">
                         <button
                           type="button"
                           onClick={() => {
