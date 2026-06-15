@@ -682,112 +682,85 @@ export default function AdminPage() {
               No hay usuarios registrados.
             </div>
           ) : (
-            <div className="mt-5 overflow-x-auto">
-              <table className="min-w-full table-fixed border-separate border-spacing-y-2.5 md:border-spacing-y-2">
-                <colgroup>
-                  <col className="w-[18%]" />
-                  <col className="w-[24%]" />
-                  <col className="w-[16%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[22%]" />
-                </colgroup>
-                <thead>
-                  <tr className="text-left text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                    <th className="px-4 pb-1 md:px-3">Usuario</th>
-                    <th className="px-4 pb-1 md:px-3">Empresa</th>
-                    <th className="px-4 pb-1 md:px-3">Rol</th>
-                    <th className="px-4 pb-1 md:px-3">Contraseña</th>
-                    <th className="px-4 pb-1 md:px-3">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    (() => {
-                      const draft = pendingUserEdits[user.id] ?? { role: user.role, password: "", companyId: user.company.id };
-                      const hasRoleChange = draft.role !== user.role;
-                      const hasPasswordChange = draft.password.trim().length > 0;
-                      const hasCompanyChange = draft.companyId !== user.company.id;
-                      const selectedCompany = companies.find((company) => company.id === draft.companyId);
+            <div className="mt-5 space-y-3">
+              {users.map((user) => {
+                const draft = pendingUserEdits[user.id] ?? { role: user.role, password: "", companyId: user.company.id };
+                const hasRoleChange = draft.role !== user.role;
+                const hasPasswordChange = draft.password.trim().length > 0;
+                const hasCompanyChange = draft.companyId !== user.company.id;
+                const hasPending = hasRoleChange || hasPasswordChange || hasCompanyChange;
+                const selectedCompany = companies.find((c) => c.id === draft.companyId);
 
-                      return (
-                    <tr key={user.id} className="rounded-[1.1rem] bg-slate-50/80 text-sm text-slate-700 md:text-[0.82rem]">
-                      <td className="rounded-l-[1.1rem] px-4 py-4 align-top md:px-3 md:py-3">
-                        <div className="flex min-h-[4.75rem] flex-col justify-start">
-                          <div className="font-display text-base font-bold text-slate-900 md:text-[0.98rem]">{user.name}</div>
-                          <div className="mt-1 break-words text-xs leading-5 text-slate-500">{user.email}</div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 align-top md:px-3 md:py-3">
-                        <div className="flex min-h-[4.75rem] flex-col justify-start gap-2.5">
-                          <div className="min-h-5">
-                            <div className="break-words font-semibold leading-5 text-slate-900">{selectedCompany?.name ?? user.company.name}</div>
-                          </div>
-                          <select
-                            aria-label={`Empresa de ${user.name}`}
-                            title={`Empresa de ${user.name}`}
-                            value={draft.companyId}
-                            onChange={(event) => updatePendingUserEdit(user, { companyId: event.target.value })}
-                            className="field-select w-full min-w-0"
-                            disabled={isSavingUserChanges}
-                          >
-                            {companies.map((company) => (
-                              <option key={company.id} value={company.id}>{company.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 align-top md:px-3 md:py-3">
-                        <div className="flex min-h-[4.75rem] flex-col justify-start gap-2.5">
-                          <div className="min-h-5">
-                            <span className={`inline-flex rounded-full px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
-                              {getRoleLabel(draft.role)}
-                            </span>
-                          </div>
-                          <select
-                            aria-label={`Rol de ${user.name}`}
-                            title={`Rol de ${user.name}`}
-                            value={draft.role}
-                            onChange={(event) => updatePendingUserEdit(user, { role: event.target.value as AppUserRole })}
-                            className="field-select w-full min-w-0"
-                            disabled={isSavingUserChanges}
-                          >
-                            {ROLE_OPTIONS.map((roleOption) => (
-                              <option key={roleOption.value} value={roleOption.value}>{roleOption.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 align-top md:px-3 md:py-3">
-                        <div className="flex min-h-[4.75rem] flex-col justify-start gap-2.5">
-                          <div className="min-h-5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Actual protegida</div>
-                          <input
-                            type="password"
-                            value={draft.password}
-                            onChange={(event) => updatePendingUserEdit(user, { password: event.target.value })}
-                            className="field w-full min-w-0"
-                            placeholder="Nueva contrasena"
-                            autoComplete="new-password"
-                            disabled={isSavingUserChanges}
-                          />
-                        </div>
-                      </td>
-                      <td className="rounded-r-[1.1rem] px-4 py-4 align-top md:px-3 md:py-3">
-                        {hasRoleChange || hasPasswordChange || hasCompanyChange ? (
-                          <div className="flex min-h-[4.75rem] flex-col justify-start space-y-2 text-xs leading-5 text-slate-600">
-                            {hasCompanyChange ? <div>Empresa pendiente: {user.company.name} → {selectedCompany?.name ?? "Sin empresa"}</div> : null}
-                            {hasRoleChange ? <div>Rol pendiente: {getRoleLabel(user.role)} → {getRoleLabel(draft.role)}</div> : null}
-                            {hasPasswordChange ? <div>Contraseña pendiente de cambio</div> : null}
-                          </div>
-                        ) : (
-                          <div className="flex min-h-[4.75rem] items-start text-xs leading-5 text-slate-500">Sin cambios</div>
-                        )}
-                      </td>
-                    </tr>
-                      );
-                    })()
-                  ))}
-                </tbody>
-              </table>
+                return (
+                  <div key={user.id} className={`rounded-[1.25rem] border p-4 transition-colors ${hasPending ? "border-amber-200 bg-amber-50/40" : "border-slate-200/70 bg-white/80"}`}>
+                    {/* User header */}
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="font-display font-bold text-slate-900">{user.name}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{user.email}</div>
+                      </div>
+                      <span className={`inline-flex rounded-full px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] ${getRoleBadgeClasses(draft.role)}`}>
+                        {getRoleLabel(draft.role)}
+                      </span>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="field-label text-[0.7rem]">Empresa</label>
+                        <select
+                          aria-label={`Empresa de ${user.name}`}
+                          title={`Empresa de ${user.name}`}
+                          value={draft.companyId}
+                          onChange={(e) => updatePendingUserEdit(user, { companyId: e.target.value })}
+                          className="field-select w-full"
+                          disabled={isSavingUserChanges}
+                        >
+                          {companies.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label text-[0.7rem]">Rol</label>
+                        <select
+                          aria-label={`Rol de ${user.name}`}
+                          title={`Rol de ${user.name}`}
+                          value={draft.role}
+                          onChange={(e) => updatePendingUserEdit(user, { role: e.target.value as AppUserRole })}
+                          className="field-select w-full"
+                          disabled={isSavingUserChanges}
+                        >
+                          {ROLE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label text-[0.7rem]">Nueva contraseña</label>
+                        <input
+                          type="password"
+                          value={draft.password}
+                          onChange={(e) => updatePendingUserEdit(user, { password: e.target.value })}
+                          className="field w-full"
+                          placeholder="Dejar vacío para no cambiar"
+                          autoComplete="new-password"
+                          disabled={isSavingUserChanges}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Pending changes strip */}
+                    {hasPending && (
+                      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 border-t border-amber-200/60 pt-2.5 text-xs text-amber-800">
+                        {hasCompanyChange && <span>Empresa: {user.company.name} → {selectedCompany?.name ?? "—"}</span>}
+                        {hasRoleChange && <span>Rol: {getRoleLabel(user.role)} → {getRoleLabel(draft.role)}</span>}
+                        {hasPasswordChange && <span>Contraseña: pendiente de cambio</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
