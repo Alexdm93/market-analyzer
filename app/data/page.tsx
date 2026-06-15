@@ -465,10 +465,14 @@ export default function DataPage() {
     let ignore = false;
     fetch(`/api/admin/config/snapshot-cargos?snapshotId=${encodeURIComponent(selectedSnapshotId)}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((payload: { cargos?: { departamento: string; tituloCargo: string }[] } | null) => {
-        if (!ignore) setSnapshotCargos(Array.isArray(payload?.cargos) ? payload.cargos : []);
+      .then((payload: { cargos?: { departamento: string; tituloCargo: string }[] | null } | null) => {
+        if (!ignore) {
+          // null means "not configured by admin" → no restriction; [] means explicitly configured as empty → block
+          const cargos = payload?.cargos;
+          setSnapshotCargos(Array.isArray(cargos) ? cargos : null);
+        }
       })
-      .catch(() => { if (!ignore) setSnapshotCargos([]); });
+      .catch(() => { if (!ignore) setSnapshotCargos(null); });
     return () => { ignore = true; };
   }, [selectedSnapshotId]);
 

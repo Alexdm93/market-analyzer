@@ -18,10 +18,6 @@ export async function GET(request: Request) {
     return Response.json({ message: "No autorizado." }, { status: 401 });
   }
 
-  if (session.user.role !== "ADMIN") {
-    return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
-  }
-
   const { searchParams } = new URL(request.url);
   const snapshotId = searchParams.get("snapshotId") ?? "";
 
@@ -34,14 +30,15 @@ export async function GET(request: Request) {
     if (row?.value) {
       const parsed = JSON.parse(row.value) as SnapshotCargoItem[];
       if (Array.isArray(parsed)) {
+        // null means "not configured" (allow all), [] means "explicitly empty" (allow nothing)
         return Response.json({ cargos: parsed });
       }
     }
   } catch {
-    // GlobalConfig table may not exist yet
+    // GlobalConfig table may not exist yet — treat as not configured
   }
 
-  return Response.json({ cargos: [] });
+  return Response.json({ cargos: null });
 }
 
 type PutBody = {
