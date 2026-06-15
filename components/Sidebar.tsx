@@ -5,6 +5,7 @@ import { Building2, Database, Info, LayoutDashboard, LineChart, LogIn, LogOut, S
 import { signOut, useSession } from "next-auth/react";
 
 import { canAccessEmpresas, getRoleLabel, isAdminRole } from "@/lib/roles";
+import { useNavigationTrigger } from "./NavigationProgress";
 
 const menuItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
@@ -28,6 +29,7 @@ export default function Sidebar() {
   const role = session?.user?.role;
   const isAdmin = isAdminRole(role);
   const canSeeEmpresas = canAccessEmpresas(role);
+  const triggerNavigation = useNavigationTrigger();
 
   if (pathname === "/signin" || pathname === "/register") {
     return null;
@@ -56,6 +58,7 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={isActive ? undefined : triggerNavigation}
                 className={`group flex min-w-0 items-start gap-2.5 overflow-hidden rounded-[1.1rem] border px-2.5 py-2.5 ${
                   isActive
                     ? "border-teal-700/10 bg-[linear-gradient(135deg,rgba(15,118,110,0.14),rgba(17,94,89,0.06))] text-slate-900 shadow-[0_16px_36px_rgba(15,118,110,0.16)]"

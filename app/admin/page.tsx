@@ -781,6 +781,136 @@ export default function AdminPage() {
           })}
         </section>
 
+        {/* Cargo management */}
+        <section className="surface-card overflow-hidden rounded-[1.75rem]">
+          <button
+            type="button"
+            onClick={() => setOpenCargos((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-full bg-violet-50 p-2.5 text-violet-700">
+                <ClipboardList size={16} aria-hidden />
+              </div>
+              <h2 className="font-display text-base font-bold text-slate-900">Cargos</h2>
+              {masterCargos.length > 0 && (
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[0.65rem] font-bold text-violet-800">
+                  {masterCargos.reduce((sum, d) => sum + d.cargos.length, 0)}
+                </span>
+              )}
+            </div>
+            {openCargos ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+          </button>
+
+          {openCargos && (
+          <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+          <p className="text-xs leading-5 text-slate-500">
+            Administra la lista maestra de departamentos y cargos. Se utilizan en la carga de data de empresas y al definir los cargos de cada corte.
+          </p>
+
+          <div className="mt-3 flex gap-2 items-end">
+            <div className="flex-1">
+              <label htmlFor="newDeptName" className="field-label">Nuevo departamento</label>
+              <input
+                id="newDeptName"
+                type="text"
+                value={newDeptName}
+                onChange={(e) => setNewDeptName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDept(); } }}
+                className="field"
+                placeholder="Ej. Innovación"
+                disabled={isSavingCargos}
+              />
+            </div>
+            <button type="button" onClick={addDept} className="btn btn-primary shrink-0" disabled={!newDeptName.trim() || isSavingCargos}>
+              <Plus className="h-4 w-4" />
+              Agregar departamento
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {isLoadingCargos ? (
+              <div className="text-xs text-slate-500">Cargando cargos...</div>
+            ) : masterCargos.length === 0 ? (
+              <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-xs text-slate-500">
+                No hay departamentos definidos.
+              </div>
+            ) : masterCargos.map((dept) => {
+              const isExpanded = expandedDepts[dept.departamento] ?? false;
+              return (
+                <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
+                  <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedDepts((s) => ({ ...s, [dept.departamento]: !isExpanded }))}
+                      className="flex flex-1 items-center gap-2 text-left"
+                    >
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                      <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
+                      <span className="text-xs text-slate-400">{dept.cargos.length} cargos</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeDept(dept.departamento)}
+                      className="btn btn-danger btn-xs"
+                      disabled={isSavingCargos}
+                      aria-label={`Eliminar departamento ${dept.departamento}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="border-t border-slate-200/60 px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {dept.cargos.map((cargo) => (
+                          <div key={cargo} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
+                            {cargo}
+                            <button
+                              type="button"
+                              onClick={() => removeCargo(dept.departamento, cargo)}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
+                              aria-label={`Eliminar cargo ${cargo}`}
+                              disabled={isSavingCargos}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {dept.cargos.length === 0 && (
+                          <span className="text-xs text-slate-400">Sin cargos aún.</span>
+                        )}
+                      </div>
+                      <div className="mt-2.5 flex gap-2">
+                        <input
+                          type="text"
+                          value={newCargoByDept[dept.departamento] ?? ""}
+                          onChange={(e) => setNewCargoByDept((c) => ({ ...c, [dept.departamento]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCargo(dept.departamento); } }}
+                          className="field flex-1 py-1 text-xs"
+                          placeholder="Nuevo cargo"
+                          disabled={isSavingCargos}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addCargo(dept.departamento)}
+                          className="btn btn-secondary btn-xs"
+                          disabled={!(newCargoByDept[dept.departamento] ?? "").trim() || isSavingCargos}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Agregar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          </div>
+          )}
+        </section>
+
         <section className="surface-card overflow-hidden rounded-[1.75rem]">
           <button
             type="button"
@@ -860,7 +990,7 @@ export default function AdminPage() {
                         <div className="text-sm font-semibold text-slate-900">{snapshot.label}</div>
                         <div className="mt-0.5 text-xs uppercase tracking-[0.12em] text-slate-500">{snapshot.date}</div>
                       </div>
-                      <div className="flex flex-col gap-2 lg:w-[34rem] lg:flex-row lg:items-end">
+                      <div className="flex flex-col gap-2 lg:flex-1 lg:flex-row lg:items-end">
                         <div className="flex-1">
                           <label htmlFor={`rename-${snapshot.id}`} className="field-label">Renombrar</label>
                           <input
@@ -1028,136 +1158,6 @@ export default function AdminPage() {
           )}
         </section>
 
-        {/* Cargo management */}
-        <section className="surface-card overflow-hidden rounded-[1.75rem]">
-          <button
-            type="button"
-            onClick={() => setOpenCargos((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="rounded-full bg-violet-50 p-2.5 text-violet-700">
-                <ClipboardList size={16} aria-hidden />
-              </div>
-              <h2 className="font-display text-base font-bold text-slate-900">Cargos</h2>
-              {masterCargos.length > 0 && (
-                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[0.65rem] font-bold text-violet-800">
-                  {masterCargos.reduce((sum, d) => sum + d.cargos.length, 0)}
-                </span>
-              )}
-            </div>
-            {openCargos ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
-          </button>
-
-          {openCargos && (
-          <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-          <p className="text-xs leading-5 text-slate-500">
-            Administra la lista maestra de departamentos y cargos. Se utilizan en la carga de data de empresas y al definir los cargos de cada corte.
-          </p>
-
-          <div className="mt-3 flex gap-2 items-end">
-            <div className="flex-1">
-              <label htmlFor="newDeptName" className="field-label">Nuevo departamento</label>
-              <input
-                id="newDeptName"
-                type="text"
-                value={newDeptName}
-                onChange={(e) => setNewDeptName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDept(); } }}
-                className="field"
-                placeholder="Ej. Innovación"
-                disabled={isSavingCargos}
-              />
-            </div>
-            <button type="button" onClick={addDept} className="btn btn-primary shrink-0" disabled={!newDeptName.trim() || isSavingCargos}>
-              <Plus className="h-4 w-4" />
-              Agregar departamento
-            </button>
-          </div>
-
-          <div className="mt-3 space-y-2">
-            {isLoadingCargos ? (
-              <div className="text-xs text-slate-500">Cargando cargos...</div>
-            ) : masterCargos.length === 0 ? (
-              <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-xs text-slate-500">
-                No hay departamentos definidos.
-              </div>
-            ) : masterCargos.map((dept) => {
-              const isExpanded = expandedDepts[dept.departamento] ?? false;
-              return (
-                <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
-                  <div className="flex items-center justify-between gap-2 px-4 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedDepts((s) => ({ ...s, [dept.departamento]: !isExpanded }))}
-                      className="flex flex-1 items-center gap-2 text-left"
-                    >
-                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
-                      <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
-                      <span className="text-xs text-slate-400">{dept.cargos.length} cargos</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeDept(dept.departamento)}
-                      className="btn btn-danger btn-xs"
-                      disabled={isSavingCargos}
-                      aria-label={`Eliminar departamento ${dept.departamento}`}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="border-t border-slate-200/60 px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        {dept.cargos.map((cargo) => (
-                          <div key={cargo} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
-                            {cargo}
-                            <button
-                              type="button"
-                              onClick={() => removeCargo(dept.departamento, cargo)}
-                              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
-                              aria-label={`Eliminar cargo ${cargo}`}
-                              disabled={isSavingCargos}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                        {dept.cargos.length === 0 && (
-                          <span className="text-xs text-slate-400">Sin cargos aún.</span>
-                        )}
-                      </div>
-                      <div className="mt-2.5 flex gap-2">
-                        <input
-                          type="text"
-                          value={newCargoByDept[dept.departamento] ?? ""}
-                          onChange={(e) => setNewCargoByDept((c) => ({ ...c, [dept.departamento]: e.target.value }))}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCargo(dept.departamento); } }}
-                          className="field flex-1 py-1 text-xs"
-                          placeholder="Nuevo cargo"
-                          disabled={isSavingCargos}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => addCargo(dept.departamento)}
-                          className="btn btn-secondary btn-xs"
-                          disabled={!(newCargoByDept[dept.departamento] ?? "").trim() || isSavingCargos}
-                        >
-                          <Plus className="h-3 w-3" />
-                          Agregar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          </div>
-          )}
-        </section>
-
         <section className="surface-card overflow-hidden rounded-[1.75rem]">
           <button
             type="button"
@@ -1302,66 +1302,124 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="mt-5 flex-1 overflow-y-auto pr-1">
+            <div className="mt-5 flex-1 overflow-y-auto pr-1 space-y-4">
               {isLoadingSnapshotCargos ? (
                 <div className="text-sm text-slate-500">Cargando cargos...</div>
-              ) : masterCargos.length === 0 ? (
-                <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-white/70 px-4 py-6 text-sm text-slate-500">
-                  No hay cargos en la lista maestra. Agrégalos en la sección &quot;Cargos&quot;.
-                </div>
               ) : (
-                <div className="space-y-2">
-                  {masterCargos.map((dept) => {
-                    const modalKey = `modal-${dept.departamento}`;
-                    const isExpanded = expandedDepts[modalKey] ?? false;
-                    const allSelected = dept.cargos.length > 0 && dept.cargos.every((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`));
-                    const selectedCount = dept.cargos.filter((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`)).length;
-                    return (
-                      <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
-                        <div className="flex items-center gap-2 px-4 py-2.5">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedDepts((s) => ({ ...s, [modalKey]: !isExpanded }))}
-                            className="flex flex-1 items-center gap-2 text-left"
-                          >
-                            {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
-                            <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
-                            <span className="text-xs text-slate-400">{selectedCount}/{dept.cargos.length}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleAllDeptCargos(dept.departamento, dept.cargos)}
-                            className="shrink-0 text-xs text-violet-600 hover:text-violet-800"
-                          >
-                            {allSelected ? "Quitar todos" : "Seleccionar todos"}
-                          </button>
-                        </div>
-
-                        {isExpanded && (
-                          <div className="border-t border-slate-200/60 px-4 py-3">
-                            <div className="space-y-1.5">
-                              {dept.cargos.map((cargo) => {
-                                const key = `${dept.departamento}::${cargo}`;
-                                const checked = snapshotCargosDraft?.has(key) ?? false;
-                                return (
-                                  <label key={cargo} className="flex items-center gap-2.5 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() => toggleSnapshotCargo(dept.departamento, cargo)}
-                                      className="h-4 w-4 rounded border-slate-300 accent-violet-600"
-                                    />
-                                    <span className="text-sm text-slate-700">{cargo}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
+                <>
+                  {/* Selected cargos panel */}
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                        Cargos requeridos para este corte
                       </div>
-                    );
-                  })}
-                </div>
+                      {(snapshotCargosDraft?.size ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSnapshotCargosDraft(new Set())}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          Quitar todos
+                        </button>
+                      )}
+                    </div>
+                    {(snapshotCargosDraft?.size ?? 0) === 0 ? (
+                      <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-white/60 px-4 py-4 text-xs text-slate-400">
+                        Ningún cargo seleccionado. Usa la lista de abajo para agregar.
+                      </div>
+                    ) : (
+                      <div className="rounded-[1.1rem] border border-violet-200/70 bg-violet-50/50 px-4 py-3">
+                        {masterCargos.map((dept) => {
+                          const selected = dept.cargos.filter((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`));
+                          if (selected.length === 0) return null;
+                          return (
+                            <div key={dept.departamento} className="mb-3 last:mb-0">
+                              <div className="mb-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-violet-700">{dept.departamento}</div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {selected.map((cargo) => (
+                                  <div key={cargo} className="inline-flex items-center gap-1 rounded-full bg-violet-100 pl-2.5 pr-1 py-0.5 text-xs font-medium text-violet-800">
+                                    {cargo}
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleSnapshotCargo(dept.departamento, cargo)}
+                                      className="flex h-3.5 w-3.5 items-center justify-center rounded-full text-violet-500 hover:bg-violet-200 hover:text-violet-800"
+                                      aria-label={`Quitar ${cargo}`}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Master list for toggling */}
+                  {masterCargos.length === 0 ? (
+                    <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-white/70 px-4 py-6 text-sm text-slate-500">
+                      No hay cargos en la lista maestra. Agrégalos en la sección &quot;Cargos&quot;.
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Lista maestra</div>
+                      <div className="space-y-2">
+                        {masterCargos.map((dept) => {
+                          const modalKey = `modal-${dept.departamento}`;
+                          const isExpanded = expandedDepts[modalKey] ?? false;
+                          const allSelected = dept.cargos.length > 0 && dept.cargos.every((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`));
+                          const selectedCount = dept.cargos.filter((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`)).length;
+                          return (
+                            <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
+                              <div className="flex items-center gap-2 px-4 py-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedDepts((s) => ({ ...s, [modalKey]: !isExpanded }))}
+                                  className="flex flex-1 items-center gap-2 text-left"
+                                >
+                                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                                  <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
+                                  <span className="text-xs text-slate-400">{selectedCount}/{dept.cargos.length}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleAllDeptCargos(dept.departamento, dept.cargos)}
+                                  className="shrink-0 text-xs text-violet-600 hover:text-violet-800"
+                                >
+                                  {allSelected ? "Quitar todos" : "Seleccionar todos"}
+                                </button>
+                              </div>
+
+                              {isExpanded && (
+                                <div className="border-t border-slate-200/60 px-4 py-3">
+                                  <div className="space-y-1.5">
+                                    {dept.cargos.map((cargo) => {
+                                      const key = `${dept.departamento}::${cargo}`;
+                                      const checked = snapshotCargosDraft?.has(key) ?? false;
+                                      return (
+                                        <label key={cargo} className="flex items-center gap-2.5 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => toggleSnapshotCargo(dept.departamento, cargo)}
+                                            className="h-4 w-4 rounded border-slate-300 accent-violet-600"
+                                          />
+                                          <span className="text-sm text-slate-700">{cargo}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

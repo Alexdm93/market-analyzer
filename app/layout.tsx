@@ -3,6 +3,7 @@ import { Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import Sidebar from "../components/Sidebar";
+import NavigationProgress from "@/components/NavigationProgress";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -28,8 +29,10 @@ export default function RootLayout({
     <html lang="es" className={`${manrope.variable} ${spaceGrotesk.variable}`}>
       <body className="flex min-h-screen flex-col items-stretch md:flex-row md:items-start">
         <Providers>
-          <Sidebar />
-          <main className="app-main min-h-screen min-w-0 flex-1 w-full">{children}</main>
+          <NavigationProgress>
+            <Sidebar />
+            <main className="app-main min-h-screen min-w-0 flex-1 w-full">{children}</main>
+          </NavigationProgress>
         </Providers>
       </body>
     </html>
