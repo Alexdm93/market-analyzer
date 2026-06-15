@@ -489,24 +489,12 @@ export default function AdminPage() {
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_22rem]">
-            <div>
-              <div className="eyebrow mb-3">Control central</div>
-              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Vista administrativa.</h1>
-              <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-                Desde aquí solo un usuario con rol admin puede gestionar el catálogo base y el alta controlada de accesos.
-              </p>
-            </div>
-
-            <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
-              <div className="rounded-full bg-teal-50 p-3 text-teal-700 w-fit">
-                <Shield size={18} aria-hidden />
-              </div>
-              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900">Acceso restringido</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                Esta vista solo está disponible para usuarios con el rol administrativo persistido en base de datos.
-              </p>
-            </div>
+          <div>
+            <div className="eyebrow mb-3">Control central</div>
+            <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Vista administrativa.</h1>
+            <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
+              Desde aquí solo un usuario con rol admin puede gestionar el catálogo base y el alta controlada de accesos.
+            </p>
           </div>
         </section>
 
