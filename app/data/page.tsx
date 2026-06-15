@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
@@ -127,6 +127,29 @@ function fmtMoney(n: number) {
   return `$ ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
+const NIVELES_ADMIN = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
+
+function computeRowTotalAdmin(r: ExtendedMarketPosition): number {
+  let s = Number(r.sueldoBasico ?? 0) + Number(r.bonoAlimentacion ?? 0) + Number(r.bonoMovilizacion ?? 0)
+    + Number(r.bonoDesempeno ?? 0) + Number(r.comisiones ?? 0) + Number(r.pagoVariableOtros ?? 0)
+    + Number(r.pagoTransporte ?? 0) + Number(r.viaticos ?? 0) + Number(r.otrosPagos ?? 0)
+    + Number(r.aportesSeguridadSocial ?? 0) + Number(r.prestacionesLegales ?? 0);
+  if (Array.isArray(r.additionalFixedPayments))
+    s += r.additionalFixedPayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
+  if (Array.isArray(r.additionalVariablePayments))
+    s += r.additionalVariablePayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
+  return s;
+}
+
+function pct(values: number[], p: number): number {
+  if (!values.length) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
 const empty = (i: number): ExtendedMarketPosition => ({
   id: `r-${Date.now()}-${i}`,
   departamento: "",
@@ -247,6 +270,8 @@ export default function DataPage() {
 
   // If no snapshot selected, show nothing (user requested empty view when "-- seleccionar --")
   const [rows, setRows] = useState<ExtendedMarketPosition[]>([]);
+  const [nivelMin, setNivelMin] = useState<Record<string, string>>({});
+  const [nivelMax, setNivelMax] = useState<Record<string, string>>({});
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
 
   function getDuplicateCargoMessage(nextRows: ExtendedMarketPosition[]) {
@@ -716,38 +741,186 @@ export default function DataPage() {
     if (!companyInfo.hrEmail) missingCompanyFields.push("Correo de contacto de RRHH");
   }
 
+  // Admin: medians per nivel from current rows
+  const medianasPorNivelAdmin = useMemo(() => {
+    const result: Record<string, number> = {};
+    for (const nivel of NIVELES_ADMIN) {
+      const totals = rows
+        .filter((r) => r.nivelOrganizacional?.trim() === nivel)
+        .map(computeRowTotalAdmin)
+        .filter((v) => v > 0 && Number.isFinite(v));
+      result[nivel] = totals.length ? Math.round(pct(totals, 50)) : 0;
+    }
+    return result;
+  }, [rows]);
+
+  // Admin: out-of-range warnings
+  const outOfRangeRows = isAdmin
+    ? rows.filter((r) => {
+        const nivel = r.nivelOrganizacional?.trim() ?? "";
+        const total = computeRowTotalAdmin(r);
+        const min = Number(nivelMin[nivel] ?? 0);
+        const max = Number(nivelMax[nivel] ?? 0);
+        return total > 0 && ((min > 0 && total < min) || (max > 0 && total > max));
+      })
+    : [];
+
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-3">
+
+        {/* Admin: rangos de referencia por nivel */}
+        {isAdmin && (
+          <section className="surface-card overflow-hidden rounded-[1.75rem] p-4 md:p-5">
+            <div className="eyebrow mb-1.5">Rangos de referencia</div>
+            <h2 className="font-display text-[1.1rem] font-bold text-slate-900">Valores mínimos y máximos aceptables por nivel</h2>
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-y-2 text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                    <th className="px-3 py-1.5 text-left">Rango</th>
+                    {NIVELES_ADMIN.map((n) => (
+                      <th key={n} className="px-3 py-1.5 text-center">{n}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="rounded-[1.25rem] bg-white/80">
+                    <td className="rounded-l-[1.25rem] px-3 py-2 text-xs font-bold text-teal-700">Mínimo</td>
+                    {NIVELES_ADMIN.map((n) => (
+                      <td key={n} className="px-2 py-1.5">
+                        <input
+                          type="number"
+                          placeholder="$ 0"
+                          value={nivelMin[n] ?? ""}
+                          onChange={(e) => setNivelMin((prev) => ({ ...prev, [n]: e.target.value }))}
+                          className="field w-28 text-right text-sm"
+                        />
+                      </td>
+                    ))}
+                    <td className="rounded-r-[1.25rem]" />
+                  </tr>
+                  <tr className="rounded-[1.25rem] bg-white/80">
+                    <td className="rounded-l-[1.25rem] px-3 py-2 text-xs font-bold text-amber-700">Máximo</td>
+                    {NIVELES_ADMIN.map((n) => (
+                      <td key={n} className="px-2 py-1.5">
+                        <input
+                          type="number"
+                          placeholder="$ 0"
+                          value={nivelMax[n] ?? ""}
+                          onChange={(e) => setNivelMax((prev) => ({ ...prev, [n]: e.target.value }))}
+                          className="field w-28 text-right text-sm"
+                        />
+                      </td>
+                    ))}
+                    <td className="rounded-r-[1.25rem]" />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {outOfRangeRows.length > 0 && (
+              <div className="mt-3 flex items-start gap-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3">
+                <span className="mt-0.5 text-amber-600">⚠</span>
+                <div>
+                  <p className="text-xs font-bold text-amber-800">{outOfRangeRows.length} cargo{outOfRangeRows.length !== 1 ? "s" : ""} fuera de rango</p>
+                  <p className="mt-0.5 text-xs text-amber-700">{outOfRangeRows.map((r) => r.tituloCargo || "Sin título").join(", ")}</p>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_20rem]">
             <div>
-              <div className="eyebrow mb-2">Actualización de Data</div>
-              <h1 className="font-display text-[1.6rem] font-bold tracking-tight text-slate-900 md:text-[1.85rem]">Suministro de data por cargo.</h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-600">
-                Actualizar la data de compensación y la identidad del rol bajo una estructura jerárquica que permita una edición continua y una lectura clara de la arquitectura del cargo.
-              </p>
-
-              <div className="mt-4 grid gap-2 md:grid-cols-3">
-                <div className="metric-tile">
-                  <div className="metric-label">Cargos cargados</div>
-                  <div className="metric-value mt-3">{rows.length}</div>
+              <div className="eyebrow mb-2">{isAdmin ? "Vista Admin" : "Actualización de Data"}</div>
+              <h1 className="font-display text-[1.6rem] font-bold tracking-tight text-slate-900 md:text-[1.85rem]">
+                {isAdmin ? "Resumen / Revisión de data por empresa" : "Suministro de data por cargo."}
+              </h1>
+              {isAdmin && (
+                <div className="mt-3 max-w-md">
+                  <label htmlFor="companyFilter" className="field-label">Empresa</label>
+                  <select
+                    id="companyFilter"
+                    value={selectedCompanyId}
+                    onChange={(event) => setSelectedCompanyId(event.target.value)}
+                    className="field-select"
+                    disabled={isLoadingCompanies}
+                  >
+                    <option value="">Seleccionar empresa</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>{company.name}</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="metric-tile">
-                  <div className="metric-label">Última actualización</div>
-                  <div className="metric-value mt-3 text-base">
-                    {Object.values(snapshots).length
-                      ? new Date(
-                          Object.values(snapshots).sort((a, b) => b.date.localeCompare(a.date))[0].date
-                        ).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })
-                      : "—"}
+              )}
+              {!isAdmin && (
+                <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                  Actualizar la data de compensación y la identidad del rol bajo una estructura jerárquica que permita una edición continua y una lectura clara de la arquitectura del cargo.
+                </p>
+              )}
+
+              {isAdmin ? (
+                <div className="mt-4 grid gap-4 xl:grid-cols-[auto_1fr]">
+                  <div className="flex flex-wrap gap-2">
+                    <div className="metric-tile w-44 shrink-0 py-2.5">
+                      <div className="metric-label">Cargos reportados</div>
+                      <div className="metric-value mt-1">{rows.length}</div>
+                    </div>
+                    <div className={`metric-tile w-44 shrink-0 py-2.5 ${outOfRangeRows.length > 0 ? "border-amber-200 bg-amber-50/60" : ""}`}>
+                      <div className="metric-label">Estado de datos</div>
+                      <div className={`metric-value mt-1 text-base ${outOfRangeRows.length > 0 ? "text-amber-700" : "text-teal-700"}`}>
+                        {outOfRangeRows.length > 0 ? `${outOfRangeRows.length} fuera de rango` : selectedSnapshotId ? "Válidos" : "Sin corte"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-separate border-spacing-y-1.5 text-sm">
+                      <thead>
+                        <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                          {NIVELES_ADMIN.map((n) => (
+                            <th key={n} className="px-3 py-1 text-center">{n}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="rounded-[1.25rem] bg-white/60">
+                          {NIVELES_ADMIN.map((n, i) => {
+                            const val = medianasPorNivelAdmin[n] ?? 0;
+                            return (
+                              <td key={n} className={`px-3 py-2.5 text-center font-display font-semibold text-xs ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES_ADMIN.length - 1 ? "rounded-r-[1.25rem]" : ""} ${val === 0 ? "text-slate-400" : "text-teal-700"}`}>
+                                <div className="text-[0.62rem] font-normal text-slate-400">P50</div>
+                                {val === 0 ? "ND" : fmtMoney(val)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-                <div className="metric-tile">
-                  <div className="metric-label">Estado</div>
-                  <div className="metric-value mt-3">{selectedSnapshotId ? "Procesada" : "En espera"}</div>
+              ) : (
+                <div className="mt-4 grid gap-2 md:grid-cols-3">
+                  <div className="metric-tile">
+                    <div className="metric-label">Cargos cargados</div>
+                    <div className="metric-value mt-3">{rows.length}</div>
+                  </div>
+                  <div className="metric-tile">
+                    <div className="metric-label">Última actualización</div>
+                    <div className="metric-value mt-3 text-base">
+                      {Object.values(snapshots).length
+                        ? new Date(
+                            Object.values(snapshots).sort((a, b) => b.date.localeCompare(a.date))[0].date
+                          ).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })
+                        : "—"}
+                    </div>
+                  </div>
+                  <div className="metric-tile">
+                    <div className="metric-label">Estado</div>
+                    <div className="metric-value mt-3">{selectedSnapshotId ? "Procesada" : "En espera"}</div>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {notification && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
@@ -782,28 +955,6 @@ export default function DataPage() {
                 </div>
               ) : null}
 
-              {isAdmin ? (
-                <div className="mt-5 max-w-md">
-                  <label htmlFor="companyFilter" className="field-label">Empresa</label>
-                  <select
-                    id="companyFilter"
-                    value={selectedCompanyId}
-                    onChange={(event) => setSelectedCompanyId(event.target.value)}
-                    className="field-select"
-                    disabled={isLoadingCompanies}
-                  >
-                    <option value="">Seleccionar</option>
-                    {companies.map((company) => (
-                      <option key={company.id} value={company.id}>{company.name}</option>
-                    ))}
-                  </select>
-                  <p className="mt-2 text-xs leading-4 text-slate-500">
-                    {isReadOnlyDataView
-                      ? "Estás viendo una vista consolidada por empresa en modo solo lectura."
-                      : "Selecciona una empresa para consultar su data consolidada."}
-                  </p>
-                </div>
-              ) : null}
             </div>
 
             <div className="btn-compact-zone surface-card rounded-[1.25rem] p-3 md:p-3.5">
@@ -812,8 +963,8 @@ export default function DataPage() {
                   <CalendarDays size={14} aria-hidden />
                 </div>
                 <div>
-                  <div className="eyebrow-xs eyebrow mb-0.5">Control de actualización</div>
-                  <h2 className="font-display text-base font-bold text-slate-900">Actualización</h2>
+                  <div className="eyebrow-xs eyebrow mb-0.5">{isAdmin ? "Empresa" : "Control de actualización"}</div>
+                  <h2 className="font-display text-base font-bold text-slate-900">{isAdmin ? "Data por empresa" : "Actualización"}</h2>
                 </div>
               </div>
 
