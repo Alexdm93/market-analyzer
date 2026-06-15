@@ -259,6 +259,37 @@ export default function EstudioPage() {
     }).filter((g) => g.obs > 0);
   }, [filteredPositions]);
 
+  const adminCompanySummary = useMemo(() => {
+    const companiesMap = new Map<string, { sector: string; headcount: string }>();
+    filteredPositions.forEach((p) => {
+      if (!companiesMap.has(p.companyName)) {
+        companiesMap.set(p.companyName, { sector: p.sector, headcount: p.headcount });
+      }
+    });
+    const companies = Array.from(companiesMap.values());
+    const total = companies.length;
+
+    const sectorMap = new Map<string, number>();
+    companies.forEach((c) => {
+      const s = c.sector.trim() || "Sin sector";
+      sectorMap.set(s, (sectorMap.get(s) ?? 0) + 1);
+    });
+    const sectors = Array.from(sectorMap.entries())
+      .map(([sector, count]) => ({ sector, count, pct: total ? Math.round((count / total) * 100) : 0 }))
+      .sort((a, b) => b.count - a.count);
+
+    let pequeña = 0, mediana = 0, grande = 0, nd = 0;
+    companies.forEach((c) => {
+      const hc = parseInt(c.headcount || "0");
+      if (!hc) nd++;
+      else if (hc < 50) pequeña++;
+      else if (hc <= 200) mediana++;
+      else grande++;
+    });
+
+    return { total, sectors, sizes: { pequeña, mediana, grande, nd } };
+  }, [filteredPositions]);
+
   useEffect(() => {
     if (isAdmin) {
       return;
@@ -484,6 +515,29 @@ export default function EstudioPage() {
     );
   }
 
+  function exportAdminGradosExcel(snapshotLabel: string, grados: typeof adminPositionsByGrado) {
+    if (grados.length === 0) {
+      setAdminMessage("No hay data de grados para exportar.");
+      return;
+    }
+    const sheetRows = grados.map((g) => ({
+      Grado: g.nivel,
+      Empresas: g.empresas,
+      Observaciones: g.obs,
+      Min: g.min,
+      P25: g.p25,
+      P50: g.p50,
+      P75: g.p75,
+      P90: g.p90,
+      Max: g.max,
+      Promedio: g.promedio,
+    }));
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Por grados");
+    XLSX.writeFile(workbook, `grados-${sanitizeFileSegment(snapshotLabel)}.xlsx`);
+  }
+
   if (isAdmin) {
     const selectedAdminSnapshot = adminSnapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? null;
     const availableAdminCargos = adminPositionsByCargo.map((entry) => entry.title);
@@ -602,6 +656,63 @@ export default function EstudioPage() {
             </section>
           ) : (
             <>
+              {/* Company summary */}
+              <section className="surface-card rounded-[2rem] p-5 md:p-6">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="eyebrow mb-1">Muestra</div>
+                    <h2 className="font-display text-lg font-bold text-slate-900">
+                      {adminCompanySummary.total} empresa{adminCompanySummary.total !== 1 ? "s" : ""} seleccionadas
+                      {hasActiveFilters && <span className="ml-2 text-sm font-normal text-slate-500">con filtros activos</span>}
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_16rem]">
+                  {/* Sector breakdown */}
+                  <div>
+                    <p className="mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-400">Por sector</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {adminCompanySummary.sectors.map((s) => (
+                        <span key={s.sector} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs">
+                          <span className="font-semibold text-slate-800">{s.sector}</span>
+                          <span className="text-slate-500">{s.count}</span>
+                          <span className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[0.65rem] font-bold text-teal-700">{s.pct}%</span>
+                        </span>
+                      ))}
+                      {adminCompanySummary.sectors.length === 0 && (
+                        <span className="text-sm text-slate-400">Sin información de sector</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Size breakdown */}
+                  <div>
+                    <p className="mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-400">Por tamaño</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: "Pequeña", key: "pequeña" as const, color: "text-teal-700", bg: "bg-teal-50" },
+                        { label: "Mediana", key: "mediana" as const, color: "text-indigo-700", bg: "bg-indigo-50" },
+                        { label: "Grande", key: "grande" as const, color: "text-amber-700", bg: "bg-amber-50" },
+                      ].map(({ label, key, color, bg }) => {
+                        const count = adminCompanySummary.sizes[key];
+                        const pct = adminCompanySummary.total ? Math.round((count / adminCompanySummary.total) * 100) : 0;
+                        return (
+                          <div key={key} className={`rounded-[1rem] ${bg} px-3 py-2.5 text-center`}>
+                            <div className={`text-[0.65rem] font-bold uppercase tracking-wide ${color}`}>{label}</div>
+                            <div className={`mt-0.5 font-display text-xl font-bold ${color}`}>{count}</div>
+                            <div className="text-[0.65rem] text-slate-500">{pct}%</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {adminCompanySummary.sizes.nd > 0 && (
+                      <p className="mt-1.5 text-[0.65rem] text-slate-400">{adminCompanySummary.sizes.nd} sin headcount registrado</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+
               {/* View toggle */}
               <div className="flex gap-1.5 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60 self-start">
                 <button
@@ -765,7 +876,16 @@ export default function EstudioPage() {
                       <div className="eyebrow mb-2">Compensación total mensualizada</div>
                       <h2 className="font-display text-2xl font-bold text-slate-900">Percentiles por grado</h2>
                     </div>
-                    {hasActiveFilters && <div className="pill">Filtrado</div>}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {hasActiveFilters && <div className="pill">Filtrado</div>}
+                      <button
+                        type="button"
+                        onClick={() => exportAdminGradosExcel(selectedAdminSnapshot?.label || "corte", adminPositionsByGrado)}
+                        className="btn btn-secondary"
+                      >
+                        Exportar Excel
+                      </button>
+                    </div>
                   </div>
 
                   {adminPositionsByGrado.length === 0 ? (
