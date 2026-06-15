@@ -736,22 +736,38 @@ export default function DataPage() {
     });
   }
 
-  function addRow() {
+  const [cargoPickerOpen, setCargoPickerOpen] = useState(false);
+
+  function addRow(prefill?: { departamento: string; tituloCargo: string }) {
     if (!selectedSnapshotId) {
       showNotification("Selecciona una actualización asignada por el admin antes de agregar cargos");
       return;
     }
 
     const newRow = empty(rows.length || 0);
-    // add the new row at the top and expand it + focus its title input
+    if (prefill) {
+      newRow.departamento = prefill.departamento;
+      newRow.tituloCargo = prefill.tituloCargo;
+    }
     setRows((r) => [newRow, ...r]);
     setExpanded((s) => ({ ...s, [newRow.id]: true }));
-    // focus after next paint
     setTimeout(() => {
       try {
         titleRefs.current[newRow.id]?.focus();
       } catch {}
     }, 50);
+  }
+
+  function openCargoPicker() {
+    if (!selectedSnapshotId) {
+      showNotification("Selecciona una actualización asignada por el admin antes de agregar cargos");
+      return;
+    }
+    if (cargosConfigured) {
+      setCargoPickerOpen(true);
+    } else {
+      addRow();
+    }
   }
 
   function removeRow(i: number) {
@@ -1110,7 +1126,7 @@ export default function DataPage() {
                         <Save className="h-4 w-4" />
                         Guardar
                       </button>
-                      <button onClick={addRow} className="btn btn-primary" disabled={cargosUnconfigured}>
+                      <button onClick={openCargoPicker} className="btn btn-primary" disabled={cargosUnconfigured}>
                         <Plus className="h-4 w-4" />
                         Agregar cargo
                       </button>
@@ -1137,9 +1153,9 @@ export default function DataPage() {
                   : "Si aún no ves actualizaciones disponibles, solicita al admin que cree o sincronice las actualizaciones globales. Cuando la actualización exista, podrás agregar cargos y completar la información."}
               </p>
               {!isReadOnlyDataView && !cargosUnconfigured ? (
-                <button onClick={addRow} className="btn btn-primary mt-6">
+                <button onClick={openCargoPicker} className="btn btn-primary mt-6">
                   <Plus className="h-4 w-4" />
-                  Crear primer cargo
+                  {cargosConfigured ? "Seleccionar cargo" : "Crear primer cargo"}
                 </button>
               ) : null}
             </div>
@@ -1887,6 +1903,70 @@ export default function DataPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {cargoPickerOpen && snapshotCargos && snapshotCargos.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setCargoPickerOpen(false)} />
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 flex max-h-[80vh] w-full max-w-lg flex-col rounded-[1.75rem] p-6">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <div className="eyebrow mb-1">Corte seleccionado</div>
+                <h2 className="font-display text-xl font-bold text-slate-900">Seleccionar cargo</h2>
+                <p className="mt-1 text-sm text-slate-500">Elige el cargo que deseas agregar</p>
+              </div>
+              <button type="button" aria-label="Cerrar" onClick={() => setCargoPickerOpen(false)} className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-4 pr-1">
+              {availableDepts.map((dept) => {
+                const cargosEnDept = availableCargosByDept[dept] ?? [];
+                return (
+                  <div key={dept}>
+                    <div className="mb-2 text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">{dept}</div>
+                    <div className="space-y-1.5">
+                      {cargosEnDept.map((titulo) => {
+                        const yaAgregado = rows.some(
+                          (r) => r.departamento === dept && r.tituloCargo === titulo
+                        );
+                        return (
+                          <button
+                            key={titulo}
+                            type="button"
+                            onClick={() => {
+                              addRow({ departamento: dept, tituloCargo: titulo });
+                              setCargoPickerOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-[0.9rem] border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
+                              yaAgregado
+                                ? "border-teal-200 bg-teal-50 text-teal-700"
+                                : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"
+                            }`}
+                          >
+                            <span>{titulo}</span>
+                            {yaAgregado && (
+                              <span className="ml-3 shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[0.65rem] font-bold text-teal-700">
+                                ya agregado
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <button type="button" onClick={() => setCargoPickerOpen(false)} className="btn btn-secondary w-full">
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
