@@ -98,6 +98,35 @@ const VARIABLE_BONUS_TYPES = [
   { value: "commission", label: "Por comisiones" },
 ] as const;
 
+function freqToMonthly(freq?: string): number {
+  switch (freq) {
+    case "biweekly": return 2;
+    case "monthly": return 1;
+    case "bimonthly": return 0.5;
+    case "quarterly": return 1 / 3;
+    case "semiannual": return 1 / 6;
+    case "annual": return 1 / 12;
+    default: return 1;
+  }
+}
+
+function freqToAnnual(freq?: string): number {
+  switch (freq) {
+    case "biweekly": return 24;
+    case "monthly": return 12;
+    case "bimonthly": return 6;
+    case "quarterly": return 4;
+    case "semiannual": return 2;
+    case "annual": return 1;
+    default: return 12;
+  }
+}
+
+function fmtMoney(n: number) {
+  if (!n) return "—";
+  return `$ ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
 const empty = (i: number): ExtendedMarketPosition => ({
   id: `r-${Date.now()}-${i}`,
   departamento: "",
@@ -647,6 +676,34 @@ export default function DataPage() {
     navigator.clipboard?.writeText(JSON.stringify(rows, null, 2));
     showNotification("JSON copiado al portapapeles");
   }
+
+  const modalSaveRow = modal.type === "save" && modal.id
+    ? rows.find((r) => r.id === modal.id) ?? null
+    : null;
+
+  const modalMonthlyFixed = modalSaveRow
+    ? Math.round(
+        (modalSaveRow.sueldoBasico || 0) * freqToMonthly(modalSaveRow.sueldoBasicoFreq) +
+        (modalSaveRow.bonoAlimentacion || 0) * freqToMonthly(modalSaveRow.bonoAlimentacionFreq) +
+        (modalSaveRow.bonoMovilizacion || 0) * freqToMonthly(modalSaveRow.bonoMovilizacionFreq) +
+        (modalSaveRow.additionalFixedPayments || []).reduce(
+          (s, p) => s + (p.amount || 0) * freqToMonthly(p.freq), 0
+        )
+      )
+    : 0;
+
+  const modalAnnualVariable = modalSaveRow
+    ? Math.round(
+        (modalSaveRow.bonoDesempeno || 0) * freqToAnnual(modalSaveRow.bonoDesempenoFreq) +
+        (modalSaveRow.comisiones || 0) * freqToAnnual(modalSaveRow.comisionesFreq) +
+        (modalSaveRow.pagoVariableOtros || 0) * freqToAnnual(modalSaveRow.pagoVariableOtrosFreq) +
+        (modalSaveRow.additionalVariablePayments || []).reduce(
+          (s, p) => s + (p.amount || 0) * freqToAnnual(p.freq), 0
+        )
+      )
+    : 0;
+
+  const modalAnnualTotal = modalMonthlyFixed * 12 + modalAnnualVariable;
 
   return (
     <main className="page-wrap">
@@ -1366,12 +1423,36 @@ export default function DataPage() {
       {modal.type && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setModal({ type: null })} />
-          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-md rounded-[1.75rem] p-6">
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-lg rounded-[1.75rem] p-6">
             {modal.type === "save" && (
               <div>
-                <div className="eyebrow mb-2">Confirmar</div>
-                <h3 className="font-display text-2xl font-bold text-slate-900">Guardar cargo</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">¿Deseas guardar los cambios de este cargo en la actualización seleccionada?</p>
+                <div className="eyebrow mb-2">Resumen del cargo</div>
+                <h3 className="font-display text-2xl font-bold text-slate-900">
+                  {modalSaveRow?.tituloCargo || "Cargo sin nombre"}
+                </h3>
+                {modalSaveRow?.nivelOrganizacional && (
+                  <p className="mt-1 text-sm text-slate-500">{modalSaveRow.nivelOrganizacional}</p>
+                )}
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="metric-tile">
+                    <div className="metric-label">Monto fijo mensual</div>
+                    <div className="font-display mt-2 text-xl font-bold text-teal-700">
+                      {fmtMoney(modalMonthlyFixed)}
+                    </div>
+                  </div>
+                  <div className="metric-tile">
+                    <div className="metric-label">Total anual</div>
+                    <div className="font-display mt-2 text-xl font-bold text-amber-700">
+                      {fmtMoney(modalAnnualTotal)}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  El total anual incluye todos los conceptos fijos (×12) y variables anualizado según su frecuencia.
+                </p>
+
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
                   <button onClick={() => { if (modal.id) { void saveRowById(modal.id); } setModal({ type: null }); }} className="btn btn-primary">Guardar</button>
