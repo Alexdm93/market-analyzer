@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Building2, CalendarDays, ChevronDown, ChevronRight, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
@@ -61,6 +61,16 @@ type SectorEntry = {
   classifications: string[];
 };
 
+type CargoEntry = {
+  departamento: string;
+  cargos: string[];
+};
+
+type SnapshotCargoItem = {
+  departamento: string;
+  tituloCargo: string;
+};
+
 function getTodayDate() {
   return new Date().toISOString().split("T")[0];
 }
@@ -85,6 +95,7 @@ export default function AdminPage() {
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [openCortes, setOpenCortes] = useState(false);
   const [openSectors, setOpenSectors] = useState(false);
+  const [openCargos, setOpenCargos] = useState(false);
   const [openUsers, setOpenUsers] = useState(false);
   const [sectors, setSectors] = useState<SectorEntry[]>([]);
   const [isLoadingSectors, setIsLoadingSectors] = useState(true);
@@ -92,6 +103,16 @@ export default function AdminPage() {
   const [newSectorName, setNewSectorName] = useState("");
   const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>({});
   const [newClassification, setNewClassification] = useState<Record<string, string>>({});
+  const [masterCargos, setMasterCargos] = useState<CargoEntry[]>([]);
+  const [isLoadingCargos, setIsLoadingCargos] = useState(true);
+  const [isSavingCargos, setIsSavingCargos] = useState(false);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
+  const [newCargoByDept, setNewCargoByDept] = useState<Record<string, string>>({});
+  const [snapshotCargosModal, setSnapshotCargosModal] = useState<{ snapshotId: string; label: string } | null>(null);
+  const [snapshotCargosDraft, setSnapshotCargosDraft] = useState<Set<string> | null>(null);
+  const [isLoadingSnapshotCargos, setIsLoadingSnapshotCargos] = useState(false);
+  const [isSavingSnapshotCargos, setIsSavingSnapshotCargos] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -192,21 +213,22 @@ export default function AdminPage() {
   useEffect(() => {
     let ignore = false;
 
-    async function loadSectors() {
+    async function loadConfig() {
       try {
         const response = await fetch("/api/admin/config", { cache: "no-store" });
-        const payload = (await response.json().catch(() => null)) as { sectors?: SectorEntry[] } | null;
-        if (!ignore && Array.isArray(payload?.sectors)) {
-          setSectors(payload.sectors);
+        const payload = (await response.json().catch(() => null)) as { sectors?: SectorEntry[]; cargos?: CargoEntry[] } | null;
+        if (!ignore) {
+          if (Array.isArray(payload?.sectors)) setSectors(payload.sectors);
+          if (Array.isArray(payload?.cargos)) setMasterCargos(payload.cargos);
         }
       } catch {
         // ignore
       } finally {
-        if (!ignore) setIsLoadingSectors(false);
+        if (!ignore) { setIsLoadingSectors(false); setIsLoadingCargos(false); }
       }
     }
 
-    void loadSectors();
+    void loadConfig();
     return () => { ignore = true; };
   }, []);
 
@@ -265,6 +287,131 @@ export default function AdminPage() {
         : s
     );
     void saveSectors(next);
+  }
+
+  async function saveCargos(next: CargoEntry[]) {
+    setIsSavingCargos(true);
+    try {
+      const response = await fetch("/api/admin/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cargos: next }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) throw new Error(payload?.message ?? "No se pudo guardar.");
+      setMasterCargos(next);
+      setStatusMessage(payload?.message ?? "Cargos guardados.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar los cargos.");
+    } finally {
+      setIsSavingCargos(false);
+    }
+  }
+
+  function addDept() {
+    const name = newDeptName.trim();
+    if (!name) return;
+    if (masterCargos.some((d) => d.departamento.toLowerCase() === name.toLowerCase())) {
+      setErrorMessage("Ese departamento ya existe.");
+      return;
+    }
+    setNewDeptName("");
+    void saveCargos([...masterCargos, { departamento: name, cargos: [] }]);
+  }
+
+  function removeDept(dept: string) {
+    if (!window.confirm(`¿Eliminar el departamento "${dept}" y todos sus cargos?`)) return;
+    void saveCargos(masterCargos.filter((d) => d.departamento !== dept));
+  }
+
+  function addCargo(dept: string) {
+    const value = (newCargoByDept[dept] ?? "").trim();
+    if (!value) return;
+    const next = masterCargos.map((d) =>
+      d.departamento === dept && !d.cargos.includes(value)
+        ? { ...d, cargos: [...d.cargos, value] }
+        : d
+    );
+    setNewCargoByDept((c) => ({ ...c, [dept]: "" }));
+    void saveCargos(next);
+  }
+
+  function removeCargo(dept: string, cargo: string) {
+    const next = masterCargos.map((d) =>
+      d.departamento === dept
+        ? { ...d, cargos: d.cargos.filter((c) => c !== cargo) }
+        : d
+    );
+    void saveCargos(next);
+  }
+
+  async function openSnapshotCargosModal(snapshotId: string, label: string) {
+    setSnapshotCargosModal({ snapshotId, label });
+    setIsLoadingSnapshotCargos(true);
+    setSnapshotCargosDraft(null);
+    try {
+      const response = await fetch(`/api/admin/config/snapshot-cargos?snapshotId=${encodeURIComponent(snapshotId)}`, { cache: "no-store" });
+      const payload = (await response.json().catch(() => null)) as { cargos?: SnapshotCargoItem[] } | null;
+      const loaded: SnapshotCargoItem[] = Array.isArray(payload?.cargos) ? payload.cargos : [];
+      setSnapshotCargosDraft(new Set(loaded.map((c) => `${c.departamento}::${c.tituloCargo}`)));
+    } catch {
+      setSnapshotCargosDraft(new Set());
+    } finally {
+      setIsLoadingSnapshotCargos(false);
+    }
+  }
+
+  function closeSnapshotCargosModal() {
+    setSnapshotCargosModal(null);
+    setSnapshotCargosDraft(null);
+  }
+
+  function toggleSnapshotCargo(dept: string, cargo: string) {
+    const key = `${dept}::${cargo}`;
+    setSnapshotCargosDraft((prev) => {
+      if (!prev) return prev;
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleAllDeptCargos(dept: string, deptCargos: string[]) {
+    const allSelected = deptCargos.every((c) => snapshotCargosDraft?.has(`${dept}::${c}`));
+    setSnapshotCargosDraft((prev) => {
+      if (!prev) return prev;
+      const next = new Set(prev);
+      deptCargos.forEach((c) => {
+        if (allSelected) next.delete(`${dept}::${c}`);
+        else next.add(`${dept}::${c}`);
+      });
+      return next;
+    });
+  }
+
+  async function saveSnapshotCargos() {
+    if (!snapshotCargosModal || !snapshotCargosDraft) return;
+    setIsSavingSnapshotCargos(true);
+    try {
+      const cargos: SnapshotCargoItem[] = [...snapshotCargosDraft].map((key) => {
+        const idx = key.indexOf("::");
+        return { departamento: key.slice(0, idx), tituloCargo: key.slice(idx + 2) };
+      });
+      const response = await fetch("/api/admin/config/snapshot-cargos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId: snapshotCargosModal.snapshotId, cargos }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) throw new Error(payload?.message ?? "No se pudo guardar.");
+      setStatusMessage(payload?.message ?? "Cargos del corte guardados.");
+      closeSnapshotCargosModal();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar los cargos del corte.");
+    } finally {
+      setIsSavingSnapshotCargos(false);
+    }
   }
 
   async function reloadSnapshots() {
@@ -730,6 +877,10 @@ export default function AdminPage() {
                           <CalendarDays className="h-4 w-4" />
                           Renombrar
                         </button>
+                        <button type="button" onClick={() => void openSnapshotCargosModal(snapshot.id, snapshot.label)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
+                          <ClipboardList className="h-4 w-4" />
+                          Cargos
+                        </button>
                         <button type="button" onClick={() => void handleDeleteSnapshot(snapshot.id)} className="btn btn-danger" disabled={isMutatingSnapshot}>
                           <Trash2 className="h-4 w-4" />
                           Eliminar
@@ -877,6 +1028,136 @@ export default function AdminPage() {
           )}
         </section>
 
+        {/* Cargo management */}
+        <section className="surface-card overflow-hidden rounded-[1.75rem]">
+          <button
+            type="button"
+            onClick={() => setOpenCargos((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-full bg-violet-50 p-2.5 text-violet-700">
+                <ClipboardList size={16} aria-hidden />
+              </div>
+              <h2 className="font-display text-base font-bold text-slate-900">Cargos</h2>
+              {masterCargos.length > 0 && (
+                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[0.65rem] font-bold text-violet-800">
+                  {masterCargos.reduce((sum, d) => sum + d.cargos.length, 0)}
+                </span>
+              )}
+            </div>
+            {openCargos ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+          </button>
+
+          {openCargos && (
+          <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+          <p className="text-xs leading-5 text-slate-500">
+            Administra la lista maestra de departamentos y cargos. Se utilizan en la carga de data de empresas y al definir los cargos de cada corte.
+          </p>
+
+          <div className="mt-3 flex gap-2 items-end">
+            <div className="flex-1">
+              <label htmlFor="newDeptName" className="field-label">Nuevo departamento</label>
+              <input
+                id="newDeptName"
+                type="text"
+                value={newDeptName}
+                onChange={(e) => setNewDeptName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDept(); } }}
+                className="field"
+                placeholder="Ej. Innovación"
+                disabled={isSavingCargos}
+              />
+            </div>
+            <button type="button" onClick={addDept} className="btn btn-primary shrink-0" disabled={!newDeptName.trim() || isSavingCargos}>
+              <Plus className="h-4 w-4" />
+              Agregar departamento
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {isLoadingCargos ? (
+              <div className="text-xs text-slate-500">Cargando cargos...</div>
+            ) : masterCargos.length === 0 ? (
+              <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-xs text-slate-500">
+                No hay departamentos definidos.
+              </div>
+            ) : masterCargos.map((dept) => {
+              const isExpanded = expandedDepts[dept.departamento] ?? false;
+              return (
+                <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
+                  <div className="flex items-center justify-between gap-2 px-4 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedDepts((s) => ({ ...s, [dept.departamento]: !isExpanded }))}
+                      className="flex flex-1 items-center gap-2 text-left"
+                    >
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                      <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
+                      <span className="text-xs text-slate-400">{dept.cargos.length} cargos</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeDept(dept.departamento)}
+                      className="btn btn-danger btn-xs"
+                      disabled={isSavingCargos}
+                      aria-label={`Eliminar departamento ${dept.departamento}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="border-t border-slate-200/60 px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {dept.cargos.map((cargo) => (
+                          <div key={cargo} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
+                            {cargo}
+                            <button
+                              type="button"
+                              onClick={() => removeCargo(dept.departamento, cargo)}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
+                              aria-label={`Eliminar cargo ${cargo}`}
+                              disabled={isSavingCargos}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {dept.cargos.length === 0 && (
+                          <span className="text-xs text-slate-400">Sin cargos aún.</span>
+                        )}
+                      </div>
+                      <div className="mt-2.5 flex gap-2">
+                        <input
+                          type="text"
+                          value={newCargoByDept[dept.departamento] ?? ""}
+                          onChange={(e) => setNewCargoByDept((c) => ({ ...c, [dept.departamento]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCargo(dept.departamento); } }}
+                          className="field flex-1 py-1 text-xs"
+                          placeholder="Nuevo cargo"
+                          disabled={isSavingCargos}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => addCargo(dept.departamento)}
+                          className="btn btn-secondary btn-xs"
+                          disabled={!(newCargoByDept[dept.departamento] ?? "").trim() || isSavingCargos}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Agregar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          </div>
+          )}
+        </section>
+
         <section className="surface-card overflow-hidden rounded-[1.75rem]">
           <button
             type="button"
@@ -996,6 +1277,114 @@ export default function AdminPage() {
           )}
         </section>
       </div>
+
+      {snapshotCargosModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={closeSnapshotCargosModal}
+        >
+          <div
+            className="surface-card relative z-10 w-full max-w-2xl rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 shrink-0">
+              <div>
+                <h2 className="font-display text-xl font-bold text-slate-900">Cargos del corte</h2>
+                <p className="mt-1 text-sm text-slate-600">{snapshotCargosModal.label}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSnapshotCargosModal}
+                className="shrink-0 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                aria-label="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 flex-1 overflow-y-auto pr-1">
+              {isLoadingSnapshotCargos ? (
+                <div className="text-sm text-slate-500">Cargando cargos...</div>
+              ) : masterCargos.length === 0 ? (
+                <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-white/70 px-4 py-6 text-sm text-slate-500">
+                  No hay cargos en la lista maestra. Agrégalos en la sección &quot;Cargos&quot;.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {masterCargos.map((dept) => {
+                    const modalKey = `modal-${dept.departamento}`;
+                    const isExpanded = expandedDepts[modalKey] ?? false;
+                    const allSelected = dept.cargos.length > 0 && dept.cargos.every((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`));
+                    const selectedCount = dept.cargos.filter((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`)).length;
+                    return (
+                      <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
+                        <div className="flex items-center gap-2 px-4 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedDepts((s) => ({ ...s, [modalKey]: !isExpanded }))}
+                            className="flex flex-1 items-center gap-2 text-left"
+                          >
+                            {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                            <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
+                            <span className="text-xs text-slate-400">{selectedCount}/{dept.cargos.length}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleAllDeptCargos(dept.departamento, dept.cargos)}
+                            className="shrink-0 text-xs text-violet-600 hover:text-violet-800"
+                          >
+                            {allSelected ? "Quitar todos" : "Seleccionar todos"}
+                          </button>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="border-t border-slate-200/60 px-4 py-3">
+                            <div className="space-y-1.5">
+                              {dept.cargos.map((cargo) => {
+                                const key = `${dept.departamento}::${cargo}`;
+                                const checked = snapshotCargosDraft?.has(key) ?? false;
+                                return (
+                                  <label key={cargo} className="flex items-center gap-2.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => toggleSnapshotCargo(dept.departamento, cargo)}
+                                      className="h-4 w-4 rounded border-slate-300 accent-violet-600"
+                                    />
+                                    <span className="text-sm text-slate-700">{cargo}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-between gap-3 shrink-0 border-t border-slate-200/60 pt-4">
+              <span className="text-xs text-slate-500">{snapshotCargosDraft?.size ?? 0} cargos seleccionados</span>
+              <div className="flex gap-3">
+                <button type="button" onClick={closeSnapshotCargosModal} className="btn btn-secondary">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveSnapshotCargos()}
+                  disabled={isSavingSnapshotCargos || isLoadingSnapshotCargos}
+                  className="btn btn-primary"
+                >
+                  {isSavingSnapshotCargos ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                  {isSavingSnapshotCargos ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isCreateUserModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-4 md:py-5">

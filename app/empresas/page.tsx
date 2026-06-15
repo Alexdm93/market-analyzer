@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import * as XLSX from "xlsx";
-import { Building2, CalendarDays, CheckCircle2, Download, LoaderCircle, Plus } from "lucide-react";
+import { Building2, CalendarDays, CheckCircle2, Download, LoaderCircle, Plus, Search, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import {
   COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
@@ -64,6 +64,8 @@ export default function EmpresasPage() {
   const [snapshotCompanies, setSnapshotCompanies] = useState<SnapshotCompanyActivity[]>([]);
   const [isLoadingSnapshotCompanies, setIsLoadingSnapshotCompanies] = useState(true);
   const [snapshotErrorMessage, setSnapshotErrorMessage] = useState("");
+  const [companySearch, setCompanySearch] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const classificationOptions = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[companyEconomicSector] ?? [];
 
   useEffect(() => {
@@ -528,12 +530,24 @@ export default function EmpresasPage() {
         </section>
 
         <section className="surface-card rounded-[2rem] p-6 md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-slate-100 p-3 text-slate-700">
-              <Building2 size={18} aria-hidden />
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-slate-100 p-3 text-slate-700">
+                <Building2 size={18} aria-hidden />
+              </div>
+              <div>
+                <h2 className="font-display text-2xl font-bold text-slate-900">Listado de empresas</h2>
+              </div>
             </div>
-            <div>
-              <h2 className="font-display text-2xl font-bold text-slate-900">Listado de empresas</h2>
+            <div className="relative min-w-[14rem] max-w-xs flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden />
+              <input
+                type="search"
+                value={companySearch}
+                onChange={(e) => setCompanySearch(e.target.value)}
+                placeholder="Buscar empresa..."
+                className="field pl-9 py-2 text-sm"
+              />
             </div>
           </div>
 
@@ -543,23 +557,129 @@ export default function EmpresasPage() {
             <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-sm text-slate-500">
               No hay empresas registradas todavía.
             </div>
-          ) : (
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {companies.map((company) => (
-                <article key={company.id} className="metric-tile">
-                  <div className="font-display text-lg font-bold text-slate-900 md:text-[1rem]">{company.name}</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">{company.description || "Sin descripción registrada."}</div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                    <span className="pill">{company.economicSector || "Sin sector"}</span>
-                    <span className="pill">{company.classification || "Sin clasificación"}</span>
-                  </div>
-                  <div className="mt-2 text-xs text-slate-500 break-all">{company.id}</div>
-                </article>
-              ))}
-            </div>
-          )}
+          ) : (() => {
+            const filtered = companySearch.trim()
+              ? companies.filter((c) =>
+                  c.name.toLowerCase().includes(companySearch.toLowerCase()) ||
+                  (c.description ?? "").toLowerCase().includes(companySearch.toLowerCase()) ||
+                  (c.economicSector ?? "").toLowerCase().includes(companySearch.toLowerCase())
+                )
+              : companies;
+            return filtered.length === 0 ? (
+              <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-sm text-slate-500">
+                No se encontraron empresas para "{companySearch}".
+              </div>
+            ) : (
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((company) => (
+                  <article
+                    key={company.id}
+                    className="metric-tile cursor-pointer hover:ring-2 hover:ring-slate-300 transition-shadow"
+                    onClick={() => setSelectedCompany(company)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedCompany(company); }}
+                  >
+                    <div className="font-display text-lg font-bold text-slate-900 md:text-[1rem]">{company.name}</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">{company.description || "Sin descripción registrada."}</div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                      <span className="pill">{company.economicSector || "Sin sector"}</span>
+                      <span className="pill">{company.classification || "Sin clasificación"}</span>
+                    </div>
+                    <div className="mt-2 text-xs text-slate-500 break-all">{company.id}</div>
+                  </article>
+                ))}
+              </div>
+            );
+          })()}
         </section>
       </div>
+
+      {selectedCompany && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedCompany(null)}
+        >
+          <div
+            className="surface-card relative w-full max-w-lg rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="font-display text-2xl font-bold text-slate-900">{selectedCompany.name}</div>
+                {selectedCompany.description ? (
+                  <p className="mt-1 text-sm text-slate-600">{selectedCompany.description}</p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCompany(null)}
+                className="shrink-0 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                aria-label="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Sector económico</div>
+                  <div className="mt-1 font-medium text-slate-900">{selectedCompany.economicSector || "—"}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Clasificación</div>
+                  <div className="mt-1 font-medium text-slate-900">{selectedCompany.classification || "—"}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Headcount</div>
+                  <div className="mt-1 font-medium text-slate-900">{selectedCompany.headcount || "—"}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Facturación USD</div>
+                  <div className="mt-1 font-medium text-slate-900">{selectedCompany.revenueUSD || "—"}</div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Localidad</div>
+                <div className="mt-1 font-medium text-slate-900">{selectedCompany.locality || "—"}</div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Contacto RRHH</div>
+                <div className="mt-1 font-medium text-slate-900">{selectedCompany.hrName || "—"}</div>
+                {selectedCompany.hrEmail ? (
+                  <div className="mt-0.5 text-slate-600">{selectedCompany.hrEmail}</div>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Fecha de registro</div>
+                <div className="mt-1 font-medium text-slate-900">{new Date(selectedCompany.createdAt).toLocaleDateString("es-VE")}</div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">ID</div>
+                <div className="mt-1 font-mono text-xs text-slate-600 break-all">{selectedCompany.id}</div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedCompany(null)}
+                className="btn btn-secondary"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

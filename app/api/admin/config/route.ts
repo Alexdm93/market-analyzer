@@ -5,13 +5,20 @@ import {
   ECONOMIC_SECTOR_OPTIONS,
   COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
 } from "@/lib/company";
+import { JOB_TITLES_BY_DEPARTMENT } from "@/data/jobTitles";
 
 export type SectorEntry = {
   name: string;
   classifications: string[];
 };
 
-const CONFIG_KEY = "sectors";
+export type CargoEntry = {
+  departamento: string;
+  cargos: string[];
+};
+
+const SECTORS_KEY = "sectors";
+const CARGOS_KEY = "cargos";
 
 function defaultSectors(): SectorEntry[] {
   return (ECONOMIC_SECTOR_OPTIONS as readonly string[]).map((name) => ({
@@ -20,23 +27,42 @@ function defaultSectors(): SectorEntry[] {
   }));
 }
 
+function defaultCargos(): CargoEntry[] {
+  return Object.entries(JOB_TITLES_BY_DEPARTMENT).map(([departamento, cargos]) => ({
+    departamento,
+    cargos,
+  }));
+}
+
 export async function GET() {
+  let sectors: SectorEntry[] = defaultSectors();
+  let cargos: CargoEntry[] = defaultCargos();
+
   try {
-    const row = await prisma.globalConfig.findUnique({ where: { key: CONFIG_KEY } });
-    if (row?.value) {
-      const parsed = JSON.parse(row.value) as SectorEntry[];
-      if (Array.isArray(parsed)) {
-        return Response.json({ sectors: parsed });
-      }
+    const [sectorsRow, cargosRow] = await Promise.all([
+      prisma.globalConfig.findUnique({ where: { key: SECTORS_KEY } }),
+      prisma.globalConfig.findUnique({ where: { key: CARGOS_KEY } }),
+    ]);
+
+    if (sectorsRow?.value) {
+      const parsed = JSON.parse(sectorsRow.value) as SectorEntry[];
+      if (Array.isArray(parsed)) sectors = parsed;
+    }
+
+    if (cargosRow?.value) {
+      const parsed = JSON.parse(cargosRow.value) as CargoEntry[];
+      if (Array.isArray(parsed)) cargos = parsed;
     }
   } catch {
     // GlobalConfig table may not exist yet — fall back to hardcoded
   }
-  return Response.json({ sectors: defaultSectors() });
+
+  return Response.json({ sectors, cargos });
 }
 
-type UpdateSectorsBody = {
+type UpdateConfigBody = {
   sectors?: SectorEntry[];
+  cargos?: CargoEntry[];
 };
 
 export async function PUT(request: Request) {
@@ -50,20 +76,42 @@ export async function PUT(request: Request) {
     return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
   }
 
-  const body = (await request.json()) as UpdateSectorsBody;
-  const sectors = body.sectors;
+  const body = (await request.json()) as UpdateConfigBody;
 
-  if (!Array.isArray(sectors)) {
-    return Response.json({ message: "Formato inválido." }, { status: 400 });
+  if (!Array.isArray(body.sectors) && !Array.isArray(body.cargos)) {
+    return Response.json({ message: "Nada que guardar." }, { status: 400 });
   }
 
   try {
-    await prisma.globalConfig.upsert({
-      where: { key: CONFIG_KEY },
-      create: { key: CONFIG_KEY, value: JSON.stringify(sectors) },
-      update: { value: JSON.stringify(sectors) },
-    });
-    return Response.json({ message: "Sectores guardados correctamente." });
+    const operations: Promise<unknown>[] = [];
+
+    if (Array.isArray(body.sectors)) {
+      operations.push(
+        prisma.globalConfig.upsert({
+          where: { key: SECTORS_KEY },
+          create: { key: SECTORS_KEY, value: JSON.stringify(body.sectors) },
+          update: { value: JSON.stringify(body.sectors) },
+        })
+      );
+    }
+
+    if (Array.isArray(body.cargos)) {
+      operations.push(
+        prisma.globalConfig.upsert({
+          where: { key: CARGOS_KEY },
+          create: { key: CARGOS_KEY, value: JSON.stringify(body.cargos) },
+          update: { value: JSON.stringify(body.cargos) },
+        })
+      );
+    }
+
+    await Promise.all(operations);
+
+    const messages: string[] = [];
+    if (body.sectors) messages.push("Sectores guardados");
+    if (body.cargos) messages.push("Cargos guardados");
+
+    return Response.json({ message: `${messages.join(" y ")} correctamente.` });
   } catch {
     return Response.json(
       { message: "No se pudo guardar. Ejecuta la migración pendiente con: npx prisma migrate dev" },
