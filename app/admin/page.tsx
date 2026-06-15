@@ -83,9 +83,9 @@ export default function AdminPage() {
   const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
   const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [openCortes, setOpenCortes] = useState(true);
-  const [openSectors, setOpenSectors] = useState(true);
-  const [openUsers, setOpenUsers] = useState(true);
+  const [openCortes, setOpenCortes] = useState(false);
+  const [openSectors, setOpenSectors] = useState(false);
+  const [openUsers, setOpenUsers] = useState(false);
   const [sectors, setSectors] = useState<SectorEntry[]>([]);
   const [isLoadingSectors, setIsLoadingSectors] = useState(true);
   const [isSavingSectors, setIsSavingSectors] = useState(false);
