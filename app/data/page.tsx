@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
-import { DEPARTMENTS, JOB_TITLES_BY_DEPARTMENT, JOB_TITLES } from "@/data/jobTitles";
 import { type Snapshot, type ExchangeRate, type CompanyInfo, type RequiredPosition, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
@@ -268,6 +267,9 @@ export default function DataPage() {
   // start with no snapshot selected by default (user asked that "-- seleccionar --" shows nothing)
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
 
+  // cargos configured by admin for the selected snapshot
+  const [snapshotCargos, setSnapshotCargos] = useState<{ departamento: string; tituloCargo: string }[] | null>(null);
+
   // If no snapshot selected, show nothing (user requested empty view when "-- seleccionar --")
   const [rows, setRows] = useState<ExtendedMarketPosition[]>([]);
   const [nivelMin, setNivelMin] = useState<Record<string, string>>({});
@@ -454,6 +456,40 @@ export default function DataPage() {
     setSaveState("dirty");
     setLastSavedAt(null);
   }, [isReadOnlyDataView, rows, selectedSnapshotId, snapshots]);
+
+  useEffect(() => {
+    if (!selectedSnapshotId) {
+      setSnapshotCargos(null);
+      return;
+    }
+    let ignore = false;
+    fetch(`/api/admin/config/snapshot-cargos?snapshotId=${encodeURIComponent(selectedSnapshotId)}`, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((payload: { cargos?: { departamento: string; tituloCargo: string }[] } | null) => {
+        if (!ignore) setSnapshotCargos(Array.isArray(payload?.cargos) ? payload.cargos : []);
+      })
+      .catch(() => { if (!ignore) setSnapshotCargos([]); });
+    return () => { ignore = true; };
+  }, [selectedSnapshotId]);
+
+  const availableDepts = useMemo(() => {
+    if (!snapshotCargos) return [];
+    return [...new Set(snapshotCargos.map((c) => c.departamento))];
+  }, [snapshotCargos]);
+
+  const availableCargosByDept = useMemo(() => {
+    if (!snapshotCargos) return {} as Record<string, string[]>;
+    const map: Record<string, string[]> = {};
+    for (const c of snapshotCargos) {
+      if (!map[c.departamento]) map[c.departamento] = [];
+      map[c.departamento].push(c.tituloCargo);
+    }
+    return map;
+  }, [snapshotCargos]);
+
+  const cargosConfigured = snapshotCargos !== null && snapshotCargos.length > 0;
+  const cargosUnconfigured = snapshotCargos !== null && snapshotCargos.length === 0;
+
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   function toggleExpand(id: string) {
@@ -583,7 +619,7 @@ export default function DataPage() {
     setRows((prev) => {
       const next = [...prev];
       const current = next[i];
-      const titlesForDept = JOB_TITLES_BY_DEPARTMENT[dept] || [];
+      const titlesForDept = availableCargosByDept[dept] ?? [];
       next[i] = {
         ...current,
         departamento: dept,
@@ -752,8 +788,8 @@ export default function DataPage() {
 
   const availableCargosForDept = useMemo(() => {
     if (!newPosDept) return [];
-    return JOB_TITLES_BY_DEPARTMENT[newPosDept] ?? [];
-  }, [newPosDept]);
+    return availableCargosByDept[newPosDept] ?? [];
+  }, [newPosDept, availableCargosByDept]);
 
   async function addRequiredPosition() {
     if (!newPosDept || !newPosCargo || !selectedSnapshotId) return;
@@ -1070,7 +1106,7 @@ export default function DataPage() {
                         <Save className="h-4 w-4" />
                         Guardar
                       </button>
-                      <button onClick={addRow} className="btn btn-primary">
+                      <button onClick={addRow} className="btn btn-primary" disabled={cargosUnconfigured}>
                         <Plus className="h-4 w-4" />
                         Agregar cargo
                       </button>
@@ -1092,9 +1128,11 @@ export default function DataPage() {
               <p className="mt-3 text-sm leading-6 text-slate-600 md:text-[0.82rem]">
                 {isReadOnlyDataView
                   ? "No hay cargos cargados para esta actualización en la vista seleccionada."
+                  : cargosUnconfigured
+                  ? "El administrador aún no ha configurado los cargos para este corte. Contacta al administrador para que configure los cargos requeridos."
                   : "Si aún no ves actualizaciones disponibles, solicita al admin que cree o sincronice las actualizaciones globales. Cuando la actualización exista, podrás agregar cargos y completar la información."}
               </p>
-              {!isReadOnlyDataView ? (
+              {!isReadOnlyDataView && !cargosUnconfigured ? (
                 <button onClick={addRow} className="btn btn-primary mt-6">
                   <Plus className="h-4 w-4" />
                   Crear primer cargo
@@ -1156,7 +1194,7 @@ export default function DataPage() {
                               aria-label="Unidad organizacional o departamento"
                             >
                               <option value="">Seleccionar unidad</option>
-                              {DEPARTMENTS.map((d) => (
+                              {availableDepts.map((d) => (
                                 <option key={d} value={d}>{d}</option>
                               ))}
                             </select>
@@ -1172,7 +1210,7 @@ export default function DataPage() {
                               disabled={!r.departamento}
                             >
                               <option value="">Seleccionar cargo</option>
-                              {(r.departamento ? JOB_TITLES_BY_DEPARTMENT[r.departamento] ?? [] : JOB_TITLES).map((t) => (
+                              {(r.departamento ? availableCargosByDept[r.departamento] ?? [] : []).map((t: string) => (
                                 <option key={t} value={t}>{t}</option>
                               ))}
                             </select>
@@ -1727,7 +1765,7 @@ export default function DataPage() {
                       title="Departamento del cargo a documentar"
                     >
                       <option value="">Seleccionar departamento</option>
-                      {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                      {availableDepts.map((d) => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
                   <div>
