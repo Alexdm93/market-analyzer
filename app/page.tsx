@@ -141,10 +141,10 @@ function AdminDashboard() {
             <div className="flex flex-col gap-2 xl:self-end">
               {snapshots.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <label className="field-label mb-0 whitespace-nowrap">Corte:</label>
+                  <label className="field-label mb-0 whitespace-nowrap">Actualización:</label>
                   <select
-                    title="Seleccionar corte"
-                    aria-label="Seleccionar corte"
+                    title="Seleccionar actualización"
+                    aria-label="Seleccionar actualización"
                     value={selectedSnapshotId}
                     onChange={(e) => setSelectedSnapshotId(e.target.value)}
                     className="field-select"
