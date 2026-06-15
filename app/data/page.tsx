@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { DEPARTMENTS, JOB_TITLES_BY_DEPARTMENT, JOB_TITLES } from "@/data/jobTitles";
@@ -477,8 +477,54 @@ export default function DataPage() {
   }
 
   // modal state
-  const [modal, setModal] = useState<{ type: 'save' | null; id?: string }>(() => ({ type: null }));
+  const [modal, setModal] = useState<{ type: 'save' | 'rangos' | 'plantilla' | null; id?: string }>(() => ({ type: null }));
+  const [rangosDraft, setRangosDraft] = useState<{ min: Record<string, string>; max: Record<string, string> } | null>(null);
+  const [plantillaDraft, setPlantillaDraft] = useState<RequiredPosition[] | null>(null);
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
+
+  function openRangosModal() {
+    setRangosDraft({ min: { ...nivelMin }, max: { ...nivelMax } });
+    setModal({ type: "rangos" });
+  }
+
+  function openPlantillaModal() {
+    setPlantillaDraft([...currentRequiredPositions]);
+    setModal({ type: "plantilla" });
+  }
+
+  function closeModal() {
+    setModal({ type: null });
+    setRangosDraft(null);
+    setPlantillaDraft(null);
+  }
+
+  async function savePlantillaDraft() {
+    if (!selectedSnapshotId || plantillaDraft === null) return;
+    const snapshot = snapshots[selectedSnapshotId];
+    if (!snapshot) return;
+    const next = { ...snapshots, [selectedSnapshotId]: { ...snapshot, requiredPositions: plantillaDraft } };
+    await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
+    closeModal();
+  }
+
+  function addToDraft(dept: string, cargo: string) {
+    if (!dept || !cargo) return;
+    if (plantillaDraft?.some((p) => p.departamento === dept && p.tituloCargo === cargo)) {
+      showNotification("Ese cargo ya está en la lista");
+      return;
+    }
+    const entry: RequiredPosition = {
+      id: `rp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      departamento: dept,
+      tituloCargo: cargo,
+    };
+    setPlantillaDraft((prev) => [...(prev ?? []), entry]);
+    setNewPosCargo("");
+  }
+
+  function removeFromDraft(id: string) {
+    setPlantillaDraft((prev) => (prev ?? []).filter((p) => p.id !== id));
+  }
 
   function loadSnapshot(id: string) {
     // if empty selection, clear rows and unset selected snapshot
@@ -815,165 +861,6 @@ export default function DataPage() {
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-3">
 
-        {/* Admin: rangos de referencia por nivel */}
-        {isAdmin && (
-          <section className="surface-card overflow-hidden rounded-[1.75rem] px-4 py-3 md:px-5">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <div className="shrink-0">
-                <div className="eyebrow mb-0.5">Rangos de referencia</div>
-                <h2 className="font-display text-[0.95rem] font-bold text-slate-900">Valores mínimos y máximos por nivel</h2>
-              </div>
-              <div className="overflow-x-auto">
-              <table className="border-separate border-spacing-x-2 border-spacing-y-1 text-sm">
-                <thead>
-                  <tr className="text-left text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">
-                    <th className="px-2 py-0.5 text-left">Rango</th>
-                    {NIVELES_ADMIN.map((n) => (
-                      <th key={n} className="px-2 py-0.5 text-center">{n}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="rounded-[1rem] bg-white/80">
-                    <td className="rounded-l-[1rem] px-2 py-1 text-xs font-bold text-teal-700">Mínimo</td>
-                    {NIVELES_ADMIN.map((n) => (
-                      <td key={n} className="px-1.5 py-1">
-                        <input
-                          type="number"
-                          placeholder="$ 0"
-                          value={nivelMin[n] ?? ""}
-                          onChange={(e) => setNivelMin((prev) => ({ ...prev, [n]: e.target.value }))}
-                          className="field w-24 py-1 text-right text-xs"
-                        />
-                      </td>
-                    ))}
-                    <td className="rounded-r-[1rem]" />
-                  </tr>
-                  <tr className="rounded-[1rem] bg-white/80">
-                    <td className="rounded-l-[1rem] px-2 py-1 text-xs font-bold text-amber-700">Máximo</td>
-                    {NIVELES_ADMIN.map((n) => (
-                      <td key={n} className="px-1.5 py-1">
-                        <input
-                          type="number"
-                          placeholder="$ 0"
-                          value={nivelMax[n] ?? ""}
-                          onChange={(e) => setNivelMax((prev) => ({ ...prev, [n]: e.target.value }))}
-                          className="field w-24 py-1 text-right text-xs"
-                        />
-                      </td>
-                    ))}
-                    <td className="rounded-r-[1rem]" />
-                  </tr>
-                </tbody>
-              </table>
-              </div>
-            </div>
-            {outOfRangeRows.length > 0 && (
-              <div className="mt-3 flex items-start gap-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3">
-                <span className="mt-0.5 text-amber-600">⚠</span>
-                <div>
-                  <p className="text-xs font-bold text-amber-800">{outOfRangeRows.length} cargo{outOfRangeRows.length !== 1 ? "s" : ""} fuera de rango</p>
-                  <p className="mt-0.5 text-xs text-amber-700">{outOfRangeRows.map((r) => r.tituloCargo || "Sin título").join(", ")}</p>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Admin: cargos a documentar por corte */}
-        {isAdmin && !isAdminCompanyView && selectedSnapshotId && (
-          <section className="surface-card overflow-hidden rounded-[1.75rem] p-4 md:p-5">
-            <div className="flex items-center gap-2.5">
-              <div className="rounded-full bg-teal-50 p-2 text-teal-700">
-                <BookOpen size={14} aria-hidden />
-              </div>
-              <div>
-                <div className="eyebrow mb-0.5">Plantilla del corte</div>
-                <h2 className="font-display text-base font-bold text-slate-900">Cargos a documentar</h2>
-              </div>
-            </div>
-            <p className="mt-2 text-xs leading-5 text-slate-500">
-              Define qué cargos deben reportar las empresas participantes en este corte. Organiza por unidad organizacional.
-            </p>
-
-            {/* Add new required position */}
-            <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-              <div>
-                <label className="field-label">Unidad / Departamento</label>
-                <select
-                  value={newPosDept}
-                  onChange={(e) => { setNewPosDept(e.target.value); setNewPosCargo(""); }}
-                  className="field-select"
-                  title="Departamento del cargo a documentar"
-                >
-                  <option value="">Seleccionar departamento</option>
-                  {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="field-label">Cargo</label>
-                <select
-                  value={newPosCargo}
-                  onChange={(e) => setNewPosCargo(e.target.value)}
-                  className="field-select"
-                  disabled={!newPosDept}
-                  title="Cargo a documentar"
-                >
-                  <option value="">{newPosDept ? "Seleccionar cargo" : "Selecciona primero un departamento"}</option>
-                  {availableCargosForDept.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={() => void addRequiredPosition()}
-                className="btn btn-primary"
-                disabled={!newPosDept || !newPosCargo}
-              >
-                <Plus className="h-4 w-4" />
-                Agregar
-              </button>
-            </div>
-
-            {/* List grouped by departamento */}
-            {currentRequiredPositions.length === 0 ? (
-              <div className="mt-3 rounded-[1.1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-4 text-xs text-slate-500">
-                No hay cargos definidos para este corte todavía.
-              </div>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {Object.entries(
-                  currentRequiredPositions.reduce<Record<string, RequiredPosition[]>>((acc, p) => {
-                    (acc[p.departamento] ??= []).push(p);
-                    return acc;
-                  }, {})
-                ).map(([dept, positions]) => (
-                  <div key={dept} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80 px-4 py-3">
-                    <div className="mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">{dept}</div>
-                    <div className="flex flex-wrap gap-2">
-                      {positions.map((p) => (
-                        <div key={p.id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
-                          {p.tituloCargo}
-                          <button
-                            type="button"
-                            onClick={() => void removeRequiredPosition(p.id)}
-                            className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
-                            aria-label={`Eliminar ${p.tituloCargo}`}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
 
         <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_20rem] xl:items-start">
@@ -990,7 +877,7 @@ export default function DataPage() {
 
               {isAdmin ? (
                 <div className="mt-3 space-y-2">
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <div className="metric-tile w-40 shrink-0 py-2">
                       <div className="metric-label">Cargos reportados</div>
                       <div className="metric-value mt-1">{rows.length}</div>
@@ -1001,6 +888,27 @@ export default function DataPage() {
                         {outOfRangeRows.length > 0 ? `${outOfRangeRows.length} fuera de rango` : selectedSnapshotId ? "Válidos" : "Sin corte"}
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={openRangosModal}
+                      className={`btn btn-secondary btn-xs self-end mb-1 ${outOfRangeRows.length > 0 ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" : ""}`}
+                    >
+                      <SlidersHorizontal className="h-3 w-3" />
+                      Rangos de referencia
+                    </button>
+                    {!isAdminCompanyView && (
+                      <button
+                        type="button"
+                        onClick={openPlantillaModal}
+                        className="btn btn-secondary btn-xs self-end mb-1"
+                      >
+                        <BookOpen className="h-3 w-3" />
+                        Plantilla del corte
+                        {currentRequiredPositions.length > 0 && (
+                          <span className="ml-1 rounded-full bg-teal-100 px-1.5 text-[0.6rem] font-bold text-teal-700">{currentRequiredPositions.length}</span>
+                        )}
+                      </button>
+                    )}
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full border-separate border-spacing-y-1.5 text-sm">
@@ -1728,9 +1636,163 @@ export default function DataPage() {
         )}
       </div>
       {modal.type && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setModal({ type: null })} />
-          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-lg rounded-[1.75rem] p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={closeModal} />
+          <div role="dialog" aria-modal="true" className={`surface-card relative z-10 w-full rounded-[1.75rem] p-6 ${modal.type === "rangos" ? "max-w-3xl" : modal.type === "plantilla" ? "max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col" : "max-w-lg"}`}>
+
+            {/* Modal: Rangos de referencia */}
+            {modal.type === "rangos" && rangosDraft && (
+              <div>
+                <div className="eyebrow mb-1">Rangos de referencia</div>
+                <h3 className="font-display text-xl font-bold text-slate-900">Valores mínimos y máximos por nivel</h3>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full border-separate border-spacing-x-2 border-spacing-y-1.5 text-sm">
+                    <thead>
+                      <tr className="text-left text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                        <th className="px-2 py-0.5 text-left">Rango</th>
+                        {NIVELES_ADMIN.map((n) => (
+                          <th key={n} className="px-2 py-0.5 text-center">{n}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="rounded-l-[1rem] bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700">Mínimo</td>
+                        {NIVELES_ADMIN.map((n) => (
+                          <td key={n} className="bg-teal-50/60 px-1.5 py-1.5">
+                            <input
+                              type="number"
+                              placeholder="$ 0"
+                              value={rangosDraft.min[n] ?? ""}
+                              onChange={(e) => setRangosDraft((d) => d ? { ...d, min: { ...d.min, [n]: e.target.value } } : d)}
+                              className="field w-full py-1 text-right text-xs"
+                            />
+                          </td>
+                        ))}
+                        <td className="rounded-r-[1rem] bg-teal-50/60" />
+                      </tr>
+                      <tr>
+                        <td className="rounded-l-[1rem] bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Máximo</td>
+                        {NIVELES_ADMIN.map((n) => (
+                          <td key={n} className="bg-amber-50/60 px-1.5 py-1.5">
+                            <input
+                              type="number"
+                              placeholder="$ 0"
+                              value={rangosDraft.max[n] ?? ""}
+                              onChange={(e) => setRangosDraft((d) => d ? { ...d, max: { ...d.max, [n]: e.target.value } } : d)}
+                              className="field w-full py-1 text-right text-xs"
+                            />
+                          </td>
+                        ))}
+                        <td className="rounded-r-[1rem] bg-amber-50/60" />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {outOfRangeRows.length > 0 && (
+                  <div className="mt-4 flex items-start gap-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3">
+                    <span className="mt-0.5 text-amber-600">⚠</span>
+                    <div>
+                      <p className="text-xs font-bold text-amber-800">{outOfRangeRows.length} cargo{outOfRangeRows.length !== 1 ? "s" : ""} fuera de rango</p>
+                      <p className="mt-0.5 text-xs text-amber-700">{outOfRangeRows.map((r) => r.tituloCargo || "Sin título").join(", ")}</p>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-5 flex justify-end gap-3">
+                  <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
+                  <button
+                    type="button"
+                    onClick={() => { setNivelMin(rangosDraft.min); setNivelMax(rangosDraft.max); closeModal(); }}
+                    className="btn btn-primary"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Modal: Plantilla del corte */}
+            {modal.type === "plantilla" && plantillaDraft !== null && (
+              <div className="flex flex-col">
+                <div className="eyebrow mb-1">Plantilla del corte</div>
+                <h3 className="font-display text-xl font-bold text-slate-900">Cargos a documentar</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Define qué cargos deben reportar las empresas en este corte, por unidad organizacional.</p>
+                <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                  <div>
+                    <label className="field-label">Departamento</label>
+                    <select
+                      value={newPosDept}
+                      onChange={(e) => { setNewPosDept(e.target.value); setNewPosCargo(""); }}
+                      className="field-select"
+                      title="Departamento del cargo a documentar"
+                    >
+                      <option value="">Seleccionar departamento</option>
+                      {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="field-label">Cargo</label>
+                    <select
+                      value={newPosCargo}
+                      onChange={(e) => setNewPosCargo(e.target.value)}
+                      className="field-select"
+                      disabled={!newPosDept}
+                      title="Cargo a documentar"
+                    >
+                      <option value="">{newPosDept ? "Seleccionar cargo" : "Selecciona un departamento"}</option>
+                      {availableCargosForDept.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => addToDraft(newPosDept, newPosCargo)}
+                    className="btn btn-primary"
+                    disabled={!newPosDept || !newPosCargo}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Agregar
+                  </button>
+                </div>
+                <div className="mt-3 flex-1 overflow-y-auto">
+                  {plantillaDraft.length === 0 ? (
+                    <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5 text-xs text-slate-500">
+                      No hay cargos definidos para este corte todavía.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(
+                        plantillaDraft.reduce<Record<string, RequiredPosition[]>>((acc, p) => {
+                          (acc[p.departamento] ??= []).push(p);
+                          return acc;
+                        }, {})
+                      ).map(([dept, positions]) => (
+                        <div key={dept} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80 px-4 py-3">
+                          <div className="mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">{dept}</div>
+                          <div className="flex flex-wrap gap-2">
+                            {positions.map((p) => (
+                              <div key={p.id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
+                                {p.tituloCargo}
+                                <button
+                                  type="button"
+                                  onClick={() => removeFromDraft(p.id)}
+                                  className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
+                                  aria-label={`Eliminar ${p.tituloCargo}`}
+                                >×</button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 flex justify-end gap-3 border-t border-slate-100 pt-4">
+                  <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
+                  <button type="button" onClick={() => void savePlantillaDraft()} className="btn btn-primary">Guardar</button>
+                </div>
+              </div>
+            )}
+
             {modal.type === "save" && (
               <div>
                 <div className="eyebrow mb-2">Resumen del cargo</div>

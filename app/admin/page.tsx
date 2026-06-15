@@ -83,6 +83,9 @@ export default function AdminPage() {
   const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
   const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [openCortes, setOpenCortes] = useState(true);
+  const [openSectors, setOpenSectors] = useState(true);
+  const [openUsers, setOpenUsers] = useState(true);
   const [sectors, setSectors] = useState<SectorEntry[]>([]);
   const [isLoadingSectors, setIsLoadingSectors] = useState(true);
   const [isSavingSectors, setIsSavingSectors] = useState(false);
@@ -631,15 +634,27 @@ export default function AdminPage() {
           })}
         </section>
 
-        <section className="surface-card rounded-[1.75rem] p-4 md:p-5">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
-              <CalendarDays size={16} aria-hidden />
+        <section className="surface-card overflow-hidden rounded-[1.75rem]">
+          <button
+            type="button"
+            onClick={() => setOpenCortes((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-full bg-teal-50 p-2.5 text-teal-700">
+                <CalendarDays size={16} aria-hidden />
+              </div>
+              <h2 className="font-display text-base font-bold text-slate-900">Crear cortes</h2>
+              {snapshots.length > 0 && (
+                <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[0.65rem] font-bold text-teal-800">{snapshots.length}</span>
+              )}
             </div>
-            <h2 className="font-display text-base font-bold text-slate-900">Crear cortes</h2>
-          </div>
+            {openCortes ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+          </button>
 
-          <form onSubmit={handleCreateSnapshot} className="mt-3 grid gap-3 lg:grid-cols-[11rem_minmax(0,1fr)_auto] lg:items-end">
+          {openCortes && (
+          <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+          <form onSubmit={handleCreateSnapshot} className="grid gap-3 lg:grid-cols-[11rem_minmax(0,1fr)_auto] lg:items-end">
             <div>
               <label htmlFor="snapshotDate" className="field-label">Fecha</label>
               <input
@@ -726,17 +741,32 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+          </div>
+          )}
         </section>
 
         {/* Sector / classification management */}
-        <section className="surface-card rounded-[1.75rem] p-4 md:p-5">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-full bg-indigo-50 p-2.5 text-indigo-700">
-              <Tag size={16} aria-hidden />
+        <section className="surface-card overflow-hidden rounded-[1.75rem]">
+          <button
+            type="button"
+            onClick={() => setOpenSectors((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-full bg-indigo-50 p-2.5 text-indigo-700">
+                <Tag size={16} aria-hidden />
+              </div>
+              <h2 className="font-display text-base font-bold text-slate-900">Sectores económicos y clasificaciones</h2>
+              {sectors.length > 0 && (
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[0.65rem] font-bold text-indigo-800">{sectors.length}</span>
+              )}
             </div>
-            <h2 className="font-display text-base font-bold text-slate-900">Sectores económicos y clasificaciones</h2>
-          </div>
-          <p className="mt-1.5 text-xs text-slate-500">
+            {openSectors ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+          </button>
+
+          {openSectors && (
+          <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+          <p className="text-xs leading-5 text-slate-500">
             Administra la lista de sectores económicos y sus clasificaciones. Se utilizan al registrar y editar empresas.
           </p>
 
@@ -843,16 +873,31 @@ export default function AdminPage() {
               );
             })}
           </div>
+          </div>
+          )}
         </section>
 
-        <section className="surface-card rounded-[1.75rem] p-4 md:p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <section className="surface-card overflow-hidden rounded-[1.75rem]">
+          <button
+            type="button"
+            onClick={() => setOpenUsers((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
+          >
             <div className="flex items-center gap-2.5">
               <div className="rounded-full bg-slate-100 p-2.5 text-slate-700">
                 <Users size={16} aria-hidden />
               </div>
               <h2 className="font-display text-base font-bold text-slate-900">Usuarios y roles</h2>
+              {users.length > 0 && (
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[0.65rem] font-bold text-slate-700">{users.length}</span>
+              )}
             </div>
+            {openUsers ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+          </button>
+
+          {openUsers && (
+          <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+          <div className="flex justify-end">
             <button type="button" onClick={() => void handleSaveUserChanges()} className="btn btn-primary" disabled={isSavingUserChanges || Object.keys(pendingUserEdits).length === 0}>
               {isSavingUserChanges ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {isSavingUserChanges ? "Guardando..." : "Guardar todo"}
@@ -946,6 +991,8 @@ export default function AdminPage() {
                 );
               })}
             </div>
+          )}
+          </div>
           )}
         </section>
       </div>
