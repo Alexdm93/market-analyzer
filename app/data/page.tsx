@@ -518,7 +518,7 @@ export default function DataPage() {
   }
 
   // modal state
-  const [modal, setModal] = useState<{ type: 'save' | 'rangos' | 'plantilla' | null; id?: string }>(() => ({ type: null }));
+  const [modal, setModal] = useState<{ type: 'save' | 'rangos' | 'plantilla' | 'confirm-delete' | null; id?: string }>(() => ({ type: null }));
   const [rangosDraft, setRangosDraft] = useState<{ min: Record<string, string>; max: Record<string, string> } | null>(null);
   const [plantillaDraft, setPlantillaDraft] = useState<RequiredPosition[] | null>(null);
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
@@ -773,6 +773,10 @@ export default function DataPage() {
 
   function removeRow(i: number) {
     setRows((r) => r.filter((_, idx) => idx !== i));
+  }
+
+  function removeRowById(id: string) {
+    setRows((r) => r.filter((row) => row.id !== id));
   }
 
   async function saveRowById(rowId: string) {
@@ -1191,7 +1195,7 @@ export default function DataPage() {
                       {expanded[r.id] ? "Cerrar cargo" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
                     </button>
                     {!isReadOnlyDataView ? (
-                      <button onClick={() => removeRow(i)} className="btn btn-danger btn-xs">
+                      <button type="button" onClick={() => setModal({ type: "confirm-delete", id: r.id })} className="btn btn-danger btn-xs">
                         <Trash2 className="h-3 w-3" />
                         Eliminar
                       </button>
@@ -1343,8 +1347,18 @@ export default function DataPage() {
                               <div className="space-y-2">
                                 {(r.additionalVariablePayments || []).map((p, idx) => (
                                   <div key={p.id} className="rounded-[1.1rem] border border-slate-200/80 bg-white p-3.5 space-y-2.5">
+                                    {/* Card header: always shows delete button top-right */}
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">
+                                        {p.variableType === "performance" ? "Bono por desempeño" : p.variableType === "commission" ? "Bono por comisión" : "Concepto variable"}
+                                      </span>
+                                      <button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors" aria-label="Eliminar concepto">
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+
                                     {p.variableType === "performance" ? (
-                                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_5rem_4.5rem_6.5rem_auto] lg:items-center">
+                                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_5rem_3.5rem_6.5rem] lg:items-center">
                                         <div><label className="field-label">Variable</label><select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                                         <div><label className="field-label">Concepto</label><input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field text-sm w-full" /></div>
                                         <div><label className="field-label">Monto</label><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{p.accountCurrency === "VES" ? "Bs." : "$"}</span><input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></div>
@@ -1353,11 +1367,10 @@ export default function DataPage() {
                                         <div><label className="field-label">Tasa</label><select aria-label="Tasa concepto variable desempeño" value={p.tasaId || ""} onChange={(e) => updateAdditionalVariable(i, idx, "tasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></div>
                                         <div><label className="field-label">Pasivos</label><select aria-label="Impacto concepto variable" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select text-sm w-full"><option value="yes">Sí</option><option value="no">No</option></select></div>
                                         <div><label className="field-label">Frecuencia</label><select aria-label="Frecuencia concepto variable" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
-                                        <div className="flex items-end"><button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button></div>
                                       </div>
                                     ) : p.variableType === "commission" ? (
                                       <>
-                                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[8rem_minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_5rem_4.5rem_6.5rem] lg:items-center">
+                                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_5rem_3.5rem_6.5rem] lg:items-center">
                                           <div><label className="field-label">Variable</label><select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                                           <div><label className="field-label">Concepto</label><input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field text-sm w-full" /></div>
                                           <div><label className="field-label">Monto</label><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{p.accountCurrency === "VES" ? "Bs." : "$"}</span><input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></div>
@@ -1367,11 +1380,10 @@ export default function DataPage() {
                                           <div><label className="field-label">Pasivos</label><select aria-label="Impacto concepto variable comisión" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalVariable(i, idx, "impacto", e.target.value === "yes")} className="field-select text-sm w-full"><option value="yes">Sí</option><option value="no">No</option></select></div>
                                           <div><label className="field-label">Frecuencia</label><select aria-label="Frecuencia concepto variable comisión" value={p.freq || "monthly"} onChange={(e) => updateAdditionalVariable(i, idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                                         </div>
-                                        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+                                        <div className="grid gap-2 sm:grid-cols-3 lg:items-end">
                                           <div><label className="field-label">Tipo de comisión</label><select aria-label="Tipo de comision" value={p.commissionType || "simple"} onChange={(e) => updateAdditionalVariable(i, idx, "commissionType", e.target.value)} className="field-select text-sm w-full">{VARIABLE_COMMISSION_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                                           <div><label className="field-label">Detalle de cálculo</label><select aria-label="Detalle de calculo" value={p.calculationDetail || "sale_value"} onChange={(e) => updateAdditionalVariable(i, idx, "calculationDetail", e.target.value)} className="field-select text-sm w-full">{VARIABLE_CALCULATION_DETAILS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                                           <div><label className="field-label">Objetivos y metas</label><select aria-label="Objetivos y metas" value={p.goalsTarget || "sales_quota"} onChange={(e) => updateAdditionalVariable(i, idx, "goalsTarget", e.target.value)} className="field-select text-sm w-full">{VARIABLE_GOALS_TARGETS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
-                                          <div className="flex items-end"><button type="button" onClick={() => removeAdditionalVariable(i, idx)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button></div>
                                         </div>
                                       </>
                                     ) : (
@@ -1421,6 +1433,38 @@ export default function DataPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={closeModal} />
           <div role="dialog" aria-modal="true" className={`surface-card relative z-10 w-full rounded-[1.75rem] p-6 ${modal.type === "rangos" ? "max-w-3xl" : modal.type === "plantilla" ? "max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col" : "max-w-lg"}`}>
+
+            {/* Modal: Confirmar eliminación de cargo */}
+            {modal.type === "confirm-delete" && (
+              <div>
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="font-display text-center text-xl font-bold text-slate-900">¿Eliminar este cargo?</h3>
+                <p className="mt-2 text-center text-sm text-slate-500">
+                  {(() => {
+                    const row = rows.find((r) => r.id === modal.id);
+                    return row?.tituloCargo
+                      ? `Se eliminará "${row.tituloCargo}" y toda su información de compensación. Esta acción no se puede deshacer.`
+                      : "Se eliminará el cargo y toda su información de compensación. Esta acción no se puede deshacer.";
+                  })()}
+                </p>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (modal.id) removeRowById(modal.id);
+                      setModal({ type: null });
+                    }}
+                    className="btn btn-danger"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Sí, eliminar
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Modal: Rangos de referencia */}
             {modal.type === "rangos" && rangosDraft && (
