@@ -326,12 +326,12 @@ export default function DataPage() {
       }
 
       if (options?.showNotification) {
-        showNotification(isAdminCompanyView ? "Data de empresa actualizada desde Supabase" : "Data actualizada desde Supabase");
+        showNotification(isAdminCompanyView ? "Data de empresa actualizada desde la base de datos" : "Data actualizada desde la base de datos");
       }
     } catch (error) {
       console.error(error);
       if (options?.showNotification) {
-        showNotification(isAdminCompanyView ? "No se pudo actualizar la data de la empresa" : "No se pudo actualizar la data desde Supabase");
+        showNotification(isAdminCompanyView ? "No se pudo actualizar la data de la empresa" : "No se pudo actualizar la data desde la base de datos");
       }
     } finally {
       setIsRefreshing(false);
@@ -427,7 +427,7 @@ export default function DataPage() {
       setSaveState("error");
 
       if (options?.showErrorNotification) {
-        showNotification(error instanceof Error ? error.message : "Error al guardar cargos en Supabase", 4000);
+        showNotification(error instanceof Error ? error.message : "Error al guardar cargos en la base de datos", 4000);
       }
 
       return false;
@@ -509,7 +509,7 @@ export default function DataPage() {
     if (!id) return;
     const next = { ...snapshots, [id]: { ...(snapshots[id] || { id, label: id, date: id, rows: [] }), rows: JSON.parse(JSON.stringify(rows)) } };
     const wasPersisted = await persistSnapshots(next, id, { showErrorNotification: true });
-    showNotification(wasPersisted ? 'Guardado correctamente' : 'No se pudo guardar en Supabase');
+    showNotification(wasPersisted ? 'Guardado correctamente' : 'No se pudo guardar en la base de datos');
   }
 
   // simple transient notification
@@ -801,7 +801,7 @@ export default function DataPage() {
     }
     const next = { ...snapshots, [selectedSnapshotId]: { ...current, rows: nextRows } };
     const wasPersisted = await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
-    showNotification(wasPersisted ? 'Cargo guardado' : 'No se pudo guardar el cargo en Supabase');
+    showNotification(wasPersisted ? 'Cargo guardado' : 'No se pudo guardar el cargo en la base de datos');
   }
 
   // legacy save function removed (use snapshots / saveCurrentToSnapshot instead)
@@ -1048,12 +1048,12 @@ export default function DataPage() {
                   {saveState === "dirty"
                     ? "Cambios sin guardar"
                     : saveState === "pending"
-                    ? "Guardando en Supabase..."
+                    ? "Guardando en la base de datos..."
                     : saveState === "error"
-                      ? "Error al guardar en Supabase"
+                      ? "Error al guardar en la base de datos"
                       : lastSavedAt
-                        ? `Guardado en Supabase a las ${lastSavedAt.toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}`
-                        : "Guardado en Supabase"}
+                        ? `Guardado en la base de datos a las ${lastSavedAt.toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}`
+                        : "Guardado en la base de datos"}
                 </div>
               ) : null}
 
