@@ -7,16 +7,11 @@ export type CompanyTelemetry = {
   companyName: string;
   economicSector: string;
   userCount: number;
-  // Latest login across all users in the company
   lastLoginAt: string | null;
   lastLoginUserName: string | null;
-  // Latest workspace save (updatedAt of UserWorkspace, indicates data was saved)
   lastDataSavedAt: string | null;
-  // Latest export across all users in the company
   lastExportAt: string | null;
-  // Total positions saved
   totalPositions: number;
-  // Latest position activity
   lastPositionAt: string | null;
 };
 
@@ -31,6 +26,7 @@ export async function GET() {
     return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
   }
 
+  // Base query — works even before migration is applied
   const companies = await prisma.company.findMany({
     select: {
       id: true,
@@ -40,12 +36,8 @@ export async function GET() {
         select: {
           id: true,
           name: true,
-          lastLoginAt: true,
           workspace: {
-            select: {
-              updatedAt: true,
-              lastExportAt: true,
-            },
+            select: { updatedAt: true },
           },
         },
       },
@@ -54,40 +46,63 @@ export async function GET() {
         orderBy: { updatedAt: "desc" },
         take: 1,
       },
-      _count: {
-        select: { positions: true },
-      },
+      _count: { select: { positions: true } },
     },
     orderBy: { name: "asc" },
   });
 
+  // Try to fetch telemetry columns added by migration — gracefully degrade if not applied yet
+  let loginMap = new Map<string, { lastLoginAt: Date; name: string }>();
+  let exportMap = new Map<string, Date>();
+
+  try {
+    const usersWithLogin = await prisma.user.findMany({
+      select: { id: true, name: true, lastLoginAt: true },
+    });
+    for (const u of usersWithLogin) {
+      if (u.lastLoginAt) loginMap.set(u.id, { lastLoginAt: u.lastLoginAt, name: u.name });
+    }
+  } catch {
+    // Migration not applied yet — lastLoginAt column missing, skip
+  }
+
+  try {
+    const workspaces = await prisma.userWorkspace.findMany({
+      select: { userId: true, lastExportAt: true },
+    });
+    for (const w of workspaces) {
+      if (w.lastExportAt) exportMap.set(w.userId, w.lastExportAt);
+    }
+  } catch {
+    // Migration not applied yet — lastExportAt column missing, skip
+  }
+
   const telemetry: CompanyTelemetry[] = companies.map((company) => {
-    // Find the user with the most recent login
     let lastLoginAt: Date | null = null;
     let lastLoginUserName: string | null = null;
     let lastDataSavedAt: Date | null = null;
     let lastExportAt: Date | null = null;
 
     for (const user of company.users) {
-      if (user.lastLoginAt) {
-        if (!lastLoginAt || user.lastLoginAt > lastLoginAt) {
-          lastLoginAt = user.lastLoginAt;
-          lastLoginUserName = user.name;
+      const loginInfo = loginMap.get(user.id);
+      if (loginInfo) {
+        if (!lastLoginAt || loginInfo.lastLoginAt > lastLoginAt) {
+          lastLoginAt = loginInfo.lastLoginAt;
+          lastLoginUserName = loginInfo.name;
         }
       }
+
       if (user.workspace?.updatedAt) {
         if (!lastDataSavedAt || user.workspace.updatedAt > lastDataSavedAt) {
           lastDataSavedAt = user.workspace.updatedAt;
         }
       }
-      if (user.workspace?.lastExportAt) {
-        if (!lastExportAt || user.workspace.lastExportAt > lastExportAt) {
-          lastExportAt = user.workspace.lastExportAt;
-        }
+
+      const exportDate = exportMap.get(user.id);
+      if (exportDate && (!lastExportAt || exportDate > lastExportAt)) {
+        lastExportAt = exportDate;
       }
     }
-
-    const lastPositionUpdatedAt = company.positions[0]?.updatedAt ?? null;
 
     return {
       companyId: company.id,
@@ -99,7 +114,7 @@ export async function GET() {
       lastDataSavedAt: lastDataSavedAt ? lastDataSavedAt.toISOString() : null,
       lastExportAt: lastExportAt ? lastExportAt.toISOString() : null,
       totalPositions: company._count.positions,
-      lastPositionAt: lastPositionUpdatedAt ? lastPositionUpdatedAt.toISOString() : null,
+      lastPositionAt: company.positions[0]?.updatedAt.toISOString() ?? null,
     };
   });
 
