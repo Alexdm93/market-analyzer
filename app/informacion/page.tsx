@@ -277,10 +277,6 @@ export default function Informacion() {
               <label className="field-label">Días mínimos de utilidades</label>
               <input title="Días utilidades" aria-label="Días utilidades" type="number" placeholder="0" value={companyInfo.minUtilityDays} onChange={(e) => updateCompany("minUtilityDays", e.target.value)} className="field" />
             </div>
-            <div>
-              <label className="field-label">Tasa Bs / USD</label>
-              <input title="Tasa conversión" aria-label="Tasa conversión" type="number" placeholder="Tasa" value={companyInfo.conversionRate} onChange={(e) => updateCompany("conversionRate", e.target.value)} className="field" />
-            </div>
             <div className="md:col-span-2 xl:col-span-4">
               <label className="field-label">Localidad</label>
               <div className="mt-1.5 flex flex-wrap gap-2">
@@ -391,6 +387,13 @@ export default function Informacion() {
             </div>
           )}
         </section>
+
+        <div className="flex justify-end">
+          <button type="button" onClick={() => void saveCompanyInfo()} className="btn btn-primary">
+            <Save className="h-3.5 w-3.5" />
+            Guardar información
+          </button>
+        </div>
       </div>
     </main>
   );

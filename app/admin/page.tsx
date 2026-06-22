@@ -760,7 +760,7 @@ export default function AdminPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-3 md:grid-cols-2">
+        <section className="grid gap-3 md:grid-cols-3">
           <button
             type="button"
             onClick={() => void handleOpenCreateUserModal()}
