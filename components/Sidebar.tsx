@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Database, Info, LayoutDashboard, LineChart, LogIn, LogOut, Shield } from "lucide-react";
+import { Building2, Database, Info, LayoutDashboard, LineChart, LoaderCircle, LogIn, LogOut, Shield } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
+import { useState } from "react";
 
 import { canAccessEmpresas, getRoleLabel, isAdminRole } from "@/lib/roles";
 import { useNavigationTrigger } from "./NavigationProgress";
@@ -30,6 +31,7 @@ export default function Sidebar() {
   const isAdmin = isAdminRole(role);
   const canSeeEmpresas = canAccessEmpresas(role);
   const triggerNavigation = useNavigationTrigger();
+  const [signingOut, setSigningOut] = useState(false);
 
   if (pathname === "/signin" || pathname === "/register") {
     return null;
@@ -86,12 +88,15 @@ export default function Sidebar() {
               <div className="mt-2 break-words text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
               
               <button
-                onClick={() => signOut({ callbackUrl: "/signin" })}
+                onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/signin" }); }}
                 className="btn btn-secondary mt-4 w-full"
                 type="button"
+                disabled={signingOut}
               >
-                <LogOut className="h-4 w-4" />
-                Cerrar sesion
+                {signingOut
+                  ? <LoaderCircle className="h-4 w-4 animate-spin" />
+                  : <LogOut className="h-4 w-4" />}
+                {signingOut ? "Cerrando sesión..." : "Cerrar sesion"}
               </button>
             </>
           ) : (

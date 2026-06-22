@@ -307,8 +307,7 @@ function UserDashboard() {
           const mostRecentId = Object.values(workspace.snapshots)
             .sort((a, b) => b.date.localeCompare(a.date))
             .at(0)?.id ?? "";
-          const savedId = workspace.selectedSnapshotId ?? "";
-          setSelectedSnapshotId((savedId && workspace.snapshots[savedId]) ? savedId : mostRecentId);
+          setSelectedSnapshotId(mostRecentId);
           setCompanyInfo(workspace.companyInfo);
         }
       } catch {
