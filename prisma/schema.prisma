@@ -55,6 +55,7 @@ model User {
   workspace    UserWorkspace?
   snapshots    UserSnapshot[]
   positions    UserPosition[]
+  lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -66,6 +67,7 @@ model UserWorkspace {
   snapshotsJson      String   @default("{}")
   selectedSnapshotId String?
   companyInfoJson    String   @default("{}")
+  lastExportAt       DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

@@ -58,10 +58,15 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;
         token.role = typeof user.role === "string" ? user.role : DEFAULT_USER_ROLE;
+      }
+
+      // Record login timestamp only on actual sign-in (not on every session refresh)
+      if (trigger === "signIn" && typeof token.id === "string") {
+        prisma.user.update({ where: { id: token.id }, data: { lastLoginAt: new Date() } }).catch(() => {});
       }
 
       if (typeof token.id === "string") {

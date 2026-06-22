@@ -859,6 +859,7 @@ export default function DataPage() {
   function exportJSON() {
     navigator.clipboard?.writeText(JSON.stringify(rows, null, 2));
     showNotification("JSON copiado al portapapeles");
+    void fetch("/api/workspace/track-export", { method: "POST" });
   }
 
   const modalSaveRow = modal.type === "save" && modal.id

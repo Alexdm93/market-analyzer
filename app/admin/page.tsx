@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
@@ -12,6 +12,12 @@ const adminActions = [
     description: "Crea y revisa las empresas disponibles para asignar usuarios.",
     href: "/empresas",
     icon: Building2,
+  },
+  {
+    title: "Actividad de empresas",
+    description: "Monitorea cuándo cada empresa inició sesión, guardó datos o descargó información.",
+    href: "/admin/telemetry",
+    icon: Activity,
   },
 ];
 

@@ -35,6 +35,11 @@ function defaultCargos(): CargoEntry[] {
 }
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return Response.json({ message: "No autorizado." }, { status: 401 });
+  }
+
   let sectors: SectorEntry[] = defaultSectors();
   let cargos: CargoEntry[] = defaultCargos();
 

@@ -4,6 +4,19 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+
+  // Bootstrap check: unauthenticated clients only learn if initial setup is needed.
+  // Full company list (including contacts and financials) is admin-only.
+  if (!session?.user?.id) {
+    const userCount = await prisma.user.count();
+    return Response.json({ companies: [], userCount, bootstrapRequired: userCount === 0 });
+  }
+
+  if (session.user.role !== "ADMIN") {
+    return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
+  }
+
   const userCount = await prisma.user.count();
   const companies = await prisma.company.findMany({
     select: {
@@ -27,7 +40,7 @@ export async function GET() {
   return Response.json({
     companies,
     userCount,
-    bootstrapRequired: userCount === 0,
+    bootstrapRequired: false,
   });
 }
 
