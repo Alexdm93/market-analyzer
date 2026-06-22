@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { AlertTriangle, Building2, TrendingUp } from "lucide-react";
-import { legacyMockMarketData as mockMarketData } from "@/data/mockSalaries";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { Snapshot, CompanyInfo } from "@/lib/workspace";
 import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
@@ -418,17 +417,33 @@ function UserDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {mockMarketData.map((job) => (
-                  <tr key={job.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{job.jobTitle}</td>
-                    <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
-                      ${job.basePercentiles.p50.toLocaleString()}
-                    </td>
-                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
-                      ${(job.basePercentiles.p50 * 12).toLocaleString()}
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-sm text-slate-400">
+                      Sin cargos registrados para esta actualización.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  rows.map((r) => {
+                    const monthly = computeRowTotal(r);
+                    return (
+                      <tr key={r.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                        <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
+                          {r.tituloCargo || "—"}
+                          {r.departamento && (
+                            <div className="text-xs text-slate-400">{r.departamento}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
+                          {monthly > 0 ? `$${monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "ND"}
+                        </td>
+                        <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
+                          {monthly > 0 ? `$${(monthly * 12).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "ND"}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
