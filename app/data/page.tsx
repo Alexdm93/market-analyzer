@@ -644,7 +644,7 @@ export default function DataPage() {
       const next = [...prev];
       const row = { ...next[rowIndex] } as ExtendedMarketPosition;
       const list = row.additionalFixedPayments ? [...row.additionalFixedPayments] : [];
-      list.unshift({ id, concept: '', amount: 0, freq: 'monthly', accountCurrency: 'USD', paymentCurrency: 'USD', impacto: true, tasaId: '' });
+      list.push({ id, concept: '', amount: 0, freq: 'monthly', accountCurrency: 'USD', paymentCurrency: 'USD', impacto: true, tasaId: '' });
       row.additionalFixedPayments = list;
       next[rowIndex] = row;
       return next;
@@ -1303,7 +1303,7 @@ export default function DataPage() {
                                     <td className="px-3 py-2"><select aria-label="Moneda de pago sueldo basico" value={r.sueldoBasicoMonedaPago || "USD"} onChange={(e) => update(i, "sueldoBasicoMonedaPago", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
                                     <td className="px-3 py-2"><select aria-label="Tasa sueldo basico" value={r.sueldoBasicoTasaId || ""} onChange={(e) => update(i, "sueldoBasicoTasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></td>
                                     <td className="px-3 py-2"><select aria-label="Impacto salarial sueldo basico" value="yes" disabled className="field-select opacity-60 text-sm w-full"><option value="yes">Sí</option></select></td>
-                                    <td className="px-3 py-2"><select aria-label="Frecuencia sueldo basico" value={r.sueldoBasicoFreq || "monthly"} onChange={(e) => update(i, "sueldoBasicoFreq", e.target.value)} className="field-select text-sm w-full"><option value="biweekly">Quincenal</option><option value="monthly">Mensual</option></select></td>
+                                    <td className="px-3 py-2"><span className="flex h-9 w-full items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-400 select-none">Mensual</span></td>
                                     <td className="px-3 py-2" />
                                   </tr>
                                   <tr className="bg-white">
@@ -1313,7 +1313,7 @@ export default function DataPage() {
                                     <td className="px-3 py-2"><select aria-label="Moneda de pago bono alimentacion" value={r.bonoAlimentacionMonedaPago || "USD"} onChange={(e) => update(i, "bonoAlimentacionMonedaPago", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
                                     <td className="px-3 py-2"><select aria-label="Tasa bono alimentacion" value={r.bonoAlimentacionTasaId || ""} onChange={(e) => update(i, "bonoAlimentacionTasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></td>
                                     <td className="px-3 py-2"><select aria-label="Impacto salarial bono alimentacion" value="no" disabled className="field-select opacity-60 text-sm w-full"><option value="no">No</option></select></td>
-                                    <td className="px-3 py-2"><select aria-label="Frecuencia bono alimentacion" value={r.bonoAlimentacionFreq || "monthly"} onChange={(e) => update(i, "bonoAlimentacionFreq", e.target.value)} className="field-select text-sm w-full"><option value="monthly">Mensual</option><option value="biweekly">Quincenal</option></select></td>
+                                    <td className="px-3 py-2"><span className="flex h-9 w-full items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-400 select-none">Mensual</span></td>
                                     <td className="px-3 py-2" />
                                   </tr>
                                   {(r.additionalFixedPayments || []).map((p, idx) => (
@@ -1324,7 +1324,7 @@ export default function DataPage() {
                                       <td className="px-3 py-2"><select aria-label="Moneda de pago concepto fijo" value={p.paymentCurrency || "USD"} onChange={(e) => updateAdditionalFixed(i, idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
                                       <td className="px-3 py-2"><select aria-label="Tasa concepto fijo" value={p.tasaId || ""} onChange={(e) => updateAdditionalFixed(i, idx, "tasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select></td>
                                       <td className="px-3 py-2"><select aria-label="Impacto concepto fijo" value={p.impacto ? "yes" : "no"} onChange={(e) => updateAdditionalFixed(i, idx, "impacto", e.target.value === "yes")} className="field-select text-sm w-full"><option value="yes">Sí</option><option value="no">No</option></select></td>
-                                      <td className="px-3 py-2"><select aria-label="Frecuencia concepto fijo" value={p.freq || "monthly"} onChange={(e) => updateAdditionalFixed(i, idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
+                                      <td className="px-3 py-2"><select aria-label="Frecuencia concepto fijo" value={p.freq || "monthly"} onChange={(e) => updateAdditionalFixed(i, idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.filter((o) => o.value !== "biweekly").map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
                                       <td className="px-3 py-2"><button type="button" onClick={() => removeAdditionalFixed(i, idx)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button></td>
                                     </tr>
                                   ))}
