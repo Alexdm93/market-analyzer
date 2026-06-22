@@ -5,19 +5,28 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
+  const userCount = await prisma.user.count();
 
-  // Bootstrap check: unauthenticated clients only learn if initial setup is needed.
-  // Full company list (including contacts and financials) is admin-only.
+  // Unauthenticated: only id + name so the register/signin dropdown works.
+  // Sensitive fields (financials, HR contacts) are admin-only.
   if (!session?.user?.id) {
-    const userCount = await prisma.user.count();
-    return Response.json({ companies: [], userCount, bootstrapRequired: userCount === 0 });
+    const companies = await prisma.company.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+    return Response.json({ companies, userCount, bootstrapRequired: userCount === 0 });
   }
 
   if (session.user.role !== "ADMIN") {
-    return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
+    // Regular authenticated users only need id + name too
+    const companies = await prisma.company.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+    return Response.json({ companies, userCount, bootstrapRequired: false });
   }
 
-  const userCount = await prisma.user.count();
+  // Admin: full data
   const companies = await prisma.company.findMany({
     select: {
       id: true,
@@ -32,16 +41,10 @@ export async function GET() {
       hrEmail: true,
       createdAt: true,
     },
-    orderBy: {
-      name: "asc",
-    },
+    orderBy: { name: "asc" },
   });
 
-  return Response.json({
-    companies,
-    userCount,
-    bootstrapRequired: false,
-  });
+  return Response.json({ companies, userCount, bootstrapRequired: false });
 }
 
 type CreateCompanyBody = {
