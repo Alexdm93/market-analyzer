@@ -720,8 +720,6 @@ export async function PUT(request: Request) {
     body.companyInfo && typeof body.companyInfo === "object"
       ? { ...EMPTY_COMPANY_INFO, ...body.companyInfo }
       : safeParseCompanyInfo(existingWorkspace.companyInfoJson);
-  const company = await getCompanyIdentity(userId);
-  const nextCompanyInfo = mergeCompanyIdentity(requestedCompanyInfo, company);
   const duplicateCargoTitles = getDuplicateCargoTitles(nextSnapshots);
 
   if (duplicateCargoTitles.length > 0) {
@@ -734,11 +732,11 @@ export async function PUT(request: Request) {
   }
 
   const snapshotsJson = JSON.stringify(nextSnapshots);
-  const companyInfoJson = JSON.stringify(nextCompanyInfo);
+  const companyInfoJson = JSON.stringify(requestedCompanyInfo);
 
   const workspace = await prisma.$transaction(async (tx) => {
-    const { companyId, previousCompanyId } = await ensureCompanyIdForUser(tx, userId, nextCompanyInfo);
-    await syncCompanyInfo(tx, companyId, nextCompanyInfo);
+    const { companyId, previousCompanyId } = await ensureCompanyIdForUser(tx, userId, requestedCompanyInfo);
+    await syncCompanyInfo(tx, companyId, requestedCompanyInfo);
 
     const updatedWorkspace = await tx.userWorkspace.update({
       where: { userId },
