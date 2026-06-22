@@ -302,7 +302,11 @@ export default function DataPage() {
         filtered[key] = value;
       });
 
-      const selectedId = workspace.selectedSnapshotId || "";
+      const mostRecentId = Object.values(filtered)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .at(0)?.id ?? "";
+      const savedId = workspace.selectedSnapshotId ?? "";
+      const selectedId = (savedId && filtered[savedId]) ? savedId : mostRecentId;
 
       setSnapshots(filtered);
       setSelectedSnapshotId(selectedId);

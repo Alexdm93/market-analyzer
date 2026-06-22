@@ -305,7 +305,11 @@ function UserDashboard() {
         const workspace = await fetchWorkspace();
         if (!ignore) {
           setSnapshots(workspace.snapshots);
-          setSelectedSnapshotId(workspace.selectedSnapshotId || Object.keys(workspace.snapshots)[0] || "");
+          const mostRecentId = Object.values(workspace.snapshots)
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .at(0)?.id ?? "";
+          const savedId = workspace.selectedSnapshotId ?? "";
+          setSelectedSnapshotId((savedId && workspace.snapshots[savedId]) ? savedId : mostRecentId);
           setCompanyInfo(workspace.companyInfo);
         }
       } catch {
