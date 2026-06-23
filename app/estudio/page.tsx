@@ -994,7 +994,7 @@ export default function EstudioPage() {
                             <th className="px-4 py-2">Empresa</th>
                             <th className="px-4 py-2">Cargo</th>
                             <th className="px-4 py-2">Nivel</th>
-                            <th className="px-4 py-2 text-right">Sin pasivos mensual</th>
+                            <th className="px-4 py-2 text-right">Comp. s/pasivos mensual</th>
                             <th className="px-4 py-2 text-right">Comp. c/ pasivos mensual</th>
                           </tr>
                         </thead>
