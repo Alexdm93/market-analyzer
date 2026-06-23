@@ -15,19 +15,9 @@ export const mockMarketData: ExtendedMarketPosition[] = [
       { id: 'a1', concept: 'Otros', amount: 50, freq: 'monthly' }
     ],
 
-    horasExtras: 0,
-    nocturnidad: 0,
-    pagoTransporte: 80,
-    viaticos: 200,
-    otrosPagos: 0,
-
     bonoDesempeno: 300,
     comisiones: 0,
     pagoVariableOtros: 0,
-
-    aportesSeguridadSocial: 400,
-    prestacionesLegales: 200,
-    beneficiosNoMonetarios: "Seguro médico",
   
   },
   {
@@ -44,19 +34,9 @@ export const mockMarketData: ExtendedMarketPosition[] = [
       { id: 'a2', concept: 'Otros', amount: 20, freq: 'monthly' }
     ],
 
-    horasExtras: 0,
-    nocturnidad: 0,
-    pagoTransporte: 50,
-    viaticos: 0,
-    otrosPagos: 0,
-
     bonoDesempeno: 150,
     comisiones: 0,
     pagoVariableOtros: 0,
-
-    aportesSeguridadSocial: 180,
-    prestacionesLegales: 90,
-    beneficiosNoMonetarios: "Capacitación",
   
   }
 ];

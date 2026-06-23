@@ -15,9 +15,7 @@ function percentile(values: number[], p: number): number {
 function computeRowTotal(row: Record<string, unknown>): number {
   const n = (k: string) => Number(row[k] ?? 0);
   let sum = n("sueldoBasico") + n("bonoAlimentacion") + n("bonoMovilizacion")
-    + n("bonoDesempeno") + n("comisiones") + n("pagoVariableOtros")
-    + n("pagoTransporte") + n("viaticos") + n("otrosPagos")
-    + n("aportesSeguridadSocial") + n("prestacionesLegales");
+    + n("bonoDesempeno") + n("comisiones") + n("pagoVariableOtros");
   if (Array.isArray(row.additionalFixedPayments))
     sum += (row.additionalFixedPayments as { amount?: number }[]).reduce((a, b) => a + Number(b.amount ?? 0), 0);
   if (Array.isArray(row.additionalVariablePayments))

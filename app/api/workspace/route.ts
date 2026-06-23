@@ -14,6 +14,7 @@ import {
   safeParseSnapshots,
 } from "@/lib/workspace";
 import { getBcvRate, buildBcvTasa } from "@/lib/bcv";
+import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -681,12 +682,22 @@ export async function GET(request: Request) {
   await backfillRelationalWorkspace(userId, workspace.companyInfoJson, workspace.snapshotsJson);
   const company = await getCompanyIdentity(userId);
 
-  const [payload, bcv] = await Promise.all([
+  const [payload, bcv, publishedIds] = await Promise.all([
     buildUserPayload(userId, workspace, company),
     getBcvRate(),
+    getPublishedSnapshotIds(),
   ]);
 
-  return Response.json(injectBcvTasa(payload, bcv));
+  const publishedSet = new Set(publishedIds);
+  const userSnapshots = safeParseSnapshots(workspace.snapshotsJson);
+  const publishedParticipatedSnapshotIds = Object.entries(userSnapshots)
+    .filter(([id, snap]) => publishedSet.has(id) && snap.rows?.some((row) => !row._carried))
+    .map(([id]) => id);
+
+  return Response.json({
+    ...injectBcvTasa(payload, bcv),
+    publishedParticipatedSnapshotIds,
+  });
 }
 
 export async function PUT(request: Request) {

@@ -3,6 +3,11 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getPublishedSnapshotIds, publishSnapshot, unpublishSnapshot } from "@/lib/published-snapshots";
+import { safeParseCompanyInfo } from "@/lib/workspace";
+import { computeRowTotals, type RowTotals } from "@/lib/compensation";
+import { getBcvRate } from "@/lib/bcv";
+import type { ExtendedMarketPosition } from "@/types/salary";
 
 function forbiddenResponse() {
   return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
@@ -39,12 +44,6 @@ function computeRowTotal(row: Record<string, unknown>) {
   sum += readNumber("bonoDesempeno");
   sum += readNumber("comisiones");
   sum += readNumber("pagoVariableOtros");
-  sum += readNumber("pagoTransporte");
-  sum += readNumber("viaticos");
-  sum += readNumber("otrosPagos");
-  sum += readNumber("aportesSeguridadSocial");
-  sum += readNumber("prestacionesLegales");
-
   if (Array.isArray(row.additionalFixedPayments)) {
     sum += row.additionalFixedPayments.reduce((acc, item) => acc + Number((item as { amount?: number }).amount ?? 0), 0);
   }
@@ -72,16 +71,9 @@ function collectConceptValues(row: Record<string, unknown>) {
   addConcept("Sueldo básico", row.sueldoBasico);
   addConcept("Bono alimentación", row.bonoAlimentacion);
   addConcept("Bono movilización", row.bonoMovilizacion);
-  addConcept("Horas extras", row.horasExtras);
-  addConcept("Nocturnidad", row.nocturnidad);
-  addConcept("Pago transporte", row.pagoTransporte);
-  addConcept("Viáticos", row.viaticos);
-  addConcept("Otros pagos", row.otrosPagos);
   addConcept("Bono desempeño", row.bonoDesempeno);
   addConcept("Comisiones", row.comisiones);
   addConcept("Otros variables", row.pagoVariableOtros);
-  addConcept("Aportes seguridad social", row.aportesSeguridadSocial);
-  addConcept("Prestaciones legales", row.prestacionesLegales);
 
   if (Array.isArray(row.additionalFixedPayments)) {
     row.additionalFixedPayments.forEach((item) => {
@@ -112,64 +104,87 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const snapshotId = searchParams.get("snapshotId")?.trim() ?? "";
 
-  const snapshots = await prisma.userSnapshot.findMany({
-    select: {
-      snapshotId: true,
-      label: true,
-      date: true,
-      status: true,
-      processedAt: true,
-    },
-    distinct: ["snapshotId"],
-    orderBy: [
-      { date: "desc" },
-      { snapshotId: "desc" },
-    ],
-  });
+  const [snapshots, publishedIds] = await Promise.all([
+    prisma.userSnapshot.findMany({
+      select: {
+        snapshotId: true,
+        label: true,
+        date: true,
+        status: true,
+        processedAt: true,
+      },
+      distinct: ["snapshotId"],
+      orderBy: [
+        { date: "desc" },
+        { snapshotId: "desc" },
+      ],
+    }),
+    getPublishedSnapshotIds(),
+  ]);
+
+  const publishedSet = new Set(publishedIds);
+
+  const snapshotDtos = snapshots.map((snapshot) => ({
+    id: snapshot.snapshotId,
+    label: snapshot.label,
+    date: snapshot.date.toISOString().split("T")[0],
+    status: snapshot.status,
+    processedAt: snapshot.processedAt?.toISOString() ?? null,
+    published: publishedSet.has(snapshot.snapshotId),
+  }));
 
   if (!snapshotId) {
-    return Response.json({
-      snapshots: snapshots.map((snapshot) => ({
-        id: snapshot.snapshotId,
-        label: snapshot.label,
-        date: snapshot.date.toISOString().split("T")[0],
-        status: snapshot.status,
-        processedAt: snapshot.processedAt?.toISOString() ?? null,
-      })),
-      positions: [],
-    });
+    return Response.json({ snapshots: snapshotDtos, positions: [] });
   }
 
-  const positions = await prisma.userPosition.findMany({
-    where: { snapshotId },
-    select: {
-      id: true,
-      title: true,
-      dataJson: true,
-      company: {
-        select: {
-          name: true,
-          economicSector: true,
-          headcount: true,
+  const [positions, { rate: bcvRate }] = await Promise.all([
+    prisma.userPosition.findMany({
+      where: { snapshotId },
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        dataJson: true,
+        company: {
+          select: {
+            name: true,
+            economicSector: true,
+            headcount: true,
+          },
         },
       },
-    },
-    orderBy: [
-      { companyId: "asc" },
-      { title: "asc" },
-    ],
+      orderBy: [
+        { companyId: "asc" },
+        { title: "asc" },
+      ],
+    }),
+    getBcvRate(),
+  ]);
+
+  // Fetch companyInfo for each user (tasas, vacation/utility days for pasivos calc)
+  const userIds = [...new Set(positions.map((p) => p.userId))];
+  const workspaces = await prisma.userWorkspace.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, companyInfoJson: true },
   });
+  const companyInfoByUserId = new Map(
+    workspaces.map((w) => [w.userId, safeParseCompanyInfo(w.companyInfoJson)]),
+  );
 
   return Response.json({
-    snapshots: snapshots.map((snapshot) => ({
-      id: snapshot.snapshotId,
-      label: snapshot.label,
-      date: snapshot.date.toISOString().split("T")[0],
-      status: snapshot.status,
-      processedAt: snapshot.processedAt?.toISOString() ?? null,
-    })),
+    snapshots: snapshotDtos,
     positions: positions.map((position) => {
-      const parsed = JSON.parse(position.dataJson) as Record<string, unknown>;
+      const parsed = JSON.parse(position.dataJson) as ExtendedMarketPosition & Record<string, unknown>;
+      const companyInfo = companyInfoByUserId.get(position.userId);
+      const tasas = companyInfo?.tasas ?? [];
+      const diasVacaciones = Number(companyInfo?.minVacationDays) || 0;
+      const diasUtilidades = Number(companyInfo?.minUtilityDays) || 0;
+      const rowTotals: RowTotals = computeRowTotals(parsed, tasas, bcvRate, diasVacaciones, diasUtilidades);
+
+      const conceptValues = collectConceptValues(parsed);
+      conceptValues["Sin pasivos — mensual"] = rowTotals.totalSinPasivosMensual;
+      conceptValues["Con pasivos — mensual"] = rowTotals.totalConPasivosMensual;
+      conceptValues["Con pasivos — anual"] = rowTotals.totalConPasivosAnual;
 
       return {
         id: position.id,
@@ -182,7 +197,7 @@ export async function GET(request: Request) {
         description: String(parsed.descripcion ?? ""),
         baseSalary: formatMoney(Number(parsed.sueldoBasico ?? 0)),
         totalCompensation: formatMoney(computeRowTotal(parsed)),
-        conceptValues: collectConceptValues(parsed),
+        conceptValues,
       };
     }),
   });
@@ -191,6 +206,7 @@ export async function GET(request: Request) {
 type UpdateStudyStatusBody = {
   snapshotId?: string;
   status?: SnapshotProcessingStatus;
+  publish?: boolean;
 };
 
 export async function PATCH(request: Request) {
@@ -202,9 +218,29 @@ export async function PATCH(request: Request) {
 
   const body = (await request.json().catch(() => null)) as UpdateStudyStatusBody | null;
   const snapshotId = body?.snapshotId?.trim() ?? "";
-  const status = body?.status;
 
-  if (!snapshotId || (status !== "IN_REVIEW" && status !== "PROCESSED")) {
+  if (!snapshotId) {
+    return Response.json({ message: "Datos inválidos para actualizar el estado del corte." }, { status: 400 });
+  }
+
+  // Publish / unpublish action
+  if (typeof body?.publish === "boolean") {
+    const exists = await prisma.userSnapshot.count({ where: { snapshotId } });
+    if (exists === 0) {
+      return Response.json({ message: "El corte no existe." }, { status: 404 });
+    }
+    if (body.publish) {
+      await publishSnapshot(snapshotId);
+      return Response.json({ message: `Corte ${snapshotId} publicado.`, snapshotId, published: true });
+    } else {
+      await unpublishSnapshot(snapshotId);
+      return Response.json({ message: `Corte ${snapshotId} despublicado.`, snapshotId, published: false });
+    }
+  }
+
+  // Status update (IN_REVIEW / PROCESSED)
+  const status = body?.status;
+  if (status !== "IN_REVIEW" && status !== "PROCESSED") {
     return Response.json({ message: "Datos inválidos para actualizar el estado del corte." }, { status: 400 });
   }
 
@@ -222,9 +258,7 @@ export async function PATCH(request: Request) {
 
   const snapshot = await prisma.userSnapshot.findFirst({
     where: { snapshotId },
-    select: {
-      processedAt: true,
-    },
+    select: { processedAt: true },
   });
 
   return Response.json({

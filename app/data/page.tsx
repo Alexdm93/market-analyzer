@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { type Snapshot, type ExchangeRate, type CompanyInfo, type RequiredPosition, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
+import { computeRowTotals } from "@/lib/compensation";
 
 type CompanyOption = {
   id: string;
@@ -97,40 +98,6 @@ const VARIABLE_BONUS_TYPES = [
   { value: "commission", label: "Por comisiones" },
 ] as const;
 
-function freqToMonthly(freq?: string): number {
-  switch (freq) {
-    case "biweekly": return 2;
-    case "monthly": return 1;
-    case "bimonthly": return 0.5;
-    case "quarterly": return 1 / 3;
-    case "semiannual": return 1 / 6;
-    case "annual": return 1 / 12;
-    default: return 1;
-  }
-}
-
-// Returns false for frequencies longer than monthly (bimonthly, quarterly, semiannual, annual)
-function isMonthlyOrMoreFrequent(freq?: string): boolean {
-  return freq === "biweekly" || freq === "monthly" || !freq;
-}
-
-function toUSD(amount: number, currency: string | undefined, bcvRate: number | null): number {
-  if (currency === "VES" && bcvRate && bcvRate > 0) return amount / bcvRate;
-  return amount;
-}
-
-function freqToAnnual(freq?: string): number {
-  switch (freq) {
-    case "biweekly": return 24;
-    case "monthly": return 12;
-    case "bimonthly": return 6;
-    case "quarterly": return 4;
-    case "semiannual": return 2;
-    case "annual": return 1;
-    default: return 12;
-  }
-}
-
 function fmtMoney(n: number) {
   if (!n) return "—";
   return `$ ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -140,9 +107,7 @@ const NIVELES_ADMIN = ["Operativo", "Profesional", "Supervisor", "Gerencia Media
 
 function computeRowTotalAdmin(r: ExtendedMarketPosition): number {
   let s = Number(r.sueldoBasico ?? 0) + Number(r.bonoAlimentacion ?? 0) + Number(r.bonoMovilizacion ?? 0)
-    + Number(r.bonoDesempeno ?? 0) + Number(r.comisiones ?? 0) + Number(r.pagoVariableOtros ?? 0)
-    + Number(r.pagoTransporte ?? 0) + Number(r.viaticos ?? 0) + Number(r.otrosPagos ?? 0)
-    + Number(r.aportesSeguridadSocial ?? 0) + Number(r.prestacionesLegales ?? 0);
+    + Number(r.bonoDesempeno ?? 0) + Number(r.comisiones ?? 0) + Number(r.pagoVariableOtros ?? 0);
   if (Array.isArray(r.additionalFixedPayments))
     s += r.additionalFixedPayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
   if (Array.isArray(r.additionalVariablePayments))
@@ -182,7 +147,7 @@ const empty = (i: number): ExtendedMarketPosition => ({
 
   bonoAlimentacionCuentaMoneda: 'USD',
   bonoAlimentacionMonedaPago: 'USD',
-  bonoAlimentacionImpacto: true,
+  bonoAlimentacionImpacto: false,
   bonoAlimentacionTasaId: '',
 
   bonoMovilizacionCuentaMoneda: 'USD',
@@ -191,12 +156,6 @@ const empty = (i: number): ExtendedMarketPosition => ({
 
   // pagos fijos adicionales (concepto, monto, frecuencia)
   additionalFixedPayments: [],
-
-  horasExtras: 0,
-  nocturnidad: 0,
-  pagoTransporte: 0,
-  viaticos: 0,
-  otrosPagos: 0,
 
   bonoDesempeno: 0,
   bonoDesempenoFreq: 'monthly',
@@ -217,9 +176,6 @@ const empty = (i: number): ExtendedMarketPosition => ({
   pagoVariableOtrosImpacto: true,
   additionalVariablePayments: [],
 
-  aportesSeguridadSocial: 0,
-  prestacionesLegales: 0,
-  beneficiosNoMonetarios: "",
 });
 
 function findDuplicateCargoTitles(rows: ExtendedMarketPosition[]) {
@@ -976,52 +932,15 @@ export default function DataPage() {
     return Number.isFinite(v) && v > 0 ? v : null;
   })();
 
-  const modalMonthlyFixed = modalSaveRow
-    ? Math.round(
-        (isMonthlyOrMoreFrequent(modalSaveRow.sueldoBasicoFreq)
-          ? toUSD(modalSaveRow.sueldoBasico || 0, modalSaveRow.sueldoBasicoCuentaMoneda, bcvRate) * freqToMonthly(modalSaveRow.sueldoBasicoFreq)
-          : 0) +
-        (isMonthlyOrMoreFrequent(modalSaveRow.bonoAlimentacionFreq)
-          ? toUSD(modalSaveRow.bonoAlimentacion || 0, modalSaveRow.bonoAlimentacionCuentaMoneda, bcvRate) * freqToMonthly(modalSaveRow.bonoAlimentacionFreq)
-          : 0) +
-        (isMonthlyOrMoreFrequent(modalSaveRow.bonoMovilizacionFreq)
-          ? toUSD(modalSaveRow.bonoMovilizacion || 0, modalSaveRow.bonoMovilizacionCuentaMoneda, bcvRate) * freqToMonthly(modalSaveRow.bonoMovilizacionFreq)
-          : 0) +
-        (modalSaveRow.additionalFixedPayments || []).reduce(
-          (s, p) =>
-            isMonthlyOrMoreFrequent(p.freq)
-              ? s + toUSD(p.amount || 0, p.accountCurrency, bcvRate) * freqToMonthly(p.freq)
-              : s,
-          0
-        )
+  const modalTotals = modalSaveRow
+    ? computeRowTotals(
+        modalSaveRow,
+        tasas,
+        bcvRate,
+        Number(companyInfo.minVacationDays) || 0,
+        Number(companyInfo.minUtilityDays) || 0,
       )
-    : 0;
-
-  const modalAnnualFixed = modalSaveRow
-    ? Math.round(
-        toUSD(modalSaveRow.sueldoBasico || 0, modalSaveRow.sueldoBasicoCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.sueldoBasicoFreq) +
-        toUSD(modalSaveRow.bonoAlimentacion || 0, modalSaveRow.bonoAlimentacionCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.bonoAlimentacionFreq) +
-        toUSD(modalSaveRow.bonoMovilizacion || 0, modalSaveRow.bonoMovilizacionCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.bonoMovilizacionFreq) +
-        (modalSaveRow.additionalFixedPayments || []).reduce(
-          (s, p) => s + toUSD(p.amount || 0, p.accountCurrency, bcvRate) * freqToAnnual(p.freq),
-          0
-        )
-      )
-    : 0;
-
-  const modalAnnualVariable = modalSaveRow
-    ? Math.round(
-        toUSD(modalSaveRow.bonoDesempeno || 0, modalSaveRow.bonoDesempenoCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.bonoDesempenoFreq) +
-        toUSD(modalSaveRow.comisiones || 0, modalSaveRow.comisionesCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.comisionesFreq) +
-        toUSD(modalSaveRow.pagoVariableOtros || 0, modalSaveRow.pagoVariableOtrosCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.pagoVariableOtrosFreq) +
-        (modalSaveRow.additionalVariablePayments || []).reduce(
-          (s, p) => s + toUSD(p.amount || 0, p.accountCurrency, bcvRate) * freqToAnnual(p.freq),
-          0
-        )
-      )
-    : 0;
-
-  const modalAnnualTotal = modalAnnualFixed + modalAnnualVariable;
+    : null;
 
   const missingCompanyFields: string[] = [];
   if (modal.type === "save") {
@@ -1778,23 +1697,29 @@ export default function DataPage() {
                   <p className="mt-1 text-sm text-slate-500">{modalSaveRow.nivelOrganizacional}</p>
                 )}
 
-                <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="mt-5 grid grid-cols-3 gap-3">
                   <div className="metric-tile">
-                    <div className="metric-label">Monto fijo mensual</div>
+                    <div className="metric-label">Sin pasivos mensual</div>
                     <div className="font-display mt-2 text-xl font-bold text-teal-700">
-                      {fmtMoney(modalMonthlyFixed)}
+                      {fmtMoney(modalTotals?.totalSinPasivosMensual ?? 0)}
                     </div>
                   </div>
                   <div className="metric-tile">
-                    <div className="metric-label">Total anual</div>
+                    <div className="metric-label">Con pasivos mensual</div>
+                    <div className="font-display mt-2 text-xl font-bold text-slate-700">
+                      {fmtMoney(modalTotals?.totalConPasivosMensual ?? 0)}
+                    </div>
+                  </div>
+                  <div className="metric-tile">
+                    <div className="metric-label">Con pasivos anual</div>
                     <div className="font-display mt-2 text-xl font-bold text-amber-700">
-                      {fmtMoney(modalAnnualTotal)}
+                      {fmtMoney(modalTotals?.totalConPasivosAnual ?? 0)}
                     </div>
                   </div>
                 </div>
 
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  El total anual incluye todos los conceptos fijos (×12) y variables anualizado según su frecuencia. No incluye calculos de pasivos laborales.
+                  Todos los montos en USD. Pagos en Bs con moneda de pago=Bs usan tasa BCV; con moneda de pago=USD usan la tasa establecida en el campo.
                 </p>
 
                 {missingCompanyFields.length > 0 && (

@@ -48,6 +48,7 @@ export type UserWorkspacePayload = {
   snapshots: Record<string, Snapshot>;
   selectedSnapshotId: string;
   companyInfo: CompanyInfo;
+  publishedParticipatedSnapshotIds?: string[];
 };
 
 export const EMPTY_COMPANY_INFO: CompanyInfo = {

@@ -42,11 +42,6 @@ function computeRowTotal(r: ExtendedMarketPosition) {
   if (Array.isArray(r.additionalVariablePayments)) {
     sum += r.additionalVariablePayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
   }
-  sum += Number(r.pagoTransporte ?? 0);
-  sum += Number(r.viaticos ?? 0);
-  sum += Number(r.otrosPagos ?? 0);
-  sum += Number(r.aportesSeguridadSocial ?? 0);
-  sum += Number(r.prestacionesLegales ?? 0);
   return sum;
 }
 

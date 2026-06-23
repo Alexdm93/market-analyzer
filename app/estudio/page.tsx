@@ -1,30 +1,13 @@
 "use client";
-import { BarChart3, Database, Layers3 } from "lucide-react";
+import { Database, Layers3 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as XLSX from "xlsx";
 import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
-import { type Snapshot } from "@/lib/workspace";
-
-type Group = {
-  cod: string;
-  title: string;
-  nivel: string;
-  count: number;
-  gradoMin: string;
-  gradoMed: string;
-  gradoMax: string;
-  p90: string;
-  p75: string;
-  p50: string;
-  p25: string;
-  p10: string;
-  promedio: string;
-  min: string;
-  max: string;
-};
+import { type Snapshot, type CompanyInfo, type ExchangeRate, EMPTY_COMPANY_INFO } from "@/lib/workspace";
+import { computeRowTotals, PERCENTILE_MIN_N } from "@/lib/compensation";
 
 type AdminStudySnapshot = {
   id: string;
@@ -32,6 +15,7 @@ type AdminStudySnapshot = {
   date: string;
   status: "IN_REVIEW" | "PROCESSED";
   processedAt: string | null;
+  published: boolean;
 };
 
 type AdminStudyPosition = {
@@ -62,6 +46,28 @@ type AdminProcessedMetric = {
 
 type AdminConceptMetric = AdminProcessedMetric & {
   concept: string;
+};
+
+type PercentilesMetricData = {
+  n: number;
+  p10: number | null;
+  p25: number | null;
+  p50: number | null;
+  p75: number | null;
+  p90: number | null;
+  promedio: number | null;
+};
+type MarketCargoGroup = {
+  tituloCargo: string;
+  n: number;
+  sinPasivosMensual: PercentilesMetricData;
+  conPasivosMensual: PercentilesMetricData;
+  conPasivosAnual: PercentilesMetricData;
+};
+type PercentilesPayload = {
+  snapshotId: string;
+  bcvRate: number | null;
+  grupos: MarketCargoGroup[];
 };
 
 function percentile(values: number[], p: number) {
@@ -95,26 +101,32 @@ function getDisplayLabel(snapshot: Snapshot) {
   return `${rawLabel} — ${formattedDate}`;
 }
 
-function computeRowTotal(r: ExtendedMarketPosition) {
-  let sum = 0;
-  sum += Number(r.sueldoBasico ?? 0);
-  sum += Number(r.bonoAlimentacion ?? 0);
-  sum += Number(r.bonoMovilizacion ?? 0);
-  if (Array.isArray(r.additionalFixedPayments)) {
-    sum += r.additionalFixedPayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
+const COMPENSATION_METRIC_KEYS = [
+  "Sin pasivos — mensual",
+  "Con pasivos — mensual",
+  "Con pasivos — anual",
+] as const;
+
+const COMPENSATION_METRIC_LABELS: Record<typeof COMPENSATION_METRIC_KEYS[number], string> = {
+  "Sin pasivos — mensual": "Total compensación sin pasivos laborales mensualizado",
+  "Con pasivos — mensual": "Total compensación con pasivos laborales mensualizado",
+  "Con pasivos — anual": "Total compensación con pasivos laborales anualizado",
+};
+
+function resolvePosition(myValue: number, data: PercentilesMetricData): string {
+  if (data.p50 === null) return "Sin datos";
+  if (myValue >= data.p50) {
+    if (data.p75 !== null && myValue >= data.p75) {
+      if (data.p90 !== null && myValue >= data.p90) return "Sobre P90";
+      return "P75–P90";
+    }
+    return "P50–P75";
   }
-  sum += Number(r.bonoDesempeno ?? 0);
-  sum += Number(r.comisiones ?? 0);
-  sum += Number(r.pagoVariableOtros ?? 0);
-  if (Array.isArray(r.additionalVariablePayments)) {
-    sum += r.additionalVariablePayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
+  if (data.p25 !== null && myValue < data.p25) {
+    if (data.p10 !== null && myValue < data.p10) return "Bajo P10";
+    return "P10–P25";
   }
-  sum += Number(r.pagoTransporte ?? 0);
-  sum += Number(r.viaticos ?? 0);
-  sum += Number(r.otrosPagos ?? 0);
-  sum += Number(r.aportesSeguridadSocial ?? 0);
-  sum += Number(r.prestacionesLegales ?? 0);
-  return sum;
+  return "P25–P50";
 }
 
 export default function EstudioPage() {
@@ -139,6 +151,14 @@ export default function EstudioPage() {
   const [filterCompany, setFilterCompany] = useState("");
   const [filterSize, setFilterSize] = useState("");
   const adminStudyRequestId = useRef(0);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
+  const [tasas, setTasas] = useState<ExchangeRate[]>([]);
+  const [activeMetric, setActiveMetric] = useState<"sinPasivosMensual" | "conPasivosMensual" | "conPasivosAnual">("conPasivosMensual");
+  const [percentileData, setPercentileData] = useState<PercentilesPayload | null>(null);
+  const [percentilesLoading, setPercentilesLoading] = useState(false);
+  const [percentilesError, setPercentilesError] = useState<string | null>(null);
+  const [publishedParticipatedSnapshotIds, setPublishedParticipatedSnapshotIds] = useState<string[]>([]);
+  const [adminPublishStatus, setAdminPublishStatus] = useState<"idle" | "working">("idle");
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
     if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
@@ -212,17 +232,19 @@ export default function EstudioPage() {
           const numericValues = values.filter((value) => Number.isFinite(value));
           const average = numericValues.length ? Math.round(numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length) : 0;
 
+          const n = numericValues.length;
+          const pct = (q: number) => formatMoney(Math.round(percentile(numericValues, q)));
           return {
             concept,
-            count: numericValues.length,
-            min: formatMoney(numericValues.length ? Math.min(...numericValues) : 0),
-            max: formatMoney(numericValues.length ? Math.max(...numericValues) : 0),
-            average: formatMoney(average),
-            p10: formatMoney(Math.round(percentile(numericValues, 10))),
-            p25: formatMoney(Math.round(percentile(numericValues, 25))),
-            p50: formatMoney(Math.round(percentile(numericValues, 50))),
-            p75: formatMoney(Math.round(percentile(numericValues, 75))),
-            p90: formatMoney(Math.round(percentile(numericValues, 90))),
+            count: n,
+            min: n ? formatMoney(Math.min(...numericValues)) : "—",
+            max: n ? formatMoney(Math.max(...numericValues)) : "—",
+            average: n >= PERCENTILE_MIN_N.promedio ? formatMoney(average) : "ND",
+            p10: n >= PERCENTILE_MIN_N.p10 ? pct(10) : "ND",
+            p25: n >= PERCENTILE_MIN_N.p25 ? pct(25) : "ND",
+            p50: n >= PERCENTILE_MIN_N.p50 ? pct(50) : "ND",
+            p75: n >= PERCENTILE_MIN_N.p75 ? pct(75) : "ND",
+            p90: n >= PERCENTILE_MIN_N.p90 ? pct(90) : "ND",
           };
         })
         .sort((left, right) => left.concept.localeCompare(right.concept));
@@ -311,7 +333,16 @@ export default function EstudioPage() {
         }
 
         setSnapshots(workspace.snapshots);
-        setSelectedSnapshotId(workspace.selectedSnapshotId || Object.keys(workspace.snapshots)[0] || "");
+        setCompanyInfo(workspace.companyInfo ?? EMPTY_COMPANY_INFO);
+        setTasas(workspace.companyInfo?.tasas ?? []);
+        const eligible = workspace.publishedParticipatedSnapshotIds ?? [];
+        setPublishedParticipatedSnapshotIds(eligible);
+        // Auto-select: prefer the workspace's saved selection if eligible, otherwise first eligible
+        const preferred = workspace.selectedSnapshotId;
+        const initial = (preferred && eligible.includes(preferred))
+          ? preferred
+          : (eligible[0] ?? "");
+        setSelectedSnapshotId(initial);
       } catch {
         if (!ignore) {
           setSnapshots({});
@@ -326,6 +357,28 @@ export default function EstudioPage() {
       ignore = true;
     };
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin || !selectedSnapshotId) return;
+    let ignore = false;
+    setPercentilesLoading(true);
+    setPercentilesError(null);
+    void fetch(`/api/percentiles?snapshotId=${encodeURIComponent(selectedSnapshotId)}`, { cache: "no-store" })
+      .then(async (r) => {
+        const body = await r.json().catch(() => null) as PercentilesPayload & { message?: string } | null;
+        if (!ignore) {
+          if (r.ok) {
+            setPercentileData(body);
+          } else {
+            setPercentileData(null);
+            setPercentilesError(body?.message ?? "No fue posible cargar los datos de mercado.");
+          }
+        }
+      })
+      .catch(() => { if (!ignore) { setPercentileData(null); setPercentilesError("Error de conexión."); } })
+      .finally(() => { if (!ignore) setPercentilesLoading(false); });
+    return () => { ignore = true; };
+  }, [isAdmin, selectedSnapshotId]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -429,6 +482,29 @@ export default function EstudioPage() {
     setSelectedAdminCargo(firstCargo);
   }
 
+  async function handleTogglePublish(publish: boolean) {
+    if (!selectedSnapshotId) return;
+    setAdminPublishStatus("working");
+    setAdminMessage("");
+    try {
+      const response = await fetch("/api/admin/study", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId: selectedSnapshotId, publish }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string; published?: boolean } | null;
+      if (!response.ok) throw new Error(payload?.message ?? "No fue posible actualizar la visibilidad del corte.");
+      setAdminSnapshots((current) =>
+        current.map((s) => (s.id === selectedSnapshotId ? { ...s, published: payload?.published ?? publish } : s)),
+      );
+      setAdminMessage(payload?.message ?? (publish ? "Corte publicado." : "Corte despublicado."));
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "No fue posible actualizar la visibilidad del corte.");
+    } finally {
+      setAdminPublishStatus("idle");
+    }
+  }
+
   async function handleProcessSnapshot() {
     if (!selectedSnapshotId) {
       return;
@@ -495,21 +571,23 @@ export default function EstudioPage() {
   }
 
   function exportAdminProcessedExcel(snapshotLabel: string, cargoTitle: string, metrics: AdminConceptMetric[]) {
-    if (metrics.length === 0) {
+    const filtered = metrics.filter((m) => COMPENSATION_METRIC_KEYS.includes(m.concept as typeof COMPENSATION_METRIC_KEYS[number]));
+    if (filtered.length === 0) {
       setAdminMessage("No hay percentiles procesados para exportar en el cargo seleccionado.");
       return;
     }
 
-    const sheetRows = metrics.map((metric) => ({
-      Concepto: metric.concept,
-      Min: metric.min,
-      Max: metric.max,
+    const sheetRows = filtered.map((metric) => ({
+      Concepto: COMPENSATION_METRIC_LABELS[metric.concept as typeof COMPENSATION_METRIC_KEYS[number]] ?? metric.concept,
+      N: metric.count,
       Promedio: metric.average,
+      Min: metric.min,
       P10: metric.p10,
       P25: metric.p25,
       P50: metric.p50,
       P75: metric.p75,
       P90: metric.p90,
+      Max: metric.max,
     }));
 
     const workbook = XLSX.utils.book_new();
@@ -544,6 +622,31 @@ export default function EstudioPage() {
     XLSX.writeFile(workbook, `grados-${sanitizeFileSegment(snapshotLabel)}.xlsx`);
   }
 
+  const METRIC_KEY = {
+    sinPasivosMensual: "totalSinPasivosMensual",
+    conPasivosMensual: "totalConPasivosMensual",
+    conPasivosAnual: "totalConPasivosAnual",
+  } as const;
+
+  const userRowTotals = useMemo(() => {
+    const bcvRate = (() => {
+      const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
+      return Number.isFinite(v) && v > 0 ? v : null;
+    })();
+    const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
+    const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
+    return rows.map((row) => ({
+      row,
+      totals: computeRowTotals(row, tasas, bcvRate, diasVacaciones, diasUtilidades),
+    }));
+  }, [rows, tasas, companyInfo]);
+
+  const marketByTitle = useMemo(() => {
+    const m = new Map<string, MarketCargoGroup>();
+    (percentileData?.grupos ?? []).forEach((g) => m.set(g.tituloCargo.trim().toLowerCase(), g));
+    return m;
+  }, [percentileData]);
+
   if (isAdmin) {
     const selectedAdminSnapshot = adminSnapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? null;
     const availableAdminCargos = adminPositionsByCargo.map((entry) => entry.title);
@@ -572,13 +675,21 @@ export default function EstudioPage() {
                   </div>
                   <div className="metric-tile">
                     <div className="metric-label">Estado</div>
-                    <div className="metric-value mt-3 text-xl">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
+                    <div className="metric-value mt-3 text-xl">
+                      {selectedAdminSnapshot?.published
+                        ? "Publicada"
+                        : selectedAdminSnapshot?.status === "PROCESSED"
+                          ? "Procesada"
+                          : "En revisión"}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-4 text-sm text-slate-600">
-                  {selectedAdminSnapshot?.processedAt
-                    ? `Procesada el ${new Date(selectedAdminSnapshot.processedAt).toLocaleDateString("es-VE")} a las ${new Date(selectedAdminSnapshot.processedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}`
-                    : "Aún no se ha procesado este corte."}
+                  {selectedAdminSnapshot?.published
+                    ? "Publicada — los participantes pueden ver los resultados."
+                    : selectedAdminSnapshot?.processedAt
+                      ? `Procesada el ${new Date(selectedAdminSnapshot.processedAt).toLocaleDateString("es-VE")} a las ${new Date(selectedAdminSnapshot.processedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}`
+                      : "Aún no se ha procesado este corte."}
                 </div>
               </div>
 
@@ -647,9 +758,33 @@ export default function EstudioPage() {
                   </div>
                 )}
 
-                <button type="button" onClick={() => void handleProcessSnapshot()} className="btn btn-primary mt-4 w-full" disabled={!selectedSnapshotId || selectedAdminSnapshot?.status === "PROCESSED" || adminStatus === "processing"}>
+                <button
+                  type="button"
+                  onClick={() => void handleProcessSnapshot()}
+                  className="btn btn-primary mt-4 w-full"
+                  disabled={!selectedSnapshotId || selectedAdminSnapshot?.status === "PROCESSED" || adminStatus === "processing"}
+                >
                   {adminStatus === "processing" ? "Procesando..." : "Procesar corte"}
                 </button>
+
+                {selectedAdminSnapshot?.status === "PROCESSED" && (
+                  <button
+                    type="button"
+                    onClick={() => void handleTogglePublish(!selectedAdminSnapshot.published)}
+                    className={`mt-3 w-full rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
+                      selectedAdminSnapshot.published
+                        ? "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                        : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    }`}
+                    disabled={adminPublishStatus === "working"}
+                  >
+                    {adminPublishStatus === "working"
+                      ? "Actualizando..."
+                      : selectedAdminSnapshot.published
+                        ? "Despublicar corte"
+                        : "Publicar corte"}
+                  </button>
+                )}
 
                 {adminMessage ? <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{adminMessage}</div> : null}
               </div>
@@ -810,24 +945,8 @@ export default function EstudioPage() {
                           <div className="eyebrow mb-2">Resultado procesado</div>
                           <h2 className="font-display text-2xl font-bold text-slate-900">Percentiles por cargo</h2>
                         </div>
-                        <div className="pill">Procesada</div>
-                      </div>
-
-                      <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
-                          <div>
-                            <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
-                            <select
-                              id="adminProcessedCargo"
-                              value={activeAdminCargo}
-                              onChange={(event) => setSelectedAdminCargo(event.target.value)}
-                              className="field-select"
-                            >
-                              {availableAdminCargos.map((cargo) => (
-                                <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
-                              ))}
-                            </select>
-                          </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="pill">Procesada</div>
                           <button
                             type="button"
                             onClick={() => exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeProcessedMetrics)}
@@ -838,40 +957,66 @@ export default function EstudioPage() {
                         </div>
                       </div>
 
-                      {activeProcessedMetrics.length > 0 ? (
-                        <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
-                          <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                            <thead>
-                              <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                                <th className="px-4 py-2">Concepto</th>
-                                <th className="px-4 py-2 text-right">Min</th>
-                                <th className="px-4 py-2 text-right">Max</th>
-                                <th className="px-4 py-2 text-right">Promedio</th>
-                                <th className="px-4 py-2 text-right">P10</th>
-                                <th className="px-4 py-2 text-right">P25</th>
-                                <th className="px-4 py-2 text-right">P50</th>
-                                <th className="px-4 py-2 text-right">P75</th>
-                                <th className="px-4 py-2 text-right">P90</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {activeProcessedMetrics.map((metric) => (
-                                <tr key={metric.concept} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                                  <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{metric.concept}</td>
-                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.min}</td>
-                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.max}</td>
-                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.average}</td>
-                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p10}</td>
-                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p25}</td>
-                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p50}</td>
-                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric.p75}</td>
-                                  <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{metric.p90}</td>
+                      <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                        <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
+                        <select
+                          id="adminProcessedCargo"
+                          value={activeAdminCargo}
+                          onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                          className="field-select mt-1.5"
+                        >
+                          {availableAdminCargos.map((cargo) => (
+                            <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {(() => {
+                        const metricsMap = new Map(activeProcessedMetrics.map((m) => [m.concept, m]));
+                        const rows = COMPENSATION_METRIC_KEYS.map((key) => ({
+                          key,
+                          label: COMPENSATION_METRIC_LABELS[key],
+                          metric: metricsMap.get(key),
+                        }));
+                        const hasData = rows.some((r) => r.metric);
+                        if (!hasData) return null;
+                        return (
+                          <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
+                            <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                              <thead>
+                                <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                                  <th className="px-4 py-2">Concepto</th>
+                                  <th className="px-4 py-2 text-center">N</th>
+                                  <th className="px-4 py-2 text-right">Promedio</th>
+                                  <th className="px-4 py-2 text-right">Min</th>
+                                  <th className="px-4 py-2 text-right">P10</th>
+                                  <th className="px-4 py-2 text-right">P25</th>
+                                  <th className="px-4 py-2 text-right text-teal-700">P50</th>
+                                  <th className="px-4 py-2 text-right">P75</th>
+                                  <th className="px-4 py-2 text-right">P90</th>
+                                  <th className="px-4 py-2 text-right">Max</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : null}
+                              </thead>
+                              <tbody>
+                                {rows.map(({ key, label, metric }) => (
+                                  <tr key={key} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{label}</td>
+                                    <td className="px-4 py-4 text-center font-semibold text-slate-600">{metric?.count ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-amber-700">{metric?.average ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-600">{metric?.min ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p10 ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p25 ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{metric?.p50 ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p75 ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p90 ?? "—"}</td>
+                                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-slate-600">{metric?.max ?? "—"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
                     </section>
                   ) : null}
                 </>
@@ -941,60 +1086,35 @@ export default function EstudioPage() {
     );
   }
 
-  const map = new Map<string, ExtendedMarketPosition[]>();
-  rows.forEach((r) => {
-      const key = r.tituloCargo?.trim() || "Sin título";
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(r);
-  });
+  const marketCargosCount = userRowTotals.filter(({ row }) =>
+    marketByTitle.has((row.tituloCargo ?? "").trim().toLowerCase()),
+  ).length;
 
-  const groups: Group[] = Array.from(map.entries())
-    .map(([title, items], index) => {
-      const totals = items.map((it) => Number(computeRowTotal(it) ?? 0)).filter((v) => !Number.isNaN(v));
-      const count = items.length;
-      const min = totals.length ? Math.min(...totals) : 0;
-      const max = totals.length ? Math.max(...totals) : 0;
-      const avg = totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
-      const p90 = Math.round(percentile(totals, 90));
-      const p75 = Math.round(percentile(totals, 75));
-      const p50 = Math.round(percentile(totals, 50));
-      const p25 = Math.round(percentile(totals, 25));
-      const p10 = Math.round(percentile(totals, 10));
+  const eligibleSnapshots = Object.values(snapshots)
+    .filter((s) => publishedParticipatedSnapshotIds.includes(s.id))
+    .sort((a, b) => b.date.localeCompare(a.date));
 
-      const nivelCounts: Record<string, number> = {};
-      items.forEach((it) => {
-        const n = it.nivelOrganizacional || "—";
-        nivelCounts[n] = (nivelCounts[n] || 0) + 1;
-      });
-      const nivel = Object.entries(nivelCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
-
-      return {
-        cod: `C${String(index + 1).padStart(3, "0")}`,
-        title,
-        nivel,
-        count,
-        gradoMin: formatMoney(min),
-        gradoMed: formatMoney(p50),
-        gradoMax: formatMoney(max),
-        p90: formatMoney(p90),
-        p75: formatMoney(p75),
-        p50: formatMoney(p50),
-        p25: formatMoney(p25),
-        p10: formatMoney(p10),
-        promedio: formatMoney(avg),
-        min: formatMoney(min),
-        max: formatMoney(max),
-      };
-    })
-    .sort((a, b) => b.count - a.count);
-
-  const totalObservations = groups.reduce((acc, group) => acc + group.count, 0);
-  const medianReference = groups[0]?.p50 ?? "ND";
-  const topGroups = groups.slice(0, 6);
-  const maxAverage = Math.max(
-    ...topGroups.map((group) => Number(group.promedio.replace(/[^0-9.-]+/g, "") || 0)),
-    1
-  );
+  // No eligible snapshots — user hasn't participated in any published corte
+  if (eligibleSnapshots.length === 0) {
+    return (
+      <main className="page-wrap">
+        <div className="flex w-full flex-col gap-6">
+          <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+            <div className="eyebrow mb-3">Posicionamiento de mercado</div>
+            <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">
+              Tu compensación frente al mercado.
+            </h1>
+            <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
+              Compara cada cargo de tu empresa con los percentiles del estudio de remuneración, calculados a partir de los empleadores participantes.
+            </p>
+          </section>
+          <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
+            No tienes acceso a resultados en este momento. Para ver los percentiles de un corte necesitas haber actualizado y enviado tus cargos en ese corte. Una vez que el administrador lo publique, aparecerá aquí.
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="page-wrap">
@@ -1002,24 +1122,26 @@ export default function EstudioPage() {
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_24rem]">
             <div>
-              <div className="eyebrow mb-3">Estudio agregado</div>
-              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Lectura consolidada por cargo.</h1>
+              <div className="eyebrow mb-3">Posicionamiento de mercado</div>
+              <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">
+                Tu compensación frente al mercado.
+              </h1>
               <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-                Analiza observaciones, percentiles y rangos sobre la data activa sin perder trazabilidad del corte que estás leyendo.
+                Compara cada cargo de tu empresa con los percentiles del estudio de remuneración, calculados a partir de los empleadores participantes.
               </p>
 
               <div className="mt-8 grid gap-4 md:grid-cols-3">
                 <div className="metric-tile">
-                  <div className="metric-label">Cargos agrupados</div>
-                  <div className="metric-value mt-3">{groups.length}</div>
+                  <div className="metric-label">Cargos propios</div>
+                  <div className="metric-value mt-3">{userRowTotals.length}</div>
                 </div>
                 <div className="metric-tile">
-                  <div className="metric-label">Observaciones</div>
-                  <div className="metric-value mt-3">{totalObservations}</div>
+                  <div className="metric-label">Con datos de mercado</div>
+                  <div className="metric-value mt-3">{marketCargosCount}</div>
                 </div>
                 <div className="metric-tile">
-                  <div className="metric-label">P50 de referencia</div>
-                  <div className="metric-value mt-3">{medianReference}</div>
+                  <div className="metric-label">Cargos en el corte</div>
+                  <div className="metric-value mt-3">{percentileData ? percentileData.grupos.length : "—"}</div>
                 </div>
               </div>
             </div>
@@ -1043,25 +1165,19 @@ export default function EstudioPage() {
                   onChange={(e) => {
                     const id = e.target.value;
                     setSelectedSnapshotId(id);
-                    void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
-                      // ignore
-                    });
+                    void updateWorkspace({ selectedSnapshotId: id }).catch(() => {});
                   }}
                   className="field-select"
                 >
-                  {Object.values(snapshots)
-                    .sort((a, b) => b.date.localeCompare(a.date))
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>{getDisplayLabel(s)}</option>
-                    ))}
+                  {eligibleSnapshots.map((s) => (
+                    <option key={s.id} value={s.id}>{getDisplayLabel(s)}</option>
+                  ))}
                 </select>
               </div>
 
               <button
                 type="button"
-                onClick={() => {
-                  router.push("/data");
-                }}
+                onClick={() => router.push("/data")}
                 className="btn btn-primary mt-5 w-full"
               >
                 Abrir en Suministro de Data
@@ -1070,110 +1186,146 @@ export default function EstudioPage() {
           </div>
         </section>
 
-        {groups.length === 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { key: "sinPasivosMensual", label: "Sin pasivos mensual" },
+              { key: "conPasivosMensual", label: "Con pasivos mensual" },
+              { key: "conPasivosAnual", label: "Con pasivos anual" },
+            ] as const
+          ).map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveMetric(key)}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+                activeMetric === key
+                  ? "bg-teal-700 text-white shadow-sm"
+                  : "surface-card text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {userRowTotals.length === 0 ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
-            No hay datos cargados. Ve a Suministro de Data y agrega posiciones para construir el estudio.
+            No hay posiciones cargadas en este corte. Ve a{" "}
+            <button
+              type="button"
+              onClick={() => router.push("/data")}
+              className="font-semibold text-teal-700 underline underline-offset-2"
+            >
+              Suministro de Data
+            </button>{" "}
+            y agrega cargos para ver tu posicionamiento.
+          </section>
+        ) : percentilesLoading ? (
+          <section className="surface-card rounded-[2rem] p-8 text-sm text-slate-500">
+            Cargando datos de mercado…
+          </section>
+        ) : percentilesError ? (
+          <section className="surface-card rounded-[2rem] p-8 text-sm text-slate-600">
+            {percentilesError}
           </section>
         ) : (
-          <>
-            <section className="surface-card rounded-[2rem] p-6">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="eyebrow mb-2">Lectura visual</div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900">Promedio salarial por cargo</h2>
-                </div>
-                <div className="flex flex-wrap gap-3 text-sm text-slate-600">
-                  <div className="pill">
-                    <Layers3 size={14} aria-hidden />
-                    Top {topGroups.length} cargos
-                  </div>
-                  <div className="pill">
-                    <BarChart3 size={14} aria-hidden />
-                    Escala relativa por promedio
-                  </div>
-                </div>
+          <section className="surface-card overflow-hidden rounded-[2rem]">
+            <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="eyebrow mb-2">Tabla comparativa</div>
+                <h2 className="font-display text-2xl font-bold text-slate-900">
+                  {activeMetric === "sinPasivosMensual" && "Sin pasivos — mensual (USD)"}
+                  {activeMetric === "conPasivosMensual" && "Con pasivos — mensual (USD)"}
+                  {activeMetric === "conPasivosAnual" && "Con pasivos — anual (USD)"}
+                </h2>
               </div>
-
-              <div className="mt-6 grid gap-4">
-                {topGroups.map((group) => {
-                  const average = Number(group.promedio.replace(/[^0-9.-]+/g, "") || 0);
-
-                  return (
-                    <div key={`${group.cod}-chart`} className="grid gap-2 md:grid-cols-[16rem_minmax(0,1fr)_8rem] md:items-center">
-                      <div>
-                        <div className="font-display text-sm font-bold text-slate-900">{group.title}</div>
-                        <div className="text-xs text-slate-500">{group.count} observaciones</div>
-                      </div>
-                      <progress
-                        className="h-3 w-full overflow-hidden rounded-full [appearance:none] [&::-webkit-progress-bar]:bg-slate-100 [&::-webkit-progress-value]:bg-[linear-gradient(90deg,#0f766e,#d97706)] [&::-moz-progress-bar]:bg-[linear-gradient(90deg,#0f766e,#d97706)]"
-                        value={average}
-                        max={maxAverage}
-                      />
-                      <div className="text-right font-display text-sm font-semibold text-slate-700">{group.promedio}</div>
-                    </div>
-                  );
-                })}
+              <div className="pill">
+                <Layers3 size={14} aria-hidden />
+                ND = muestra insuficiente
               </div>
-            </section>
+            </div>
 
-            <section className="surface-card overflow-hidden rounded-[2rem]">
-              <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="eyebrow mb-2">Tabla comparativa</div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900">Rangos y percentiles</h2>
-                </div>
-                <div className="flex flex-wrap gap-3 text-sm text-slate-600">
-                  <div className="pill">
-                    <Layers3 size={14} aria-hidden />
-                    Agrupado por título
-                  </div>
-                  <div className="pill">
-                    <BarChart3 size={14} aria-hidden />
-                    Ordenado por observaciones
-                  </div>
-                </div>
-              </div>
+            <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
+              <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                    <th className="px-4 py-2">Cargo</th>
+                    <th className="px-4 py-2 text-center">N</th>
+                    <th className="px-4 py-2 text-right text-teal-700">Mi valor</th>
+                    <th className="px-4 py-2 text-right">P10</th>
+                    <th className="px-4 py-2 text-right">P25</th>
+                    <th className="px-4 py-2 text-right text-teal-700">P50</th>
+                    <th className="px-4 py-2 text-right">P75</th>
+                    <th className="px-4 py-2 text-right">P90</th>
+                    <th className="px-4 py-2 text-right">Prom.</th>
+                    <th className="px-4 py-2">Posición</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userRowTotals.map(({ row, totals }) => {
+                    const normTitle = (row.tituloCargo ?? "").trim().toLowerCase();
+                    const mkt = marketByTitle.get(normTitle);
+                    const mktData = mkt ? mkt[activeMetric] : null;
+                    const myValue = totals[METRIC_KEY[activeMetric]];
+                    const position = mktData ? resolvePosition(myValue, mktData) : null;
+                    const posColor =
+                      position === "Sobre P90" || position === "P75–P90"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : position === "P50–P75"
+                          ? "bg-teal-50 text-teal-700"
+                          : position === "P25–P50"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-rose-50 text-rose-700";
+                    const nd = (v: number | null) => (v !== null ? formatMoney(v) : "ND");
 
-              <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
-                <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                  <thead>
-                    <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                      <th className="px-4 py-2">COD</th>
-                      <th className="px-4 py-2">Cargo</th>
-                      <th className="px-4 py-2">Nivel</th>
-                      <th className="px-4 py-2 text-center">Obs.</th>
-                      <th className="px-4 py-2 text-right">Min</th>
-                      <th className="px-4 py-2 text-right">P50</th>
-                      <th className="px-4 py-2 text-right">Max</th>
-                      <th className="px-4 py-2 text-right">P90</th>
-                      <th className="px-4 py-2 text-right">P75</th>
-                      <th className="px-4 py-2 text-right">P25</th>
-                      <th className="px-4 py-2 text-right">P10</th>
-                      <th className="px-4 py-2 text-right">Promedio</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groups.map((g) => (
-                      <tr key={g.cod} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                        <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-500">{g.cod}</td>
-                        <td className="px-4 py-4 font-medium text-slate-900">{g.title}</td>
-                        <td className="px-4 py-4 text-slate-600">{g.nivel}</td>
-                        <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.count}</td>
-                        <td className="px-4 py-4 text-right font-display text-slate-700">{g.min}</td>
-                        <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{g.p50}</td>
-                        <td className="px-4 py-4 text-right font-display text-slate-700">{g.max}</td>
-                        <td className="px-4 py-4 text-right font-display text-slate-700">{g.p90}</td>
-                        <td className="px-4 py-4 text-right font-display text-slate-700">{g.p75}</td>
-                        <td className="px-4 py-4 text-right font-display text-slate-700">{g.p25}</td>
-                        <td className="px-4 py-4 text-right font-display text-slate-700">{g.p10}</td>
-                        <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{g.promedio}</td>
+                    return (
+                      <tr key={row.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                        <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
+                          {row.tituloCargo || "Sin título"}
+                        </td>
+                        <td className="px-4 py-4 text-center font-semibold text-slate-600">
+                          {mkt ? mkt.n : "—"}
+                        </td>
+                        <td className="px-4 py-4 text-right font-display font-bold text-teal-700">
+                          {formatMoney(myValue)}
+                        </td>
+                        <td className="px-4 py-4 text-right font-display text-slate-600">
+                          {mktData ? nd(mktData.p10) : "—"}
+                        </td>
+                        <td className="px-4 py-4 text-right font-display text-slate-600">
+                          {mktData ? nd(mktData.p25) : "—"}
+                        </td>
+                        <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
+                          {mktData ? nd(mktData.p50) : "—"}
+                        </td>
+                        <td className="px-4 py-4 text-right font-display text-slate-600">
+                          {mktData ? nd(mktData.p75) : "—"}
+                        </td>
+                        <td className="px-4 py-4 text-right font-display text-slate-600">
+                          {mktData ? nd(mktData.p90) : "—"}
+                        </td>
+                        <td className="px-4 py-4 text-right font-display text-amber-700">
+                          {mktData ? nd(mktData.promedio) : "—"}
+                        </td>
+                        <td className="rounded-r-[1.25rem] px-4 py-4">
+                          {position === null ? (
+                            <span className="text-xs text-slate-300">—</span>
+                          ) : position === "Sin datos" ? (
+                            <span className="text-xs text-slate-400">Sin datos</span>
+                          ) : (
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${posColor}`}>
+                              {position}
+                            </span>
+                          )}
+                        </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
       </div>
     </main>

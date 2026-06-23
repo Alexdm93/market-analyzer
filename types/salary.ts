@@ -76,13 +76,6 @@ export interface ExtendedMarketPosition {
   // Pagos fijos adicionales: pares (concepto, monto, frecuencia)
   additionalFixedPayments?: CompensationConcept[];
 
-  // Otros pagos / asignaciones
-  horasExtras?: number;
-  nocturnidad?: number;
-  pagoTransporte?: number;
-  viaticos?: number;
-  otrosPagos?: number;
-
   // Pagos variables
   bonoDesempeno?: number;
   bonoDesempenoFreq?: PaymentFrequency;
@@ -103,11 +96,6 @@ export interface ExtendedMarketPosition {
   pagoVariableOtrosImpacto?: boolean;
 
   additionalVariablePayments?: CompensationConcept[];
-
-  // Pagos laborales / beneficios
-  aportesSeguridadSocial?: number;
-  prestacionesLegales?: number;
-  beneficiosNoMonetarios?: string;
 
   // (Totales y metadatos removidos: moneda, totalCompensacion, observaciones)
 }
