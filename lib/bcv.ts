@@ -47,7 +47,7 @@ export async function getBcvRate(): Promise<{ rate: number | null; updatedAt: st
 export function buildBcvTasa(rate: number | null, updatedAt: string | null) {
   return {
     id: BCV_TASA_ID,
-    nombre: "Tasa BCV $",
+    nombre: "Tasa BCV (Bs./USD)",
     referencia: "BCV oficial",
     valor: rate !== null ? String(rate) : "",
     isSystem: true as const,
