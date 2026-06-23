@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import * as XLSX from "xlsx";
-import { Building2, CalendarDays, CheckCircle2, Download, LoaderCircle, Plus, Search, X } from "lucide-react";
+import { Building2, CalendarDays, CheckCircle2, Download, LoaderCircle, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import {
   COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
@@ -66,7 +66,14 @@ export default function EmpresasPage() {
   const [snapshotErrorMessage, setSnapshotErrorMessage] = useState("");
   const [companySearch, setCompanySearch] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [modalMode, setModalMode] = useState<"view" | "edit" | "delete">("view");
+  const [editName, setEditName] = useState("");
+  const [editSector, setEditSector] = useState("");
+  const [editClassification, setEditClassification] = useState("");
+  const [modalError, setModalError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const classificationOptions = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[companyEconomicSector] ?? [];
+  const editClassificationOptions = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[editSector] ?? [];
 
   useEffect(() => {
     if (!isAdmin) {
@@ -215,6 +222,58 @@ export default function EmpresasPage() {
         setStatusMessage("Empresa creada correctamente.");
       })();
     });
+  }
+
+  function openCompany(company: Company) {
+    setSelectedCompany(company);
+    setModalMode("view");
+    setModalError("");
+  }
+
+  function openEdit() {
+    if (!selectedCompany) return;
+    setEditName(selectedCompany.name);
+    setEditSector(selectedCompany.economicSector ?? "");
+    setEditClassification(selectedCompany.classification ?? "");
+    setModalError("");
+    setModalMode("edit");
+  }
+
+  async function handleEdit() {
+    if (!selectedCompany) return;
+    setIsSaving(true);
+    setModalError("");
+    try {
+      const res = await fetch(`/api/companies/${selectedCompany.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName, economicSector: editSector, classification: editClassification }),
+      });
+      const payload = (await res.json().catch(() => null)) as { company?: Company; message?: string } | null;
+      if (!res.ok) { setModalError(payload?.message ?? "No fue posible guardar los cambios."); return; }
+      if (payload?.company) {
+        setCompanies((prev) => prev.map((c) => c.id === selectedCompany.id ? { ...c, ...payload.company } : c).sort((a, b) => a.name.localeCompare(b.name)));
+        setSelectedCompany((prev) => prev ? { ...prev, ...payload.company } : prev);
+      }
+      setModalMode("view");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!selectedCompany) return;
+    setIsSaving(true);
+    setModalError("");
+    try {
+      const res = await fetch(`/api/companies/${selectedCompany.id}`, { method: "DELETE" });
+      const payload = (await res.json().catch(() => null)) as { message?: string } | null;
+      if (!res.ok) { setModalError(payload?.message ?? "No fue posible eliminar la empresa."); return; }
+      setCompanies((prev) => prev.filter((c) => c.id !== selectedCompany.id));
+      setSelectedCompany(null);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function handleEconomicSectorChange(nextSector: string) {
@@ -575,10 +634,10 @@ export default function EmpresasPage() {
                   <article
                     key={company.id}
                     className="metric-tile cursor-pointer hover:ring-2 hover:ring-slate-300 transition-shadow"
-                    onClick={() => setSelectedCompany(company)}
+                    onClick={() => openCompany(company)}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedCompany(company); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openCompany(company); }}
                   >
                     <div className="font-display text-lg font-bold text-slate-900 md:text-[1rem]">{company.name}</div>
                     <div className="mt-2 text-sm leading-6 text-slate-600 md:text-[0.82rem] md:leading-5">{company.description || "Sin descripción registrada."}</div>
@@ -598,22 +657,23 @@ export default function EmpresasPage() {
       {selectedCompany && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-          onClick={() => setSelectedCompany(null)}
+          onClick={() => { setSelectedCompany(null); setModalMode("view"); setModalError(""); }}
         >
           <div
             className="surface-card relative w-full max-w-lg rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header */}
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="font-display text-2xl font-bold text-slate-900">{selectedCompany.name}</div>
-                {selectedCompany.description ? (
+                {selectedCompany.description && modalMode === "view" ? (
                   <p className="mt-1 text-sm text-slate-600">{selectedCompany.description}</p>
                 ) : null}
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedCompany(null)}
+                onClick={() => { setSelectedCompany(null); setModalMode("view"); setModalError(""); }}
                 className="shrink-0 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                 aria-label="Cerrar"
               >
@@ -621,62 +681,113 @@ export default function EmpresasPage() {
               </button>
             </div>
 
-            <div className="mt-5 space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Sector económico</div>
-                  <div className="mt-1 font-medium text-slate-900">{selectedCompany.economicSector || "—"}</div>
+            {/* View mode */}
+            {modalMode === "view" && (
+              <>
+                <div className="mt-5 space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Sector económico</div>
+                      <div className="mt-1 font-medium text-slate-900">{selectedCompany.economicSector || "—"}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Clasificación</div>
+                      <div className="mt-1 font-medium text-slate-900">{selectedCompany.classification || "—"}</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Headcount</div>
+                      <div className="mt-1 font-medium text-slate-900">{selectedCompany.headcount || "—"}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Facturación USD</div>
+                      <div className="mt-1 font-medium text-slate-900">{selectedCompany.revenueUSD || "—"}</div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Localidad</div>
+                    <div className="mt-1 font-medium text-slate-900">{selectedCompany.locality || "—"}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Contacto RRHH</div>
+                    <div className="mt-1 font-medium text-slate-900">{selectedCompany.hrName || "—"}</div>
+                    {selectedCompany.hrEmail ? <div className="mt-0.5 text-slate-600">{selectedCompany.hrEmail}</div> : null}
+                  </div>
+                  <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Fecha de registro</div>
+                    <div className="mt-1 font-medium text-slate-900">{new Date(selectedCompany.createdAt).toLocaleDateString("es-VE")}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">ID</div>
+                    <div className="mt-1 font-mono text-xs text-slate-600 break-all">{selectedCompany.id}</div>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Clasificación</div>
-                  <div className="mt-1 font-medium text-slate-900">{selectedCompany.classification || "—"}</div>
+                <div className="mt-5 flex items-center justify-between gap-2">
+                  <button type="button" onClick={() => { setModalMode("delete"); setModalError(""); }} className="btn btn-secondary text-red-600 border-red-200 hover:bg-red-50">
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Eliminar
+                  </button>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => { setSelectedCompany(null); setModalMode("view"); }} className="btn btn-secondary">Cerrar</button>
+                    <button type="button" onClick={openEdit} className="btn btn-primary">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </>
+            )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Headcount</div>
-                  <div className="mt-1 font-medium text-slate-900">{selectedCompany.headcount || "—"}</div>
+            {/* Edit mode */}
+            {modalMode === "edit" && (
+              <>
+                <div className="mt-5 space-y-3">
+                  <div>
+                    <label className="field-label">Nombre</label>
+                    <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="field w-full" placeholder="Nombre de la empresa" />
+                  </div>
+                  <div>
+                    <label className="field-label">Sector económico</label>
+                    <select aria-label="Sector económico" value={editSector} onChange={(e) => { setEditSector(e.target.value); setEditClassification(""); }} className="field-select w-full">
+                      <option value="">Seleccionar sector</option>
+                      {ECONOMIC_SECTOR_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="field-label">Clasificación</label>
+                    <select aria-label="Clasificación" value={editClassification} onChange={(e) => setEditClassification(e.target.value)} className="field-select w-full" disabled={!editSector}>
+                      <option value="">Seleccionar clasificación</option>
+                      {editClassificationOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Facturación USD</div>
-                  <div className="mt-1 font-medium text-slate-900">{selectedCompany.revenueUSD || "—"}</div>
+                {modalError && <p className="mt-3 text-sm text-red-600">{modalError}</p>}
+                <div className="mt-5 flex justify-end gap-2">
+                  <button type="button" onClick={() => { setModalMode("view"); setModalError(""); }} className="btn btn-secondary" disabled={isSaving}>Cancelar</button>
+                  <button type="button" onClick={() => void handleEdit()} className="btn btn-primary" disabled={isSaving || !editName.trim()}>
+                    {isSaving ? "Guardando..." : "Guardar"}
+                  </button>
                 </div>
-              </div>
+              </>
+            )}
 
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Localidad</div>
-                <div className="mt-1 font-medium text-slate-900">{selectedCompany.locality || "—"}</div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Contacto RRHH</div>
-                <div className="mt-1 font-medium text-slate-900">{selectedCompany.hrName || "—"}</div>
-                {selectedCompany.hrEmail ? (
-                  <div className="mt-0.5 text-slate-600">{selectedCompany.hrEmail}</div>
-                ) : null}
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Fecha de registro</div>
-                <div className="mt-1 font-medium text-slate-900">{new Date(selectedCompany.createdAt).toLocaleDateString("es-VE")}</div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">ID</div>
-                <div className="mt-1 font-mono text-xs text-slate-600 break-all">{selectedCompany.id}</div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedCompany(null)}
-                className="btn btn-secondary"
-              >
-                Cerrar
-              </button>
-            </div>
+            {/* Delete confirmation */}
+            {modalMode === "delete" && (
+              <>
+                <div className="mt-5 rounded-[1.25rem] border border-red-100 bg-red-50/60 px-5 py-4">
+                  <p className="text-sm font-semibold text-red-800">¿Eliminar &quot;{selectedCompany.name}&quot;?</p>
+                  <p className="mt-1 text-sm text-red-700">Esta acción no se puede deshacer. Solo es posible si la empresa no tiene usuarios activos.</p>
+                </div>
+                {modalError && <p className="mt-3 text-sm text-red-600">{modalError}</p>}
+                <div className="mt-5 flex justify-end gap-2">
+                  <button type="button" onClick={() => { setModalMode("view"); setModalError(""); }} className="btn btn-secondary" disabled={isSaving}>Cancelar</button>
+                  <button type="button" onClick={() => void handleDelete()} className="btn btn-primary bg-red-600 hover:bg-red-700 border-red-600" disabled={isSaving}>
+                    {isSaving ? "Eliminando..." : "Sí, eliminar"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
