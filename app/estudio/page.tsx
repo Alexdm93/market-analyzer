@@ -959,12 +959,19 @@ export default function EstudioPage() {
                           <SlidersHorizontal className="h-3 w-3" />
                           Rangos de referencia
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setFilterFueraDeRango((v) => !v)}
+                          className={`btn btn-xs whitespace-nowrap ${filterFueraDeRango ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100" : "btn-secondary"}`}
+                        >
+                          {filterFueraDeRango ? "Ver todos" : "Solo fuera de rango"}
+                        </button>
                         <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
                       </div>
                     </div>
 
                     <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_15rem] md:items-end">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
                         <div>
                           <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
                           <select
@@ -978,13 +985,6 @@ export default function EstudioPage() {
                             ))}
                           </select>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setFilterFueraDeRango((v) => !v)}
-                          className={`btn btn-xs self-end mb-0.5 whitespace-nowrap ${filterFueraDeRango ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100" : "btn-secondary"}`}
-                        >
-                          {filterFueraDeRango ? "Ver todos" : "Solo fuera de rango"}
-                        </button>
                         <button
                           type="button"
                           onClick={() => exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
