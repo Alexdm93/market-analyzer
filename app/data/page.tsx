@@ -798,6 +798,17 @@ export default function DataPage() {
 
     const newRow = empty(rows.length || 0);
     if (prefill) {
+      const normPrefillTitle = prefill.tituloCargo.trim().toLowerCase();
+      const normPrefillDept = prefill.departamento.trim().toLowerCase();
+      const isDuplicate = rows.some((r) => {
+        if ((r.tituloCargo ?? "").trim().toLowerCase() !== normPrefillTitle) return false;
+        const rd = (r.departamento ?? "").trim();
+        return !rd || rd.toLowerCase() === normPrefillDept;
+      });
+      if (isDuplicate) {
+        showNotification(`"${prefill.tituloCargo}" ya está en este corte.`);
+        return;
+      }
       newRow.departamento = prefill.departamento;
       newRow.tituloCargo = prefill.tituloCargo;
     }
@@ -1780,11 +1791,11 @@ export default function DataPage() {
                     <div className="space-y-1.5">
                       {cargosEnDept.map((titulo) => {
                         const normTituloPicker = titulo.trim().toLowerCase();
-                        const yaAgregado = rows.some(
-                          (r) =>
-                            (r.departamento ?? "").trim().toLowerCase() === normDeptPicker &&
-                            (r.tituloCargo ?? "").trim().toLowerCase() === normTituloPicker
-                        );
+                        const yaAgregado = rows.some((r) => {
+                          if ((r.tituloCargo ?? "").trim().toLowerCase() !== normTituloPicker) return false;
+                          const rowDept = (r.departamento ?? "").trim();
+                          return !rowDept || rowDept.toLowerCase() === normDeptPicker;
+                        });
                         return (
                           <button
                             key={titulo}
