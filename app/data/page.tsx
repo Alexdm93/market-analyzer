@@ -654,7 +654,7 @@ export default function DataPage() {
       const next = [...prev];
       const row = { ...next[rowIndex] } as ExtendedMarketPosition;
       const list = row.additionalFixedPayments ? [...row.additionalFixedPayments] : [];
-      list.push({ id, concept: '', amount: 0, freq: 'monthly', accountCurrency: 'USD', paymentCurrency: 'USD', impacto: true, tasaId: '' });
+      list.push({ id, concept: '', amount: 0, freq: 'monthly', accountCurrency: 'USD', paymentCurrency: 'USD', impacto: false, tasaId: '' });
       row.additionalFixedPayments = list;
       next[rowIndex] = row;
       return next;
@@ -708,7 +708,7 @@ export default function DataPage() {
         freq: "monthly",
         accountCurrency: "USD",
         paymentCurrency: "USD",
-        impacto: true,
+        impacto: false,
         tasaId: "",
         variableType: undefined,
         commissionType: "simple",
