@@ -337,42 +337,33 @@ export default function Informacion() {
                 <span />
               </div>
               {(companyInfo.tasas ?? []).map((tasa, idx) => (
-                <div key={tasa.id} className="grid gap-3 rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto] md:items-center">
-                  <div>
-                    <label className="field-label md:hidden">Nombre de la tasa</label>
-                    <input
-                      type="text"
-                      placeholder="Nombre de la tasa"
-                      value={tasa.nombre}
-                      onChange={(e) => updateTasa(idx, "nombre", e.target.value)}
-                      className="field"
-                      aria-label="Nombre de la tasa"
-                    />
-                  </div>
-                  <div>
-                    <label className="field-label md:hidden">Referencia</label>
-                    <select
-                      value={tasa.referencia}
-                      onChange={(e) => updateTasa(idx, "referencia", e.target.value)}
-                      className="field-select"
-                      aria-label="Referencia de la tasa"
-                    >
-                      {REFERENCIA_OPTIONS.map((ref) => (
-                        <option key={ref} value={ref}>{ref}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="field-label md:hidden">Valor de conversión</label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={tasa.valor || ""}
-                      onChange={(e) => updateTasa(idx, "valor", e.target.value)}
-                      className="field"
-                      aria-label="Valor de conversión"
-                    />
-                  </div>
+                <div key={tasa.id} className="grid items-center gap-3 rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto]">
+                  <input
+                    type="text"
+                    placeholder="Nombre de la tasa"
+                    value={tasa.nombre}
+                    onChange={(e) => updateTasa(idx, "nombre", e.target.value)}
+                    className="field"
+                    aria-label="Nombre de la tasa"
+                  />
+                  <select
+                    value={tasa.referencia}
+                    onChange={(e) => updateTasa(idx, "referencia", e.target.value)}
+                    className="field-select"
+                    aria-label="Referencia de la tasa"
+                  >
+                    {REFERENCIA_OPTIONS.map((ref) => (
+                      <option key={ref} value={ref}>{ref}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={tasa.valor || ""}
+                    onChange={(e) => updateTasa(idx, "valor", e.target.value)}
+                    className="field"
+                    aria-label="Valor de conversión"
+                  />
                   <button
                     type="button"
                     onClick={() => removeTasa(idx)}
