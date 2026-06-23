@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { type Snapshot, type ExchangeRate, type CompanyInfo, type RequiredPosition, EMPTY_COMPANY_INFO } from "@/lib/workspace";
@@ -238,8 +238,7 @@ export default function DataPage() {
 
   // If no snapshot selected, show nothing (user requested empty view when "-- seleccionar --")
   const [rows, setRows] = useState<ExtendedMarketPosition[]>([]);
-  const [nivelMin, setNivelMin] = useState<Record<string, string>>({});
-  const [nivelMax, setNivelMax] = useState<Record<string, string>>({});
+
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
   const rowsRef = useRef<ExtendedMarketPosition[]>([]);
   const selectedCompanyIdRef = useRef(selectedCompanyId);
@@ -572,15 +571,9 @@ export default function DataPage() {
   }
 
   // modal state
-  const [modal, setModal] = useState<{ type: 'save' | 'rangos' | 'plantilla' | 'confirm-delete' | null; id?: string }>(() => ({ type: null }));
-  const [rangosDraft, setRangosDraft] = useState<{ min: Record<string, string>; max: Record<string, string> } | null>(null);
+  const [modal, setModal] = useState<{ type: 'save' | 'plantilla' | 'confirm-delete' | null; id?: string }>(() => ({ type: null }));
   const [plantillaDraft, setPlantillaDraft] = useState<RequiredPosition[] | null>(null);
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
-
-  function openRangosModal() {
-    setRangosDraft({ min: { ...nivelMin }, max: { ...nivelMax } });
-    setModal({ type: "rangos" });
-  }
 
   function openPlantillaModal() {
     setPlantillaDraft([...currentRequiredPositions]);
@@ -589,7 +582,6 @@ export default function DataPage() {
 
   function closeModal() {
     setModal({ type: null });
-    setRangosDraft(null);
     setPlantillaDraft(null);
   }
 
@@ -964,16 +956,6 @@ export default function DataPage() {
     return result;
   }, [rows]);
 
-  // Admin: out-of-range warnings
-  const outOfRangeRows = isAdmin
-    ? rows.filter((r) => {
-        const nivel = r.nivelOrganizacional?.trim() ?? "";
-        const total = computeRowTotalAdmin(r);
-        const min = Number(nivelMin[nivel] ?? 0);
-        const max = Number(nivelMax[nivel] ?? 0);
-        return total > 0 && ((min > 0 && total < min) || (max > 0 && total > max));
-      })
-    : [];
 
   return (
     <main className="page-wrap">
@@ -1000,20 +982,6 @@ export default function DataPage() {
                       <div className="metric-label">Cargos reportados</div>
                       <div className="metric-value mt-1">{rows.length}</div>
                     </div>
-                    <div className={`metric-tile w-40 shrink-0 py-2 ${outOfRangeRows.length > 0 ? "border-amber-200 bg-amber-50/60" : ""}`}>
-                      <div className="metric-label">Estado de datos</div>
-                      <div className={`metric-value mt-1 text-base ${outOfRangeRows.length > 0 ? "text-amber-700" : "text-teal-700"}`}>
-                        {outOfRangeRows.length > 0 ? `${outOfRangeRows.length} fuera de rango` : selectedSnapshotId ? "Válidos" : "Sin corte"}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={openRangosModal}
-                      className={`btn btn-secondary btn-xs self-end mb-1 ${outOfRangeRows.length > 0 ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" : ""}`}
-                    >
-                      <SlidersHorizontal className="h-3 w-3" />
-                      Rangos de referencia
-                    </button>
                     {!isAdminCompanyView && (
                       <button
                         type="button"
@@ -1500,7 +1468,7 @@ export default function DataPage() {
       {modal.type && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={closeModal} />
-          <div role="dialog" aria-modal="true" className={`surface-card relative z-10 w-full rounded-[1.75rem] p-6 ${modal.type === "rangos" ? "max-w-3xl" : modal.type === "plantilla" ? "max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col" : "max-w-lg"}`}>
+          <div role="dialog" aria-modal="true" className={`surface-card relative z-10 w-full rounded-[1.75rem] p-6 ${modal.type === "plantilla" ? "max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col" : "max-w-lg"}`}>
 
             {/* Modal: Confirmar eliminación de cargo */}
             {modal.type === "confirm-delete" && (
@@ -1529,77 +1497,6 @@ export default function DataPage() {
                   >
                     <Trash2 className="h-4 w-4" />
                     Sí, eliminar
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Modal: Rangos de referencia */}
-            {modal.type === "rangos" && rangosDraft && (
-              <div>
-                <div className="eyebrow mb-1">Rangos de referencia</div>
-                <h3 className="font-display text-xl font-bold text-slate-900">Valores mínimos y máximos por nivel</h3>
-                <div className="mt-4 overflow-x-auto">
-                  <table className="w-full border-separate border-spacing-x-2 border-spacing-y-1.5 text-sm">
-                    <thead>
-                      <tr className="text-left text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">
-                        <th className="px-2 py-0.5 text-left">Rango</th>
-                        {NIVELES_ADMIN.map((n) => (
-                          <th key={n} className="px-2 py-0.5 text-center">{n}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="rounded-l-[1rem] bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700">Mínimo</td>
-                        {NIVELES_ADMIN.map((n) => (
-                          <td key={n} className="bg-teal-50/60 px-1.5 py-1.5">
-                            <input
-                              type="number"
-                              placeholder="$ 0"
-                              value={rangosDraft.min[n] ?? ""}
-                              onChange={(e) => setRangosDraft((d) => d ? { ...d, min: { ...d.min, [n]: e.target.value } } : d)}
-                              className="field w-full py-1 text-right text-xs"
-                            />
-                          </td>
-                        ))}
-                        <td className="rounded-r-[1rem] bg-teal-50/60" />
-                      </tr>
-                      <tr>
-                        <td className="rounded-l-[1rem] bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Máximo</td>
-                        {NIVELES_ADMIN.map((n) => (
-                          <td key={n} className="bg-amber-50/60 px-1.5 py-1.5">
-                            <input
-                              type="number"
-                              placeholder="$ 0"
-                              value={rangosDraft.max[n] ?? ""}
-                              onChange={(e) => setRangosDraft((d) => d ? { ...d, max: { ...d.max, [n]: e.target.value } } : d)}
-                              className="field w-full py-1 text-right text-xs"
-                            />
-                          </td>
-                        ))}
-                        <td className="rounded-r-[1rem] bg-amber-50/60" />
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                {outOfRangeRows.length > 0 && (
-                  <div className="mt-4 flex items-start gap-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3">
-                    <span className="mt-0.5 text-amber-600">⚠</span>
-                    <div>
-                      <p className="text-xs font-bold text-amber-800">{outOfRangeRows.length} cargo{outOfRangeRows.length !== 1 ? "s" : ""} fuera de rango</p>
-                      <p className="mt-0.5 text-xs text-amber-700">{outOfRangeRows.map((r) => r.tituloCargo || "Sin título").join(", ")}</p>
-                    </div>
-                  </div>
-                )}
-                <div className="mt-5 flex justify-end gap-3">
-                  <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
-                  <button
-                    type="button"
-                    onClick={() => { setNivelMin(rangosDraft.min); setNivelMax(rangosDraft.max); closeModal(); }}
-                    className="btn btn-primary"
-                  >
-                    Guardar
                   </button>
                 </div>
               </div>

@@ -1169,6 +1169,62 @@ export default function EstudioPage() {
             </>
           )}
         </div>
+      {rangosModalOpen && rangosDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => { setRangosModalOpen(false); setRangosDraft(null); }} />
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-3xl rounded-[1.75rem] p-6">
+            <div className="eyebrow mb-1">Rangos de referencia</div>
+            <h3 className="font-display text-xl font-bold text-slate-900">Total compensación con pasivos mensualizado — por nivel</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Los cargos cuyo valor quede fuera de estos rangos se marcarán en rojo en la tabla de data cruda.</p>
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full border-separate border-spacing-x-2 border-spacing-y-2 text-sm">
+                <thead>
+                  <tr className="text-left text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-2 py-0.5">Rango</th>
+                    {NIVELES_ESTUDIO.map((n) => (
+                      <th key={n} className="px-2 py-0.5 text-center">{n}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="rounded-l-[1rem] bg-teal-50 px-3 py-2.5 text-xs font-bold text-teal-700 whitespace-nowrap">Mínimo ($)</td>
+                    {NIVELES_ESTUDIO.map((n) => (
+                      <td key={n} className="bg-teal-50/60 px-1.5 py-1.5">
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={rangosDraft.min[n] ?? ""}
+                          onChange={(e) => setRangosDraft((d) => d ? { ...d, min: { ...d.min, [n]: e.target.value } } : d)}
+                          className="field w-full py-1 text-right text-xs"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="rounded-l-[1rem] bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-700 whitespace-nowrap">Máximo ($)</td>
+                    {NIVELES_ESTUDIO.map((n) => (
+                      <td key={n} className="bg-amber-50/60 px-1.5 py-1.5">
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={rangosDraft.max[n] ?? ""}
+                          onChange={(e) => setRangosDraft((d) => d ? { ...d, max: { ...d.max, [n]: e.target.value } } : d)}
+                          className="field w-full py-1 text-right text-xs"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => { setRangosModalOpen(false); setRangosDraft(null); }} className="btn btn-secondary">Cancelar</button>
+              <button type="button" onClick={() => void handleSaveRangos()} className="btn btn-primary">Guardar rangos</button>
+            </div>
+          </div>
+        </div>
+      )}
       </main>
     );
   }
@@ -1416,62 +1472,6 @@ export default function EstudioPage() {
         )}
       </div>
 
-      {rangosModalOpen && rangosDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
-          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => { setRangosModalOpen(false); setRangosDraft(null); }} />
-          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-3xl rounded-[1.75rem] p-6">
-            <div className="eyebrow mb-1">Rangos de referencia</div>
-            <h3 className="font-display text-xl font-bold text-slate-900">Total compensación con pasivos mensualizado — por nivel</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-500">Los cargos cuyo valor quede fuera de estos rangos se marcarán en rojo en la tabla de data cruda.</p>
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full border-separate border-spacing-x-2 border-spacing-y-2 text-sm">
-                <thead>
-                  <tr className="text-left text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">
-                    <th className="px-2 py-0.5">Rango</th>
-                    {NIVELES_ESTUDIO.map((n) => (
-                      <th key={n} className="px-2 py-0.5 text-center">{n}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="rounded-l-[1rem] bg-teal-50 px-3 py-2.5 text-xs font-bold text-teal-700 whitespace-nowrap">Mínimo ($)</td>
-                    {NIVELES_ESTUDIO.map((n) => (
-                      <td key={n} className="bg-teal-50/60 px-1.5 py-1.5">
-                        <input
-                          type="number"
-                          placeholder="0"
-                          value={rangosDraft.min[n] ?? ""}
-                          onChange={(e) => setRangosDraft((d) => d ? { ...d, min: { ...d.min, [n]: e.target.value } } : d)}
-                          className="field w-full py-1 text-right text-xs"
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="rounded-l-[1rem] bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-700 whitespace-nowrap">Máximo ($)</td>
-                    {NIVELES_ESTUDIO.map((n) => (
-                      <td key={n} className="bg-amber-50/60 px-1.5 py-1.5">
-                        <input
-                          type="number"
-                          placeholder="0"
-                          value={rangosDraft.max[n] ?? ""}
-                          onChange={(e) => setRangosDraft((d) => d ? { ...d, max: { ...d.max, [n]: e.target.value } } : d)}
-                          className="field w-full py-1 text-right text-xs"
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => { setRangosModalOpen(false); setRangosDraft(null); }} className="btn btn-secondary">Cancelar</button>
-              <button type="button" onClick={() => void handleSaveRangos()} className="btn btn-primary">Guardar rangos</button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

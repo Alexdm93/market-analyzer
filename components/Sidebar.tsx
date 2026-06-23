@@ -15,6 +15,14 @@ const menuItems = [
   { name: "Empresa", href: "/informacion", icon: Info, hint: "Contexto y contacto" },
 ];
 
+const menuItemsAdmin = [
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
+  { name: "Data", href: "/data", icon: Database, hint: "Captura por cargo" },
+  { name: "Estudio", href: "/estudio", icon: BookOpen, hint: "Estudio especializado" },
+  { name: "Resultados", href: "/resultados", icon: TrendingUp, hint: "Resumen de mercado" },
+  { name: "Empresa", href: "/informacion", icon: Info, hint: "Contexto y contacto" },
+];
+
 const estudioItem = { name: "Estudio", href: "/estudio", icon: BookOpen, hint: "Estudio especializado" };
 
 const adminMenuItems = [
@@ -56,7 +64,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="grid min-w-0 grid-cols-1 gap-2 pb-1 sm:grid-cols-2 md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto md:pr-1">
-          {[...menuItems, ...(canSeeEstudio ? [estudioItem] : []), ...(isAdmin ? adminMenuItems : canSeeEmpresas ? analystMenuItems : [])].map((item) => {
+          {[...(isAdmin ? menuItemsAdmin : [...menuItems, ...(canSeeEstudio ? [estudioItem] : [])]), ...(isAdmin ? adminMenuItems : canSeeEmpresas ? analystMenuItems : [])].map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
