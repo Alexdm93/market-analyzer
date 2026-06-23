@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Database, Info, LayoutDashboard, LineChart, LoaderCircle, LogIn, LogOut, Shield } from "lucide-react";
+import { BookOpen, Building2, Database, Info, LayoutDashboard, LineChart, LoaderCircle, LogIn, LogOut, Shield, TrendingUp } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 
@@ -11,9 +11,11 @@ import { useNavigationTrigger } from "./NavigationProgress";
 const menuItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
   { name: "Data", href: "/data", icon: Database, hint: "Captura por cargo" },
-  { name: "Estudio", href: "/estudio", icon: LineChart, hint: "Lectura agregada" },
+  { name: "Resultados", href: "/resultados", icon: TrendingUp, hint: "Resumen de mercado" },
   { name: "Empresa", href: "/informacion", icon: Info, hint: "Contexto y contacto" },
 ];
+
+const estudioItem = { name: "Estudio", href: "/estudio", icon: BookOpen, hint: "Estudio especializado" };
 
 const adminMenuItems = [
   { name: "Admin", href: "/admin", icon: Shield, hint: "Vista administrativa" },
@@ -30,6 +32,7 @@ export default function Sidebar() {
   const role = session?.user?.role;
   const isAdmin = isAdminRole(role);
   const canSeeEmpresas = canAccessEmpresas(role);
+  const canSeeEstudio = isAdmin || session?.user?.estudioEnabled === true;
   const triggerNavigation = useNavigationTrigger();
   const [signingOut, setSigningOut] = useState(false);
 
@@ -53,7 +56,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="grid min-w-0 grid-cols-1 gap-2 pb-1 sm:grid-cols-2 md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto md:pr-1">
-          {[...menuItems, ...(isAdmin ? adminMenuItems : canSeeEmpresas ? analystMenuItems : [])].map((item) => {
+          {[...menuItems, ...(canSeeEstudio ? [estudioItem] : []), ...(isAdmin ? adminMenuItems : canSeeEmpresas ? analystMenuItems : [])].map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (

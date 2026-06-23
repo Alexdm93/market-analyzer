@@ -31,5 +31,14 @@ export async function POST() {
     results.push(`✗ UserWorkspace.lastExportAt: ${String(e)}`);
   }
 
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "estudioEnabled" BOOLEAN NOT NULL DEFAULT false`
+    );
+    results.push('✓ Company.estudioEnabled');
+  } catch (e) {
+    results.push(`✗ Company.estudioEnabled: ${String(e)}`);
+  }
+
   return Response.json({ results });
 }

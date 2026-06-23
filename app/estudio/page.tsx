@@ -118,9 +118,15 @@ function computeRowTotal(r: ExtendedMarketPosition) {
 }
 
 export default function EstudioPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const isAdmin = session?.user?.role === "ADMIN";
+
+  useEffect(() => {
+    if (status === "authenticated" && !isAdmin && !session?.user?.estudioEnabled) {
+      router.replace("/resultados");
+    }
+  }, [status, isAdmin, session, router]);
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
   const [adminSnapshots, setAdminSnapshots] = useState<AdminStudySnapshot[]>([]);

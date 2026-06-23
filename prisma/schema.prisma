@@ -37,11 +37,12 @@ model Company {
   minUtilityDays String     @default("")
   conversionRate String     @default("")
   locality String           @default("")
-  users      User[]
-  snapshots  UserSnapshot[]
-  positions  UserPosition[]
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  users           User[]
+  snapshots       UserSnapshot[]
+  positions       UserPosition[]
+  estudioEnabled  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model User {

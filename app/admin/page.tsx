@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Activity, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, BookOpen, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
@@ -18,6 +18,12 @@ const adminActions = [
     description: "Monitorea cuándo cada empresa inició sesión, guardó datos o descargó información.",
     href: "/admin/telemetry",
     icon: Activity,
+  },
+  {
+    title: "Estudio Especializado",
+    description: "Habilita o deshabilita el acceso al Estudio Especializado por empresa.",
+    href: "/admin/estudio-especializado",
+    icon: BookOpen,
   },
 ];
 
