@@ -286,6 +286,8 @@ export default function DataPage() {
   const [nivelMax, setNivelMax] = useState<Record<string, string>>({});
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
   const rowsRef = useRef<ExtendedMarketPosition[]>([]);
+  const selectedCompanyIdRef = useRef(selectedCompanyId);
+  const isAdminRef = useRef(isAdmin);
 
   function getDuplicateCargoMessage(nextRows: ExtendedMarketPosition[]) {
     const duplicates = findDuplicateCargoTitles(nextRows);
@@ -406,6 +408,14 @@ export default function DataPage() {
     rowsRef.current = rows;
   }, [rows]);
 
+  useEffect(() => {
+    selectedCompanyIdRef.current = selectedCompanyId;
+  }, [selectedCompanyId]);
+
+  useEffect(() => {
+    isAdminRef.current = isAdmin;
+  }, [isAdmin]);
+
   const persistSnapshots = useCallback(async (
     next: Record<string, Snapshot>,
     nextSelectedSnapshotId = selectedSnapshotId,
@@ -490,34 +500,65 @@ export default function DataPage() {
           const nextCargos = Array.isArray(cargos) ? cargos : null;
           setSnapshotCargos(nextCargos);
 
-          // Auto-populate: if the current snapshot is empty and there are configured cargos,
-          // carry over matching rows from the most recent previous snapshot that has data.
-          if (nextCargos && nextCargos.length > 0 && rowsRef.current.length === 0) {
-            const prevSnap = Object.values(snapshotsRef.current)
-              .filter((s) => s.id !== selectedSnapshotId && s.rows.length > 0)
-              .sort((a, b) => b.date.localeCompare(a.date))[0];
-            if (prevSnap) {
-              let idx = 0;
-              const carried = nextCargos.flatMap((cargo) => {
-                const normDept = cargo.departamento.trim().toLowerCase();
-                const normTitle = cargo.tituloCargo.trim().toLowerCase();
-                const match = prevSnap.rows.find(
-                  (r) =>
-                    (r.departamento ?? "").trim().toLowerCase() === normDept &&
-                    (r.tituloCargo ?? "").trim().toLowerCase() === normTitle
-                );
-                if (!match) return [];
-                idx++;
-                return [{
-                  ...JSON.parse(JSON.stringify(match)) as ExtendedMarketPosition,
-                  id: `carried-${idx}-${Date.now()}`,
-                  departamento: cargo.departamento,
-                  tituloCargo: cargo.tituloCargo,
-                }];
+          if (nextCargos && nextCargos.length > 0) {
+            const currentRows = rowsRef.current;
+
+            if (currentRows.length === 0) {
+              // Snapshot vacío: auto-populate desde el corte anterior más reciente con data.
+              const prevSnap = Object.values(snapshotsRef.current)
+                .filter((s) => s.id !== selectedSnapshotId && s.rows.length > 0)
+                .sort((a, b) => b.date.localeCompare(a.date))[0];
+              if (prevSnap) {
+                let idx = 0;
+                const carried = nextCargos.flatMap((cargo) => {
+                  const normDept = cargo.departamento.trim().toLowerCase();
+                  const normTitle = cargo.tituloCargo.trim().toLowerCase();
+                  const match = prevSnap.rows.find(
+                    (r) =>
+                      (r.departamento ?? "").trim().toLowerCase() === normDept &&
+                      (r.tituloCargo ?? "").trim().toLowerCase() === normTitle
+                  );
+                  if (!match) return [];
+                  idx++;
+                  return [{
+                    ...JSON.parse(JSON.stringify(match)) as ExtendedMarketPosition,
+                    id: `carried-${idx}-${Date.now()}`,
+                    departamento: cargo.departamento,
+                    tituloCargo: cargo.tituloCargo,
+                  }];
+                });
+                if (carried.length > 0) {
+                  setRows(carried);
+                  setSaveState("dirty");
+                }
+              }
+            } else {
+              // Snapshot con rows: eliminar los que no estén en la lista del admin y guardar.
+              const validRows = currentRows.filter((r) => {
+                const normTitle = (r.tituloCargo ?? "").trim().toLowerCase();
+                const normDept = (r.departamento ?? "").trim().toLowerCase();
+                return nextCargos.some((c) => {
+                  if (c.tituloCargo.trim().toLowerCase() !== normTitle) return false;
+                  return !normDept || normDept === c.departamento.trim().toLowerCase();
+                });
               });
-              if (carried.length > 0) {
-                setRows(carried);
-                setSaveState("dirty");
+              if (validRows.length < currentRows.length) {
+                const nextSnaps = {
+                  ...snapshotsRef.current,
+                  [selectedSnapshotId]: {
+                    ...snapshotsRef.current[selectedSnapshotId],
+                    rows: validRows,
+                  },
+                };
+                setSnapshots(nextSnaps);
+                setRows(validRows);
+                setSaveState("pending");
+                const companyId = isAdminRef.current && selectedCompanyIdRef.current
+                  ? selectedCompanyIdRef.current
+                  : undefined;
+                void updateWorkspace({ snapshots: nextSnaps, selectedSnapshotId }, companyId)
+                  .then(() => { if (!ignore) { setSaveState("saved"); setLastSavedAt(new Date()); } })
+                  .catch(() => { if (!ignore) setSaveState("dirty"); });
               }
             }
           }

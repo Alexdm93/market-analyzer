@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { safeParseSnapshots } from "@/lib/workspace";
 
 export type SnapshotCargoItem = {
   departamento: string;
@@ -72,6 +73,10 @@ export async function PUT(request: Request) {
       create: { key, value: JSON.stringify(cargos) },
       update: { value: JSON.stringify(cargos) },
     });
+
+    // Limpiar rows de todos los workspaces que no estén en la nueva lista de cargos.
+    await pruneWorkspaceRows(snapshotId, cargos);
+
     return Response.json({ message: "Cargos del corte guardados correctamente." });
   } catch {
     return Response.json(
@@ -79,4 +84,64 @@ export async function PUT(request: Request) {
       { status: 500 }
     );
   }
+}
+
+async function pruneWorkspaceRows(snapshotId: string, allowedCargos: SnapshotCargoItem[]) {
+  const normAllowed = allowedCargos.map((c) => ({
+    normTitle: c.tituloCargo.trim().toLowerCase(),
+    normDept: c.departamento.trim().toLowerCase(),
+  }));
+
+  const workspaces = await prisma.userWorkspace.findMany({
+    select: { userId: true, snapshotsJson: true },
+  });
+
+  type WorkspaceUpdate = {
+    userId: string;
+    snapshotsJson: string;
+    removedPositionIds: string[];
+  };
+
+  const updates: WorkspaceUpdate[] = [];
+
+  for (const workspace of workspaces) {
+    const snapshots = safeParseSnapshots(workspace.snapshotsJson);
+    const snapshot = snapshots[snapshotId];
+    if (!snapshot?.rows?.length) continue;
+
+    const validRows = snapshot.rows.filter((r) => {
+      const normTitle = (r.tituloCargo ?? "").trim().toLowerCase();
+      const normDept = (r.departamento ?? "").trim().toLowerCase();
+      return normAllowed.some((c) => {
+        if (c.normTitle !== normTitle) return false;
+        return !normDept || normDept === c.normDept;
+      });
+    });
+
+    if (validRows.length === snapshot.rows.length) continue;
+
+    const validIds = new Set(validRows.map((r) => r.id));
+    const removedPositionIds = snapshot.rows
+      .filter((r) => !validIds.has(r.id))
+      .map((r) => r.id);
+
+    snapshots[snapshotId] = { ...snapshot, rows: validRows };
+    updates.push({ userId: workspace.userId, snapshotsJson: JSON.stringify(snapshots), removedPositionIds });
+  }
+
+  if (updates.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    for (const update of updates) {
+      await tx.userWorkspace.update({
+        where: { userId: update.userId },
+        data: { snapshotsJson: update.snapshotsJson },
+      });
+      if (update.removedPositionIds.length > 0) {
+        await tx.userPosition.deleteMany({
+          where: { userId: update.userId, snapshotId, positionId: { in: update.removedPositionIds } },
+        });
+      }
+    }
+  });
 }
