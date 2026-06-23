@@ -285,6 +285,7 @@ export default function DataPage() {
   const [nivelMin, setNivelMin] = useState<Record<string, string>>({});
   const [nivelMax, setNivelMax] = useState<Record<string, string>>({});
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
+  const rowsRef = useRef<ExtendedMarketPosition[]>([]);
 
   function getDuplicateCargoMessage(nextRows: ExtendedMarketPosition[]) {
     const duplicates = findDuplicateCargoTitles(nextRows);
@@ -401,6 +402,10 @@ export default function DataPage() {
     snapshotsRef.current = snapshots;
   }, [snapshots]);
 
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
   const persistSnapshots = useCallback(async (
     next: Record<string, Snapshot>,
     nextSelectedSnapshotId = selectedSnapshotId,
@@ -481,9 +486,32 @@ export default function DataPage() {
       .then((r) => r.json().catch(() => null))
       .then((payload: { cargos?: { departamento: string; tituloCargo: string }[] | null } | null) => {
         if (!ignore) {
-          // null means "not configured by admin" → no restriction; [] means explicitly configured as empty → block
           const cargos = payload?.cargos;
-          setSnapshotCargos(Array.isArray(cargos) ? cargos : null);
+          const nextCargos = Array.isArray(cargos) ? cargos : null;
+          setSnapshotCargos(nextCargos);
+
+          // Auto-populate: if the current snapshot is empty and there are configured cargos,
+          // carry over matching rows from the most recent previous snapshot that has data.
+          if (nextCargos && nextCargos.length > 0 && rowsRef.current.length === 0) {
+            const prevSnap = Object.values(snapshotsRef.current)
+              .filter((s) => s.id !== selectedSnapshotId && s.rows.length > 0)
+              .sort((a, b) => b.date.localeCompare(a.date))[0];
+            if (prevSnap) {
+              let idx = 0;
+              const carried = nextCargos.flatMap((cargo) => {
+                const match = prevSnap.rows.find(
+                  (r) => r.departamento === cargo.departamento && r.tituloCargo === cargo.tituloCargo
+                );
+                if (!match) return [];
+                idx++;
+                return [{ ...JSON.parse(JSON.stringify(match)) as ExtendedMarketPosition, id: `carried-${idx}-${Date.now()}` }];
+              });
+              if (carried.length > 0) {
+                setRows(carried);
+                setSaveState("dirty");
+              }
+            }
+          }
         }
       })
       .catch(() => { if (!ignore) setSnapshotCargos(null); });
@@ -1748,19 +1776,20 @@ export default function DataPage() {
                           <button
                             key={titulo}
                             type="button"
+                            disabled={yaAgregado}
                             onClick={() => {
                               addRow({ departamento: dept, tituloCargo: titulo });
                               setCargoPickerOpen(false);
                             }}
                             className={`flex w-full items-center justify-between rounded-[0.9rem] border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                               yaAgregado
-                                ? "border-teal-200 bg-teal-50 text-teal-700"
+                                ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
                                 : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"
                             }`}
                           >
                             <span>{titulo}</span>
                             {yaAgregado && (
-                              <span className="ml-3 shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[0.65rem] font-bold text-teal-700">
+                              <span className="ml-3 shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[0.65rem] font-bold text-slate-400">
                                 ya agregado
                               </span>
                             )}
