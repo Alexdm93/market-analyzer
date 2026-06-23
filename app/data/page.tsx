@@ -499,12 +499,21 @@ export default function DataPage() {
             if (prevSnap) {
               let idx = 0;
               const carried = nextCargos.flatMap((cargo) => {
+                const normDept = cargo.departamento.trim().toLowerCase();
+                const normTitle = cargo.tituloCargo.trim().toLowerCase();
                 const match = prevSnap.rows.find(
-                  (r) => r.departamento === cargo.departamento && r.tituloCargo === cargo.tituloCargo
+                  (r) =>
+                    (r.departamento ?? "").trim().toLowerCase() === normDept &&
+                    (r.tituloCargo ?? "").trim().toLowerCase() === normTitle
                 );
                 if (!match) return [];
                 idx++;
-                return [{ ...JSON.parse(JSON.stringify(match)) as ExtendedMarketPosition, id: `carried-${idx}-${Date.now()}` }];
+                return [{
+                  ...JSON.parse(JSON.stringify(match)) as ExtendedMarketPosition,
+                  id: `carried-${idx}-${Date.now()}`,
+                  departamento: cargo.departamento,
+                  tituloCargo: cargo.tituloCargo,
+                }];
               });
               if (carried.length > 0) {
                 setRows(carried);
@@ -1763,14 +1772,18 @@ export default function DataPage() {
 
             <div className="min-h-0 flex-1 overflow-y-auto space-y-4 pr-1">
               {availableDepts.map((dept) => {
+                const normDeptPicker = dept.trim().toLowerCase();
                 const cargosEnDept = availableCargosByDept[dept] ?? [];
                 return (
                   <div key={dept}>
                     <div className="mb-2 text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">{dept}</div>
                     <div className="space-y-1.5">
                       {cargosEnDept.map((titulo) => {
+                        const normTituloPicker = titulo.trim().toLowerCase();
                         const yaAgregado = rows.some(
-                          (r) => r.departamento === dept && r.tituloCargo === titulo
+                          (r) =>
+                            (r.departamento ?? "").trim().toLowerCase() === normDeptPicker &&
+                            (r.tituloCargo ?? "").trim().toLowerCase() === normTituloPicker
                         );
                         return (
                           <button
