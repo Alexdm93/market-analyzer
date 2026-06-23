@@ -104,7 +104,8 @@ async function getUsers() {
 }
 
 function cloneRows(rows: Snapshot["rows"]) {
-  return JSON.parse(JSON.stringify(rows ?? [])) as Snapshot["rows"];
+  const cloned = JSON.parse(JSON.stringify(rows ?? [])) as Snapshot["rows"];
+  return cloned.map((r) => ({ ...r, _carried: true as const }));
 }
 
 async function rebuildRelationalWorkspace(

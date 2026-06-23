@@ -446,6 +446,11 @@ export default function DataPage() {
       setSaveState(nextSelectedSnapshotId ? "saved" : "idle");
       setLastSavedAt(nextSelectedSnapshotId ? new Date() : null);
 
+      // Quitar _carried de los rows del snapshot guardado
+      if (nextSelectedSnapshotId && next[nextSelectedSnapshotId]) {
+        setRows((prev) => prev.map((r) => (r._carried ? { ...r, _carried: undefined } : r)));
+      }
+
       return true;
     } catch (error) {
       console.error(error);
@@ -525,6 +530,7 @@ export default function DataPage() {
                     id: `carried-${idx}-${Date.now()}`,
                     departamento: cargo.departamento,
                     tituloCargo: cargo.tituloCargo,
+                    _carried: true as const,
                   }];
                 });
                 if (carried.length > 0) {
@@ -1303,8 +1309,19 @@ export default function DataPage() {
               <article key={r.id} className="surface-card overflow-hidden rounded-[1.5rem]">
                 <div className="flex flex-col gap-3 p-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex-1">
-                    <div className="mb-1.5 inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
-                      Cargo {String(i + 1).padStart(2, "0")}
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                      <div className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
+                        Cargo {String(i + 1).padStart(2, "0")}
+                      </div>
+                      {r._carried ? (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-[0.68rem] font-semibold text-amber-700">
+                          datos del corte anterior
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-[0.68rem] font-semibold text-emerald-700">
+                          actualizado
+                        </span>
+                      )}
                     </div>
                     <h2 className="font-display text-xl font-bold text-slate-900 md:text-[1.1rem]">
                       {r.tituloCargo || `Cargo ${i + 1}`}
