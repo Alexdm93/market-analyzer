@@ -40,7 +40,8 @@ model Company {
   users           User[]
   snapshots       UserSnapshot[]
   positions       UserPosition[]
-  estudioEnabled  Boolean  @default(false)
+  estudioEnabled      Boolean @default(false)
+  estudioSnapshotIds  String  @default("[]")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }

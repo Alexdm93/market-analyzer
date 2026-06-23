@@ -40,5 +40,14 @@ export async function POST() {
     results.push(`✗ Company.estudioEnabled: ${String(e)}`);
   }
 
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "estudioSnapshotIds" TEXT NOT NULL DEFAULT '[]'`
+    );
+    results.push('✓ Company.estudioSnapshotIds');
+  } catch (e) {
+    results.push(`✗ Company.estudioSnapshotIds: ${String(e)}`);
+  }
+
   return Response.json({ results });
 }
