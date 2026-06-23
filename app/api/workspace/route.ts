@@ -8,10 +8,12 @@ import {
   DEFAULT_WORKSPACE,
   EMPTY_COMPANY_INFO,
   type CompanyInfo,
+  type ExchangeRate,
   type Snapshot,
   safeParseCompanyInfo,
   safeParseSnapshots,
 } from "@/lib/workspace";
+import { getBcvRate, buildBcvTasa } from "@/lib/bcv";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -632,6 +634,21 @@ async function buildCompanyPayload(companyId: string) {
   };
 }
 
+function injectBcvTasa<T extends { companyInfo: CompanyInfo }>(
+  payload: T,
+  bcv: { rate: number | null; updatedAt: string | null }
+): T {
+  const bcvTasa = buildBcvTasa(bcv.rate, bcv.updatedAt);
+  const userTasas = (payload.companyInfo.tasas ?? []).filter((t) => !t.isSystem);
+  return {
+    ...payload,
+    companyInfo: {
+      ...payload.companyInfo,
+      tasas: [bcvTasa, ...userTasas],
+    },
+  };
+}
+
 export async function GET(request: Request) {
   const session = await getCurrentSession();
   const userId = session?.user?.id;
@@ -648,20 +665,28 @@ export async function GET(request: Request) {
       return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
     }
 
-    const companyPayload = await buildCompanyPayload(companyId);
+    const [companyPayload, bcv] = await Promise.all([
+      buildCompanyPayload(companyId),
+      getBcvRate(),
+    ]);
 
     if (!companyPayload) {
       return Response.json({ message: "La empresa seleccionada no existe." }, { status: 404 });
     }
 
-    return Response.json(companyPayload);
+    return Response.json(injectBcvTasa(companyPayload, bcv));
   }
 
   const workspace = await getOrCreateWorkspace(userId);
   await backfillRelationalWorkspace(userId, workspace.companyInfoJson, workspace.snapshotsJson);
   const company = await getCompanyIdentity(userId);
 
-  return Response.json(await buildUserPayload(userId, workspace, company));
+  const [payload, bcv] = await Promise.all([
+    buildUserPayload(userId, workspace, company),
+    getBcvRate(),
+  ]);
+
+  return Response.json(injectBcvTasa(payload, bcv));
 }
 
 export async function PUT(request: Request) {
@@ -718,7 +743,13 @@ export async function PUT(request: Request) {
   const nextSelectedSnapshotId = typeof body.selectedSnapshotId === "string" ? body.selectedSnapshotId : existingWorkspace.selectedSnapshotId ?? "";
   const requestedCompanyInfo =
     body.companyInfo && typeof body.companyInfo === "object"
-      ? { ...EMPTY_COMPANY_INFO, ...body.companyInfo }
+      ? {
+          ...EMPTY_COMPANY_INFO,
+          ...body.companyInfo,
+          tasas: ((body.companyInfo as CompanyInfo).tasas ?? []).filter(
+            (t: ExchangeRate) => !t.isSystem
+          ),
+        }
       : safeParseCompanyInfo(existingWorkspace.companyInfoJson);
   const duplicateCargoTitles = getDuplicateCargoTitles(nextSnapshots);
 

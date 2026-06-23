@@ -5,6 +5,8 @@ export type ExchangeRate = {
   nombre: string;
   referencia: string;
   valor: string;
+  isSystem?: boolean;
+  updatedAt?: string;
 };
 
 export type RequiredPosition = {

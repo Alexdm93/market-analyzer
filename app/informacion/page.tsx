@@ -1,5 +1,5 @@
 "use client";
-import { Building2, Contact2, Globe2, Plus, Save, Sparkles, Trash2, TrendingUp } from "lucide-react";
+import { Building2, Contact2, Globe2, Lock, Plus, Save, Sparkles, Trash2, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EMPTY_COMPANY_INFO, type CompanyInfo, type ExchangeRate } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
@@ -71,32 +71,37 @@ export default function Informacion() {
     updateCompany("locality", next.join(","));
   }
 
+  const systemTasas = (companyInfo.tasas ?? []).filter((t) => t.isSystem);
+  const userTasas = (companyInfo.tasas ?? []).filter((t) => !t.isSystem);
+
+  function setUserTasas(fn: (prev: ExchangeRate[]) => ExchangeRate[]) {
+    setCompanyInfo((prev) => ({
+      ...prev,
+      tasas: [...(prev.tasas ?? []).filter((t) => t.isSystem), ...fn((prev.tasas ?? []).filter((t) => !t.isSystem))],
+    }));
+  }
+
   function addTasa() {
-    const current = companyInfo.tasas ?? [];
-    if (current.length >= MAX_TASAS) return;
+    if (userTasas.length >= MAX_TASAS) return;
     const newTasa: ExchangeRate = {
       id: `t-${Date.now()}`,
       nombre: "",
       referencia: REFERENCIA_OPTIONS[0],
       valor: "",
     };
-    setCompanyInfo((prev) => ({ ...prev, tasas: [...(prev.tasas ?? []), newTasa] }));
+    setUserTasas((prev) => [...prev, newTasa]);
   }
 
   function updateTasa(idx: number, key: keyof ExchangeRate, value: string) {
-    setCompanyInfo((prev) => {
-      const next = [...(prev.tasas ?? [])];
+    setUserTasas((prev) => {
+      const next = [...prev];
       next[idx] = { ...next[idx], [key]: value };
-      return { ...prev, tasas: next };
+      return next;
     });
   }
 
   function removeTasa(idx: number) {
-    setCompanyInfo((prev) => {
-      const next = [...(prev.tasas ?? [])];
-      next.splice(idx, 1);
-      return { ...prev, tasas: next };
-    });
+    setUserTasas((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function saveCompanyInfo() {
@@ -310,13 +315,13 @@ export default function Informacion() {
               </div>
               <div>
                 <h2 className="font-display text-2xl font-bold text-slate-900">Tasas de cambio</h2>
-                <p className="mt-0.5 text-sm text-slate-500">Máximo {MAX_TASAS} tasas. Se usarán en los selectores de cada concepto de compensación.</p>
+                <p className="mt-0.5 text-sm text-slate-500">Máximo {MAX_TASAS} tasas adicionales. Se usarán en los selectores de cada concepto.</p>
               </div>
             </div>
             <button
               type="button"
               onClick={addTasa}
-              disabled={(companyInfo.tasas ?? []).length >= MAX_TASAS}
+              disabled={userTasas.length >= MAX_TASAS}
               className="btn btn-primary"
             >
               <Plus className="h-4 w-4" />
@@ -324,59 +329,81 @@ export default function Informacion() {
             </button>
           </div>
 
-          {(companyInfo.tasas ?? []).length === 0 ? (
-            <div className="mt-5 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-center text-sm text-slate-500">
-              No hay tasas configuradas. Agrega al menos una para que esté disponible en los conceptos de compensación.
+          <div className="mt-5 space-y-3">
+            <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto] gap-3 px-1 md:grid">
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Nombre de la tasa</span>
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Referencia</span>
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Valor Bs./USD</span>
+              <span />
             </div>
-          ) : (
-            <div className="mt-5 space-y-3">
-              <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto] gap-3 px-1 md:grid">
-                <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Nombre de la tasa</span>
-                <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Referencia</span>
-                <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Valor de conversión</span>
-                <span />
-              </div>
-              {(companyInfo.tasas ?? []).map((tasa, idx) => (
-                <div key={tasa.id} className="grid items-center gap-3 rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto]">
-                  <input
-                    type="text"
-                    placeholder="Nombre de la tasa"
-                    value={tasa.nombre}
-                    onChange={(e) => updateTasa(idx, "nombre", e.target.value)}
-                    className="field"
-                    aria-label="Nombre de la tasa"
-                  />
-                  <select
-                    value={tasa.referencia}
-                    onChange={(e) => updateTasa(idx, "referencia", e.target.value)}
-                    className="field-select"
-                    aria-label="Referencia de la tasa"
-                  >
-                    {REFERENCIA_OPTIONS.map((ref) => (
-                      <option key={ref} value={ref}>{ref}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    value={tasa.valor || ""}
-                    onChange={(e) => updateTasa(idx, "valor", e.target.value)}
-                    className="field"
-                    aria-label="Valor de conversión"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeTasa(idx)}
-                    className="btn btn-danger btn-xs self-end"
-                    aria-label="Eliminar tasa"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Eliminar
-                  </button>
+
+            {/* System tasas — read-only */}
+            {systemTasas.map((tasa) => (
+              <div key={tasa.id} className="grid items-center gap-3 rounded-[1.1rem] border border-teal-100 bg-teal-50/50 p-3.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto]">
+                <div>
+                  <div className="text-sm font-semibold text-slate-800">{tasa.nombre}</div>
+                  {tasa.updatedAt && (
+                    <div className="mt-0.5 text-xs text-slate-400">
+                      Actualizado: {new Date(tasa.updatedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+                <span className="text-sm text-slate-600">{tasa.referencia}</span>
+                <span className="font-mono text-sm font-semibold text-slate-800">{tasa.valor || "—"}</span>
+                <span className="flex items-center gap-1 text-xs font-semibold text-teal-700">
+                  <Lock size={11} />
+                  Fija
+                </span>
+              </div>
+            ))}
+
+            {/* User tasas — editable */}
+            {userTasas.map((tasa, idx) => (
+              <div key={tasa.id} className="grid items-center gap-3 rounded-[1.1rem] border border-slate-200/80 bg-slate-50/70 p-3.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto]">
+                <input
+                  type="text"
+                  placeholder="Nombre de la tasa"
+                  value={tasa.nombre}
+                  onChange={(e) => updateTasa(idx, "nombre", e.target.value)}
+                  className="field"
+                  aria-label="Nombre de la tasa"
+                />
+                <select
+                  value={tasa.referencia}
+                  onChange={(e) => updateTasa(idx, "referencia", e.target.value)}
+                  className="field-select"
+                  aria-label="Referencia de la tasa"
+                >
+                  {REFERENCIA_OPTIONS.map((ref) => (
+                    <option key={ref} value={ref}>{ref}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={tasa.valor || ""}
+                  onChange={(e) => updateTasa(idx, "valor", e.target.value)}
+                  className="field"
+                  aria-label="Valor de conversión"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeTasa(idx)}
+                  className="btn btn-danger btn-xs self-end"
+                  aria-label="Eliminar tasa"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Eliminar
+                </button>
+              </div>
+            ))}
+
+            {userTasas.length === 0 && (
+              <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-6 text-center text-sm text-slate-500">
+                No hay tasas adicionales. La Tasa BCV $ se actualiza diariamente de forma automática.
+              </div>
+            )}
+          </div>
         </section>
 
         <div className="flex justify-end">
