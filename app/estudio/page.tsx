@@ -615,10 +615,8 @@ export default function EstudioPage() {
       Empresa: position.companyName,
       Cargo: position.title,
       Nivel: position.level || "—",
-      Clasificacion: position.classification || "—",
-      Descripcion: position.description || "—",
-      Base: position.baseSalary,
-      Total: position.totalCompensation,
+      "Sin pasivos mensual": Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? Number(position.conceptValues["Sin pasivos — mensual"]) : 0,
+      "Con pasivos mensual": Number(position.conceptValues?.["Con pasivos — mensual"] ?? 0) > 0 ? Number(position.conceptValues["Con pasivos — mensual"]) : 0,
     }));
 
     const workbook = XLSX.utils.book_new();
@@ -996,7 +994,7 @@ export default function EstudioPage() {
                             <th className="px-4 py-2">Empresa</th>
                             <th className="px-4 py-2">Cargo</th>
                             <th className="px-4 py-2">Nivel</th>
-                            <th className="px-4 py-2 text-right">Base</th>
+                            <th className="px-4 py-2 text-right">Sin pasivos mensual</th>
                             <th className="px-4 py-2 text-right">Comp. c/ pasivos mensual</th>
                           </tr>
                         </thead>
@@ -1012,7 +1010,7 @@ export default function EstudioPage() {
                                 <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
                                 <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
                                 <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
-                                <td className="px-4 py-4 text-right font-display text-slate-700">{position.baseSalary}</td>
+                                <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? formatMoney(Number(position.conceptValues["Sin pasivos — mensual"])) : "—"}</td>
                                 <td className={`rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
                                   {conPasivosMensual > 0 ? formatMoney(conPasivosMensual) : "—"}
                                   {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
