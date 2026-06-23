@@ -902,6 +902,18 @@ export default function DataPage() {
       )
     : 0;
 
+  const modalAnnualFixed = modalSaveRow
+    ? Math.round(
+        toUSD(modalSaveRow.sueldoBasico || 0, modalSaveRow.sueldoBasicoCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.sueldoBasicoFreq) +
+        toUSD(modalSaveRow.bonoAlimentacion || 0, modalSaveRow.bonoAlimentacionCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.bonoAlimentacionFreq) +
+        toUSD(modalSaveRow.bonoMovilizacion || 0, modalSaveRow.bonoMovilizacionCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.bonoMovilizacionFreq) +
+        (modalSaveRow.additionalFixedPayments || []).reduce(
+          (s, p) => s + toUSD(p.amount || 0, p.accountCurrency, bcvRate) * freqToAnnual(p.freq),
+          0
+        )
+      )
+    : 0;
+
   const modalAnnualVariable = modalSaveRow
     ? Math.round(
         toUSD(modalSaveRow.bonoDesempeno || 0, modalSaveRow.bonoDesempenoCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.bonoDesempenoFreq) +
@@ -914,7 +926,7 @@ export default function DataPage() {
       )
     : 0;
 
-  const modalAnnualTotal = modalMonthlyFixed * 12 + modalAnnualVariable;
+  const modalAnnualTotal = modalAnnualFixed + modalAnnualVariable;
 
   const missingCompanyFields: string[] = [];
   if (modal.type === "save") {
