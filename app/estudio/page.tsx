@@ -1,5 +1,5 @@
 "use client";
-import { Database, Layers3 } from "lucide-react";
+import { Database, Layers3, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -159,6 +159,10 @@ export default function EstudioPage() {
   const [percentilesError, setPercentilesError] = useState<string | null>(null);
   const [publishedParticipatedSnapshotIds, setPublishedParticipatedSnapshotIds] = useState<string[]>([]);
   const [adminPublishStatus, setAdminPublishStatus] = useState<"idle" | "working">("idle");
+  const [nivelMin, setNivelMin] = useState<Record<string, number>>({});
+  const [nivelMax, setNivelMax] = useState<Record<string, number>>({});
+  const [rangosDraft, setRangosDraft] = useState<{ min: Record<string, string>; max: Record<string, string> } | null>(null);
+  const [rangosModalOpen, setRangosModalOpen] = useState(false);
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
     if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
@@ -381,6 +385,21 @@ export default function EstudioPage() {
   }, [isAdmin, selectedSnapshotId]);
 
   useEffect(() => {
+    if (!isAdmin || !selectedSnapshotId) return;
+    let ignore = false;
+    void fetch(`/api/admin/study/ranges?snapshotId=${encodeURIComponent(selectedSnapshotId)}`, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((data: { nivelMin?: Record<string, number>; nivelMax?: Record<string, number> } | null) => {
+        if (!ignore) {
+          setNivelMin(data?.nivelMin ?? {});
+          setNivelMax(data?.nivelMax ?? {});
+        }
+      })
+      .catch(() => {});
+    return () => { ignore = true; };
+  }, [isAdmin, selectedSnapshotId]);
+
+  useEffect(() => {
     if (!isAdmin) {
       return;
     }
@@ -482,6 +501,22 @@ export default function EstudioPage() {
     setSelectedAdminCargo(firstCargo);
   }
 
+  async function handleSaveRangos() {
+    if (!selectedSnapshotId || !rangosDraft) return;
+    const toNumber = (v: string) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+    const parsedMin = Object.fromEntries(Object.entries(rangosDraft.min).map(([k, v]) => [k, toNumber(v)]));
+    const parsedMax = Object.fromEntries(Object.entries(rangosDraft.max).map(([k, v]) => [k, toNumber(v)]));
+    await fetch("/api/admin/study/ranges", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ snapshotId: selectedSnapshotId, nivelMin: parsedMin, nivelMax: parsedMax }),
+    });
+    setNivelMin(parsedMin);
+    setNivelMax(parsedMax);
+    setRangosModalOpen(false);
+    setRangosDraft(null);
+  }
+
   async function handleTogglePublish(publish: boolean) {
     if (!selectedSnapshotId) return;
     setAdminPublishStatus("working");
@@ -502,6 +537,31 @@ export default function EstudioPage() {
       setAdminMessage(error instanceof Error ? error.message : "No fue posible actualizar la visibilidad del corte.");
     } finally {
       setAdminPublishStatus("idle");
+    }
+  }
+
+  async function handleRevertToReview() {
+    if (!selectedSnapshotId) return;
+    setAdminStatus("processing");
+    setAdminMessage("");
+    try {
+      const response = await fetch("/api/admin/study", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId: selectedSnapshotId, status: "IN_REVIEW" }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) throw new Error(payload?.message ?? "No fue posible revertir el estado del corte.");
+      setAdminSnapshots((current) =>
+        current.map((snapshot) =>
+          snapshot.id === selectedSnapshotId ? { ...snapshot, status: "IN_REVIEW", processedAt: null } : snapshot
+        )
+      );
+      setAdminStatus("idle");
+      setAdminMessage("Corte revertido a revisión.");
+    } catch (error) {
+      setAdminStatus("idle");
+      setAdminMessage(error instanceof Error ? error.message : "No fue posible revertir el estado del corte.");
     }
   }
 
@@ -762,10 +822,21 @@ export default function EstudioPage() {
                   type="button"
                   onClick={() => void handleProcessSnapshot()}
                   className="btn btn-primary mt-4 w-full"
-                  disabled={!selectedSnapshotId || selectedAdminSnapshot?.status === "PROCESSED" || adminStatus === "processing"}
+                  disabled={!selectedSnapshotId || adminStatus === "processing"}
                 >
-                  {adminStatus === "processing" ? "Procesando..." : "Procesar corte"}
+                  {adminStatus === "processing" ? "Procesando..." : selectedAdminSnapshot?.status === "PROCESSED" ? "Reprocesar corte" : "Procesar corte"}
                 </button>
+
+                {selectedAdminSnapshot?.status === "PROCESSED" && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRevertToReview()}
+                    className="mt-2 w-full rounded-2xl px-4 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors"
+                    disabled={adminStatus === "processing"}
+                  >
+                    Volver a revisión
+                  </button>
+                )}
 
                 {selectedAdminSnapshot?.status === "PROCESSED" && (
                   <button
@@ -880,7 +951,17 @@ export default function EstudioPage() {
                         <div className="eyebrow mb-2">Data cruda</div>
                         <h2 className="font-display text-2xl font-bold text-slate-900">Cargos cargados por empresa</h2>
                       </div>
-                      <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => { setRangosDraft({ min: Object.fromEntries(Object.entries(nivelMin).map(([k, v]) => [k, String(v || "")])), max: Object.fromEntries(Object.entries(nivelMax).map(([k, v]) => [k, String(v || "")])) }); setRangosModalOpen(true); }}
+                          className="btn btn-secondary btn-xs"
+                        >
+                          <SlidersHorizontal className="h-3 w-3" />
+                          Rangos de referencia
+                        </button>
+                        <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
+                      </div>
                     </div>
 
                     <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
@@ -915,24 +996,30 @@ export default function EstudioPage() {
                             <th className="px-4 py-2">Empresa</th>
                             <th className="px-4 py-2">Cargo</th>
                             <th className="px-4 py-2">Nivel</th>
-                            <th className="px-4 py-2">Clasificación</th>
-                            <th className="px-4 py-2">Descripción</th>
                             <th className="px-4 py-2 text-right">Base</th>
-                            <th className="px-4 py-2 text-right">Total</th>
+                            <th className="px-4 py-2 text-right">Comp. c/ pasivos mensual</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {activeRawPositions.map((position) => (
-                            <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                              <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
-                              <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
-                              <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
-                              <td className="px-4 py-4 text-slate-600">{position.classification || "—"}</td>
-                              <td className="px-4 py-4 text-slate-600">{position.description || "—"}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{position.baseSalary}</td>
-                              <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{position.totalCompensation}</td>
-                            </tr>
-                          ))}
+                          {activeRawPositions.map((position) => {
+                            const conPasivosMensual = Number(position.conceptValues?.["Con pasivos — mensual"] ?? 0);
+                            const normalizedNivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+                            const rangeMin = normalizedNivel ? (nivelMin[normalizedNivel] ?? 0) : 0;
+                            const rangeMax = normalizedNivel ? (nivelMax[normalizedNivel] ?? 0) : 0;
+                            const isOutOfRange = conPasivosMensual > 0 && ((rangeMin > 0 && conPasivosMensual < rangeMin) || (rangeMax > 0 && conPasivosMensual > rangeMax));
+                            return (
+                              <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
+                                <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
+                                <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
+                                <td className="px-4 py-4 text-right font-display text-slate-700">{position.baseSalary}</td>
+                                <td className={`rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
+                                  {conPasivosMensual > 0 ? formatMoney(conPasivosMensual) : "—"}
+                                  {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1328,6 +1415,63 @@ export default function EstudioPage() {
           </section>
         )}
       </div>
+
+      {rangosModalOpen && rangosDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => { setRangosModalOpen(false); setRangosDraft(null); }} />
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-3xl rounded-[1.75rem] p-6">
+            <div className="eyebrow mb-1">Rangos de referencia</div>
+            <h3 className="font-display text-xl font-bold text-slate-900">Total compensación con pasivos mensualizado — por nivel</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Los cargos cuyo valor quede fuera de estos rangos se marcarán en rojo en la tabla de data cruda.</p>
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full border-separate border-spacing-x-2 border-spacing-y-2 text-sm">
+                <thead>
+                  <tr className="text-left text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                    <th className="px-2 py-0.5">Rango</th>
+                    {NIVELES_ESTUDIO.map((n) => (
+                      <th key={n} className="px-2 py-0.5 text-center">{n}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="rounded-l-[1rem] bg-teal-50 px-3 py-2.5 text-xs font-bold text-teal-700 whitespace-nowrap">Mínimo ($)</td>
+                    {NIVELES_ESTUDIO.map((n) => (
+                      <td key={n} className="bg-teal-50/60 px-1.5 py-1.5">
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={rangosDraft.min[n] ?? ""}
+                          onChange={(e) => setRangosDraft((d) => d ? { ...d, min: { ...d.min, [n]: e.target.value } } : d)}
+                          className="field w-full py-1 text-right text-xs"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="rounded-l-[1rem] bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-700 whitespace-nowrap">Máximo ($)</td>
+                    {NIVELES_ESTUDIO.map((n) => (
+                      <td key={n} className="bg-amber-50/60 px-1.5 py-1.5">
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={rangosDraft.max[n] ?? ""}
+                          onChange={(e) => setRangosDraft((d) => d ? { ...d, max: { ...d.max, [n]: e.target.value } } : d)}
+                          className="field w-full py-1 text-right text-xs"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => { setRangosModalOpen(false); setRangosDraft(null); }} className="btn btn-secondary">Cancelar</button>
+              <button type="button" onClick={() => void handleSaveRangos()} className="btn btn-primary">Guardar rangos</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
