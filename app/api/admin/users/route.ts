@@ -229,3 +229,34 @@ export async function PUT(request: Request) {
 
   return Response.json({ users });
 }
+
+type DeleteUserBody = {
+  userId?: string;
+};
+
+export async function DELETE(request: Request) {
+  const auth = await requireAdminSession();
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const body = (await request.json().catch(() => null)) as DeleteUserBody | null;
+  const userId = body?.userId?.trim() ?? "";
+
+  if (!userId) {
+    return Response.json({ message: "Debes indicar el usuario a eliminar." }, { status: 400 });
+  }
+
+  if (auth.session.user.id === userId) {
+    return Response.json({ message: "No puedes eliminar tu propia cuenta." }, { status: 400 });
+  }
+
+  const deleted = await prisma.user.delete({ where: { id: userId } }).catch(() => null);
+
+  if (!deleted) {
+    return Response.json({ message: "El usuario no existe." }, { status: 404 });
+  }
+
+  return Response.json({ message: "Usuario eliminado correctamente." });
+}
