@@ -109,6 +109,16 @@ function freqToMonthly(freq?: string): number {
   }
 }
 
+// Returns false for frequencies longer than monthly (bimonthly, quarterly, semiannual, annual)
+function isMonthlyOrMoreFrequent(freq?: string): boolean {
+  return freq === "biweekly" || freq === "monthly" || !freq;
+}
+
+function toUSD(amount: number, currency: string | undefined, bcvRate: number | null): number {
+  if (currency === "VES" && bcvRate && bcvRate > 0) return amount / bcvRate;
+  return amount;
+}
+
 function freqToAnnual(freq?: string): number {
   switch (freq) {
     case "biweekly": return 24;
@@ -866,24 +876,40 @@ export default function DataPage() {
     ? rows.find((r) => r.id === modal.id) ?? null
     : null;
 
+  const bcvRate = (() => {
+    const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  })();
+
   const modalMonthlyFixed = modalSaveRow
     ? Math.round(
-        (modalSaveRow.sueldoBasico || 0) * freqToMonthly(modalSaveRow.sueldoBasicoFreq) +
-        (modalSaveRow.bonoAlimentacion || 0) * freqToMonthly(modalSaveRow.bonoAlimentacionFreq) +
-        (modalSaveRow.bonoMovilizacion || 0) * freqToMonthly(modalSaveRow.bonoMovilizacionFreq) +
+        (isMonthlyOrMoreFrequent(modalSaveRow.sueldoBasicoFreq)
+          ? toUSD(modalSaveRow.sueldoBasico || 0, modalSaveRow.sueldoBasicoCuentaMoneda, bcvRate) * freqToMonthly(modalSaveRow.sueldoBasicoFreq)
+          : 0) +
+        (isMonthlyOrMoreFrequent(modalSaveRow.bonoAlimentacionFreq)
+          ? toUSD(modalSaveRow.bonoAlimentacion || 0, modalSaveRow.bonoAlimentacionCuentaMoneda, bcvRate) * freqToMonthly(modalSaveRow.bonoAlimentacionFreq)
+          : 0) +
+        (isMonthlyOrMoreFrequent(modalSaveRow.bonoMovilizacionFreq)
+          ? toUSD(modalSaveRow.bonoMovilizacion || 0, modalSaveRow.bonoMovilizacionCuentaMoneda, bcvRate) * freqToMonthly(modalSaveRow.bonoMovilizacionFreq)
+          : 0) +
         (modalSaveRow.additionalFixedPayments || []).reduce(
-          (s, p) => s + (p.amount || 0) * freqToMonthly(p.freq), 0
+          (s, p) =>
+            isMonthlyOrMoreFrequent(p.freq)
+              ? s + toUSD(p.amount || 0, p.accountCurrency, bcvRate) * freqToMonthly(p.freq)
+              : s,
+          0
         )
       )
     : 0;
 
   const modalAnnualVariable = modalSaveRow
     ? Math.round(
-        (modalSaveRow.bonoDesempeno || 0) * freqToAnnual(modalSaveRow.bonoDesempenoFreq) +
-        (modalSaveRow.comisiones || 0) * freqToAnnual(modalSaveRow.comisionesFreq) +
-        (modalSaveRow.pagoVariableOtros || 0) * freqToAnnual(modalSaveRow.pagoVariableOtrosFreq) +
+        toUSD(modalSaveRow.bonoDesempeno || 0, modalSaveRow.bonoDesempenoCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.bonoDesempenoFreq) +
+        toUSD(modalSaveRow.comisiones || 0, modalSaveRow.comisionesCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.comisionesFreq) +
+        toUSD(modalSaveRow.pagoVariableOtros || 0, modalSaveRow.pagoVariableOtrosCuentaMoneda, bcvRate) * freqToAnnual(modalSaveRow.pagoVariableOtrosFreq) +
         (modalSaveRow.additionalVariablePayments || []).reduce(
-          (s, p) => s + (p.amount || 0) * freqToAnnual(p.freq), 0
+          (s, p) => s + toUSD(p.amount || 0, p.accountCurrency, bcvRate) * freqToAnnual(p.freq),
+          0
         )
       )
     : 0;
