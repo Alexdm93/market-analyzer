@@ -70,7 +70,7 @@ export const authOptions: NextAuthOptions = {
       if (typeof token.id === "string") {
         const existingUser = await prisma.user.findUnique({
           where: { id: token.id },
-          select: { id: true, name: true, email: true, role: true, companyId: true, company: { select: { estudioEnabled: true } } },
+          select: { id: true, name: true, email: true, role: true, companyId: true },
         });
 
         if (!existingUser) {
@@ -88,8 +88,18 @@ export const authOptions: NextAuthOptions = {
         token.email = existingUser.email;
         token.role = existingUser.role;
         token.companyId = existingUser.companyId;
-        token.estudioEnabled = existingUser.company.estudioEnabled;
         token.error = undefined;
+
+        // Fetch estudioEnabled separately — resilient if column not yet migrated
+        try {
+          const company = await prisma.company.findUnique({
+            where: { id: existingUser.companyId },
+            select: { estudioEnabled: true },
+          });
+          token.estudioEnabled = company?.estudioEnabled ?? false;
+        } catch {
+          token.estudioEnabled = false;
+        }
       }
 
       return token;
