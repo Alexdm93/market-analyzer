@@ -163,6 +163,7 @@ export default function EstudioPage() {
   const [nivelMax, setNivelMax] = useState<Record<string, number>>({});
   const [rangosDraft, setRangosDraft] = useState<{ min: Record<string, string>; max: Record<string, string> } | null>(null);
   const [rangosModalOpen, setRangosModalOpen] = useState(false);
+  const [filterFueraDeRango, setFilterFueraDeRango] = useState(false);
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
     if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
@@ -963,7 +964,7 @@ export default function EstudioPage() {
                     </div>
 
                     <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_15rem] md:items-end">
                         <div>
                           <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
                           <select
@@ -977,6 +978,13 @@ export default function EstudioPage() {
                             ))}
                           </select>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setFilterFueraDeRango((v) => !v)}
+                          className={`btn btn-xs self-end mb-0.5 whitespace-nowrap ${filterFueraDeRango ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100" : "btn-secondary"}`}
+                        >
+                          {filterFueraDeRango ? "Ver todos" : "Solo fuera de rango"}
+                        </button>
                         <button
                           type="button"
                           onClick={() => exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
@@ -999,7 +1007,14 @@ export default function EstudioPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {activeRawPositions.map((position) => {
+                          {activeRawPositions.filter((position) => {
+                            if (!filterFueraDeRango) return true;
+                            const val = Number(position.conceptValues?.["Con pasivos — mensual"] ?? 0);
+                            const nivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+                            const mn = nivel ? (nivelMin[nivel] ?? 0) : 0;
+                            const mx = nivel ? (nivelMax[nivel] ?? 0) : 0;
+                            return val > 0 && ((mn > 0 && val < mn) || (mx > 0 && val > mx));
+                          }).map((position) => {
                             const conPasivosMensual = Number(position.conceptValues?.["Con pasivos — mensual"] ?? 0);
                             const normalizedNivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
                             const rangeMin = normalizedNivel ? (nivelMin[normalizedNivel] ?? 0) : 0;
