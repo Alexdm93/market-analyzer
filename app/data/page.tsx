@@ -1394,7 +1394,7 @@ export default function DataPage() {
                                     ) : (
                                       <div className="grid gap-2 lg:grid-cols-[10rem_minmax(0,1fr)] lg:items-start">
                                         <div><label className="field-label">Variable</label><select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
-                                        <div className="rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3.5 text-sm text-slate-500">
+                                        <div className="mt-[1.45rem] rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3.5 text-sm text-slate-500">
                                           Selecciona si el concepto corresponde a bono por desempeño o bono por comisiones para continuar.
                                         </div>
                                       </div>
