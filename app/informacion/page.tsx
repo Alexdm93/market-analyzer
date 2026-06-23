@@ -331,9 +331,9 @@ export default function Informacion() {
           ) : (
             <div className="mt-5 space-y-3">
               <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto] gap-3 px-1 md:grid">
-                <span className="field-label">Nombre de la tasa</span>
-                <span className="field-label">Referencia</span>
-                <span className="field-label">Valor de conversión</span>
+                <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Nombre de la tasa</span>
+                <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Referencia</span>
+                <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-400">Valor de conversión</span>
                 <span />
               </div>
               {(companyInfo.tasas ?? []).map((tasa, idx) => (

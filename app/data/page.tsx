@@ -1363,7 +1363,7 @@ export default function DataPage() {
                                     </div>
 
                                     {p.variableType === "performance" ? (
-                                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_5rem_3.5rem_6.5rem] lg:items-center">
+                                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)_6rem_6rem_7.5rem_3.5rem_7rem] lg:items-center">
                                         <div><label className="field-label">Variable</label><select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                                         <div><label className="field-label">Concepto</label><input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field text-sm w-full" /></div>
                                         <div><label className="field-label">Monto</label><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{p.accountCurrency === "VES" ? "Bs." : "$"}</span><input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></div>
@@ -1375,7 +1375,7 @@ export default function DataPage() {
                                       </div>
                                     ) : p.variableType === "commission" ? (
                                       <>
-                                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1.4fr)_minmax(0,1fr)_6rem_6rem_5rem_3.5rem_6.5rem] lg:items-center">
+                                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)_6rem_6rem_7.5rem_3.5rem_7rem] lg:items-center">
                                           <div><label className="field-label">Variable</label><select aria-label="Tipo de bono variable" value={p.variableType || ""} onChange={(e) => updateAdditionalVariable(i, idx, "variableType", e.target.value)} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                                           <div><label className="field-label">Concepto</label><input placeholder="Concepto" value={p.concept} onChange={(e) => updateAdditionalVariable(i, idx, "concept", e.target.value)} className="field text-sm w-full" /></div>
                                           <div><label className="field-label">Monto</label><div className="relative"><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">{p.accountCurrency === "VES" ? "Bs." : "$"}</span><input type="number" placeholder="0" value={p.amount || ""} onChange={(e) => updateAdditionalVariable(i, idx, "amount", Number(e.target.value))} className="field pr-8 text-sm w-full" /></div></div>
