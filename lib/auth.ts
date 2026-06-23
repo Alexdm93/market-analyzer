@@ -3,6 +3,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
 
 const USER_DELETED_ERROR = "UserDeleted";
 const DEFAULT_USER_ROLE = "USER";
@@ -10,6 +11,7 @@ const DEFAULT_USER_ROLE = "USER";
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
+    maxAge: 8 * 60 * 60, // 8 horas
   },
   pages: {
     signIn: "/signin",
@@ -22,7 +24,17 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Correo", type: "email" },
         password: { label: "Contrasena", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
+        const ip =
+          (req?.headers?.["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+          (req?.headers?.["x-real-ip"] as string | undefined) ??
+          "unknown";
+
+        const { allowed } = checkRateLimit(ip);
+        if (!allowed) {
+          throw new Error("Demasiados intentos fallidos. Intenta de nuevo en 15 minutos.");
+        }
+
         const companyId = credentials?.companyId?.trim();
         const email = credentials?.email?.trim().toLowerCase();
         const password = credentials?.password ?? "";
@@ -45,6 +57,9 @@ export const authOptions: NextAuthOptions = {
         if (!isValidPassword) {
           return null;
         }
+
+        // Login exitoso — liberar rate limit de este IP
+        resetRateLimit(ip);
 
         return {
           id: user.id,
