@@ -15,8 +15,8 @@ const FREQUENCY_OPTIONS: Array<{ value: PaymentFrequency; label: string }> = [
   { value: "biweekly", label: "Quincenal" },
   { value: "monthly", label: "Mensual" },
   { value: "bimonthly", label: "Bimensual" },
-  { value: "semiannual", label: "Semestral" },
   { value: "quarterly", label: "Trimestral" },
+  { value: "semiannual", label: "Semestral" },
   { value: "annual", label: "Anual" },
 ];
 
