@@ -1384,7 +1384,7 @@ export default function DataPage() {
                             </div>
                             {(r.additionalVariablePayments || []).length === 0 ? (
                               <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-slate-50/50 px-4 py-8 text-center text-sm text-slate-400">
-                                Sin conceptos variables. Haz clic en "Agregar concepto" para añadir bonos o comisiones.
+                                Sin conceptos variables. Haz clic en &quot;Agregar concepto&quot; para añadir bonos o comisiones.
                               </div>
                             ) : (
                               <div className="space-y-2">
@@ -1688,7 +1688,7 @@ export default function DataPage() {
                 </div>
 
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  El total anual incluye todos los conceptos fijos (×12) y variables anualizado según su frecuencia.
+                  El total anual incluye todos los conceptos fijos (×12) y variables anualizado según su frecuencia. No incluye calculos de pasivos laborales.
                 </p>
 
                 {missingCompanyFields.length > 0 && (
