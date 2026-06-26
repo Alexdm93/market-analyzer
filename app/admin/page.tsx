@@ -127,6 +127,11 @@ export default function AdminPage() {
   const [snapshotCargosDraft, setSnapshotCargosDraft] = useState<Set<string> | null>(null);
   const [isLoadingSnapshotCargos, setIsLoadingSnapshotCargos] = useState(false);
   const [isSavingSnapshotCargos, setIsSavingSnapshotCargos] = useState(false);
+  const [snapshotCompaniesModal, setSnapshotCompaniesModal] = useState<{ snapshotId: string; label: string } | null>(null);
+  const [snapshotCompaniesDraft, setSnapshotCompaniesDraft] = useState<Set<string> | null>(null);
+  const [isLoadingSnapshotCompanies, setIsLoadingSnapshotCompanies] = useState(false);
+  const [isSavingSnapshotCompanies, setIsSavingSnapshotCompanies] = useState(false);
+  const [createSnapshotCompanyIds, setCreateSnapshotCompanyIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let ignore = false;
@@ -428,6 +433,66 @@ export default function AdminPage() {
     }
   }
 
+  async function openSnapshotCompaniesModal(snapshotId: string, label: string) {
+    setSnapshotCompaniesModal({ snapshotId, label });
+    setIsLoadingSnapshotCompanies(true);
+    setSnapshotCompaniesDraft(null);
+    try {
+      const response = await fetch(`/api/admin/snapshot-companies?snapshotId=${encodeURIComponent(snapshotId)}`, { cache: "no-store" });
+      const payload = (await response.json().catch(() => null)) as { companyIds?: string[] } | null;
+      const loaded = Array.isArray(payload?.companyIds) ? payload.companyIds : null;
+      // null = no restriction (all see it) → pre-select all
+      // [] = nobody → pre-select none
+      // [...] = subset → pre-select subset
+      setSnapshotCompaniesDraft(loaded === null ? new Set(companies.map((c) => c.id)) : new Set(loaded));
+    } catch {
+      setSnapshotCompaniesDraft(new Set(companies.map((c) => c.id)));
+    } finally {
+      setIsLoadingSnapshotCompanies(false);
+    }
+  }
+
+  function closeSnapshotCompaniesModal() {
+    setSnapshotCompaniesModal(null);
+    setSnapshotCompaniesDraft(null);
+  }
+
+  function toggleSnapshotCompany(companyId: string) {
+    setSnapshotCompaniesDraft((prev) => {
+      if (!prev) return prev;
+      const next = new Set(prev);
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
+      return next;
+    });
+  }
+
+  async function saveSnapshotCompanies() {
+    if (!snapshotCompaniesModal || !snapshotCompaniesDraft) return;
+    setIsSavingSnapshotCompanies(true);
+    try {
+      const allSelected = snapshotCompaniesDraft.size === companies.length;
+      // All selected = no restriction → DELETE key so everyone sees it
+      // 0 selected = nobody → PUT with []
+      // partial → PUT with subset
+      const response = await fetch("/api/admin/snapshot-companies", {
+        method: allSelected ? "DELETE" : "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(allSelected
+          ? { snapshotId: snapshotCompaniesModal.snapshotId }
+          : { snapshotId: snapshotCompaniesModal.snapshotId, companyIds: [...snapshotCompaniesDraft] }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) throw new Error(payload?.message ?? "No se pudo guardar.");
+      setStatusMessage("Acceso de empresas al corte actualizado.");
+      closeSnapshotCompaniesModal();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar el acceso de empresas.");
+    } finally {
+      setIsSavingSnapshotCompanies(false);
+    }
+  }
+
   async function reloadSnapshots() {
     const response = await fetch("/api/admin/snapshots", {
       method: "GET",
@@ -667,6 +732,17 @@ export default function AdminPage() {
 
       setStatusMessage(payload?.message ?? "Corte creado correctamente.");
       setSnapshotLabel("");
+
+      const allSelected = createSnapshotCompanyIds.size === 0 || createSnapshotCompanyIds.size === companies.length;
+      if (!allSelected && createSnapshotCompanyIds.size > 0) {
+        await fetch("/api/admin/snapshot-companies", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ snapshotId: snapshotDate, companyIds: [...createSnapshotCompanyIds] }),
+        }).catch(() => null);
+      }
+
+      setCreateSnapshotCompanyIds(new Set());
       await reloadSnapshots();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No fue posible crear el corte.");
@@ -976,34 +1052,86 @@ export default function AdminPage() {
 
           {openCortes && (
           <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-          <form onSubmit={handleCreateSnapshot} className="grid gap-3 lg:grid-cols-[11rem_minmax(0,1fr)_auto] lg:items-end">
-            <div>
-              <label htmlFor="snapshotDate" className="field-label">Fecha</label>
-              <input
-                id="snapshotDate"
-                type="date"
-                value={snapshotDate}
-                onChange={(event) => setSnapshotDate(event.target.value)}
-                className="field"
-                disabled={isMutatingSnapshot}
-              />
+          <form onSubmit={handleCreateSnapshot} className="space-y-3">
+            <div className="grid gap-3 lg:grid-cols-[11rem_minmax(0,1fr)_auto] lg:items-end">
+              <div>
+                <label htmlFor="snapshotDate" className="field-label">Fecha</label>
+                <input
+                  id="snapshotDate"
+                  type="date"
+                  value={snapshotDate}
+                  onChange={(event) => setSnapshotDate(event.target.value)}
+                  className="field"
+                  disabled={isMutatingSnapshot}
+                />
+              </div>
+              <div>
+                <label htmlFor="snapshotLabel" className="field-label">Etiqueta opcional</label>
+                <input
+                  id="snapshotLabel"
+                  type="text"
+                  value={snapshotLabel}
+                  onChange={(event) => setSnapshotLabel(event.target.value)}
+                  className="field"
+                  placeholder="Ej. Corte abril 2026"
+                  disabled={isMutatingSnapshot}
+                />
+              </div>
+              <button type="submit" className="btn btn-primary w-full lg:w-auto" disabled={isMutatingSnapshot || totalUsers === 0}>
+                {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+                {isMutatingSnapshot ? "Procesando..." : "Crear corte"}
+              </button>
             </div>
-            <div>
-              <label htmlFor="snapshotLabel" className="field-label">Etiqueta opcional</label>
-              <input
-                id="snapshotLabel"
-                type="text"
-                value={snapshotLabel}
-                onChange={(event) => setSnapshotLabel(event.target.value)}
-                className="field"
-                placeholder="Ej. Corte abril 2026"
-                disabled={isMutatingSnapshot}
-              />
-            </div>
-            <button type="submit" className="btn btn-primary w-full lg:w-auto" disabled={isMutatingSnapshot || totalUsers === 0}>
-              {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
-              {isMutatingSnapshot ? "Procesando..." : "Crear corte"}
-            </button>
+
+            {companies.length > 0 && (
+              <div className="rounded-[1.1rem] border border-slate-200/80 bg-white/70 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-xs font-semibold text-slate-700">Empresas que participan en este corte</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[0.65rem] text-slate-500">
+                      {createSnapshotCompanyIds.size === 0 || createSnapshotCompanyIds.size === companies.length
+                        ? "Todas"
+                        : `${createSnapshotCompanyIds.size} de ${companies.length}`}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[0.65rem] font-medium text-teal-700 hover:underline"
+                      onClick={() => setCreateSnapshotCompanyIds(
+                        createSnapshotCompanyIds.size === companies.length ? new Set() : new Set(companies.map((c) => c.id))
+                      )}
+                    >
+                      {createSnapshotCompanyIds.size === companies.length ? "Desmarcar todas" : "Seleccionar todas"}
+                    </button>
+                  </div>
+                </div>
+                <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {companies.map((c) => {
+                    const checked = createSnapshotCompanyIds.size === 0 || createSnapshotCompanyIds.has(c.id);
+                    return (
+                      <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setCreateSnapshotCompanyIds((prev) => {
+                              const base = prev.size === 0 ? new Set(companies.map((co) => co.id)) : new Set(prev);
+                              if (base.has(c.id)) base.delete(c.id);
+                              else base.add(c.id);
+                              return base;
+                            });
+                          }}
+                          className="h-3.5 w-3.5 rounded accent-teal-700"
+                        />
+                        <span className="truncate text-xs text-slate-700">{c.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </form>
 
           <div className="mt-3 flex items-center justify-between gap-3">
@@ -1055,6 +1183,10 @@ export default function AdminPage() {
                         <button type="button" onClick={() => void openSnapshotCargosModal(snapshot.id, snapshot.label)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
                           <ClipboardList className="h-4 w-4" />
                           Cargos
+                        </button>
+                        <button type="button" onClick={() => void openSnapshotCompaniesModal(snapshot.id, snapshot.label)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
+                          <Building2 className="h-4 w-4" />
+                          Empresas
                         </button>
                         <button type="button" onClick={() => void handleDeleteSnapshot(snapshot.id)} className="btn btn-danger" disabled={isMutatingSnapshot}>
                           <Trash2 className="h-4 w-4" />
@@ -1334,6 +1466,87 @@ export default function AdminPage() {
           )}
         </section>
       </div>
+
+      {snapshotCompaniesModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={closeSnapshotCompaniesModal}
+        >
+          <div
+            className="surface-card relative z-10 w-full max-w-lg rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 shrink-0">
+              <div>
+                <h2 className="font-display text-xl font-bold text-slate-900">Empresas del corte</h2>
+                <p className="mt-1 text-sm text-slate-600">{snapshotCompaniesModal.label}</p>
+                <p className="mt-1 text-xs text-slate-500">Solo las empresas seleccionadas verán este corte. Si seleccionas todas, el corte es visible para todos.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSnapshotCompaniesModal}
+                className="shrink-0 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                aria-label="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 flex-1 overflow-y-auto pr-1">
+              {isLoadingSnapshotCompanies ? (
+                <div className="text-sm text-slate-500">Cargando...</div>
+              ) : companies.length === 0 ? (
+                <div className="text-sm text-slate-500">No hay empresas registradas.</div>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-xs text-slate-500">
+                      {snapshotCompaniesDraft?.size === companies.length ? "Todas seleccionadas" : `${snapshotCompaniesDraft?.size ?? 0} de ${companies.length}`}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-teal-700 hover:underline"
+                      onClick={() => setSnapshotCompaniesDraft(
+                        snapshotCompaniesDraft?.size === companies.length ? new Set() : new Set(companies.map((c) => c.id))
+                      )}
+                    >
+                      {snapshotCompaniesDraft?.size === companies.length ? "Desmarcar todas" : "Seleccionar todas"}
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    {companies.map((c) => (
+                      <label key={c.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          checked={snapshotCompaniesDraft?.has(c.id) ?? false}
+                          onChange={() => toggleSnapshotCompany(c.id)}
+                          className="h-4 w-4 rounded accent-teal-700"
+                        />
+                        <span className="text-sm text-slate-800">{c.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2 shrink-0 border-t border-slate-200/60 pt-4">
+              <button type="button" onClick={closeSnapshotCompaniesModal} className="btn btn-secondary">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveSnapshotCompanies()}
+                className="btn btn-primary"
+                disabled={isSavingSnapshotCompanies || isLoadingSnapshotCompanies || !snapshotCompaniesDraft}
+              >
+                {isSavingSnapshotCompanies ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {isSavingSnapshotCompanies ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {snapshotCargosModal && (
         <div

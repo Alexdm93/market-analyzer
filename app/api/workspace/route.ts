@@ -401,7 +401,26 @@ function toPayload(workspace: {
   };
 }
 
-async function buildUserPayload(userId: string, workspace: {
+async function getSnapshotCompanyFilter(snapshotIds: string[]): Promise<Map<string, string[]>> {
+  if (snapshotIds.length === 0) return new Map();
+  const keys = snapshotIds.map((id) => `snapshot-companies-${id}`);
+  const records = await prisma.globalConfig.findMany({ where: { key: { in: keys } } });
+  const result = new Map<string, string[]>();
+  for (const record of records) {
+    const snapshotId = record.key.replace("snapshot-companies-", "");
+    try {
+      const parsed = JSON.parse(record.value) as { companyIds?: string[] };
+      if (Array.isArray(parsed.companyIds)) {
+        result.set(snapshotId, parsed.companyIds);
+      }
+    } catch {
+      // ignore malformed
+    }
+  }
+  return result;
+}
+
+async function buildUserPayload(userId: string, userCompanyId: string, workspace: {
   inflation: number;
   selectedSnapshotId: string | null;
   companyInfoJson: string;
@@ -423,7 +442,7 @@ async function buildUserPayload(userId: string, workspace: {
   conversionRate: string;
   locality: string;
 } | null) {
-  const [snapshots, positions] = await Promise.all([
+  const [allSnapshots, positions] = await Promise.all([
     prisma.userSnapshot.findMany({
       where: { userId },
       select: {
@@ -449,6 +468,12 @@ async function buildUserPayload(userId: string, workspace: {
       ],
     }),
   ]);
+
+  const companyFilter = await getSnapshotCompanyFilter(allSnapshots.map((s) => s.snapshotId));
+  const snapshots = allSnapshots.filter((s) => {
+    const allowed = companyFilter.get(s.snapshotId);
+    return !allowed || allowed.includes(userCompanyId);
+  });
 
   const relationalSnapshots = Object.fromEntries(
     snapshots.map((snapshot) => [
@@ -569,8 +594,14 @@ async function buildCompanyPayload(companyId: string) {
     }),
   ]);
 
+  const companyFilter = await getSnapshotCompanyFilter(snapshots.map((s) => s.snapshotId));
+  const allowedSnapshots = snapshots.filter((s) => {
+    const allowed = companyFilter.get(s.snapshotId);
+    return !allowed || allowed.includes(companyId);
+  });
+
   const companySnapshots = Object.fromEntries(
-    snapshots.map((snapshot) => [
+    allowedSnapshots.map((snapshot) => [
       snapshot.snapshotId,
       {
         id: snapshot.snapshotId,
@@ -680,10 +711,14 @@ export async function GET(request: Request) {
 
   const workspace = await getOrCreateWorkspace(userId);
   await backfillRelationalWorkspace(userId, workspace.companyInfoJson, workspace.snapshotsJson);
-  const company = await getCompanyIdentity(userId);
+  const [company, userRecord] = await Promise.all([
+    getCompanyIdentity(userId),
+    prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } }),
+  ]);
+  const userCompanyId = userRecord?.companyId ?? "";
 
   const [payload, bcv, publishedIds] = await Promise.all([
-    buildUserPayload(userId, workspace, company),
+    buildUserPayload(userId, userCompanyId, workspace, company),
     getBcvRate(),
     getPublishedSnapshotIds(),
   ]);
