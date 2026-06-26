@@ -26,13 +26,14 @@ export async function GET(request: Request) {
   if (!snapshotId) return Response.json({ companyIds: [] });
 
   const record = await prisma.globalConfig.findUnique({ where: { key: companiesKey(snapshotId) } });
-  if (!record) return Response.json({ companyIds: [] });
+  // null = no restriction exists (all companies see it)
+  if (!record) return Response.json({ companyIds: null });
 
   try {
     const parsed = JSON.parse(record.value) as { companyIds?: string[] };
-    return Response.json({ companyIds: Array.isArray(parsed.companyIds) ? parsed.companyIds : [] });
+    return Response.json({ companyIds: Array.isArray(parsed.companyIds) ? parsed.companyIds : null });
   } catch {
-    return Response.json({ companyIds: [] });
+    return Response.json({ companyIds: null });
   }
 }
 

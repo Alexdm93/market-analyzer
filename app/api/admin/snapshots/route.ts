@@ -9,6 +9,7 @@ type SnapshotMutationBody = {
   snapshotId?: string;
   date?: string;
   label?: string;
+  companyIds?: string[] | null;
 };
 
 type GlobalSnapshotSummary = {
@@ -163,8 +164,43 @@ async function rebuildRelationalWorkspace(
   }
 }
 
-async function applySnapshotToAllUsers(snapshot: Snapshot) {
-  const users = await getUsers();
+async function getSnapshotCompanyRestrictions(snapshotIds: string[]): Promise<Map<string, string[]>> {
+  if (snapshotIds.length === 0) return new Map();
+  const keys = snapshotIds.map((id) => `snapshot-companies-${id}`);
+  const records = await prisma.globalConfig.findMany({ where: { key: { in: keys } } });
+  const result = new Map<string, string[]>();
+  for (const record of records) {
+    const snapshotId = record.key.replace("snapshot-companies-", "");
+    try {
+      const parsed = JSON.parse(record.value) as { companyIds?: string[] };
+      if (Array.isArray(parsed.companyIds)) {
+        result.set(snapshotId, parsed.companyIds);
+      }
+    } catch { /* ignore */ }
+  }
+  return result;
+}
+
+function isUserAllowedForSnapshot(userCompanyId: string, restriction: string[] | undefined): boolean {
+  if (restriction === undefined) return true;   // no restriction = all
+  if (restriction.length === 0) return false;   // empty = nobody
+  return restriction.includes(userCompanyId);
+}
+
+async function applySnapshotToCompanies(snapshot: Snapshot, companyIds: string[] | null) {
+  // null = all users; [] = nobody; [...] = only those companies
+  let users: UserSummary[];
+  if (companyIds === null) {
+    users = await getUsers();
+  } else if (companyIds.length === 0) {
+    users = [];
+  } else {
+    users = await prisma.user.findMany({
+      where: { companyId: { in: companyIds } },
+      select: { id: true, companyId: true },
+      orderBy: { createdAt: "asc" },
+    });
+  }
 
   await prisma.$transaction(async (tx) => {
     for (const user of users) {
@@ -210,8 +246,14 @@ async function applySnapshotToAllUsers(snapshot: Snapshot) {
 async function syncGlobalSnapshotsForAllUsers() {
   const [users, globalSnapshots] = await Promise.all([getUsers(), getGlobalSnapshots()]);
 
+  const restrictions = await getSnapshotCompanyRestrictions(globalSnapshots.map((s) => s.id));
+
   await prisma.$transaction(async (tx) => {
     for (const user of users) {
+      const allowedSnapshots = globalSnapshots.filter((s) =>
+        isUserAllowedForSnapshot(user.companyId, restrictions.get(s.id))
+      );
+
       const workspace = await tx.userWorkspace.upsert({
         where: { userId: user.id },
         update: {},
@@ -228,10 +270,10 @@ async function syncGlobalSnapshotsForAllUsers() {
       const latestSnapshot = Object.values(currentSnapshots)
         .sort((left, right) => right.date.localeCompare(left.date))[0];
       const latestRows = cloneRows(latestSnapshot?.rows ?? []);
-      const nextSnapshots = Object.fromEntries(
-        globalSnapshots.map((globalSnapshot) => {
-          const currentSnapshot = currentSnapshots[globalSnapshot.id];
 
+      const nextSnapshots = Object.fromEntries(
+        allowedSnapshots.map((globalSnapshot) => {
+          const currentSnapshot = currentSnapshots[globalSnapshot.id];
           return [
             globalSnapshot.id,
             {
@@ -247,7 +289,7 @@ async function syncGlobalSnapshotsForAllUsers() {
       const nextSelectedSnapshotId =
         workspace.selectedSnapshotId && nextSnapshots[workspace.selectedSnapshotId]
           ? workspace.selectedSnapshotId
-          : globalSnapshots[0]?.id ?? "";
+          : allowedSnapshots[0]?.id ?? "";
 
       await tx.userWorkspace.update({
         where: { userId: user.id },
@@ -398,6 +440,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as SnapshotMutationBody | null;
   const snapshotDate = normalizeSnapshotDate(body?.date);
   const snapshotLabel = body?.label?.trim() || snapshotDate;
+  const companyIds = Array.isArray(body?.companyIds) ? (body.companyIds as string[]) : null;
 
   if (!snapshotDate) {
     return Response.json({ message: "Debes indicar la fecha del corte." }, { status: 400 });
@@ -412,6 +455,14 @@ export async function POST(request: Request) {
     return Response.json({ message: `Ya existe un corte para la fecha ${snapshotDate}.` }, { status: 409 });
   }
 
+  if (companyIds !== null) {
+    await prisma.globalConfig.upsert({
+      where: { key: `snapshot-companies-${snapshotDate}` },
+      update: { value: JSON.stringify({ companyIds }) },
+      create: { key: `snapshot-companies-${snapshotDate}`, value: JSON.stringify({ companyIds }) },
+    });
+  }
+
   const snapshot: Snapshot = {
     id: snapshotDate,
     label: snapshotLabel,
@@ -419,7 +470,7 @@ export async function POST(request: Request) {
     rows: [],
   };
 
-  const affectedUsers = await applySnapshotToAllUsers(snapshot);
+  const affectedUsers = await applySnapshotToCompanies(snapshot, companyIds);
 
   return Response.json({
     message: `Corte ${snapshotDate} creado para ${affectedUsers} usuarios.`,
