@@ -1041,7 +1041,8 @@ export default function AdminPage() {
 
           {openCortes && (
           <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-          <form onSubmit={handleCreateSnapshot} className="space-y-3">
+          <form onSubmit={handleCreateSnapshot} className="rounded-[1.25rem] border border-slate-200/80 bg-white/70 p-4">
+            <p className="field-label mb-3">Nuevo corte</p>
             <div className="grid gap-3 lg:grid-cols-[11rem_minmax(0,1fr)_auto] lg:items-end">
               <div>
                 <label htmlFor="snapshotDate" className="field-label">Fecha</label>
@@ -1055,7 +1056,7 @@ export default function AdminPage() {
                 />
               </div>
               <div>
-                <label htmlFor="snapshotLabel" className="field-label">Etiqueta opcional</label>
+                <label htmlFor="snapshotLabel" className="field-label">Etiqueta</label>
                 <input
                   id="snapshotLabel"
                   type="text"
@@ -1072,38 +1073,32 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {companies.length > 0 && (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (createSnapshotCompanyIds.size === 0) {
-                      setCreateSnapshotCompanyIds(new Set(companies.map((c) => c.id)));
-                    }
-                    setCreateCompaniesModalOpen(true);
-                  }}
-                  className="btn btn-secondary btn-xs"
-                >
-                  <Building2 className="h-3.5 w-3.5" />
-                  Empresas
-                </button>
-                <span className="text-xs text-slate-500">
-                  {createSnapshotCompanyIds.size === 0 || createSnapshotCompanyIds.size === companies.length
-                    ? "Todas las empresas"
+            <div className="mt-3 flex items-center justify-between gap-4 border-t border-slate-100 pt-3">
+              <div className="flex items-center gap-2.5">
+                {companies.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCreateCompaniesModalOpen(true)}
+                    className="btn btn-secondary btn-xs shrink-0"
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                    Empresas
+                  </button>
+                )}
+                <p className="text-xs text-slate-500">
+                  {totalUsers === 0
+                    ? "Sin usuarios registrados."
                     : createSnapshotCompanyIds.size === 0
-                    ? "Ninguna empresa"
-                    : `${createSnapshotCompanyIds.size} de ${companies.length} empresas`}
-                </span>
+                    ? "Sin restricción — visible para todas las empresas."
+                    : createSnapshotCompanyIds.size === companies.length
+                    ? "Visible para todas las empresas."
+                    : `Visible solo para ${createSnapshotCompanyIds.size} de ${companies.length} empresas seleccionadas.`}
+                </p>
               </div>
-            )}
+            </div>
           </form>
 
-          <div className="mt-3 flex items-start justify-between gap-3">
-            <p className="text-xs text-slate-500">
-              {totalUsers > 0
-                ? `Este corte se propagará a ${totalUsers} usuarios y también se copiará a los nuevos usuarios que se registren.`
-                : "Aún no hay usuarios registrados para recibir cortes globales."}
-            </p>
+          <div className="mt-3 flex justify-end">
             <div className="flex shrink-0 flex-col items-end gap-1">
               <button type="button" onClick={() => void handleSyncSnapshots()} className="btn btn-secondary" disabled={isMutatingSnapshot || totalUsers === 0}>
                 {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -1456,7 +1451,7 @@ export default function AdminPage() {
             <div className="mt-5 flex-1 overflow-y-auto pr-1">
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-xs text-slate-500">
-                  {createSnapshotCompanyIds.size === companies.length ? "Todas seleccionadas" : `${createSnapshotCompanyIds.size} de ${companies.length}`}
+                  {createSnapshotCompanyIds.size === 0 ? "Ninguna seleccionada" : createSnapshotCompanyIds.size === companies.length ? "Todas seleccionadas" : `${createSnapshotCompanyIds.size} de ${companies.length} seleccionadas`}
                 </span>
                 <button
                   type="button"
@@ -1468,7 +1463,7 @@ export default function AdminPage() {
                   {createSnapshotCompanyIds.size === companies.length ? "Desmarcar todas" : "Seleccionar todas"}
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-0.5 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-3 gap-0.5 sm:grid-cols-4 lg:grid-cols-6">
                 {companies.map((c) => (
                   <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
                     <input
@@ -1545,7 +1540,7 @@ export default function AdminPage() {
                       {snapshotCompaniesDraft?.size === companies.length ? "Desmarcar todas" : "Seleccionar todas"}
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-0.5 sm:grid-cols-3 lg:grid-cols-4">
+                  <div className="grid grid-cols-3 gap-0.5 sm:grid-cols-4 lg:grid-cols-6">
                     {companies.map((c) => (
                       <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
                         <input
