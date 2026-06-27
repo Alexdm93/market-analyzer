@@ -23,6 +23,16 @@ export type Snapshot = {
   requiredPositions?: RequiredPosition[];
 };
 
+export type CompensationTemplateConcept = {
+  id: string;
+  concept: string;
+};
+
+export type CompensationTemplate = {
+  fixed: CompensationTemplateConcept[];
+  variable: CompensationTemplateConcept[];
+};
+
 export type CompanyInfo = {
   companyName: string;
   sector: string;
@@ -41,6 +51,7 @@ export type CompanyInfo = {
   conversionRate: string;
   locality: string;
   tasas?: ExchangeRate[];
+  compensationTemplate?: CompensationTemplate;
 };
 
 export type UserWorkspacePayload = {

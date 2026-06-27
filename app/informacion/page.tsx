@@ -1,7 +1,7 @@
 "use client";
-import { Building2, Contact2, Globe2, Lock, Plus, Save, Sparkles, Trash2, TrendingUp } from "lucide-react";
+import { Building2, Contact2, Globe2, Layers, Lock, Plus, Save, Sparkles, Trash2, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
-import { EMPTY_COMPANY_INFO, type CompanyInfo, type ExchangeRate } from "@/lib/workspace";
+import { EMPTY_COMPANY_INFO, type CompanyInfo, type CompensationTemplateConcept, type ExchangeRate } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 const MAX_TASAS = 5;
@@ -102,6 +102,39 @@ export default function Informacion() {
 
   function removeTasa(idx: number) {
     setUserTasas((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  const fixedConcepts = companyInfo.compensationTemplate?.fixed ?? [];
+  const variableConcepts = companyInfo.compensationTemplate?.variable ?? [];
+  const [newFixedConcept, setNewFixedConcept] = useState("");
+  const [newVariableConcept, setNewVariableConcept] = useState("");
+
+  function setFixedConcepts(next: CompensationTemplateConcept[]) {
+    setCompanyInfo((prev) => ({
+      ...prev,
+      compensationTemplate: { fixed: next, variable: prev.compensationTemplate?.variable ?? [] },
+    }));
+  }
+
+  function setVariableConcepts(next: CompensationTemplateConcept[]) {
+    setCompanyInfo((prev) => ({
+      ...prev,
+      compensationTemplate: { fixed: prev.compensationTemplate?.fixed ?? [], variable: next },
+    }));
+  }
+
+  function addFixedConcept() {
+    const name = newFixedConcept.trim();
+    if (!name) return;
+    setFixedConcepts([...fixedConcepts, { id: `fc-${Date.now()}`, concept: name }]);
+    setNewFixedConcept("");
+  }
+
+  function addVariableConcept() {
+    const name = newVariableConcept.trim();
+    if (!name) return;
+    setVariableConcepts([...variableConcepts, { id: `vc-${Date.now()}`, concept: name }]);
+    setNewVariableConcept("");
   }
 
   async function saveCompanyInfo() {
@@ -403,6 +436,106 @@ export default function Informacion() {
                 No hay tasas adicionales. La Tasa BCV $ se actualiza diariamente de forma automática.
               </div>
             )}
+          </div>
+        </section>
+
+        <section className="surface-card rounded-[2rem] p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-teal-50 p-3 text-teal-700">
+                <Layers size={18} aria-hidden />
+              </div>
+              <div>
+                <h2 className="font-display text-2xl font-bold text-slate-900">Estructura de compensación</h2>
+                <p className="mt-0.5 text-sm text-slate-500">Los conceptos aquí definidos aparecerán al crear un cargo nuevo, sin montos.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            {/* Compensación Fija */}
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-bold text-slate-700">Comp. Fija</span>
+                <span className="text-xs text-slate-400">{fixedConcepts.length} conceptos</span>
+              </div>
+              <div className="space-y-2">
+                {fixedConcepts.map((c) => (
+                  <div key={c.id} className="flex items-center gap-2 rounded-[1rem] border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5">
+                    <span className="flex-1 text-sm text-slate-800">{c.concept}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFixedConcepts(fixedConcepts.filter((x) => x.id !== c.id))}
+                      className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      aria-label={`Eliminar ${c.concept}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {fixedConcepts.length === 0 && (
+                  <div className="rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-xs text-slate-400">
+                    Sin conceptos fijos definidos.
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ej. Bono de transporte"
+                  value={newFixedConcept}
+                  onChange={(e) => setNewFixedConcept(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFixedConcept(); } }}
+                  className="field flex-1"
+                />
+                <button type="button" onClick={addFixedConcept} disabled={!newFixedConcept.trim()} className="btn btn-secondary shrink-0">
+                  <Plus className="h-4 w-4" />
+                  Agregar
+                </button>
+              </div>
+            </div>
+
+            {/* Compensación Variable */}
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm font-bold text-slate-700">Comp. Variable</span>
+                <span className="text-xs text-slate-400">{variableConcepts.length} conceptos</span>
+              </div>
+              <div className="space-y-2">
+                {variableConcepts.map((c) => (
+                  <div key={c.id} className="flex items-center gap-2 rounded-[1rem] border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5">
+                    <span className="flex-1 text-sm text-slate-800">{c.concept}</span>
+                    <button
+                      type="button"
+                      onClick={() => setVariableConcepts(variableConcepts.filter((x) => x.id !== c.id))}
+                      className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      aria-label={`Eliminar ${c.concept}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {variableConcepts.length === 0 && (
+                  <div className="rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-xs text-slate-400">
+                    Sin conceptos variables definidos.
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ej. Bono de desempeño trimestral"
+                  value={newVariableConcept}
+                  onChange={(e) => setNewVariableConcept(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addVariableConcept(); } }}
+                  className="field flex-1"
+                />
+                <button type="button" onClick={addVariableConcept} disabled={!newVariableConcept.trim()} className="btn btn-secondary shrink-0">
+                  <Plus className="h-4 w-4" />
+                  Agregar
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 

@@ -792,6 +792,33 @@ export default function DataPage() {
     }
 
     const newRow = empty(rows.length || 0);
+
+    const template = companyInfo.compensationTemplate;
+    if (template) {
+      if (template.fixed.length > 0) {
+        newRow.additionalFixedPayments = template.fixed.map((c) => ({
+          id: `af-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          concept: c.concept,
+          amount: 0,
+          freq: "monthly" as const,
+          accountCurrency: "USD" as const,
+          paymentCurrency: "USD" as const,
+          impacto: false,
+        }));
+      }
+      if (template.variable.length > 0) {
+        newRow.additionalVariablePayments = template.variable.map((c) => ({
+          id: `av-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          concept: c.concept,
+          amount: 0,
+          freq: "monthly" as const,
+          accountCurrency: "USD" as const,
+          paymentCurrency: "USD" as const,
+          impacto: false,
+        }));
+      }
+    }
+
     if (prefill) {
       const normPrefillTitle = prefill.tituloCargo.trim().toLowerCase();
       const normPrefillDept = prefill.departamento.trim().toLowerCase();
