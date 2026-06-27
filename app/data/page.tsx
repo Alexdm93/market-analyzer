@@ -6,20 +6,13 @@ import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { type Snapshot, type ExchangeRate, type CompanyInfo, type RequiredPosition, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { computeRowTotals } from "@/lib/compensation";
+import { FREQUENCY_OPTIONS, VARIABLE_BONUS_TYPES, VARIABLE_COMMISSION_TYPES, VARIABLE_CALCULATION_DETAILS, VARIABLE_GOALS_TARGETS } from "@/lib/compensation-options";
 
 type CompanyOption = {
   id: string;
   name: string;
 };
 
-const FREQUENCY_OPTIONS: Array<{ value: PaymentFrequency; label: string }> = [
-  { value: "biweekly", label: "Quincenal" },
-  { value: "monthly", label: "Mensual" },
-  { value: "bimonthly", label: "Bimensual" },
-  { value: "quarterly", label: "Trimestral" },
-  { value: "semiannual", label: "Semestral" },
-  { value: "annual", label: "Anual" },
-];
 
 const ORGANIZATIONAL_LEVEL_OPTIONS = [
   { value: "Operativo Auxiliar Asistente AnalistaJR", label: "Operativo / Auxiliares / Asistentes / Analistas Jr" },
@@ -69,34 +62,6 @@ const CLASSIFICATION_OPTIONS_BY_LEVEL: Record<string, string[]> = {
   ],
 };
 
-const VARIABLE_COMMISSION_TYPES = [
-  { value: "simple", label: "Simple" },
-  { value: "tiered", label: "Escalonada" },
-  { value: "product", label: "Por Producto" },
-  { value: "service", label: "Servicio" },
-  { value: "other", label: "Otro" },
-] as const;
-
-const VARIABLE_CALCULATION_DETAILS = [
-  { value: "sale_value", label: "Valor de la venta" },
-  { value: "profit_margin", label: "Margen de la ganancia" },
-  { value: "units_sold", label: "Unidades vendidas" },
-  { value: "other", label: "Otro" },
-] as const;
-
-const VARIABLE_GOALS_TARGETS = [
-  { value: "sales_quota", label: "Cuotas de ventas monetaria" },
-  { value: "units_sold", label: "Numero de unidades vendidas" },
-  { value: "new_clients", label: "Numero de nuevos clientes" },
-  { value: "client_retention", label: "Retencion de clientes" },
-  { value: "profit_margin", label: "Margen de ganancias" },
-  { value: "mixed", label: "Mixto" },
-] as const;
-
-const VARIABLE_BONUS_TYPES = [
-  { value: "performance", label: "Por desempeño" },
-  { value: "commission", label: "Por comisiones" },
-] as const;
 
 function fmtMoney(n: number) {
   if (!n) return "—";
@@ -800,10 +765,11 @@ export default function DataPage() {
           id: `af-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
           concept: c.concept,
           amount: 0,
-          freq: "monthly" as const,
-          accountCurrency: "USD" as const,
-          paymentCurrency: "USD" as const,
-          impacto: false,
+          freq: (c.freq ?? "monthly") as PaymentFrequency,
+          accountCurrency: c.accountCurrency ?? "USD",
+          paymentCurrency: c.paymentCurrency ?? "USD",
+          impacto: c.impacto ?? false,
+          tasaId: c.tasaId ?? "",
         }));
       }
       if (template.variable.length > 0) {
@@ -811,10 +777,15 @@ export default function DataPage() {
           id: `av-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
           concept: c.concept,
           amount: 0,
-          freq: "monthly" as const,
-          accountCurrency: "USD" as const,
-          paymentCurrency: "USD" as const,
-          impacto: false,
+          freq: (c.freq ?? "monthly") as PaymentFrequency,
+          accountCurrency: c.accountCurrency ?? "USD",
+          paymentCurrency: c.paymentCurrency ?? "USD",
+          impacto: c.impacto ?? false,
+          tasaId: c.tasaId ?? "",
+          variableType: c.variableType,
+          commissionType: c.commissionType as "simple" | "tiered" | "product" | "service" | "other" | undefined,
+          calculationDetail: c.calculationDetail as "sale_value" | "profit_margin" | "units_sold" | "other" | undefined,
+          goalsTarget: c.goalsTarget as "sales_quota" | "units_sold" | "new_clients" | "client_retention" | "profit_margin" | "mixed" | undefined,
         }));
       }
     }

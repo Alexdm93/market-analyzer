@@ -26,6 +26,15 @@ export type Snapshot = {
 export type CompensationTemplateConcept = {
   id: string;
   concept: string;
+  freq?: string;
+  accountCurrency?: "USD" | "VES";
+  paymentCurrency?: "USD" | "VES";
+  impacto?: boolean;
+  tasaId?: string;
+  variableType?: "performance" | "commission";
+  commissionType?: string;
+  calculationDetail?: string;
+  goalsTarget?: string;
 };
 
 export type CompensationTemplate = {

@@ -2,6 +2,7 @@
 import { Building2, Contact2, Globe2, Layers, Lock, Plus, Save, Sparkles, Trash2, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EMPTY_COMPANY_INFO, type CompanyInfo, type CompensationTemplateConcept, type ExchangeRate } from "@/lib/workspace";
+import { FREQUENCY_OPTIONS, VARIABLE_BONUS_TYPES, VARIABLE_COMMISSION_TYPES, VARIABLE_CALCULATION_DETAILS, VARIABLE_GOALS_TARGETS } from "@/lib/compensation-options";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 const MAX_TASAS = 5;
@@ -106,8 +107,7 @@ export default function Informacion() {
 
   const fixedConcepts = companyInfo.compensationTemplate?.fixed ?? [];
   const variableConcepts = companyInfo.compensationTemplate?.variable ?? [];
-  const [newFixedConcept, setNewFixedConcept] = useState("");
-  const [newVariableConcept, setNewVariableConcept] = useState("");
+  const [templateTab, setTemplateTab] = useState<"fija" | "variable">("fija");
 
   function setFixedConcepts(next: CompensationTemplateConcept[]) {
     setCompanyInfo((prev) => ({
@@ -123,18 +123,24 @@ export default function Informacion() {
     }));
   }
 
+  function updateFixedConcept(idx: number, key: keyof CompensationTemplateConcept, value: unknown) {
+    const next = [...fixedConcepts];
+    next[idx] = { ...next[idx], [key]: value };
+    setFixedConcepts(next);
+  }
+
+  function updateVariableConcept(idx: number, key: keyof CompensationTemplateConcept, value: unknown) {
+    const next = [...variableConcepts];
+    next[idx] = { ...next[idx], [key]: value };
+    setVariableConcepts(next);
+  }
+
   function addFixedConcept() {
-    const name = newFixedConcept.trim();
-    if (!name) return;
-    setFixedConcepts([...fixedConcepts, { id: `fc-${Date.now()}`, concept: name }]);
-    setNewFixedConcept("");
+    setFixedConcepts([...fixedConcepts, { id: `fc-${Date.now()}`, concept: "", freq: "monthly", accountCurrency: "USD", paymentCurrency: "USD", impacto: false }]);
   }
 
   function addVariableConcept() {
-    const name = newVariableConcept.trim();
-    if (!name) return;
-    setVariableConcepts([...variableConcepts, { id: `vc-${Date.now()}`, concept: name }]);
-    setNewVariableConcept("");
+    setVariableConcepts([...variableConcepts, { id: `vc-${Date.now()}`, concept: "", freq: "monthly", accountCurrency: "USD", paymentCurrency: "USD", impacto: false }]);
   }
 
   async function saveCompanyInfo() {
@@ -440,103 +446,149 @@ export default function Informacion() {
         </section>
 
         <section className="surface-card rounded-[2rem] p-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="rounded-full bg-teal-50 p-3 text-teal-700">
-                <Layers size={18} aria-hidden />
-              </div>
-              <div>
-                <h2 className="font-display text-2xl font-bold text-slate-900">Estructura de compensación</h2>
-                <p className="mt-0.5 text-sm text-slate-500">Los conceptos aquí definidos aparecerán al crear un cargo nuevo, sin montos.</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-teal-50 p-3 text-teal-700">
+              <Layers size={18} aria-hidden />
+            </div>
+            <div>
+              <h2 className="font-display text-2xl font-bold text-slate-900">Estructura de compensación</h2>
+              <p className="mt-0.5 text-sm text-slate-500">Estos conceptos aparecerán pre-cargados al crear un nuevo cargo. El usuario solo debe ingresar el monto.</p>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            {/* Compensación Fija */}
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-700">Comp. Fija</span>
-                <span className="text-xs text-slate-400">{fixedConcepts.length} conceptos</span>
-              </div>
-              <div className="space-y-2">
-                {fixedConcepts.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2 rounded-[1rem] border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5">
-                    <span className="flex-1 text-sm text-slate-800">{c.concept}</span>
-                    <button
-                      type="button"
-                      onClick={() => setFixedConcepts(fixedConcepts.filter((x) => x.id !== c.id))}
-                      className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      aria-label={`Eliminar ${c.concept}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-                {fixedConcepts.length === 0 && (
-                  <div className="rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-xs text-slate-400">
-                    Sin conceptos fijos definidos.
-                  </div>
-                )}
-              </div>
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Ej. Bono de transporte"
-                  value={newFixedConcept}
-                  onChange={(e) => setNewFixedConcept(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFixedConcept(); } }}
-                  className="field flex-1"
-                />
-                <button type="button" onClick={addFixedConcept} disabled={!newFixedConcept.trim()} className="btn btn-secondary shrink-0">
-                  <Plus className="h-4 w-4" />
-                  Agregar
+          {/* Tabs */}
+          <div className="mt-5 flex border-b border-slate-200">
+            {(["fija", "variable"] as const).map((tab) => {
+              const labels = { fija: "Comp. Fija", variable: "Comp. Variable" };
+              const isActive = templateTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setTemplateTab(tab)}
+                  className={`whitespace-nowrap border-b-2 px-5 py-3 text-sm font-semibold transition-colors ${isActive ? "border-teal-600 bg-white text-teal-700" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+                >
+                  {labels[tab]}
                 </button>
-              </div>
-            </div>
-
-            {/* Compensación Variable */}
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-700">Comp. Variable</span>
-                <span className="text-xs text-slate-400">{variableConcepts.length} conceptos</span>
-              </div>
-              <div className="space-y-2">
-                {variableConcepts.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2 rounded-[1rem] border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5">
-                    <span className="flex-1 text-sm text-slate-800">{c.concept}</span>
-                    <button
-                      type="button"
-                      onClick={() => setVariableConcepts(variableConcepts.filter((x) => x.id !== c.id))}
-                      className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      aria-label={`Eliminar ${c.concept}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-                {variableConcepts.length === 0 && (
-                  <div className="rounded-[1rem] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-xs text-slate-400">
-                    Sin conceptos variables definidos.
-                  </div>
-                )}
-              </div>
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Ej. Bono de desempeño trimestral"
-                  value={newVariableConcept}
-                  onChange={(e) => setNewVariableConcept(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addVariableConcept(); } }}
-                  className="field flex-1"
-                />
-                <button type="button" onClick={addVariableConcept} disabled={!newVariableConcept.trim()} className="btn btn-secondary shrink-0">
-                  <Plus className="h-4 w-4" />
-                  Agregar
-                </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
+
+          {/* Comp. Fija */}
+          {templateTab === "fija" && (
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">Conceptos de compensación fija</p>
+                <button type="button" onClick={addFixedConcept} className="btn btn-primary">
+                  <Plus className="h-4 w-4" />
+                  Agregar concepto
+                </button>
+              </div>
+              {fixedConcepts.length === 0 ? (
+                <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-slate-50/50 px-4 py-8 text-center text-sm text-slate-400">
+                  Sin conceptos fijos. Haz clic en &quot;Agregar concepto&quot; para añadir.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-[1.1rem] border border-slate-200/80">
+                  <table className="w-full min-w-[640px] border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50">
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">Concepto</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">Mon. Cuenta</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">Mon. Pago</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">Tasa</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">Pasivos</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">Frecuencia</th>
+                        <th className="w-8"><span className="sr-only">Acciones</span></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {fixedConcepts.map((c, idx) => (
+                        <tr key={c.id} className="bg-white">
+                          <td className="px-3 py-2"><input placeholder="Concepto" value={c.concept} onChange={(e) => updateFixedConcept(idx, "concept", e.target.value)} className="field text-sm w-full" /></td>
+                          <td className="px-3 py-2"><select aria-label="Moneda de cuenta" value={c.accountCurrency ?? "USD"} onChange={(e) => updateFixedConcept(idx, "accountCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                          <td className="px-3 py-2"><select aria-label="Moneda de pago" value={c.paymentCurrency ?? "USD"} onChange={(e) => updateFixedConcept(idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                          <td className="px-3 py-2">
+                            {(c.accountCurrency ?? "USD") === (c.paymentCurrency ?? "USD")
+                              ? <select disabled aria-label="Tasa" className="field-select text-sm w-full opacity-50"><option>No aplica</option></select>
+                              : <select aria-label="Tasa" value={c.tasaId ?? ""} onChange={(e) => updateFixedConcept(idx, "tasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{(companyInfo.tasas ?? []).map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select>}
+                          </td>
+                          <td className="px-3 py-2"><select aria-label="Pasivos" value={c.impacto ? "yes" : "no"} onChange={(e) => updateFixedConcept(idx, "impacto", e.target.value === "yes")} className="field-select text-sm w-full"><option value="yes">Sí</option><option value="no">No</option></select></td>
+                          <td className="px-3 py-2"><select aria-label="Frecuencia" value={c.freq ?? "monthly"} onChange={(e) => updateFixedConcept(idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.filter((o) => o.value !== "biweekly").map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
+                          <td className="px-3 py-2"><button type="button" onClick={() => setFixedConcepts(fixedConcepts.filter((x) => x.id !== c.id))} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Comp. Variable */}
+          {templateTab === "variable" && (
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">Bonos y comisiones variables</p>
+                <button type="button" onClick={addVariableConcept} className="btn btn-primary">
+                  <Plus className="h-4 w-4" />
+                  Agregar concepto
+                </button>
+              </div>
+              {variableConcepts.length === 0 ? (
+                <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-slate-50/50 px-4 py-8 text-center text-sm text-slate-400">
+                  Sin conceptos variables. Haz clic en &quot;Agregar concepto&quot; para añadir bonos o comisiones.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {variableConcepts.map((c, idx) => (
+                    <div key={c.id} className="rounded-[1.1rem] border border-slate-200/80 bg-white p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">
+                          {c.variableType === "performance" ? "Bono por desempeño" : c.variableType === "commission" ? "Bono por comisión" : "Concepto variable"}
+                        </span>
+                        <button type="button" onClick={() => setVariableConcepts(variableConcepts.filter((x) => x.id !== c.id))} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600" aria-label="Eliminar concepto">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {c.variableType === "performance" || c.variableType === "commission" ? (
+                        <>
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1.5fr)_6rem_6rem_7.5rem_3.5rem_7rem] lg:items-center">
+                            <div><label className="field-label">Variable</label><select aria-label="Tipo variable" value={c.variableType} onChange={(e) => updateVariableConcept(idx, "variableType", e.target.value as "performance" | "commission")} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                            <div><label className="field-label">Concepto</label><input placeholder="Concepto" value={c.concept} onChange={(e) => updateVariableConcept(idx, "concept", e.target.value)} className="field text-sm w-full" /></div>
+                            <div><label className="field-label">Mon. Cuenta</label><select aria-label="Moneda de cuenta" value={c.accountCurrency ?? "USD"} onChange={(e) => updateVariableConcept(idx, "accountCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></div>
+                            <div><label className="field-label">Mon. Pago</label><select aria-label="Moneda de pago" value={c.paymentCurrency ?? "USD"} onChange={(e) => updateVariableConcept(idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></div>
+                            <div><label className="field-label">Tasa</label>
+                              {(c.accountCurrency ?? "USD") === (c.paymentCurrency ?? "USD")
+                                ? <select disabled aria-label="Tasa" className="field-select text-sm w-full opacity-50"><option>No aplica</option></select>
+                                : <select aria-label="Tasa" value={c.tasaId ?? ""} onChange={(e) => updateVariableConcept(idx, "tasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{(companyInfo.tasas ?? []).map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select>}
+                            </div>
+                            <div><label className="field-label">Pasivos</label><select aria-label="Pasivos" value={c.impacto ? "yes" : "no"} onChange={(e) => updateVariableConcept(idx, "impacto", e.target.value === "yes")} className="field-select text-sm w-full"><option value="yes">Sí</option><option value="no">No</option></select></div>
+                            <div><label className="field-label">Frecuencia</label><select aria-label="Frecuencia" value={c.freq ?? "monthly"} onChange={(e) => updateVariableConcept(idx, "freq", e.target.value)} className="field-select text-sm w-full">{FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                          </div>
+                          {c.variableType === "commission" && (
+                            <div className="grid gap-2 sm:grid-cols-3 lg:items-end">
+                              <div><label className="field-label">Tipo de comisión</label><select aria-label="Tipo de comisión" value={c.commissionType ?? "simple"} onChange={(e) => updateVariableConcept(idx, "commissionType", e.target.value)} className="field-select text-sm w-full">{VARIABLE_COMMISSION_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                              <div><label className="field-label">Detalle de cálculo</label><select aria-label="Detalle de cálculo" value={c.calculationDetail ?? "sale_value"} onChange={(e) => updateVariableConcept(idx, "calculationDetail", e.target.value)} className="field-select text-sm w-full">{VARIABLE_CALCULATION_DETAILS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                              <div><label className="field-label">Objetivos y metas</label><select aria-label="Objetivos y metas" value={c.goalsTarget ?? "sales_quota"} onChange={(e) => updateVariableConcept(idx, "goalsTarget", e.target.value)} className="field-select text-sm w-full">{VARIABLE_GOALS_TARGETS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="grid gap-2 lg:grid-cols-[10rem_minmax(0,1fr)] lg:items-end">
+                          <div><label className="field-label">Variable</label><select aria-label="Tipo variable" value={c.variableType ?? ""} onChange={(e) => updateVariableConcept(idx, "variableType", e.target.value as "performance" | "commission")} className="field-select text-sm w-full"><option value="">Seleccionar</option>{VARIABLE_BONUS_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                          <div className="rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3.5 text-sm text-slate-500">
+                            Selecciona si el concepto corresponde a bono por desempeño o bono por comisiones para continuar.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         <div className="flex justify-end">
