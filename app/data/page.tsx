@@ -1345,8 +1345,8 @@ export default function DataPage() {
                                   <tr className="border-b border-slate-200 bg-slate-50">
                                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Concepto</th>
                                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Monto</th>
-                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Mon.Cuenta</th>
-                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Mon.Pago</th>
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Mon. Cuenta</th>
+                                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Mon. Pago</th>
                                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Tasa</th>
                                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Pasivos</th>
                                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 text-xs">Frecuencia</th>
