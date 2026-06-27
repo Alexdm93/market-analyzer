@@ -1435,7 +1435,7 @@ export default function AdminPage() {
           onClick={() => setCreateCompaniesModalOpen(false)}
         >
           <div
-            className="surface-card relative z-10 w-full max-w-2xl rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] flex flex-col"
+            className="surface-card relative z-10 w-full max-w-4xl rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 shrink-0">
@@ -1463,7 +1463,7 @@ export default function AdminPage() {
                   {createSnapshotCompanyIds.size === companies.length ? "Desmarcar todas" : "Seleccionar todas"}
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-0.5 sm:grid-cols-4 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-0.5 sm:grid-cols-3 lg:grid-cols-4">
                 {companies.map((c) => (
                   <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
                     <input
@@ -1479,7 +1479,7 @@ export default function AdminPage() {
                       }}
                       className="h-3.5 w-3.5 shrink-0 rounded accent-teal-700"
                     />
-                    <span className="truncate text-xs text-slate-700">{c.name}</span>
+                    <span className="text-xs text-slate-700">{c.name}</span>
                   </label>
                 ))}
               </div>
@@ -1500,7 +1500,7 @@ export default function AdminPage() {
           onClick={closeSnapshotCompaniesModal}
         >
           <div
-            className="surface-card relative z-10 w-full max-w-2xl rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] flex flex-col"
+            className="surface-card relative z-10 w-full max-w-4xl rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 shrink-0">
@@ -1540,7 +1540,7 @@ export default function AdminPage() {
                       {snapshotCompaniesDraft?.size === companies.length ? "Desmarcar todas" : "Seleccionar todas"}
                     </button>
                   </div>
-                  <div className="grid grid-cols-3 gap-0.5 sm:grid-cols-4 lg:grid-cols-6">
+                  <div className="grid grid-cols-2 gap-0.5 sm:grid-cols-3 lg:grid-cols-4">
                     {companies.map((c) => (
                       <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-50">
                         <input
@@ -1549,7 +1549,7 @@ export default function AdminPage() {
                           onChange={() => toggleSnapshotCompany(c.id)}
                           className="h-3.5 w-3.5 shrink-0 rounded accent-teal-700"
                         />
-                        <span className="truncate text-xs text-slate-700">{c.name}</span>
+                        <span className="text-xs text-slate-700">{c.name}</span>
                       </label>
                     ))}
                   </div>
