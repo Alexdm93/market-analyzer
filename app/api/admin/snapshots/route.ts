@@ -164,29 +164,6 @@ async function rebuildRelationalWorkspace(
   }
 }
 
-async function getSnapshotCompanyRestrictions(snapshotIds: string[]): Promise<Map<string, string[]>> {
-  if (snapshotIds.length === 0) return new Map();
-  const keys = snapshotIds.map((id) => `snapshot-companies-${id}`);
-  const records = await prisma.globalConfig.findMany({ where: { key: { in: keys } } });
-  const result = new Map<string, string[]>();
-  for (const record of records) {
-    const snapshotId = record.key.replace("snapshot-companies-", "");
-    try {
-      const parsed = JSON.parse(record.value) as { companyIds?: string[] };
-      if (Array.isArray(parsed.companyIds)) {
-        result.set(snapshotId, parsed.companyIds);
-      }
-    } catch { /* ignore */ }
-  }
-  return result;
-}
-
-function isUserAllowedForSnapshot(userCompanyId: string, restriction: string[] | undefined): boolean {
-  if (restriction === undefined) return true;   // no restriction = all
-  if (restriction.length === 0) return false;   // empty = nobody
-  return restriction.includes(userCompanyId);
-}
-
 async function applySnapshotToCompanies(snapshot: Snapshot, companyIds: string[] | null) {
   // null = all users; [] = nobody; [...] = only those companies
   let users: UserSummary[];
@@ -241,72 +218,6 @@ async function applySnapshotToCompanies(snapshot: Snapshot, companyIds: string[]
   });
 
   return users.length;
-}
-
-async function syncGlobalSnapshotsForAllUsers() {
-  const [users, globalSnapshots] = await Promise.all([getUsers(), getGlobalSnapshots()]);
-
-  const restrictions = await getSnapshotCompanyRestrictions(globalSnapshots.map((s) => s.id));
-
-  await prisma.$transaction(async (tx) => {
-    for (const user of users) {
-      const allowedSnapshots = globalSnapshots.filter((s) =>
-        isUserAllowedForSnapshot(user.companyId, restrictions.get(s.id))
-      );
-
-      const workspace = await tx.userWorkspace.upsert({
-        where: { userId: user.id },
-        update: {},
-        create: {
-          userId: user.id,
-          inflation: DEFAULT_WORKSPACE.inflation,
-          snapshotsJson: JSON.stringify(DEFAULT_WORKSPACE.snapshots),
-          selectedSnapshotId: DEFAULT_WORKSPACE.selectedSnapshotId,
-          companyInfoJson: JSON.stringify(DEFAULT_WORKSPACE.companyInfo),
-        },
-      });
-
-      const currentSnapshots = safeParseSnapshots(workspace.snapshotsJson);
-      const latestSnapshot = Object.values(currentSnapshots)
-        .sort((left, right) => right.date.localeCompare(left.date))[0];
-      const latestRows = cloneRows(latestSnapshot?.rows ?? []);
-
-      const nextSnapshots = Object.fromEntries(
-        allowedSnapshots.map((globalSnapshot) => {
-          const currentSnapshot = currentSnapshots[globalSnapshot.id];
-          return [
-            globalSnapshot.id,
-            {
-              id: globalSnapshot.id,
-              label: globalSnapshot.label,
-              date: globalSnapshot.date,
-              rows: currentSnapshot ? cloneRows(currentSnapshot.rows ?? []) : cloneRows(latestRows),
-            },
-          ];
-        })
-      ) as Record<string, Snapshot>;
-
-      const nextSelectedSnapshotId =
-        workspace.selectedSnapshotId && nextSnapshots[workspace.selectedSnapshotId]
-          ? workspace.selectedSnapshotId
-          : allowedSnapshots[0]?.id ?? "";
-
-      await tx.userWorkspace.update({
-        where: { userId: user.id },
-        data: {
-          snapshotsJson: JSON.stringify(nextSnapshots),
-          selectedSnapshotId: nextSelectedSnapshotId,
-        },
-      });
-
-      await rebuildRelationalWorkspace(tx, user, nextSnapshots);
-    }
-  });
-
-  return {
-    affectedUsers: users.length,
-    snapshotCount: globalSnapshots.length,
-  };
 }
 
 async function renameSnapshotForAllUsers(snapshotId: string, label: string) {
@@ -536,17 +447,3 @@ export async function DELETE(request: Request) {
   });
 }
 
-export async function PUT() {
-  const auth = await requireAdminSession();
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  const result = await syncGlobalSnapshotsForAllUsers();
-
-  return Response.json({
-    message: `Sincronización completada: ${result.snapshotCount} cortes globales aplicados a ${result.affectedUsers} usuarios.`,
-    ...result,
-  });
-}

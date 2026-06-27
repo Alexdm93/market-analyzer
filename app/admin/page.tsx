@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, BookOpen, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, BookOpen, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, LoaderCircle, Plus, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
@@ -817,30 +817,6 @@ export default function AdminPage() {
     }
   }
 
-  async function handleSyncSnapshots() {
-    setErrorMessage("");
-    setStatusMessage("");
-    setIsMutatingSnapshot(true);
-
-    try {
-      const response = await fetch("/api/admin/snapshots", {
-        method: "PUT",
-      });
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "No fue posible sincronizar los cortes.");
-      }
-
-      setStatusMessage(payload?.message ?? "Cortes sincronizados correctamente.");
-      await reloadSnapshots();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No fue posible sincronizar los cortes.");
-    } finally {
-      setIsMutatingSnapshot(false);
-    }
-  }
-
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
@@ -1097,16 +1073,6 @@ export default function AdminPage() {
               </div>
             </div>
           </form>
-
-          <div className="mt-3 flex justify-end">
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <button type="button" onClick={() => void handleSyncSnapshots()} className="btn btn-secondary" disabled={isMutatingSnapshot || totalUsers === 0}>
-                {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                {isMutatingSnapshot ? "Sincronizando..." : "Sincronizar cortes globales"}
-              </button>
-              <p className="text-[0.65rem] text-slate-400">Aplica los cortes y sus restricciones de empresas a todos los usuarios.</p>
-            </div>
-          </div>
 
           <div className="mt-4">
             <h3 className="font-display text-sm font-bold text-slate-700">Cortes globales</h3>
