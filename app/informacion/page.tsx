@@ -513,20 +513,14 @@ export default function Informacion() {
                     <tbody className="divide-y divide-slate-100">
                       {fixedConcepts.map((c, idx) => {
                         if (c.locked) {
-                          const freqLabel = FREQUENCY_OPTIONS.find((o) => o.value === (c.freq ?? "monthly"))?.label ?? "Mensual";
                           return (
-                            <tr key={c.id} className="bg-slate-50/60">
-                              <td className="px-3 py-2">
-                                <div className="flex items-center gap-1.5">
-                                  <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                                  <span className="text-sm font-medium text-slate-700">{c.concept}</span>
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 text-sm text-slate-500">USD</td>
-                              <td className="px-3 py-2 text-sm text-slate-500">USD</td>
-                              <td className="px-3 py-2 text-sm text-slate-400">No aplica</td>
-                              <td className="px-3 py-2 text-sm text-slate-500">{c.impacto ? "Sí" : "No"}</td>
-                              <td className="px-3 py-2 text-sm text-slate-500">{freqLabel}</td>
+                            <tr key={c.id} className="bg-white">
+                              <td className="px-3 py-2"><input placeholder="Concepto" value={c.concept} onChange={(e) => updateFixedConcept(idx, "concept", e.target.value)} className="field text-sm w-full" /></td>
+                              <td className="px-3 py-2"><select aria-label="Moneda de cuenta" value={c.accountCurrency ?? "USD"} onChange={(e) => updateFixedConcept(idx, "accountCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                              <td className="px-3 py-2"><select aria-label="Moneda de pago" value={c.paymentCurrency ?? "USD"} onChange={(e) => updateFixedConcept(idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                              <td className="px-3 py-2"><select disabled aria-label="Tasa" className="field-select text-sm w-full opacity-50"><option>No aplica</option></select></td>
+                              <td className="px-3 py-2"><select disabled aria-label="Pasivos" value={c.impacto ? "yes" : "no"} className="field-select text-sm w-full opacity-50"><option value="yes">Sí</option><option value="no">No</option></select></td>
+                              <td className="px-3 py-2"><select disabled aria-label="Frecuencia" value={c.freq ?? "monthly"} className="field-select text-sm w-full opacity-50">{FREQUENCY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
                               <td className="px-3 py-2" />
                             </tr>
                           );
