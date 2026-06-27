@@ -96,7 +96,19 @@ export type RowTotals = {
 };
 
 /**
+ * Returns true for frequencies that are monthly or more frequent (biweekly, monthly).
+ * These contribute to the monthly compensation total.
+ * Less frequent payments (quarterly, semiannual, annual) only count toward the annual total.
+ */
+function isMonthlyOrMore(freq?: string): boolean {
+  return !freq || freq === "monthly" || freq === "biweekly";
+}
+
+/**
  * Computes the three compensation totals for a row.
+ *
+ * Monthly total: only concepts with frequency monthly or biweekly.
+ * Annual total: all concepts annualized.
  *
  * Pasivos are calculated (not stored) from concepts with impacto=true:
  *   ST           = annual sum of impacto=true concepts
@@ -111,20 +123,17 @@ export function computeRowTotals(
   diasVacaciones: number,
   diasUtilidades: number,
 ): RowTotals {
-  function annualUSD(
+  function usd(
     amount: number | undefined,
-    freq: string | undefined,
     cuentaMoneda: string | undefined,
     pagoMoneda: string | undefined,
     tasaId?: string,
   ): number {
-    return (
-      normalizeToUSD(amount ?? 0, cuentaMoneda, pagoMoneda, tasaId, tasas, bcvRate) *
-      freqToAnnual(freq)
-    );
+    return normalizeToUSD(amount ?? 0, cuentaMoneda, pagoMoneda, tasaId, tasas, bcvRate);
   }
 
   let directAnual = 0;
+  let directMensual = 0;
   let stAnual = 0; // sum of impacto=true concepts, used to compute pasivos
 
   function add(
@@ -135,9 +144,11 @@ export function computeRowTotals(
     impacto: boolean | undefined,
     tasaId?: string,
   ) {
-    const v = annualUSD(amount, freq, cuentaMoneda, pagoMoneda, tasaId);
-    directAnual += v;
-    if (impacto) stAnual += v;
+    const usdAmount = usd(amount, cuentaMoneda, pagoMoneda, tasaId);
+    const annual = usdAmount * freqToAnnual(freq);
+    directAnual += annual;
+    if (isMonthlyOrMore(freq)) directMensual += usdAmount * (freqToAnnual(freq) / 12);
+    if (impacto) stAnual += annual;
   }
 
   // Fixed
@@ -156,17 +167,15 @@ export function computeRowTotals(
     add(p.amount, p.freq, p.accountCurrency, p.paymentCurrency, p.impacto, p.tasaId);
   }
 
-  // Calculated pasivos
+  // Calculated pasivos (always annual, distributed monthly as 1/12)
   const bonoVacacional = stAnual * (diasVacaciones / 360);
   const utilidades = (stAnual + bonoVacacional) * (diasUtilidades / 360);
   const prestaciones = (stAnual + bonoVacacional + utilidades) * (60 / 360);
   const pasivosAnual = bonoVacacional + utilidades + prestaciones;
 
-  const conPasivosAnual = directAnual + pasivosAnual;
-
   return {
-    totalSinPasivosMensual: Math.round(directAnual / 12),
-    totalConPasivosMensual: Math.round(conPasivosAnual / 12),
-    totalConPasivosAnual: Math.round(conPasivosAnual),
+    totalSinPasivosMensual: Math.round(directMensual),
+    totalConPasivosMensual: Math.round(directMensual + pasivosAnual / 12),
+    totalConPasivosAnual: Math.round(directAnual + pasivosAnual),
   };
 }
