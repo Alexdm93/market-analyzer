@@ -67,6 +67,7 @@ export default function Informacion() {
     };
   }, []);
   const [notification, setNotification] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
 
   function updateCompany<K extends keyof CompanyInfo>(key: K, value: string) {
     setCompanyInfo((prev) => ({ ...prev, [key]: value }));
@@ -152,12 +153,15 @@ export default function Informacion() {
   }
 
   async function saveCompanyInfo() {
+    if (saveState === "saving") return;
+    setSaveState("saving");
     try {
       await updateWorkspace({ companyInfo });
-      setNotification("Información guardada correctamente");
-      window.setTimeout(() => setNotification(""), 2500);
+      setSaveState("saved");
+      window.setTimeout(() => setSaveState("idle"), 2000);
     } catch (e) {
       console.error(e);
+      setSaveState("idle");
       setNotification("Error al guardar la información");
       window.setTimeout(() => setNotification(""), 2500);
     }
@@ -210,9 +214,9 @@ export default function Informacion() {
               <p className="mt-2.5 text-xs leading-5 text-slate-600">
                 Completa datos de empresa, contacto y parámetros generales antes de guardar.
               </p>
-              <button onClick={() => void saveCompanyInfo()} className="btn btn-primary mt-3 w-full">
-                <Save className="h-3.5 w-3.5" />
-                Guardar información
+              <button type="button" onClick={() => void saveCompanyInfo()} disabled={saveState === "saving"} className="btn btn-primary mt-3 w-full">
+                {saveState === "saving" ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : saveState === "saved" ? <span className="h-3.5 w-3.5 text-white">✓</span> : <Save className="h-3.5 w-3.5" />}
+                {saveState === "saving" ? "Guardando..." : saveState === "saved" ? "Guardado" : "Guardar información"}
               </button>
             </div>
           </div>
@@ -518,7 +522,11 @@ export default function Informacion() {
                               <td className="px-3 py-2"><input aria-label="Concepto" value={c.concept} readOnly className="field bg-slate-100 text-sm w-full" /></td>
                               <td className="px-3 py-2"><select aria-label="Moneda de cuenta" value={c.accountCurrency ?? "USD"} onChange={(e) => updateFixedConcept(idx, "accountCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
                               <td className="px-3 py-2"><select aria-label="Moneda de pago" value={c.paymentCurrency ?? "USD"} onChange={(e) => updateFixedConcept(idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
-                              <td className="px-3 py-2"><select disabled aria-label="Tasa" className="field-select text-sm w-full opacity-60"><option>No aplica</option></select></td>
+                              <td className="px-3 py-2">
+                                {(c.accountCurrency ?? "USD") === (c.paymentCurrency ?? "USD")
+                                  ? <select disabled aria-label="Tasa" className="field-select text-sm w-full opacity-60"><option>No aplica</option></select>
+                                  : <select aria-label="Tasa" value={c.tasaId ?? ""} onChange={(e) => updateFixedConcept(idx, "tasaId", e.target.value)} className="field-select text-sm w-full"><option value="">Sin tasa</option>{(companyInfo.tasas ?? []).map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}</select>}
+                              </td>
                               <td className="px-3 py-2"><select disabled aria-label="Pasivos" value={c.impacto ? "yes" : "no"} className="field-select text-sm w-full opacity-60"><option value="yes">Sí</option><option value="no">No</option></select></td>
                               <td className="px-3 py-2"><span className="flex h-9 w-full items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-400 select-none">Mensual</span></td>
                               <td className="px-3 py-2" />
@@ -615,9 +623,9 @@ export default function Informacion() {
         </section>
 
         <div className="flex justify-end">
-          <button type="button" onClick={() => void saveCompanyInfo()} className="btn btn-primary">
-            <Save className="h-3.5 w-3.5" />
-            Guardar información
+          <button type="button" onClick={() => void saveCompanyInfo()} disabled={saveState === "saving"} className="btn btn-primary">
+            {saveState === "saving" ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : saveState === "saved" ? <span className="h-3.5 w-3.5 text-white">✓</span> : <Save className="h-3.5 w-3.5" />}
+            {saveState === "saving" ? "Guardando..." : saveState === "saved" ? "Guardado" : "Guardar información"}
           </button>
         </div>
       </div>
