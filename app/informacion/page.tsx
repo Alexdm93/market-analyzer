@@ -46,11 +46,19 @@ export default function Informacion() {
         const workspace = await fetchWorkspace();
         if (!ignore) {
           const loaded = workspace.companyInfo;
-          const userFixed = (loaded.compensationTemplate?.fixed ?? []).filter((c) => !c.locked);
+          const savedFixed = loaded.compensationTemplate?.fixed ?? [];
+          const savedLockedById = new Map(savedFixed.filter((c) => c.locked).map((c) => [c.id, c]));
+          const mergedLocked = SYSTEM_FIXED_CONCEPTS.map((sc) => ({
+            ...sc,
+            accountCurrency: savedLockedById.get(sc.id)?.accountCurrency ?? sc.accountCurrency,
+            paymentCurrency: savedLockedById.get(sc.id)?.paymentCurrency ?? sc.paymentCurrency,
+            tasaId: savedLockedById.get(sc.id)?.tasaId ?? sc.tasaId,
+          }));
+          const userFixed = savedFixed.filter((c) => !c.locked);
           setCompanyInfo({
             ...loaded,
             compensationTemplate: {
-              fixed: [...SYSTEM_FIXED_CONCEPTS, ...userFixed],
+              fixed: [...mergedLocked, ...userFixed],
               variable: loaded.compensationTemplate?.variable ?? [],
             },
           });

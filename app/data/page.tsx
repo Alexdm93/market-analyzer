@@ -765,10 +765,12 @@ export default function DataPage() {
       if (sueldoTpl) {
         newRow.sueldoBasicoCuentaMoneda = sueldoTpl.accountCurrency ?? "USD";
         newRow.sueldoBasicoMonedaPago = sueldoTpl.paymentCurrency ?? "USD";
+        if (sueldoTpl.tasaId) newRow.sueldoBasicoTasaId = sueldoTpl.tasaId;
       }
       if (bonoTpl) {
         newRow.bonoAlimentacionCuentaMoneda = bonoTpl.accountCurrency ?? "USD";
         newRow.bonoAlimentacionMonedaPago = bonoTpl.paymentCurrency ?? "USD";
+        if (bonoTpl.tasaId) newRow.bonoAlimentacionTasaId = bonoTpl.tasaId;
       }
       if (template.fixed.length > 0) {
         newRow.additionalFixedPayments = template.fixed.filter((c) => !c.locked).map((c) => ({
