@@ -761,7 +761,7 @@ export default function DataPage() {
     const template = companyInfo.compensationTemplate;
     if (template) {
       if (template.fixed.length > 0) {
-        newRow.additionalFixedPayments = template.fixed.map((c) => ({
+        newRow.additionalFixedPayments = template.fixed.filter((c) => !c.locked).map((c) => ({
           id: `af-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
           concept: c.concept,
           amount: 0,
