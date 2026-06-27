@@ -6,6 +6,7 @@ import { fetchWorkspace } from "@/lib/workspace-client";
 import type { Snapshot, CompanyInfo } from "@/lib/workspace";
 import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { type ExtendedMarketPosition } from "@/types/salary";
+import { FmtMoney } from "@/components/FmtMoney";
 
 const NIVELES = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
 type Nivel = (typeof NIVELES)[number];
@@ -39,7 +40,7 @@ function percentile(values: number[], p: number) {
 
 function formatMoney(n: number) {
   if (!n || Number.isNaN(n)) return "ND";
-  return `$ ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 // ─── Types for admin dashboard ────────────────────────────────────────────────
@@ -429,10 +430,10 @@ function UserDashboard() {
                           )}
                         </td>
                         <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
-                          {monthly > 0 ? `$${monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "ND"}
+                          {monthly > 0 ? <FmtMoney value={monthly} prefix="$" /> : "ND"}
                         </td>
                         <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
-                          {monthly > 0 ? `$${(monthly * 12).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "ND"}
+                          {monthly > 0 ? <FmtMoney value={monthly * 12} prefix="$" /> : "ND"}
                         </td>
                       </tr>
                     );

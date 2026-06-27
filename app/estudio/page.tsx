@@ -8,6 +8,7 @@ import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { type Snapshot, type CompanyInfo, type ExchangeRate, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { computeRowTotals, PERCENTILE_MIN_N } from "@/lib/compensation";
+import { FmtMoney, fmtMoneyStr } from "@/components/FmtMoney";
 
 type AdminStudySnapshot = {
   id: string;
@@ -82,7 +83,7 @@ function percentile(values: number[], p: number) {
 }
 
 function formatMoney(n: number) {
-  return n == null || Number.isNaN(n) ? "ND" : `$ ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return fmtMoneyStr(n);
 }
 
 function sanitizeFileSegment(value: string) {
@@ -1025,9 +1026,9 @@ export default function EstudioPage() {
                                 <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
                                 <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
                                 <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
-                                <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? formatMoney(Number(position.conceptValues["Sin pasivos — mensual"])) : "—"}</td>
+                                <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Sin pasivos — mensual"])} /> : "—"}</td>
                                 <td className={`rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
-                                  {conPasivosMensual > 0 ? formatMoney(conPasivosMensual) : "—"}
+                                  {conPasivosMensual > 0 ? <FmtMoney value={conPasivosMensual} /> : "—"}
                                   {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
                                 </td>
                               </tr>
@@ -1444,7 +1445,7 @@ export default function EstudioPage() {
                           {mkt ? mkt.n : "—"}
                         </td>
                         <td className="px-4 py-4 text-right font-display font-bold text-teal-700">
-                          {formatMoney(myValue)}
+                          <FmtMoney value={myValue} />
                         </td>
                         <td className="px-4 py-4 text-right font-display text-slate-600">
                           {mktData ? nd(mktData.p10) : "—"}

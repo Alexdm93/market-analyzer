@@ -17,7 +17,7 @@ function percentile(values: number[], p: number) {
 }
 
 function formatMoney(n: number) {
-  return n == null || Number.isNaN(n) ? "ND" : `$ ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return n == null || Number.isNaN(n) ? "ND" : `$ ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
 }
 
 function getDisplayLabel(snapshot: Snapshot) {
