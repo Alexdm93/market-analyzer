@@ -35,6 +35,7 @@ export type CompensationTemplateConcept = {
   commissionType?: string;
   calculationDetail?: string;
   goalsTarget?: string;
+  locked?: boolean;
 };
 
 export type CompensationTemplate = {

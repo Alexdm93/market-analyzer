@@ -1,4 +1,28 @@
 import type { PaymentFrequency } from "@/types/salary";
+import type { CompensationTemplateConcept } from "@/lib/workspace";
+
+export const SYSTEM_FIXED_CONCEPTS: CompensationTemplateConcept[] = [
+  {
+    id: "sys-sueldo-basico",
+    concept: "Sueldo Básico",
+    freq: "monthly",
+    accountCurrency: "USD",
+    paymentCurrency: "USD",
+    impacto: true,
+    tasaId: "",
+    locked: true,
+  },
+  {
+    id: "sys-bono-alimentacion",
+    concept: "Bono Alimentación",
+    freq: "monthly",
+    accountCurrency: "USD",
+    paymentCurrency: "USD",
+    impacto: false,
+    tasaId: "",
+    locked: true,
+  },
+];
 
 export const FREQUENCY_OPTIONS: Array<{ value: PaymentFrequency; label: string }> = [
   { value: "biweekly", label: "Quincenal" },
