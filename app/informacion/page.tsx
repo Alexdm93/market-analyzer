@@ -516,8 +516,8 @@ export default function Informacion() {
                           return (
                             <tr key={c.id} className="bg-white">
                               <td className="px-3 py-2"><input aria-label="Concepto" value={c.concept} readOnly className="field bg-slate-100 text-sm w-full" /></td>
-                              <td className="px-3 py-2"><select disabled aria-label="Moneda de cuenta" value={c.accountCurrency ?? "USD"} className="field-select text-sm w-full opacity-60"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
-                              <td className="px-3 py-2"><select disabled aria-label="Moneda de pago" value={c.paymentCurrency ?? "USD"} className="field-select text-sm w-full opacity-60"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                              <td className="px-3 py-2"><select aria-label="Moneda de cuenta" value={c.accountCurrency ?? "USD"} onChange={(e) => updateFixedConcept(idx, "accountCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
+                              <td className="px-3 py-2"><select aria-label="Moneda de pago" value={c.paymentCurrency ?? "USD"} onChange={(e) => updateFixedConcept(idx, "paymentCurrency", e.target.value)} className="field-select text-sm w-full"><option value="USD">USD</option><option value="VES">Bs.</option></select></td>
                               <td className="px-3 py-2"><select disabled aria-label="Tasa" className="field-select text-sm w-full opacity-60"><option>No aplica</option></select></td>
                               <td className="px-3 py-2"><select disabled aria-label="Pasivos" value={c.impacto ? "yes" : "no"} className="field-select text-sm w-full opacity-60"><option value="yes">Sí</option><option value="no">No</option></select></td>
                               <td className="px-3 py-2"><span className="flex h-9 w-full items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-400 select-none">Mensual</span></td>

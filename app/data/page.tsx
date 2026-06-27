@@ -760,6 +760,16 @@ export default function DataPage() {
 
     const template = companyInfo.compensationTemplate;
     if (template) {
+      const sueldoTpl = template.fixed.find((c) => c.locked && c.id === "sys-sueldo-basico");
+      const bonoTpl = template.fixed.find((c) => c.locked && c.id === "sys-bono-alimentacion");
+      if (sueldoTpl) {
+        newRow.sueldoBasicoCuentaMoneda = sueldoTpl.accountCurrency ?? "USD";
+        newRow.sueldoBasicoMonedaPago = sueldoTpl.paymentCurrency ?? "USD";
+      }
+      if (bonoTpl) {
+        newRow.bonoAlimentacionCuentaMoneda = bonoTpl.accountCurrency ?? "USD";
+        newRow.bonoAlimentacionMonedaPago = bonoTpl.paymentCurrency ?? "USD";
+      }
       if (template.fixed.length > 0) {
         newRow.additionalFixedPayments = template.fixed.filter((c) => !c.locked).map((c) => ({
           id: `af-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
