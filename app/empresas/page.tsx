@@ -4,11 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import * as XLSX from "xlsx";
 import { Building2, CalendarDays, CheckCircle2, Download, LoaderCircle, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useSession } from "next-auth/react";
-import {
-  COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
-  ECONOMIC_SECTOR_OPTIONS,
-  type CompanyCatalogEntry,
-} from "@/lib/company";
+import { type CompanyCatalogEntry } from "@/lib/company";
 import { ANALYST_ROLE, canAccessEmpresas, isAdminRole } from "@/lib/roles";
 
 type Company = CompanyCatalogEntry;
@@ -50,6 +46,7 @@ export default function EmpresasPage() {
   const isAdmin = isAdminRole(role);
   const isAnalyst = role === ANALYST_ROLE;
   const canReviewCompanies = canAccessEmpresas(role);
+  const [sectors, setSectors] = useState<{ name: string; classifications: string[] }[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyName, setCompanyName] = useState("");
   const [companyDescription, setCompanyDescription] = useState("");
@@ -72,8 +69,22 @@ export default function EmpresasPage() {
   const [editClassification, setEditClassification] = useState("");
   const [modalError, setModalError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const classificationOptions = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[companyEconomicSector] ?? [];
-  const editClassificationOptions = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[editSector] ?? [];
+  function getClassifications(sectorName: string): string[] {
+    return sectors.find((s) => s.name === sectorName)?.classifications ?? [];
+  }
+  const classificationOptions = getClassifications(companyEconomicSector);
+  const editClassificationOptions = getClassifications(editSector);
+
+  useEffect(() => {
+    async function loadSectors() {
+      try {
+        const res = await fetch("/api/admin/config", { cache: "no-store" });
+        const data = (await res.json().catch(() => null)) as { sectors?: { name: string; classifications: string[] }[] } | null;
+        if (Array.isArray(data?.sectors) && data.sectors.length > 0) setSectors(data.sectors);
+      } catch { /* usa lista vacía */ }
+    }
+    void loadSectors();
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -279,7 +290,7 @@ export default function EmpresasPage() {
   function handleEconomicSectorChange(nextSector: string) {
     setCompanyEconomicSector(nextSector);
     setCompanyClassification((current) => {
-      const allowedClassifications = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[nextSector] ?? [];
+      const allowedClassifications = getClassifications(nextSector);
       return allowedClassifications.includes(current) ? current : "";
     });
   }
@@ -506,8 +517,8 @@ export default function EmpresasPage() {
                       className="field-select"
                     >
                       <option value="">Seleccionar sector</option>
-                      {ECONOMIC_SECTOR_OPTIONS.map((option) => (
-                        <option key={option} value={option}>{option}</option>
+                      {sectors.map((s) => (
+                        <option key={s.name} value={s.name}>{s.name}</option>
                       ))}
                     </select>
                   </div>
@@ -751,7 +762,7 @@ export default function EmpresasPage() {
                     <label className="field-label">Sector económico</label>
                     <select aria-label="Sector económico" value={editSector} onChange={(e) => { setEditSector(e.target.value); setEditClassification(""); }} className="field-select w-full">
                       <option value="">Seleccionar sector</option>
-                      {ECONOMIC_SECTOR_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                      {sectors.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
                     </select>
                   </div>
                   <div>
