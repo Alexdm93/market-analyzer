@@ -315,8 +315,8 @@ function UserDashboard() {
   const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
 
   function rowMonthly(r: ExtendedMarketPosition): number {
-    if (r._cachedTotalConPasivosMensual !== undefined) return r._cachedTotalConPasivosMensual;
-    return computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalConPasivosMensual;
+    if (r._cachedTotalSinPasivosMensual !== undefined) return r._cachedTotalSinPasivosMensual;
+    return computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalSinPasivosMensual;
   }
   function rowAnnual(r: ExtendedMarketPosition): number {
     if (r._cachedTotalConPasivosAnual !== undefined) return r._cachedTotalConPasivosAnual;
@@ -402,8 +402,8 @@ function UserDashboard() {
               <thead>
                 <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                   <th className="px-4 py-2">Cargo</th>
-                  <th className="px-4 py-2 text-right">Compensación Mensual</th>
-                  <th className="px-4 py-2 text-right">Compensación Anual</th>
+                  <th className="px-4 py-2 text-right">Sin pasivos mensual</th>
+                  <th className="px-4 py-2 text-right">Con pasivos anual</th>
                 </tr>
               </thead>
               <tbody>
