@@ -7,26 +7,11 @@ import type { Snapshot, CompanyInfo } from "@/lib/workspace";
 import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { type ExtendedMarketPosition } from "@/types/salary";
 import { FmtMoney } from "@/components/FmtMoney";
+import { computeRowTotals } from "@/lib/compensation";
 
 const NIVELES = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
 type Nivel = (typeof NIVELES)[number];
 
-function computeRowTotal(r: ExtendedMarketPosition) {
-  let sum = 0;
-  sum += Number(r.sueldoBasico ?? 0);
-  sum += Number(r.bonoAlimentacion ?? 0);
-  sum += Number(r.bonoMovilizacion ?? 0);
-  if (Array.isArray(r.additionalFixedPayments)) {
-    sum += r.additionalFixedPayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
-  }
-  sum += Number(r.bonoDesempeno ?? 0);
-  sum += Number(r.comisiones ?? 0);
-  sum += Number(r.pagoVariableOtros ?? 0);
-  if (Array.isArray(r.additionalVariablePayments)) {
-    sum += r.additionalVariablePayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
-  }
-  return sum;
-}
 
 function percentile(values: number[], p: number) {
   if (!values.length) return 0;
@@ -321,29 +306,30 @@ function UserDashboard() {
     return [];
   }, [snapshots, selectedSnapshotId]);
 
+  const tasas = companyInfo.tasas ?? [];
+  const bcvRate = (() => {
+    const t = tasas.find((t) => t.isSystem && (t.referencia ?? "").includes("BCV") && (t.referencia ?? "").includes("USD"));
+    return t ? Number(t.valor) : null;
+  })();
+  const diasVacaciones = Number(companyInfo.minVacationDays) || 15;
+  const diasUtilidades = Number(companyInfo.minUtilityDays) || 15;
+
   const medianasPorNivel = useMemo(() => {
     const result = {} as Record<Nivel, string>;
     for (const nivel of NIVELES) {
       const totals = rows
         .filter((r) => r.nivelOrganizacional?.trim() === nivel)
-        .map(computeRowTotal)
+        .map((r) => computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalConPasivosMensual)
         .filter((v) => v > 0 && Number.isFinite(v));
       result[nivel] = formatMoney(totals.length ? Math.round(percentile(totals, 50)) : 0);
     }
     return result;
-  }, [rows]);
-
-  const allTotals = useMemo(
-    () => rows.map(computeRowTotal).filter((v) => v > 0 && Number.isFinite(v)),
-    [rows]
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, companyInfo]);
 
   const totalPositions = rows.length;
   const nivelesConData = NIVELES.filter((n) => medianasPorNivel[n] !== "ND").length;
   const companyName = companyInfo.companyName || "Sin nombre";
-
-  // suppress unused warning
-  void allTotals;
 
   return (
     <main className="page-wrap">
@@ -420,7 +406,7 @@ function UserDashboard() {
                   </tr>
                 ) : (
                   rows.map((r) => {
-                    const monthly = computeRowTotal(r);
+                    const totals = computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades);
                     return (
                       <tr key={r.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
                         <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
@@ -430,10 +416,10 @@ function UserDashboard() {
                           )}
                         </td>
                         <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
-                          {monthly > 0 ? <FmtMoney value={monthly} prefix="$" /> : "ND"}
+                          {totals.totalConPasivosMensual > 0 ? <FmtMoney value={totals.totalConPasivosMensual} prefix="$" /> : "ND"}
                         </td>
                         <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
-                          {monthly > 0 ? <FmtMoney value={monthly * 12} prefix="$" /> : "ND"}
+                          {totals.totalConPasivosAnual > 0 ? <FmtMoney value={totals.totalConPasivosAnual} prefix="$" /> : "ND"}
                         </td>
                       </tr>
                     );
