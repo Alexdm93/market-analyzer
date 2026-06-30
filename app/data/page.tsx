@@ -1278,17 +1278,11 @@ export default function DataPage() {
                           <div className="grid gap-3 md:grid-cols-2">
                             <div>
                               <label className="field-label">Unidad / Departamento</label>
-                              <select value={r.departamento || ""} onChange={(e) => updateDepartamento(i, e.target.value)} className="field-select" aria-label="Unidad organizacional o departamento">
-                                <option value="">Seleccionar unidad</option>
-                                {availableDepts.map((d) => <option key={d} value={d}>{d}</option>)}
-                              </select>
+                              <input readOnly value={r.departamento || "—"} className="field bg-slate-100 text-sm w-full" aria-label="Unidad organizacional o departamento" />
                             </div>
                             <div>
                               <label className="field-label">Título del cargo</label>
-                              <select ref={(el) => { titleRefs.current[r.id] = el; }} value={r.tituloCargo} onChange={(e) => update(i, "tituloCargo", e.target.value)} className="field-select" aria-label="Título del cargo" disabled={!r.departamento}>
-                                <option value="">Seleccionar cargo</option>
-                                {(r.departamento ? availableCargosByDept[r.departamento] ?? [] : []).map((t: string) => <option key={t} value={t}>{t}</option>)}
-                              </select>
+                              <input readOnly value={r.tituloCargo || "—"} className="field bg-slate-100 text-sm w-full" aria-label="Título del cargo" />
                             </div>
                             <div>
                               <label className="field-label">Nivel organizacional</label>
