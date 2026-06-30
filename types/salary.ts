@@ -97,5 +97,8 @@ export interface ExtendedMarketPosition {
 
   additionalVariablePayments?: CompensationConcept[];
 
-  // (Totales y metadatos removidos: moneda, totalCompensacion, observaciones)
+  // Totales calculados y almacenados al momento de guardar
+  _cachedTotalSinPasivosMensual?: number;
+  _cachedTotalConPasivosMensual?: number;
+  _cachedTotalConPasivosAnual?: number;
 }

@@ -308,18 +308,27 @@ function UserDashboard() {
 
   const tasas = companyInfo.tasas ?? [];
   const bcvRate = (() => {
-    const t = tasas.find((t) => t.isSystem && (t.referencia ?? "").includes("BCV") && (t.referencia ?? "").includes("USD"));
-    return t ? Number(t.valor) : null;
+    const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
+    return Number.isFinite(v) && v > 0 ? v : null;
   })();
-  const diasVacaciones = Number(companyInfo.minVacationDays) || 15;
-  const diasUtilidades = Number(companyInfo.minUtilityDays) || 15;
+  const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
+  const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
+
+  function rowMonthly(r: ExtendedMarketPosition): number {
+    if (r._cachedTotalConPasivosMensual !== undefined) return r._cachedTotalConPasivosMensual;
+    return computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalConPasivosMensual;
+  }
+  function rowAnnual(r: ExtendedMarketPosition): number {
+    if (r._cachedTotalConPasivosAnual !== undefined) return r._cachedTotalConPasivosAnual;
+    return computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalConPasivosAnual;
+  }
 
   const medianasPorNivel = useMemo(() => {
     const result = {} as Record<Nivel, string>;
     for (const nivel of NIVELES) {
       const totals = rows
         .filter((r) => r.nivelOrganizacional?.trim() === nivel)
-        .map((r) => computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalConPasivosMensual)
+        .map(rowMonthly)
         .filter((v) => v > 0 && Number.isFinite(v));
       result[nivel] = formatMoney(totals.length ? Math.round(percentile(totals, 50)) : 0);
     }
@@ -406,7 +415,8 @@ function UserDashboard() {
                   </tr>
                 ) : (
                   rows.map((r) => {
-                    const totals = computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades);
+                    const monthly = rowMonthly(r);
+                    const annual = rowAnnual(r);
                     return (
                       <tr key={r.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
                         <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
@@ -416,10 +426,10 @@ function UserDashboard() {
                           )}
                         </td>
                         <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
-                          {totals.totalConPasivosMensual > 0 ? <FmtMoney value={totals.totalConPasivosMensual} prefix="$" /> : "ND"}
+                          {monthly > 0 ? <FmtMoney value={monthly} prefix="$" /> : "ND"}
                         </td>
                         <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
-                          {totals.totalConPasivosAnual > 0 ? <FmtMoney value={totals.totalConPasivosAnual} prefix="$" /> : "ND"}
+                          {annual > 0 ? <FmtMoney value={annual} prefix="$" /> : "ND"}
                         </td>
                       </tr>
                     );

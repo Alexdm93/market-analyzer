@@ -520,9 +520,16 @@ export default function DataPage() {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
   }
 
+  function stampRowTotals(row: ExtendedMarketPosition): ExtendedMarketPosition {
+    const _bcvRate = (() => { const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor); return Number.isFinite(v) && v > 0 ? v : null; })();
+    const cached = computeRowTotals(row, tasas, _bcvRate, Number(companyInfo.minVacationDays) || 0, Number(companyInfo.minUtilityDays) || 0);
+    return { ...row, _cachedTotalSinPasivosMensual: cached.totalSinPasivosMensual, _cachedTotalConPasivosMensual: cached.totalConPasivosMensual, _cachedTotalConPasivosAnual: cached.totalConPasivosAnual };
+  }
+
   async function saveCurrentToSnapshot(id: string) {
     if (!id) return;
-    const next = { ...snapshots, [id]: { ...(snapshots[id] || { id, label: id, date: id, rows: [] }), rows: JSON.parse(JSON.stringify(rows)) } };
+    const stamped = rows.map(stampRowTotals);
+    const next = { ...snapshots, [id]: { ...(snapshots[id] || { id, label: id, date: id, rows: [] }), rows: JSON.parse(JSON.stringify(stamped)) } };
     const wasPersisted = await persistSnapshots(next, id, { showErrorNotification: true });
     showNotification(wasPersisted ? 'Guardado correctamente' : 'No se pudo guardar en la base de datos');
   }
@@ -856,7 +863,7 @@ export default function DataPage() {
     const nextRows = Array.isArray(current.rows) ? [...current.rows] : [];
     const rowIndex = rows.findIndex((rr) => rr.id === rowId);
     if (rowIndex === -1) return;
-    const rowToSave = JSON.parse(JSON.stringify(rows[rowIndex]));
+    const rowToSave = JSON.parse(JSON.stringify(stampRowTotals(rows[rowIndex])));
     const existingIndex = nextRows.findIndex((rr) => rr.id === rowToSave.id);
     if (existingIndex !== -1) {
       nextRows[existingIndex] = rowToSave;
