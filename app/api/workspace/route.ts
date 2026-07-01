@@ -773,6 +773,10 @@ export async function PUT(request: Request) {
 
     await prisma.$transaction(async (tx) => {
       await syncRelationalWorkspace(tx, companyUser.id, targetCompanyId, nextSnapshots);
+      await tx.userWorkspace.updateMany({
+        where: { userId: companyUser.id },
+        data: { snapshotsJson: JSON.stringify(nextSnapshots) },
+      });
     });
 
     return Response.json({ message: "Guardado correctamente." });

@@ -1501,9 +1501,19 @@ export default function DataPage() {
                   <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (modal.id) removeRowById(modal.id);
+                    onClick={async () => {
+                      const deleteId = modal.id;
                       setModal({ type: null });
+                      if (!deleteId) return;
+                      const newRows = rows.filter((row) => row.id !== deleteId);
+                      setRows(newRows);
+                      if (isAdminCompanyView && selectedSnapshotId) {
+                        const stamped = newRows.map(stampRowTotals);
+                        const current = snapshots[selectedSnapshotId] ?? { id: selectedSnapshotId, label: selectedSnapshotId, date: selectedSnapshotId, rows: [] };
+                        const next = { ...snapshots, [selectedSnapshotId]: { ...current, rows: JSON.parse(JSON.stringify(stamped)) } };
+                        const wasPersisted = await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
+                        showNotification(wasPersisted ? "Cargo eliminado y guardado" : "No se pudo guardar la eliminación");
+                      }
                     }}
                     className="btn btn-danger"
                   >
