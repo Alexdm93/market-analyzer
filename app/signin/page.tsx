@@ -26,7 +26,7 @@ export default function SignInPage() {
   const lastLookedUp = useRef("");
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/");
+    if (status === "authenticated") router.replace("/inicio");
   }, [router, status]);
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export default function SignInPage() {
     }
 
     startTransition(() => {
-      router.replace("/");
+      router.replace("/inicio");
       router.refresh();
     });
   }

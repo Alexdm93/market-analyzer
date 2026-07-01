@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, Database, Info, LayoutDashboard, LineChart, LoaderCircle, LogIn, LogOut, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, Database, Info, LayoutDashboard, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 
@@ -9,6 +9,7 @@ import { canAccessEmpresas, getRoleLabel, isAdminRole } from "@/lib/roles";
 import { useNavigationTrigger } from "./NavigationProgress";
 
 const menuItems = [
+  { name: "Inicio", href: "/inicio", icon: Newspaper, hint: "Noticias y anuncios" },
   { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
   { name: "Data", href: "/data", icon: Database, hint: "Captura por cargo" },
   { name: "Resultados", href: "/resultados", icon: TrendingUp, hint: "Resumen de mercado" },
@@ -16,6 +17,7 @@ const menuItems = [
 ];
 
 const menuItemsAdmin = [
+  { name: "Inicio", href: "/inicio", icon: Newspaper, hint: "Noticias y anuncios" },
   { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
   { name: "Data", href: "/data", icon: Database, hint: "Captura por cargo" },
   { name: "Estudio", href: "/estudio", icon: BookOpen, hint: "Estudio especializado" },
@@ -28,6 +30,7 @@ const estudioItem = { name: "Estudio", href: "/estudio", icon: BookOpen, hint: "
 const adminMenuItems = [
   { name: "Admin", href: "/admin", icon: Shield, hint: "Vista administrativa" },
   { name: "Empresas", href: "/empresas", icon: Building2, hint: "Catálogo disponible" },
+  { name: "Anuncios", href: "/admin/anuncios", icon: Newspaper, hint: "Publicar noticias" },
 ];
 
 const analystMenuItems = [
@@ -52,12 +55,12 @@ export default function Sidebar() {
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
         <div className="mb-4 flex items-start justify-between gap-3 lg:mb-6">
-          <div className="min-w-0">
+          <Link href="/inicio" className="min-w-0 block" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
             <div className="eyebrow mb-2">Salary Intelligence</div>
             <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
             <p className="mt-2 max-w-none break-words text-sm leading-6 text-slate-600 md:max-w-48 md:text-[0.82rem] md:leading-5">
             </p>
-          </div>
+          </Link>
           <div className="hidden rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[0.68rem] font-bold text-amber-700 lg:inline-flex">
             v2.0
           </div>

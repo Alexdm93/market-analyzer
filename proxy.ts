@@ -5,8 +5,8 @@ import { getToken } from "next-auth/jwt";
 import { ADMIN_ROLE, canAccessEmpresas } from "./lib/roles";
 
 const authPages = new Set(["/signin", "/register"]);
-const protectedPages = new Set(["/", "/data", "/estudio", "/informacion", "/empresas", "/admin"]);
-const adminPages = new Set(["/admin", "/register"]);
+const protectedPages = new Set(["/", "/inicio", "/data", "/estudio", "/informacion", "/empresas", "/admin", "/admin/anuncios"]);
+const adminPages = new Set(["/admin", "/admin/anuncios", "/register"]);
 const empresasPages = new Set(["/empresas"]);
 
 export async function proxy(request: NextRequest) {
@@ -35,12 +35,12 @@ export async function proxy(request: NextRequest) {
   }
 
   if (token && !sessionInvalid && authPages.has(pathname)) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/inicio", request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/data", "/estudio", "/informacion", "/empresas", "/admin", "/signin", "/register"],
+  matcher: ["/", "/inicio", "/data", "/estudio", "/informacion", "/empresas", "/admin", "/admin/anuncios", "/signin", "/register"],
 };
