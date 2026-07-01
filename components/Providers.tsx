@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { SessionProvider } from "next-auth/react";
 import { signOut, useSession } from "next-auth/react";
+import { AnnouncementProvider } from "@/contexts/AnnouncementContext";
 
 const PUBLIC_PATHS = new Set(["/signin", "/register"]);
 
@@ -31,7 +32,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 	return (
 		<SessionProvider refetchOnWindowFocus refetchInterval={60}>
 			<SessionGuard />
-			{children}
+			<AnnouncementProvider>
+				{children}
+			</AnnouncementProvider>
 		</SessionProvider>
 	);
 }

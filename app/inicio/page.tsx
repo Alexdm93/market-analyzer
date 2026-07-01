@@ -1,16 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Calendar, Info, Megaphone, MonitorPlay, Newspaper } from "lucide-react";
-
-type Announcement = {
-  id: string;
-  title: string;
-  content: string;
-  type: string;
-  publishedAt: string | null;
-  mediaData: string | null;
-  mediaUrl: string | null;
-};
+import { Calendar, Info, Megaphone, MonitorPlay, Newspaper, X } from "lucide-react";
+import { type Announcement, useAnnouncements } from "@/contexts/AnnouncementContext";
 
 const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string; pill: string }> = {
   noticia:      { label: "Noticia",        icon: Newspaper,   color: "text-teal-700",   pill: "bg-teal-50 text-teal-700 border-teal-200" },
@@ -33,18 +24,16 @@ function getYouTubeId(url: string): string | null {
   return match?.[1] ?? null;
 }
 
-function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; mediaUrl: string | null; title: string }) {
+function MediaBlock({ mediaData, mediaUrl, title, compact = false }: { mediaData: string | null; mediaUrl: string | null; title: string; compact?: boolean }) {
   if (mediaData) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={mediaData} alt={title} className="max-h-64 w-full object-cover object-center" />
-    );
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={mediaData} alt={title} className={`w-full object-cover object-center ${compact ? "max-h-64" : "max-h-[28rem] rounded-[1.25rem]"}`} />;
   }
   if (mediaUrl) {
     const ytId = getYouTubeId(mediaUrl);
     if (ytId) {
       return (
-        <div className="aspect-video">
+        <div className={`aspect-video ${!compact ? "rounded-[1.25rem] overflow-hidden" : ""}`}>
           <iframe
             src={`https://www.youtube.com/embed/${ytId}`}
             title={title}
@@ -59,80 +48,130 @@ function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; 
   return null;
 }
 
-export default function InicioPage() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+function AnnouncementModal({ announcement, onClose }: { announcement: Announcement; onClose: () => void }) {
+  const meta = getTypeMeta(announcement.type);
+  const Icon = meta.icon;
 
   useEffect(() => {
-    let ignore = false;
-    fetch("/api/announcements", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: { announcements?: Announcement[] }) => {
-        if (!ignore) setAnnouncements(d.announcements ?? []);
-      })
-      .catch(() => {})
-      .finally(() => { if (!ignore) setLoading(false); });
-    return () => { ignore = true; };
-  }, []);
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
-    <main className="page-wrap">
-      <div className="flex w-full flex-col gap-6">
-        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="eyebrow mb-3">Plataforma</div>
-          <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">
-            Bienvenido a Market Analyzer.
-          </h1>
-          <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-            Noticias, fechas de cortes, avisos y anuncios del equipo.
-          </p>
-        </section>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-500 shadow-md hover:bg-white hover:text-slate-900"
+          aria-label="Cerrar"
+        >
+          <X size={18} />
+        </button>
 
-        {loading && (
-          <section className="surface-card rounded-[2rem] p-8 text-sm text-slate-500">
-            Cargando anuncios...
-          </section>
-        )}
+        <div className="overflow-y-auto">
+          {(announcement.mediaData || announcement.mediaUrl) && (
+            <MediaBlock mediaData={announcement.mediaData} mediaUrl={announcement.mediaUrl} title={announcement.title} />
+          )}
 
-        {!loading && announcements.length === 0 && (
-          <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
-            No hay anuncios publicados aún. Vuelve pronto.
-          </section>
-        )}
-
-        {!loading && announcements.length > 0 && (
-          <div className="columns-1 gap-5 md:columns-2 xl:columns-3">
-            {announcements.map((a) => {
-              const meta = getTypeMeta(a.type);
-              const Icon = meta.icon;
-              const hasMedia = !!(a.mediaData || a.mediaUrl);
-
-              return (
-                <article key={a.id} className="surface-card mb-5 break-inside-avoid overflow-hidden rounded-[2rem]">
-                  {hasMedia && (
-                    <MediaBlock mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
-                  )}
-
-                  <div className="px-5 py-5 md:px-6 md:py-6">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
-                        <Icon size={12} aria-hidden />
-                        {meta.label}
-                      </span>
-                      {a.publishedAt && (
-                        <time className="text-xs text-slate-400">{formatDate(a.publishedAt)}</time>
-                      )}
-                    </div>
-
-                    <h2 className="mt-3 font-display text-lg font-bold text-slate-900">{a.title}</h2>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{a.content}</p>
-                  </div>
-                </article>
-              );
-            })}
+          <div className="px-6 py-6 md:px-8 md:py-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
+                <Icon size={12} aria-hidden />
+                {meta.label}
+              </span>
+              {announcement.publishedAt && (
+                <time className="text-xs text-slate-400">{formatDate(announcement.publishedAt)}</time>
+              )}
+            </div>
+            <h2 className="mt-4 font-display text-2xl font-bold text-slate-900">{announcement.title}</h2>
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-600">{announcement.content}</p>
           </div>
-        )}
+        </div>
       </div>
-    </main>
+    </div>
+  );
+}
+
+export default function InicioPage() {
+  const { announcements, markSeen } = useAnnouncements();
+  const [selected, setSelected] = useState<Announcement | null>(null);
+
+  function openAnnouncement(a: Announcement) {
+    setSelected(a);
+    markSeen(a.id);
+  }
+
+  return (
+    <>
+      <main className="page-wrap">
+        <div className="flex w-full flex-col gap-6">
+          <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+            <div className="eyebrow mb-3">Plataforma</div>
+            <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">
+              Bienvenido a Market Analyzer.
+            </h1>
+            <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
+              Noticias, fechas de cortes, avisos y anuncios del equipo.
+            </p>
+          </section>
+
+          {announcements.length === 0 && (
+            <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
+              No hay anuncios publicados aún. Vuelve pronto.
+            </section>
+          )}
+
+          {announcements.length > 0 && (
+            <div className="columns-1 gap-5 md:columns-2 xl:columns-3">
+              {announcements.map((a) => {
+                const meta = getTypeMeta(a.type);
+                const Icon = meta.icon;
+                const hasMedia = !!(a.mediaData || a.mediaUrl);
+
+                return (
+                  <article
+                    key={a.id}
+                    className="surface-card mb-5 break-inside-avoid cursor-pointer overflow-hidden rounded-[2rem] transition-shadow hover:shadow-[0_16px_48px_rgba(24,52,45,0.12)]"
+                    onClick={() => openAnnouncement(a)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openAnnouncement(a); }}
+                  >
+                    {hasMedia && (
+                      <MediaBlock mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} compact />
+                    )}
+
+                    <div className="px-5 py-5 md:px-6 md:py-6">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
+                          <Icon size={12} aria-hidden />
+                          {meta.label}
+                        </span>
+                        {a.publishedAt && (
+                          <time className="text-xs text-slate-400">{formatDate(a.publishedAt)}</time>
+                        )}
+                      </div>
+                      <h2 className="mt-3 font-display text-base font-bold text-slate-900">{a.title}</h2>
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">{a.content}</p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {selected && (
+        <AnnouncementModal announcement={selected} onClose={() => setSelected(null)} />
+      )}
+    </>
   );
 }
