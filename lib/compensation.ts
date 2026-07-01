@@ -93,6 +93,8 @@ export type RowTotals = {
   totalConPasivosMensual: number;
   /** All direct payments + calculated pasivos annualized */
   totalConPasivosAnual: number;
+  /** All direct payments (all frequencies) annualized ÷ 12 */
+  totalDirectoMensualizado: number;
 };
 
 /**
@@ -129,12 +131,14 @@ export function resolveRowTotals(
   if (
     row._cachedTotalSinPasivosMensual !== undefined &&
     row._cachedTotalConPasivosMensual !== undefined &&
-    row._cachedTotalConPasivosAnual !== undefined
+    row._cachedTotalConPasivosAnual !== undefined &&
+    row._cachedTotalDirectoMensualizado !== undefined
   ) {
     return {
       totalSinPasivosMensual: row._cachedTotalSinPasivosMensual,
       totalConPasivosMensual: row._cachedTotalConPasivosMensual,
       totalConPasivosAnual: row._cachedTotalConPasivosAnual,
+      totalDirectoMensualizado: row._cachedTotalDirectoMensualizado,
     };
   }
   return computeRowTotals(row, tasas, bcvRate, diasVacaciones, diasUtilidades);
@@ -201,5 +205,6 @@ export function computeRowTotals(
     totalSinPasivosMensual: Math.round(directMensual),
     totalConPasivosMensual: Math.round(directMensual + pasivosAnual / 12),
     totalConPasivosAnual: Math.round(directAnual + pasivosAnual),
+    totalDirectoMensualizado: Math.round(directAnual / 12),
   };
 }

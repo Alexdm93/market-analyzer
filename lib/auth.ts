@@ -103,8 +103,10 @@ export const authOptions: NextAuthOptions = {
           return token;
         }
 
-        // Si sessionVersion del token no coincide con DB, otra sesión inició después — invalidar
-        if (token.sessionVersion !== existingUser.sessionVersion) {
+        // Si sessionVersion del token no coincide con DB, otra sesión inició después — invalidar.
+        // Tokens emitidos antes de esta feature no tienen sessionVersion (undefined) → se dejan pasar
+        // hasta que el usuario vuelva a iniciar sesión.
+        if (token.sessionVersion !== undefined && token.sessionVersion !== existingUser.sessionVersion) {
           token.id = undefined;
           token.name = undefined;
           token.email = undefined;

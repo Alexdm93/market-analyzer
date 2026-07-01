@@ -64,6 +64,7 @@ type MarketCargoGroup = {
   sinPasivosMensual: PercentilesMetricData;
   conPasivosMensual: PercentilesMetricData;
   conPasivosAnual: PercentilesMetricData;
+  directoMensualizado: PercentilesMetricData;
 };
 type PercentilesPayload = {
   snapshotId: string;
@@ -106,12 +107,14 @@ const COMPENSATION_METRIC_KEYS = [
   "Sin pasivos — mensual",
   "Con pasivos — mensual",
   "Con pasivos — anual",
+  "Total directo mensualizado",
 ] as const;
 
 const COMPENSATION_METRIC_LABELS: Record<typeof COMPENSATION_METRIC_KEYS[number], string> = {
   "Sin pasivos — mensual": "Total compensación sin pasivos laborales mensualizado",
   "Con pasivos — mensual": "Total compensación con pasivos laborales mensualizado",
   "Con pasivos — anual": "Total compensación con pasivos laborales anualizado",
+  "Total directo mensualizado": "Total compensación mensualizado",
 };
 
 function resolvePosition(myValue: number, data: PercentilesMetricData): string {
@@ -154,7 +157,7 @@ export default function EstudioPage() {
   const adminStudyRequestId = useRef(0);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
   const [tasas, setTasas] = useState<ExchangeRate[]>([]);
-  const [activeMetric, setActiveMetric] = useState<"sinPasivosMensual" | "conPasivosMensual" | "conPasivosAnual">("conPasivosMensual");
+  const [activeMetric, setActiveMetric] = useState<"sinPasivosMensual" | "conPasivosMensual" | "conPasivosAnual" | "directoMensualizado">("conPasivosMensual");
   const [percentileData, setPercentileData] = useState<PercentilesPayload | null>(null);
   const [percentilesLoading, setPercentilesLoading] = useState(false);
   const [percentilesError, setPercentilesError] = useState<string | null>(null);
@@ -686,6 +689,7 @@ export default function EstudioPage() {
     sinPasivosMensual: "totalSinPasivosMensual",
     conPasivosMensual: "totalConPasivosMensual",
     conPasivosAnual: "totalConPasivosAnual",
+    directoMensualizado: "totalDirectoMensualizado",
   } as const;
 
   const userRowTotals = useMemo(() => {
@@ -1349,6 +1353,7 @@ export default function EstudioPage() {
               { key: "sinPasivosMensual", label: "Sin pasivos mensual" },
               { key: "conPasivosMensual", label: "Con pasivos mensual" },
               { key: "conPasivosAnual", label: "Con pasivos anual" },
+              { key: "directoMensualizado", label: "Total directo mensualizado" },
             ] as const
           ).map(({ key, label }) => (
             <button
@@ -1395,6 +1400,7 @@ export default function EstudioPage() {
                   {activeMetric === "sinPasivosMensual" && "Sin pasivos — mensual (USD)"}
                   {activeMetric === "conPasivosMensual" && "Con pasivos — mensual (USD)"}
                   {activeMetric === "conPasivosAnual" && "Con pasivos — anual (USD)"}
+                  {activeMetric === "directoMensualizado" && "Total directo mensualizado (USD)"}
                 </h2>
               </div>
               <div className="pill">

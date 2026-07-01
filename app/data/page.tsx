@@ -523,7 +523,7 @@ export default function DataPage() {
   function stampRowTotals(row: ExtendedMarketPosition): ExtendedMarketPosition {
     const _bcvRate = (() => { const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor); return Number.isFinite(v) && v > 0 ? v : null; })();
     const cached = computeRowTotals(row, tasas, _bcvRate, Number(companyInfo.minVacationDays) || 0, Number(companyInfo.minUtilityDays) || 0);
-    return { ...row, _cachedTotalSinPasivosMensual: cached.totalSinPasivosMensual, _cachedTotalConPasivosMensual: cached.totalConPasivosMensual, _cachedTotalConPasivosAnual: cached.totalConPasivosAnual };
+    return { ...row, _cachedTotalSinPasivosMensual: cached.totalSinPasivosMensual, _cachedTotalConPasivosMensual: cached.totalConPasivosMensual, _cachedTotalConPasivosAnual: cached.totalConPasivosAnual, _cachedTotalDirectoMensualizado: cached.totalDirectoMensualizado };
   }
 
   async function saveCurrentToSnapshot(id: string) {

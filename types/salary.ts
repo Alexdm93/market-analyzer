@@ -101,4 +101,5 @@ export interface ExtendedMarketPosition {
   _cachedTotalSinPasivosMensual?: number;
   _cachedTotalConPasivosMensual?: number;
   _cachedTotalConPasivosAnual?: number;
+  _cachedTotalDirectoMensualizado?: number;
 }

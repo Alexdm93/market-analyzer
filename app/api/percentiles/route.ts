@@ -12,6 +12,7 @@ export type CargoPercentiles = {
   sinPasivosMensual: MetricPercentiles;
   conPasivosMensual: MetricPercentiles;
   conPasivosAnual: MetricPercentiles;
+  directoMensualizado: MetricPercentiles;
 };
 
 export type PercentilesResponse = {
@@ -25,6 +26,7 @@ type CargoAccum = {
   sinPasivosMensual: number[];
   conPasivosMensual: number[];
   conPasivosAnual: number[];
+  directoMensualizado: number[];
 };
 
 export async function GET(request: Request) {
@@ -102,12 +104,14 @@ export async function GET(request: Request) {
         existing.sinPasivosMensual.push(totals.totalSinPasivosMensual);
         existing.conPasivosMensual.push(totals.totalConPasivosMensual);
         existing.conPasivosAnual.push(totals.totalConPasivosAnual);
+        existing.directoMensualizado.push(totals.totalDirectoMensualizado);
       } else {
         groups.set(normTitle, {
           tituloCargo: row.tituloCargo,
           sinPasivosMensual: [totals.totalSinPasivosMensual],
           conPasivosMensual: [totals.totalConPasivosMensual],
           conPasivosAnual: [totals.totalConPasivosAnual],
+          directoMensualizado: [totals.totalDirectoMensualizado],
         });
       }
     }
@@ -120,6 +124,7 @@ export async function GET(request: Request) {
       sinPasivosMensual: computeMetricPercentiles(g.sinPasivosMensual),
       conPasivosMensual: computeMetricPercentiles(g.conPasivosMensual),
       conPasivosAnual: computeMetricPercentiles(g.conPasivosAnual),
+      directoMensualizado: computeMetricPercentiles(g.directoMensualizado),
     }))
     .sort((a, b) => a.tituloCargo.localeCompare(b.tituloCargo, "es"));
 

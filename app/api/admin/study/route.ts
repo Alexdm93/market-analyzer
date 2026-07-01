@@ -185,6 +185,7 @@ export async function GET(request: Request) {
       conceptValues["Sin pasivos — mensual"] = rowTotals.totalSinPasivosMensual;
       conceptValues["Con pasivos — mensual"] = rowTotals.totalConPasivosMensual;
       conceptValues["Con pasivos — anual"] = rowTotals.totalConPasivosAnual;
+      conceptValues["Total directo mensualizado"] = rowTotals.totalDirectoMensualizado;
 
       return {
         id: position.id,
