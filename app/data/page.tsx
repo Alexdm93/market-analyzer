@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { type Snapshot, type ExchangeRate, type CompanyInfo, type RequiredPosition, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
-import { computeRowTotals } from "@/lib/compensation";
+import { computeRowTotals, resolveRowTotals } from "@/lib/compensation";
 import { FREQUENCY_OPTIONS, VARIABLE_BONUS_TYPES, VARIABLE_COMMISSION_TYPES, VARIABLE_CALCULATION_DETAILS, VARIABLE_GOALS_TARGETS } from "@/lib/compensation-options";
 import { FmtMoney } from "@/components/FmtMoney";
 import { NumericInput } from "@/components/NumericInput";
@@ -928,8 +928,28 @@ export default function DataPage() {
   }
 
   function exportJSON() {
-    navigator.clipboard?.writeText(JSON.stringify(rows, null, 2));
-    showNotification("JSON copiado al portapapeles");
+    const _bcvRate = (() => { const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor); return Number.isFinite(v) && v > 0 ? v : null; })();
+    const diasVac = Number(companyInfo.minVacationDays) || 0;
+    const diasUtil = Number(companyInfo.minUtilityDays) || 0;
+    const headers = ["Cargo", "Nivel", "Clasificación", "TEM (USD)", "PCTA (USD)"];
+    const csvRows = rows.map((row) => {
+      const totals = resolveRowTotals(row, tasas, _bcvRate, diasVac, diasUtil);
+      return [
+        `"${(row.tituloCargo ?? "").replace(/"/g, '""')}"`,
+        `"${(row.nivelOrganizacional ?? "").replace(/"/g, '""')}"`,
+        `"${(row.clasificacion ?? "").replace(/"/g, '""')}"`,
+        totals.totalSinPasivosMensual,
+        totals.totalConPasivosAnual,
+      ].join(",");
+    });
+    const csv = [headers.join(","), ...csvRows].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cargos-${selectedSnapshotId || "data"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
     void fetch("/api/workspace/track-export", { method: "POST" });
   }
 
@@ -1616,21 +1636,15 @@ export default function DataPage() {
                   <p className="mt-1 text-sm text-slate-500">{modalSaveRow.nivelOrganizacional}</p>
                 )}
 
-                <div className="mt-5 grid grid-cols-3 gap-3">
+                <div className="mt-5 grid grid-cols-2 gap-3">
                   <div className="metric-tile">
-                    <div className="metric-label">Sin pasivos mensual</div>
+                    <div className="metric-label">Total Efectivo Mensual (TEM)</div>
                     <div className="font-display mt-2 text-xl font-bold text-teal-700">
                       {fmtMoney(modalTotals?.totalSinPasivosMensual ?? 0)}
                     </div>
                   </div>
                   <div className="metric-tile">
-                    <div className="metric-label">Con pasivos mensual</div>
-                    <div className="font-display mt-2 text-xl font-bold text-slate-700">
-                      {fmtMoney(modalTotals?.totalConPasivosMensual ?? 0)}
-                    </div>
-                  </div>
-                  <div className="metric-tile">
-                    <div className="metric-label">Con pasivos anual</div>
+                    <div className="metric-label">Paquete de Compensación Total Anual (PCTA)</div>
                     <div className="font-display mt-2 text-xl font-bold text-amber-700">
                       {fmtMoney(modalTotals?.totalConPasivosAnual ?? 0)}
                     </div>

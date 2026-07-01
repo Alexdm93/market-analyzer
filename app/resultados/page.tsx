@@ -1,5 +1,5 @@
 "use client";
-import { Database, TrendingUp } from "lucide-react";
+import { Database, TrendingUp, FileSpreadsheet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition } from "@/types/salary";
@@ -28,31 +28,18 @@ function getDisplayLabel(snapshot: Snapshot) {
   return `${rawLabel} — ${formattedDate}`;
 }
 
-function computeRowTotal(r: ExtendedMarketPosition) {
-  let sum = 0;
-  sum += Number(r.sueldoBasico ?? 0);
-  sum += Number(r.bonoAlimentacion ?? 0);
-  sum += Number(r.bonoMovilizacion ?? 0);
-  if (Array.isArray(r.additionalFixedPayments)) {
-    sum += r.additionalFixedPayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
-  }
-  sum += Number(r.bonoDesempeno ?? 0);
-  sum += Number(r.comisiones ?? 0);
-  sum += Number(r.pagoVariableOtros ?? 0);
-  if (Array.isArray(r.additionalVariablePayments)) {
-    sum += r.additionalVariablePayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
-  }
-  return sum;
-}
-
 type Group = {
   cod: string;
   title: string;
   count: number;
   p50: string;
+  p50Raw: number;
   promedio: string;
+  promedioRaw: number;
   min: string;
+  minRaw: number;
   max: string;
+  maxRaw: number;
 };
 
 export default function ResultadosPage() {
@@ -60,6 +47,7 @@ export default function ResultadosPage() {
   const isAdmin = session?.user?.role === "ADMIN";
 
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
+  const [publishedIds, setPublishedIds] = useState<string[]>([]);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
@@ -76,19 +64,39 @@ export default function ResultadosPage() {
         const workspace = await fetchWorkspace();
         if (ignore) return;
         setSnapshots(workspace.snapshots);
-        const mostRecent = Object.values(workspace.snapshots)
-          .sort((a, b) => b.date.localeCompare(a.date))
-          .at(0);
-        setSelectedSnapshotId(mostRecent?.id ?? workspace.selectedSnapshotId ?? Object.keys(workspace.snapshots)[0] ?? "");
+        const published = workspace.publishedParticipatedSnapshotIds ?? [];
+        setPublishedIds(published);
+        // Solo auto-seleccionar snapshots publicados (excepto admin que ve todo)
+        const eligible = isAdmin
+          ? Object.keys(workspace.snapshots)
+          : published;
+        const preferred = workspace.selectedSnapshotId;
+        const initial = (preferred && eligible.includes(preferred))
+          ? preferred
+          : (eligible.sort((a, b) => b.localeCompare(a))[0] ?? "");
+        setSelectedSnapshotId(initial);
       } catch {
         if (!ignore) { setSnapshots({}); setSelectedSnapshotId(""); }
       }
     }
     void loadWorkspace();
     return () => { ignore = true; };
-  }, []);
+  }, [isAdmin]);
+
+  // Snapshots disponibles según rol
+  const availableSnapshots = useMemo(() => {
+    return Object.values(snapshots).filter((s) =>
+      isAdmin || publishedIds.includes(s.id)
+    ).sort((a, b) => b.date.localeCompare(a.date));
+  }, [snapshots, publishedIds, isAdmin]);
+
+  const isPublished = publishedIds.includes(selectedSnapshotId);
 
   const groups = useMemo<Group[]>(() => {
+    if (!selectedSnapshotId) return [];
+    // Para usuarios: solo mostrar si el corte está publicado
+    if (!isAdmin && !isPublished) return [];
+
     const map = new Map<string, ExtendedMarketPosition[]>();
     rows.forEach((r) => {
       const key = r.tituloCargo?.trim() || "Sin título";
@@ -97,24 +105,53 @@ export default function ResultadosPage() {
     });
     return Array.from(map.entries())
       .map(([title, items], index) => {
-        const totals = items.map((it) => it._cachedTotalConPasivosAnual ?? Number(computeRowTotal(it) ?? 0)).filter((v) => !Number.isNaN(v) && v > 0);
+        // Usar solo valores cacheados (PCTA = totalConPasivosAnual)
+        const totals = items
+          .map((it) => it._cachedTotalConPasivosAnual)
+          .filter((v): v is number => v !== undefined && v > 0);
         const count = items.length;
-        const min = totals.length ? Math.min(...totals) : 0;
-        const max = totals.length ? Math.max(...totals) : 0;
-        const avg = totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
-        const p50 = Math.round(percentile(totals, 50));
+        const minRaw = totals.length ? Math.min(...totals) : 0;
+        const maxRaw = totals.length ? Math.max(...totals) : 0;
+        const promedioRaw = totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
+        const p50Raw = Math.round(percentile(totals, 50));
         return {
           cod: `C${String(index + 1).padStart(3, "0")}`,
           title,
           count,
-          p50: formatMoney(p50),
-          promedio: formatMoney(avg),
-          min: formatMoney(min),
-          max: formatMoney(max),
+          p50: formatMoney(p50Raw),
+          p50Raw,
+          promedio: formatMoney(promedioRaw),
+          promedioRaw,
+          min: formatMoney(minRaw),
+          minRaw,
+          max: formatMoney(maxRaw),
+          maxRaw,
         };
       })
       .sort((a, b) => b.count - a.count);
-  }, [rows]);
+  }, [rows, selectedSnapshotId, isAdmin, isPublished]);
+
+  function exportCSV() {
+    const selectedSnapshot = selectedSnapshotId ? snapshots[selectedSnapshotId] : undefined;
+    const label = selectedSnapshot ? getDisplayLabel(selectedSnapshot) : selectedSnapshotId;
+    const headers = ["Cargo", "Observaciones", "P50 (PCTA)", "Promedio (PCTA)", "Mínimo (PCTA)", "Máximo (PCTA)"];
+    const csvRows = groups.map((g) => [
+      `"${g.title.replace(/"/g, '""')}"`,
+      g.count,
+      g.p50Raw,
+      g.promedioRaw,
+      g.minRaw,
+      g.maxRaw,
+    ].join(","));
+    const csv = [headers.join(","), ...csvRows].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `resultados-${label}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const totalObservations = groups.reduce((acc, g) => acc + g.count, 0);
   const selectedSnapshot = selectedSnapshotId ? snapshots[selectedSnapshotId] : undefined;
@@ -166,13 +203,22 @@ export default function ResultadosPage() {
                   onChange={(e) => setSelectedSnapshotId(e.target.value)}
                   className="field-select"
                 >
-                  {Object.values(snapshots)
-                    .sort((a, b) => b.date.localeCompare(a.date))
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>{getDisplayLabel(s)}</option>
-                    ))}
+                  {availableSnapshots.map((s) => (
+                    <option key={s.id} value={s.id}>{getDisplayLabel(s)}</option>
+                  ))}
                 </select>
               </div>
+
+              {groups.length > 0 && (
+                <button
+                  type="button"
+                  onClick={exportCSV}
+                  className="btn btn-secondary mt-4 w-full"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Exportar a Excel
+                </button>
+              )}
 
               {isAdmin && (
                 <div className="mt-3 rounded-[1.1rem] bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
@@ -183,7 +229,15 @@ export default function ResultadosPage() {
           </div>
         </section>
 
-        {groups.length === 0 ? (
+        {availableSnapshots.length === 0 ? (
+          <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
+            No hay cortes publicados disponibles aún.
+          </section>
+        ) : !isAdmin && !isPublished ? (
+          <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
+            Este corte aún no ha sido publicado por el administrador.
+          </section>
+        ) : groups.length === 0 ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
             No hay datos cargados en el corte seleccionado.
           </section>
@@ -191,7 +245,7 @@ export default function ResultadosPage() {
           <section className="surface-card overflow-hidden rounded-[2rem]">
             <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="eyebrow mb-2">Tabla comparativa</div>
+                <div className="eyebrow mb-2">Tabla comparativa — PCTA</div>
                 <h2 className="font-display text-2xl font-bold text-slate-900">Métricas por cargo</h2>
               </div>
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">

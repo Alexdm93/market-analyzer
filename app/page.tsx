@@ -108,7 +108,7 @@ function AdminDashboard() {
                   <div className="metric-value mt-1">{d.totalCompanies}</div>
                 </div>
                 <div className="metric-tile w-44 shrink-0 py-2.5">
-                  <div className="metric-label">Total posiciones</div>
+                  <div className="metric-label">Cargos Reportados</div>
                   <div className="metric-value mt-1">{d.totalPositions}</div>
                 </div>
                 <div className="metric-tile w-44 shrink-0 py-2.5">
@@ -402,8 +402,8 @@ function UserDashboard() {
               <thead>
                 <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                   <th className="px-4 py-2">Cargo</th>
-                  <th className="px-4 py-2 text-right">Sin pasivos mensual</th>
-                  <th className="px-4 py-2 text-right">Con pasivos anual</th>
+                  <th className="px-4 py-2 text-right">Total Efectivo Mensual (TEM)</th>
+                  <th className="px-4 py-2 text-right">Paquete de Compensación Total Anual (PCTA)</th>
                 </tr>
               </thead>
               <tbody>

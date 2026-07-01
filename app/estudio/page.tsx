@@ -111,10 +111,10 @@ const COMPENSATION_METRIC_KEYS = [
 ] as const;
 
 const COMPENSATION_METRIC_LABELS: Record<typeof COMPENSATION_METRIC_KEYS[number], string> = {
-  "Sin pasivos — mensual": "Total compensación sin pasivos laborales mensualizado",
-  "Con pasivos — mensual": "Total compensación con pasivos laborales mensualizado",
-  "Con pasivos — anual": "Total compensación con pasivos laborales anualizado",
-  "Total directo mensualizado": "Total compensación mensualizado",
+  "Sin pasivos — mensual": "Total Efectivo Mensual (TEM)",
+  "Total directo mensualizado": "Total Efectivo Mensualizado (TEMz)",
+  "Con pasivos — mensual": "Compensación Integral Mensualizada (CIM)",
+  "Con pasivos — anual": "Paquete de Compensación Total Anual (PCTA)",
 };
 
 function resolvePosition(myValue: number, data: PercentilesMetricData): string {
@@ -1194,7 +1194,7 @@ export default function EstudioPage() {
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => { setRangosModalOpen(false); setRangosDraft(null); }} />
           <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-3xl rounded-[1.75rem] p-6">
             <div className="eyebrow mb-1">Rangos de referencia</div>
-            <h3 className="font-display text-xl font-bold text-slate-900">Total compensación con pasivos mensualizado — por nivel</h3>
+            <h3 className="font-display text-xl font-bold text-slate-900">CIM — Compensación Integral Mensualizada — por nivel</h3>
             <p className="mt-1 text-xs leading-5 text-slate-500">Los cargos cuyo valor quede fuera de estos rangos se marcarán en rojo en la tabla de data cruda.</p>
             <div className="mt-5 overflow-x-auto">
               <table className="w-full border-separate border-spacing-x-2 border-spacing-y-2 text-sm">
@@ -1352,10 +1352,10 @@ export default function EstudioPage() {
         <div className="flex flex-wrap gap-2">
           {(
             [
-              { key: "sinPasivosMensual", label: "Sin pasivos mensual" },
-              { key: "conPasivosMensual", label: "Con pasivos mensual" },
-              { key: "conPasivosAnual", label: "Con pasivos anual" },
-              { key: "directoMensualizado", label: "Total directo mensualizado" },
+              { key: "sinPasivosMensual", label: "TEM" },
+              { key: "directoMensualizado", label: "TEMz" },
+              { key: "conPasivosMensual", label: "CIM" },
+              { key: "conPasivosAnual", label: "PCTA" },
             ] as const
           ).map(({ key, label }) => (
             <button
@@ -1399,10 +1399,10 @@ export default function EstudioPage() {
               <div>
                 <div className="eyebrow mb-2">Tabla comparativa</div>
                 <h2 className="font-display text-2xl font-bold text-slate-900">
-                  {activeMetric === "sinPasivosMensual" && "Sin pasivos — mensual (USD)"}
-                  {activeMetric === "conPasivosMensual" && "Con pasivos — mensual (USD)"}
-                  {activeMetric === "conPasivosAnual" && "Con pasivos — anual (USD)"}
-                  {activeMetric === "directoMensualizado" && "Total directo mensualizado (USD)"}
+                  {activeMetric === "sinPasivosMensual" && "TEM — Total Efectivo Mensual (USD)"}
+                  {activeMetric === "directoMensualizado" && "TEMz — Total Efectivo Mensualizado (USD)"}
+                  {activeMetric === "conPasivosMensual" && "CIM — Compensación Integral Mensualizada (USD)"}
+                  {activeMetric === "conPasivosAnual" && "PCTA — Paquete de Compensación Total Anual (USD)"}
                 </h2>
               </div>
               <div className="pill">
