@@ -622,8 +622,9 @@ export default function EstudioPage() {
       Empresa: position.companyName,
       Cargo: position.title,
       Nivel: position.level || "—",
-      "Sin pasivos mensual": Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? Number(position.conceptValues["Sin pasivos — mensual"]) : 0,
-      "Con pasivos mensual": Number(position.conceptValues?.["Con pasivos — mensual"] ?? 0) > 0 ? Number(position.conceptValues["Con pasivos — mensual"]) : 0,
+      "TEM": Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? Number(position.conceptValues["Sin pasivos — mensual"]) : 0,
+      "TEMz": Number(position.conceptValues?.["Total directo mensualizado"] ?? 0) > 0 ? Number(position.conceptValues["Total directo mensualizado"]) : 0,
+      "PCTA": Number(position.conceptValues?.["Con pasivos — anual"] ?? 0) > 0 ? Number(position.conceptValues["Con pasivos — anual"]) : 0,
     }));
 
     const workbook = XLSX.utils.book_new();
@@ -1009,34 +1010,36 @@ export default function EstudioPage() {
                             <th className="px-4 py-2">Empresa</th>
                             <th className="px-4 py-2">Cargo</th>
                             <th className="px-4 py-2">Nivel</th>
-                            <th className="px-4 py-2 text-right">Comp. s/pasivos mensual</th>
-                            <th className="px-4 py-2 text-right">Comp. c/ pasivos mensual</th>
+                            <th className="px-4 py-2 text-right">TEM</th>
+                            <th className="px-4 py-2 text-right">TEMz</th>
+                            <th className="px-4 py-2 text-right">PCTA</th>
                           </tr>
                         </thead>
                         <tbody>
                           {activeRawPositions.filter((position) => {
                             if (!filterFueraDeRango) return true;
-                            const val = Number(position.conceptValues?.["Con pasivos — mensual"] ?? 0);
+                            const val = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
                             const nivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
                             const mn = nivel ? (nivelMin[nivel] ?? 0) : 0;
                             const mx = nivel ? (nivelMax[nivel] ?? 0) : 0;
                             return val > 0 && ((mn > 0 && val < mn) || (mx > 0 && val > mx));
                           }).map((position) => {
-                            const conPasivosMensual = Number(position.conceptValues?.["Con pasivos — mensual"] ?? 0);
+                            const temz = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
                             const normalizedNivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
                             const rangeMin = normalizedNivel ? (nivelMin[normalizedNivel] ?? 0) : 0;
                             const rangeMax = normalizedNivel ? (nivelMax[normalizedNivel] ?? 0) : 0;
-                            const isOutOfRange = conPasivosMensual > 0 && ((rangeMin > 0 && conPasivosMensual < rangeMin) || (rangeMax > 0 && conPasivosMensual > rangeMax));
+                            const isOutOfRange = temz > 0 && ((rangeMin > 0 && temz < rangeMin) || (rangeMax > 0 && temz > rangeMax));
                             return (
                               <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
                                 <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
                                 <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
                                 <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
                                 <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Sin pasivos — mensual"])} /> : "—"}</td>
-                                <td className={`rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
-                                  {conPasivosMensual > 0 ? <FmtMoney value={conPasivosMensual} /> : "—"}
+                                <td className={`px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
+                                  {temz > 0 ? <FmtMoney value={temz} /> : "—"}
                                   {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
                                 </td>
+                                <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{Number(position.conceptValues?.["Con pasivos — anual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Con pasivos — anual"])} /> : "—"}</td>
                               </tr>
                             );
                           })}

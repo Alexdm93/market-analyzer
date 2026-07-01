@@ -1,10 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
-import { type Snapshot, type ExchangeRate, type CompanyInfo, type RequiredPosition, EMPTY_COMPANY_INFO } from "@/lib/workspace";
+import { type Snapshot, type ExchangeRate, type CompanyInfo, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { computeRowTotals, resolveRowTotals } from "@/lib/compensation";
 import { FREQUENCY_OPTIONS, VARIABLE_BONUS_TYPES, VARIABLE_COMMISSION_TYPES, VARIABLE_CALCULATION_DETAILS, VARIABLE_GOALS_TARGETS } from "@/lib/compensation-options";
@@ -549,46 +549,11 @@ export default function DataPage() {
   }
 
   // modal state
-  const [modal, setModal] = useState<{ type: 'save' | 'plantilla' | 'confirm-delete' | null; id?: string }>(() => ({ type: null }));
-  const [plantillaDraft, setPlantillaDraft] = useState<RequiredPosition[] | null>(null);
+  const [modal, setModal] = useState<{ type: 'save' | 'confirm-delete' | null; id?: string }>(() => ({ type: null }));
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
-
-  function openPlantillaModal() {
-    setPlantillaDraft([...currentRequiredPositions]);
-    setModal({ type: "plantilla" });
-  }
 
   function closeModal() {
     setModal({ type: null });
-    setPlantillaDraft(null);
-  }
-
-  async function savePlantillaDraft() {
-    if (!selectedSnapshotId || plantillaDraft === null) return;
-    const snapshot = snapshots[selectedSnapshotId];
-    if (!snapshot) return;
-    const next = { ...snapshots, [selectedSnapshotId]: { ...snapshot, requiredPositions: plantillaDraft } };
-    await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
-    closeModal();
-  }
-
-  function addToDraft(dept: string, cargo: string) {
-    if (!dept || !cargo) return;
-    if (plantillaDraft?.some((p) => p.departamento === dept && p.tituloCargo === cargo)) {
-      showNotification("Ese cargo ya está en la lista");
-      return;
-    }
-    const entry: RequiredPosition = {
-      id: `rp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      departamento: dept,
-      tituloCargo: cargo,
-    };
-    setPlantillaDraft((prev) => [...(prev ?? []), entry]);
-    setNewPosCargo("");
-  }
-
-  function removeFromDraft(id: string) {
-    setPlantillaDraft((prev) => (prev ?? []).filter((p) => p.id !== id));
   }
 
   function loadSnapshot(id: string) {
@@ -882,55 +847,6 @@ export default function DataPage() {
 
   // legacy save function removed (use snapshots / saveCurrentToSnapshot instead)
 
-  // Required positions (cargo catalog per snapshot — only editable in global admin view)
-  const [newPosDept, setNewPosDept] = useState("");
-  const [newPosCargo, setNewPosCargo] = useState("");
-
-  const currentRequiredPositions: RequiredPosition[] = useMemo(() => {
-    if (!selectedSnapshotId || !snapshots[selectedSnapshotId]) return [];
-    return snapshots[selectedSnapshotId].requiredPositions ?? [];
-  }, [selectedSnapshotId, snapshots]);
-
-  const availableCargosForDept = useMemo(() => {
-    if (!newPosDept) return [];
-    return availableCargosByDept[newPosDept] ?? [];
-  }, [newPosDept, availableCargosByDept]);
-
-  async function addRequiredPosition() {
-    if (!newPosDept || !newPosCargo || !selectedSnapshotId) return;
-    const snapshot = snapshots[selectedSnapshotId];
-    if (!snapshot) return;
-    const existing = snapshot.requiredPositions ?? [];
-    if (existing.some((p) => p.departamento === newPosDept && p.tituloCargo === newPosCargo)) {
-      showNotification("Ese cargo ya está en la lista");
-      return;
-    }
-    const newEntry: RequiredPosition = {
-      id: `rp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      departamento: newPosDept,
-      tituloCargo: newPosCargo,
-    };
-    const next = {
-      ...snapshots,
-      [selectedSnapshotId]: { ...snapshot, requiredPositions: [...existing, newEntry] },
-    };
-    await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
-    setNewPosCargo("");
-  }
-
-  async function removeRequiredPosition(id: string) {
-    if (!selectedSnapshotId) return;
-    const snapshot = snapshots[selectedSnapshotId];
-    if (!snapshot) return;
-    const next = {
-      ...snapshots,
-      [selectedSnapshotId]: {
-        ...snapshot,
-        requiredPositions: (snapshot.requiredPositions ?? []).filter((p) => p.id !== id),
-      },
-    };
-    await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
-  }
 
   function exportJSON() {
     const _bcvRate = (() => { const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor); return Number.isFinite(v) && v > 0 ? v : null; })();
@@ -1025,19 +941,6 @@ export default function DataPage() {
                       <div className="metric-label">Cargos reportados</div>
                       <div className="metric-value mt-1">{rows.length}</div>
                     </div>
-                    {!isAdminCompanyView && (
-                      <button
-                        type="button"
-                        onClick={openPlantillaModal}
-                        className="btn btn-secondary btn-xs self-end mb-1"
-                      >
-                        <BookOpen className="h-3 w-3" />
-                        Plantilla del corte
-                        {currentRequiredPositions.length > 0 && (
-                          <span className="ml-1 rounded-full bg-teal-100 px-1.5 text-[0.6rem] font-bold text-teal-700">{currentRequiredPositions.length}</span>
-                        )}
-                      </button>
-                    )}
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full border-separate border-spacing-y-1.5 text-sm">
@@ -1505,7 +1408,7 @@ export default function DataPage() {
       {modal.type && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={closeModal} />
-          <div role="dialog" aria-modal="true" className={`surface-card relative z-10 w-full rounded-[1.75rem] p-6 ${modal.type === "plantilla" ? "max-w-2xl max-h-[calc(100vh-3rem)] flex flex-col" : "max-w-lg"}`}>
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-lg rounded-[1.75rem] p-6">
 
             {/* Modal: Confirmar eliminación de cargo */}
             {modal.type === "confirm-delete" && (
@@ -1549,87 +1452,6 @@ export default function DataPage() {
               </div>
             )}
 
-            {/* Modal: Plantilla del corte */}
-            {modal.type === "plantilla" && plantillaDraft !== null && (
-              <div className="flex flex-col">
-                <div className="eyebrow mb-1">Plantilla del corte</div>
-                <h3 className="font-display text-xl font-bold text-slate-900">Cargos a documentar</h3>
-                <p className="mt-1 text-xs leading-5 text-slate-500">Define qué cargos deben reportar las empresas en este corte, por unidad organizacional.</p>
-                <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-                  <div>
-                    <label className="field-label">Departamento</label>
-                    <select
-                      value={newPosDept}
-                      onChange={(e) => { setNewPosDept(e.target.value); setNewPosCargo(""); }}
-                      className="field-select"
-                      title="Departamento del cargo a documentar"
-                    >
-                      <option value="">Seleccionar departamento</option>
-                      {availableDepts.map((d) => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="field-label">Cargo</label>
-                    <select
-                      value={newPosCargo}
-                      onChange={(e) => setNewPosCargo(e.target.value)}
-                      className="field-select"
-                      disabled={!newPosDept}
-                      title="Cargo a documentar"
-                    >
-                      <option value="">{newPosDept ? "Seleccionar cargo" : "Selecciona un departamento"}</option>
-                      {availableCargosForDept.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => addToDraft(newPosDept, newPosCargo)}
-                    className="btn btn-primary"
-                    disabled={!newPosDept || !newPosCargo}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Agregar
-                  </button>
-                </div>
-                <div className="mt-3 flex-1 overflow-y-auto">
-                  {plantillaDraft.length === 0 ? (
-                    <div className="rounded-[1.1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5 text-xs text-slate-500">
-                      No hay cargos definidos para este corte todavía.
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {Object.entries(
-                        plantillaDraft.reduce<Record<string, RequiredPosition[]>>((acc, p) => {
-                          (acc[p.departamento] ??= []).push(p);
-                          return acc;
-                        }, {})
-                      ).map(([dept, positions]) => (
-                        <div key={dept} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80 px-4 py-3">
-                          <div className="mb-2 text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-500">{dept}</div>
-                          <div className="flex flex-wrap gap-2">
-                            {positions.map((p) => (
-                              <div key={p.id} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
-                                {p.tituloCargo}
-                                <button
-                                  type="button"
-                                  onClick={() => removeFromDraft(p.id)}
-                                  className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
-                                  aria-label={`Eliminar ${p.tituloCargo}`}
-                                >×</button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="mt-4 flex justify-end gap-3 border-t border-slate-100 pt-4">
-                  <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
-                  <button type="button" onClick={() => void savePlantillaDraft()} className="btn btn-primary">Guardar</button>
-                </div>
-              </div>
-            )}
 
             {modal.type === "save" && (
               <div>
