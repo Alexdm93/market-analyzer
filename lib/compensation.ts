@@ -116,6 +116,30 @@ function isMonthlyOrMore(freq?: string): boolean {
  *   Utilidades   = (ST + BonoVac) × (diasUtilidades / 360)
  *   Prestaciones = (ST + BonoVac + Utilidades) × (60 / 360)
  */
+/**
+ * Prefer cached totals stored at save time; fall back to live computation for older rows.
+ */
+export function resolveRowTotals(
+  row: ExtendedMarketPosition,
+  tasas: ExchangeRate[],
+  bcvRate: number | null,
+  diasVacaciones: number,
+  diasUtilidades: number,
+): RowTotals {
+  if (
+    row._cachedTotalSinPasivosMensual !== undefined &&
+    row._cachedTotalConPasivosMensual !== undefined &&
+    row._cachedTotalConPasivosAnual !== undefined
+  ) {
+    return {
+      totalSinPasivosMensual: row._cachedTotalSinPasivosMensual,
+      totalConPasivosMensual: row._cachedTotalConPasivosMensual,
+      totalConPasivosAnual: row._cachedTotalConPasivosAnual,
+    };
+  }
+  return computeRowTotals(row, tasas, bcvRate, diasVacaciones, diasUtilidades);
+}
+
 export function computeRowTotals(
   row: ExtendedMarketPosition,
   tasas: ExchangeRate[],

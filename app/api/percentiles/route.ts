@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { safeParseSnapshots, safeParseCompanyInfo } from "@/lib/workspace";
-import { computeRowTotals, computeMetricPercentiles, type MetricPercentiles } from "@/lib/compensation";
+import { resolveRowTotals, computeMetricPercentiles, type MetricPercentiles } from "@/lib/compensation";
 import { getBcvRate } from "@/lib/bcv";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
       if (!normTitle || seenInCompany.has(normTitle)) continue;
       seenInCompany.add(normTitle);
 
-      const totals = computeRowTotals(row, tasas, bcvRate, diasVacaciones, diasUtilidades);
+      const totals = resolveRowTotals(row, tasas, bcvRate, diasVacaciones, diasUtilidades);
 
       // Skip unfilled rows
       if (totals.totalConPasivosAnual === 0 && totals.totalSinPasivosMensual === 0) continue;

@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { type Snapshot, type CompanyInfo, type ExchangeRate, EMPTY_COMPANY_INFO } from "@/lib/workspace";
-import { computeRowTotals, PERCENTILE_MIN_N } from "@/lib/compensation";
+import { resolveRowTotals, PERCENTILE_MIN_N } from "@/lib/compensation";
 import { FmtMoney, fmtMoneyStr } from "@/components/FmtMoney";
 
 type AdminStudySnapshot = {
@@ -697,7 +697,7 @@ export default function EstudioPage() {
     const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
     return rows.map((row) => ({
       row,
-      totals: computeRowTotals(row, tasas, bcvRate, diasVacaciones, diasUtilidades),
+      totals: resolveRowTotals(row, tasas, bcvRate, diasVacaciones, diasUtilidades),
     }));
   }, [rows, tasas, companyInfo]);
 

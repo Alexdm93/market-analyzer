@@ -97,7 +97,7 @@ export default function ResultadosPage() {
     });
     return Array.from(map.entries())
       .map(([title, items], index) => {
-        const totals = items.map((it) => Number(computeRowTotal(it) ?? 0)).filter((v) => !Number.isNaN(v));
+        const totals = items.map((it) => it._cachedTotalConPasivosAnual ?? Number(computeRowTotal(it) ?? 0)).filter((v) => !Number.isNaN(v) && v > 0);
         const count = items.length;
         const min = totals.length ? Math.min(...totals) : 0;
         const max = totals.length ? Math.max(...totals) : 0;
