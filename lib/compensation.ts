@@ -65,6 +65,8 @@ export const PERCENTILE_MIN_N = {
 
 export type MetricPercentiles = {
   n: number;
+  min: number | null;
+  max: number | null;
   p10: number | null;
   p25: number | null;
   p50: number | null;
@@ -77,6 +79,8 @@ export function computeMetricPercentiles(values: number[]): MetricPercentiles {
   const n = values.length;
   return {
     n,
+    min: n > 0 ? Math.min(...values) : null,
+    max: n > 0 ? Math.max(...values) : null,
     p10: n >= PERCENTILE_MIN_N.p10 ? Math.round(pct(values, 10)) : null,
     p25: n >= PERCENTILE_MIN_N.p25 ? Math.round(pct(values, 25)) : null,
     p50: n >= PERCENTILE_MIN_N.p50 ? Math.round(pct(values, 50)) : null,

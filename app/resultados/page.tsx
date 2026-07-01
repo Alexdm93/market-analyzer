@@ -1,5 +1,6 @@
 "use client";
-import { Database, TrendingUp, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
+import { Database, FileSpreadsheet, Loader2, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition } from "@/types/salary";
@@ -7,18 +8,9 @@ import { fetchWorkspace } from "@/lib/workspace-client";
 import { type Snapshot } from "@/lib/workspace";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 
-function percentile(values: number[], p: number) {
-  if (!values.length) return 0;
-  const sorted = values.slice().sort((a, b) => a - b);
-  const idx = (p / 100) * (sorted.length - 1);
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-}
-
-function formatMoney(n: number) {
-  return n == null || Number.isNaN(n) ? "ND" : `$ ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+function formatMoney(n: number | null | undefined) {
+  if (n == null || !Number.isFinite(n) || n === 0) return "ND";
+  return `$ ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
 }
 
 function getDisplayLabel(snapshot: Snapshot) {
@@ -29,18 +21,44 @@ function getDisplayLabel(snapshot: Snapshot) {
   return `${rawLabel} — ${formattedDate}`;
 }
 
+type PercentilesMetricData = {
+  n: number;
+  min: number | null;
+  max: number | null;
+  p10: number | null;
+  p25: number | null;
+  p50: number | null;
+  p75: number | null;
+  p90: number | null;
+  promedio: number | null;
+};
+
+type MarketCargoGroup = {
+  tituloCargo: string;
+  n: number;
+  sinPasivosMensual: PercentilesMetricData;
+  conPasivosMensual: PercentilesMetricData;
+  conPasivosAnual: PercentilesMetricData;
+  directoMensualizado: PercentilesMetricData;
+};
+
+type PercentilesPayload = {
+  snapshotId: string;
+  bcvRate: number | null;
+  grupos: MarketCargoGroup[];
+};
+
 type Group = {
-  cod: string;
-  title: string;
+  tituloCargo: string;
   count: number;
-  p50: string;
   p50Raw: number;
-  promedio: string;
   promedioRaw: number;
-  min: string;
   minRaw: number;
-  max: string;
   maxRaw: number;
+  p50: string;
+  promedio: string;
+  min: string;
+  max: string;
 };
 
 export default function ResultadosPage() {
@@ -53,6 +71,8 @@ export default function ResultadosPage() {
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [publishedIds, setPublishedIds] = useState<string[]>([]);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
+  const [percentileData, setPercentileData] = useState<PercentilesPayload | null>(null);
+  const [percentilesLoading, setPercentilesLoading] = useState(false);
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
     if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
@@ -70,10 +90,7 @@ export default function ResultadosPage() {
         setSnapshots(workspace.snapshots);
         const published = workspace.publishedParticipatedSnapshotIds ?? [];
         setPublishedIds(published);
-        // Solo auto-seleccionar snapshots publicados (excepto admin que ve todo)
-        const eligible = isAdmin
-          ? Object.keys(workspace.snapshots)
-          : published;
+        const eligible = isAdmin ? Object.keys(workspace.snapshots) : published;
         const preferred = workspace.selectedSnapshotId;
         const initial = (preferred && eligible.includes(preferred))
           ? preferred
@@ -87,74 +104,80 @@ export default function ResultadosPage() {
     return () => { ignore = true; };
   }, [isAdmin]);
 
-  // Snapshots disponibles según rol
-  const availableSnapshots = useMemo(() => {
-    return Object.values(snapshots).filter((s) =>
-      isAdmin || publishedIds.includes(s.id)
-    ).sort((a, b) => b.date.localeCompare(a.date));
-  }, [snapshots, publishedIds, isAdmin]);
-
   const isPublished = publishedIds.includes(selectedSnapshotId);
 
-  const groups = useMemo<Group[]>(() => {
-    if (!selectedSnapshotId) return [];
-    // Para usuarios: solo mostrar si el corte está publicado
-    if (!isAdmin && !isPublished) return [];
+  useEffect(() => {
+    if (!selectedSnapshotId || (!isAdmin && !isPublished)) {
+      setPercentileData(null);
+      return;
+    }
+    let ignore = false;
+    setPercentilesLoading(true);
+    setPercentileData(null);
+    void fetch(`/api/percentiles?snapshotId=${encodeURIComponent(selectedSnapshotId)}`, { cache: "no-store" })
+      .then((r) => r.ok ? r.json() as Promise<PercentilesPayload> : null)
+      .then((data) => { if (!ignore) setPercentileData(data); })
+      .catch(() => { if (!ignore) setPercentileData(null); })
+      .finally(() => { if (!ignore) setPercentilesLoading(false); });
+    return () => { ignore = true; };
+  }, [selectedSnapshotId, isAdmin, isPublished]);
 
-    const map = new Map<string, ExtendedMarketPosition[]>();
+  const availableSnapshots = useMemo(() => {
+    return Object.values(snapshots)
+      .filter((s) => isAdmin || publishedIds.includes(s.id))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [snapshots, publishedIds, isAdmin]);
+
+  const groups = useMemo<Group[]>(() => {
+    if (!selectedSnapshotId || (!isAdmin && !isPublished) || !percentileData) return [];
+
+    const myTitleKeys = new Set<string>();
     rows.forEach((r) => {
-      const key = r.tituloCargo?.trim() || "Sin título";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(r);
+      const t = (r.tituloCargo ?? "").trim().toLowerCase();
+      if (t) myTitleKeys.add(t);
     });
-    return Array.from(map.entries())
-      .map(([title, items], index) => {
-        // Usar solo valores cacheados (PCTA = totalConPasivosAnual)
-        const totals = items
-          .map((it) => it._cachedTotalConPasivosAnual)
-          .filter((v): v is number => v !== undefined && v > 0);
-        const count = items.length;
-        const minRaw = totals.length ? Math.min(...totals) : 0;
-        const maxRaw = totals.length ? Math.max(...totals) : 0;
-        const promedioRaw = totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
-        const p50Raw = Math.round(percentile(totals, 50));
+
+    const showAll = isAdmin && myTitleKeys.size === 0;
+
+    return percentileData.grupos
+      .filter((g) => showAll || myTitleKeys.has(g.tituloCargo.trim().toLowerCase()))
+      .map((g) => {
+        const pcta = g.conPasivosAnual;
         return {
-          cod: `C${String(index + 1).padStart(3, "0")}`,
-          title,
-          count,
-          p50: formatMoney(p50Raw),
-          p50Raw,
-          promedio: formatMoney(promedioRaw),
-          promedioRaw,
-          min: formatMoney(minRaw),
-          minRaw,
-          max: formatMoney(maxRaw),
-          maxRaw,
+          tituloCargo: g.tituloCargo,
+          count: pcta.n,
+          p50Raw: pcta.p50 ?? 0,
+          promedioRaw: pcta.promedio ?? 0,
+          minRaw: pcta.min ?? 0,
+          maxRaw: pcta.max ?? 0,
+          p50: formatMoney(pcta.p50),
+          promedio: formatMoney(pcta.promedio),
+          min: formatMoney(pcta.min),
+          max: formatMoney(pcta.max),
         };
       })
       .sort((a, b) => b.count - a.count);
-  }, [rows, selectedSnapshotId, isAdmin, isPublished]);
+  }, [rows, percentileData, selectedSnapshotId, isAdmin, isPublished]);
 
-  function exportCSV() {
+  function exportExcel() {
     const selectedSnapshot = selectedSnapshotId ? snapshots[selectedSnapshotId] : undefined;
     const label = selectedSnapshot ? getDisplayLabel(selectedSnapshot) : selectedSnapshotId;
-    const headers = ["Cargo", "Observaciones", "P50 (PCTA)", "Promedio (PCTA)", "Mínimo (PCTA)", "Máximo (PCTA)"];
-    const csvRows = groups.map((g) => [
-      `"${g.title.replace(/"/g, '""')}"`,
-      g.count,
-      g.p50Raw,
-      g.promedioRaw,
-      g.minRaw,
-      g.maxRaw,
-    ].join(","));
-    const csv = [headers.join(","), ...csvRows].join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `resultados-${label}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const safeLabel = label.replace(/[^a-zA-Z0-9-_]/g, "-").toLowerCase();
+    const sheetRows = groups.map((g) => ({
+      Cargo: g.tituloCargo,
+      Observaciones: g.count || null,
+      "P50 (PCTA)": g.p50Raw || null,
+      "Promedio (PCTA)": g.promedioRaw || null,
+      "Mínimo (PCTA)": g.minRaw || null,
+      "Máximo (PCTA)": g.maxRaw || null,
+    }));
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    worksheet["!cols"] = [
+      { wch: 36 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+    ];
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Resultados");
+    XLSX.writeFile(workbook, `resultados-${safeLabel}.xlsx`);
   }
 
   const totalObservations = groups.reduce((acc, g) => acc + g.count, 0);
@@ -216,7 +239,7 @@ export default function ResultadosPage() {
               {groups.length > 0 && (
                 <button
                   type="button"
-                  onClick={exportCSV}
+                  onClick={exportExcel}
                   className="btn btn-secondary mt-4 w-full"
                 >
                   <FileSpreadsheet className="h-4 w-4" />
@@ -240,6 +263,11 @@ export default function ResultadosPage() {
         ) : !isAdmin && !isPublished ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
             Este corte aún no ha sido publicado por el administrador.
+          </section>
+        ) : percentilesLoading ? (
+          <section className="surface-card flex items-center gap-3 rounded-[2rem] p-8 text-sm text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando resultados de mercado...
           </section>
         ) : groups.length === 0 ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
@@ -272,8 +300,8 @@ export default function ResultadosPage() {
                 </thead>
                 <tbody>
                   {groups.map((g) => (
-                    <tr key={g.cod} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                      <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{g.title}</td>
+                    <tr key={g.tituloCargo} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                      <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{g.tituloCargo}</td>
                       <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.count}</td>
                       <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{g.p50}</td>
                       <td className="px-4 py-4 text-right font-display text-amber-700">{g.promedio}</td>

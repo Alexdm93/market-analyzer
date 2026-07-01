@@ -1,5 +1,5 @@
 "use client";
-import { Database, Layers3, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Database, Layers3, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -117,6 +117,83 @@ const COMPENSATION_METRIC_LABELS: Record<typeof COMPENSATION_METRIC_KEYS[number]
   "Con pasivos — anual": "Paquete de Compensación Total Anual (PCTA)",
 };
 
+function MultiCheckboxFilter({
+  label,
+  options,
+  selected,
+  onChange,
+  placeholder = "Todos",
+  labelMap,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  labelMap?: Record<string, string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [open]);
+
+  const getLabel = (v: string) => labelMap?.[v] ?? v;
+  const toggle = (v: string) =>
+    onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
+
+  const summary =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? getLabel(selected[0])
+        : `${selected.length} seleccionados`;
+
+  return (
+    <div ref={ref} className="relative">
+      <p className="field-label text-[0.7rem]">{label}</p>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mt-1 flex w-full items-center justify-between gap-2 rounded-[1rem] border border-slate-200 bg-white px-3 py-1.5 text-left text-sm hover:border-slate-300 focus:outline-none"
+      >
+        <span className={selected.length === 0 ? "text-slate-400" : "text-slate-900 font-medium"}>
+          {summary}
+        </span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-[1rem] border border-slate-200 bg-white py-1.5 shadow-lg">
+          {options.map((opt) => (
+            <label
+              key={opt}
+              className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(opt)}
+                onChange={() => toggle(opt)}
+                className="h-3.5 w-3.5 accent-teal-700"
+              />
+              <span className="text-slate-700">{getLabel(opt)}</span>
+            </label>
+          ))}
+          {options.length === 0 && (
+            <p className="px-3 py-2 text-xs text-slate-400">Sin opciones disponibles</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function resolvePosition(myValue: number, data: PercentilesMetricData): string {
   if (data.p50 === null) return "Sin datos";
   if (myValue >= data.p50) {
@@ -151,9 +228,9 @@ export default function EstudioPage() {
   const [adminMessage, setAdminMessage] = useState("");
   const [selectedAdminCargo, setSelectedAdminCargo] = useState("");
   const [studyView, setStudyView] = useState<"cargo" | "grado">("cargo");
-  const [filterSector, setFilterSector] = useState("");
-  const [filterCompany, setFilterCompany] = useState("");
-  const [filterSize, setFilterSize] = useState("");
+  const [filterSectors, setFilterSectors] = useState<string[]>([]);
+  const [filterCompanies, setFilterCompanies] = useState<string[]>([]);
+  const [filterSizes, setFilterSizes] = useState<string[]>([]);
   const adminStudyRequestId = useRef(0);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
   const [tasas, setTasas] = useState<ExchangeRate[]>([]);
@@ -191,17 +268,16 @@ export default function EstudioPage() {
 
   const filteredPositions = useMemo(() => {
     return adminPositions.filter((p) => {
-      if (filterSector && p.sector !== filterSector) return false;
-      if (filterCompany && p.companyName !== filterCompany) return false;
-      if (filterSize) {
+      if (filterSectors.length > 0 && !filterSectors.includes(p.sector)) return false;
+      if (filterCompanies.length > 0 && !filterCompanies.includes(p.companyName)) return false;
+      if (filterSizes.length > 0) {
         const hc = parseInt(p.headcount || "0");
-        if (filterSize === "pequeña" && hc >= 50) return false;
-        if (filterSize === "mediana" && (hc < 50 || hc > 200)) return false;
-        if (filterSize === "grande" && hc <= 200) return false;
+        const sz = !hc ? "" : hc < 50 ? "pequeña" : hc <= 200 ? "mediana" : "grande";
+        if (!filterSizes.includes(sz)) return false;
       }
       return true;
     });
-  }, [adminPositions, filterSector, filterCompany, filterSize]);
+  }, [adminPositions, filterSectors, filterCompanies, filterSizes]);
 
   const adminPositionsByCargo = useMemo(() => {
     const grouped = new Map<string, AdminStudyPosition[]>();
@@ -617,73 +693,97 @@ export default function EstudioPage() {
       setAdminMessage("No hay data cruda para exportar en el cargo seleccionado.");
       return;
     }
-
-    const sheetRows = positions.map((position) => ({
-      Empresa: position.companyName,
-      Cargo: position.title,
-      Nivel: position.level || "—",
-      "TEM": Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? Number(position.conceptValues["Sin pasivos — mensual"]) : 0,
-      "TEMz": Number(position.conceptValues?.["Total directo mensualizado"] ?? 0) > 0 ? Number(position.conceptValues["Total directo mensualizado"]) : 0,
-      "PCTA": Number(position.conceptValues?.["Con pasivos — anual"] ?? 0) > 0 ? Number(position.conceptValues["Con pasivos — anual"]) : 0,
+    const sheetRows = positions.map((p) => ({
+      Empresa: p.companyName,
+      Cargo: p.title,
+      Nivel: p.level || "—",
+      TEM: Number(p.conceptValues?.["Sin pasivos — mensual"] ?? 0) || null,
+      TEMz: Number(p.conceptValues?.["Total directo mensualizado"] ?? 0) || null,
+      PCTA: Number(p.conceptValues?.["Con pasivos — anual"] ?? 0) || null,
     }));
-
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    worksheet["!cols"] = [
+      { wch: 32 }, { wch: 32 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+    ];
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data cruda");
-    XLSX.writeFile(
-      workbook,
-      `data-cruda-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`
-    );
+    XLSX.writeFile(workbook, `data-cruda-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`);
   }
 
-  function exportAdminProcessedExcel(snapshotLabel: string, cargoTitle: string, metrics: AdminConceptMetric[]) {
-    const filtered = metrics.filter((m) => COMPENSATION_METRIC_KEYS.includes(m.concept as typeof COMPENSATION_METRIC_KEYS[number]));
-    if (filtered.length === 0) {
+  function exportAdminProcessedExcel(snapshotLabel: string, cargoTitle: string, positions: AdminStudyPosition[]) {
+    const sheetRows = COMPENSATION_METRIC_KEYS.map((key) => {
+      const values = positions
+        .map((p) => Number(p.conceptValues?.[key] ?? 0))
+        .filter((v) => Number.isFinite(v) && v > 0);
+      const n = values.length;
+      const pct = (q: number) => n > 0 ? Math.round(percentile(values, q)) : null;
+      return {
+        Concepto: COMPENSATION_METRIC_LABELS[key],
+        N: n,
+        Promedio: n >= PERCENTILE_MIN_N.promedio ? Math.round(values.reduce((a, b) => a + b, 0) / n) : null,
+        Min: n ? Math.min(...values) : null,
+        P10: n >= PERCENTILE_MIN_N.p10 ? pct(10) : null,
+        P25: n >= PERCENTILE_MIN_N.p25 ? pct(25) : null,
+        P50: n >= PERCENTILE_MIN_N.p50 ? pct(50) : null,
+        P75: n >= PERCENTILE_MIN_N.p75 ? pct(75) : null,
+        P90: n >= PERCENTILE_MIN_N.p90 ? pct(90) : null,
+        Max: n ? Math.max(...values) : null,
+      };
+    }).filter((r) => r.N > 0);
+
+    if (sheetRows.length === 0) {
       setAdminMessage("No hay percentiles procesados para exportar en el cargo seleccionado.");
       return;
     }
-
-    const sheetRows = filtered.map((metric) => ({
-      Concepto: COMPENSATION_METRIC_LABELS[metric.concept as typeof COMPENSATION_METRIC_KEYS[number]] ?? metric.concept,
-      N: metric.count,
-      Promedio: metric.average,
-      Min: metric.min,
-      P10: metric.p10,
-      P25: metric.p25,
-      P50: metric.p50,
-      P75: metric.p75,
-      P90: metric.p90,
-      Max: metric.max,
-    }));
-
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    worksheet["!cols"] = [
+      { wch: 46 }, { wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+    ];
     XLSX.utils.book_append_sheet(workbook, worksheet, "Percentiles");
-    XLSX.writeFile(
-      workbook,
-      `percentiles-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`
-    );
+    XLSX.writeFile(workbook, `percentiles-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`);
   }
 
-  function exportAdminGradosExcel(snapshotLabel: string, grados: typeof adminPositionsByGrado) {
-    if (grados.length === 0) {
+  function exportAdminGradosExcel(snapshotLabel: string, positions: AdminStudyPosition[]) {
+    const companyMap = new Map<string, Set<string>>();
+    const valMap = new Map<string, number[]>();
+    positions.forEach((p) => {
+      const nivel = p.level.trim();
+      const normalized = NIVELES_ESTUDIO.find((n) => nivel.toLowerCase().includes(n.toLowerCase())) ?? nivel;
+      if (!normalized) return;
+      if (!companyMap.has(normalized)) { companyMap.set(normalized, new Set()); valMap.set(normalized, []); }
+      companyMap.get(normalized)!.add(p.companyName);
+      const total = Number(p.conceptValues["Compensación total"] ?? 0);
+      if (total > 0) valMap.get(normalized)!.push(total);
+    });
+    const sheetRows = NIVELES_ESTUDIO.map((nivel) => {
+      const totals = valMap.get(nivel) ?? [];
+      if (!totals.length) return null;
+      return {
+        Grado: nivel,
+        Empresas: companyMap.get(nivel)?.size ?? 0,
+        Observaciones: totals.length,
+        Min: Math.min(...totals),
+        P25: Math.round(percentile(totals, 25)),
+        P50: Math.round(percentile(totals, 50)),
+        P75: Math.round(percentile(totals, 75)),
+        P90: Math.round(percentile(totals, 90)),
+        Max: Math.max(...totals),
+        Promedio: Math.round(totals.reduce((a, b) => a + b, 0) / totals.length),
+      };
+    }).filter(Boolean);
+
+    if (sheetRows.length === 0) {
       setAdminMessage("No hay data de grados para exportar.");
       return;
     }
-    const sheetRows = grados.map((g) => ({
-      Grado: g.nivel,
-      Empresas: g.empresas,
-      Observaciones: g.obs,
-      Min: g.min,
-      P25: g.p25,
-      P50: g.p50,
-      P75: g.p75,
-      P90: g.p90,
-      Max: g.max,
-      Promedio: g.promedio,
-    }));
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    worksheet["!cols"] = [
+      { wch: 20 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+    ];
     XLSX.utils.book_append_sheet(workbook, worksheet, "Por grados");
     XLSX.writeFile(workbook, `grados-${sanitizeFileSegment(snapshotLabel)}.xlsx`);
   }
@@ -720,7 +820,7 @@ export default function EstudioPage() {
     const activeAdminCargo = adminPositionsByCargo.find((entry) => entry.title === selectedAdminCargo)?.title ?? availableAdminCargos[0] ?? "";
     const activeRawPositions = adminPositionsByCargo.find((entry) => entry.title === activeAdminCargo)?.positions ?? [];
     const activeProcessedMetrics = adminProcessedMetrics.get(activeAdminCargo) ?? [];
-    const hasActiveFilters = Boolean(filterSector || filterCompany || filterSize);
+    const hasActiveFilters = filterSectors.length > 0 || filterCompanies.length > 0 || filterSizes.length > 0;
 
     return (
       <main className="page-wrap">
@@ -777,9 +877,9 @@ export default function EstudioPage() {
                     id="adminStudySnapshot"
                     value={selectedSnapshotId}
                     onChange={(event) => {
-                      setFilterSector("");
-                      setFilterCompany("");
-                      setFilterSize("");
+                      setFilterSectors([]);
+                      setFilterCompanies([]);
+                      setFilterSizes([]);
                       void handleAdminSnapshotChange(event.target.value);
                     }}
                     className="field-select"
@@ -792,33 +892,36 @@ export default function EstudioPage() {
                 </div>
 
                 {adminPositions.length > 0 && (
-                  <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                  <div className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
                     <p className="text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-400">Segmentar por</p>
-                    <div>
-                      <label htmlFor="filterSector" className="field-label text-[0.7rem]">Sector</label>
-                      <select id="filterSector" value={filterSector} onChange={(e) => setFilterSector(e.target.value)} className="field-select py-1.5 text-sm">
-                        <option value="">Todos</option>
-                        {availableSectors.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor="filterCompany" className="field-label text-[0.7rem]">Empresa</label>
-                      <select id="filterCompany" value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)} className="field-select py-1.5 text-sm">
-                        <option value="">Todas</option>
-                        {availableCompanies.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor="filterSize" className="field-label text-[0.7rem]">Tamaño</label>
-                      <select id="filterSize" value={filterSize} onChange={(e) => setFilterSize(e.target.value)} className="field-select py-1.5 text-sm">
-                        <option value="">Todos</option>
-                        <option value="pequeña">Pequeña (&lt; 50)</option>
-                        <option value="mediana">Mediana (50 – 200)</option>
-                        <option value="grande">Grande (&gt; 200)</option>
-                      </select>
-                    </div>
+                    <MultiCheckboxFilter
+                      label="Sector"
+                      options={availableSectors}
+                      selected={filterSectors}
+                      onChange={setFilterSectors}
+                      placeholder="Todos"
+                    />
+                    <MultiCheckboxFilter
+                      label="Empresa"
+                      options={availableCompanies}
+                      selected={filterCompanies}
+                      onChange={setFilterCompanies}
+                      placeholder="Todas"
+                    />
+                    <MultiCheckboxFilter
+                      label="Tamaño"
+                      options={["pequeña", "mediana", "grande"]}
+                      labelMap={{ pequeña: "Pequeña (< 50)", mediana: "Mediana (50–200)", grande: "Grande (> 200)" }}
+                      selected={filterSizes}
+                      onChange={setFilterSizes}
+                      placeholder="Todos"
+                    />
                     {hasActiveFilters && (
-                      <button type="button" onClick={() => { setFilterSector(""); setFilterCompany(""); setFilterSize(""); }} className="text-xs text-teal-700 underline underline-offset-2">
+                      <button
+                        type="button"
+                        onClick={() => { setFilterSectors([]); setFilterCompanies([]); setFilterSizes([]); }}
+                        className="text-xs text-teal-700 underline underline-offset-2"
+                      >
                         Limpiar filtros
                       </button>
                     )}
@@ -1059,7 +1162,7 @@ export default function EstudioPage() {
                           <div className="pill">Procesada</div>
                           <button
                             type="button"
-                            onClick={() => exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeProcessedMetrics)}
+                            onClick={() => exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
                             className="btn btn-secondary"
                           >
                             Exportar Excel
@@ -1141,7 +1244,7 @@ export default function EstudioPage() {
                       {hasActiveFilters && <div className="pill">Filtrado</div>}
                       <button
                         type="button"
-                        onClick={() => exportAdminGradosExcel(selectedAdminSnapshot?.label || "corte", adminPositionsByGrado)}
+                        onClick={() => exportAdminGradosExcel(selectedAdminSnapshot?.label || "corte", filteredPositions)}
                         className="btn btn-secondary"
                       >
                         Exportar Excel
