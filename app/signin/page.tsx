@@ -104,9 +104,9 @@ export default function SignInPage() {
   const canSubmit = companiesReady && !!companyId && !!email && !!password && !isSubmitting && !isPending && !isLookingUp;
 
   return (
-    <main className="relative min-h-screen w-full overflow-hidden px-4 py-6 sm:px-6 sm:py-8 md:px-10 md:py-10">
+    <main className="relative flex min-h-screen w-full flex-col overflow-x-hidden px-4 pt-6 pb-8 sm:px-6 sm:pt-8 md:px-10 md:pt-10">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,118,110,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(217,119,6,0.14),transparent_28%)]" />
-      <div className="relative mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-6 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[minmax(0,1.15fr)_26rem] lg:gap-8">
+      <div className="relative mx-auto grid flex-1 w-full max-w-6xl items-center gap-6 lg:grid-cols-[minmax(0,1.15fr)_26rem] lg:gap-8">
         <section className="surface-panel min-w-0 rounded-[2rem] p-6 md:p-8 lg:p-10">
           <div className="eyebrow mb-3">Acceso privado</div>
           <h1 className="font-display max-w-2xl text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
