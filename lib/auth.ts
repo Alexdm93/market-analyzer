@@ -58,34 +58,37 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Login exitoso — liberar rate limit de este IP
+        // Login exitoso — liberar rate limit de este IP e invalidar sesiones anteriores
         resetRateLimit(ip);
+
+        const updated = await prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date(), sessionVersion: { increment: 1 } },
+          select: { sessionVersion: true },
+        });
 
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          sessionVersion: updated.sessionVersion,
         };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.role = typeof user.role === "string" ? user.role : DEFAULT_USER_ROLE;
-      }
-
-      // Record login timestamp only on actual sign-in (not on every session refresh)
-      if (trigger === "signIn" && typeof token.id === "string") {
-        prisma.user.update({ where: { id: token.id }, data: { lastLoginAt: new Date() } }).catch(() => {});
+        token.sessionVersion = typeof user.sessionVersion === "number" ? user.sessionVersion : undefined;
       }
 
       if (typeof token.id === "string") {
         const existingUser = await prisma.user.findUnique({
           where: { id: token.id },
-          select: { id: true, name: true, email: true, role: true, companyId: true },
+          select: { id: true, name: true, email: true, role: true, companyId: true, sessionVersion: true },
         });
 
         if (!existingUser) {
@@ -95,7 +98,21 @@ export const authOptions: NextAuthOptions = {
           token.role = undefined;
           token.companyId = undefined;
           token.estudioEnabled = undefined;
+          token.sessionVersion = undefined;
           token.error = USER_DELETED_ERROR;
+          return token;
+        }
+
+        // Si sessionVersion del token no coincide con DB, otra sesión inició después — invalidar
+        if (token.sessionVersion !== existingUser.sessionVersion) {
+          token.id = undefined;
+          token.name = undefined;
+          token.email = undefined;
+          token.role = undefined;
+          token.companyId = undefined;
+          token.estudioEnabled = undefined;
+          token.sessionVersion = undefined;
+          token.error = "SessionExpired";
           return token;
         }
 

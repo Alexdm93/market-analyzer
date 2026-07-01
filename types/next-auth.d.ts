@@ -16,6 +16,7 @@ declare module "next-auth" {
     role?: string;
     companyId?: string;
     estudioEnabled?: boolean;
+    sessionVersion?: number;
   }
 }
 
@@ -25,6 +26,7 @@ declare module "next-auth/jwt" {
     role?: string;
     companyId?: string;
     estudioEnabled?: boolean;
+    sessionVersion?: number;
     error?: string;
   }
 }
