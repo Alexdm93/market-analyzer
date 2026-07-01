@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 import { type Snapshot, type ExchangeRate, type CompanyInfo, type RequiredPosition, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
@@ -173,6 +174,10 @@ function findDuplicateCargoTitles(rows: ExtendedMarketPosition[]) {
 export default function DataPage() {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
+  const { markRouteSeen } = useWorkspaceNotification();
+
+  useEffect(() => { markRouteSeen("data"); }, [markRouteSeen]);
+
   const [saveState, setSaveState] = useState<"idle" | "dirty" | "pending" | "saved" | "error">("idle");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import { type Snapshot } from "@/lib/workspace";
+import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 
 function percentile(values: number[], p: number) {
   if (!values.length) return 0;
@@ -45,6 +46,9 @@ type Group = {
 export default function ResultadosPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
+  const { markRouteSeen } = useWorkspaceNotification();
+
+  useEffect(() => { markRouteSeen("resultados"); }, [markRouteSeen]);
 
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [publishedIds, setPublishedIds] = useState<string[]>([]);

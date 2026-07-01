@@ -8,6 +8,7 @@ import { useState } from "react";
 import { canAccessEmpresas, getRoleLabel, isAdminRole } from "@/lib/roles";
 import { useNavigationTrigger } from "./NavigationProgress";
 import { useAnnouncements } from "@/contexts/AnnouncementContext";
+import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 
 const menuItems = [
   { name: "Inicio", href: "/inicio", icon: Newspaper, hint: "Noticias y anuncios" },
@@ -48,6 +49,7 @@ export default function Sidebar() {
   const triggerNavigation = useNavigationTrigger();
   const [signingOut, setSigningOut] = useState(false);
   const { hasUnread } = useAnnouncements();
+  const { hasUnreadResultados, hasUnreadData } = useWorkspaceNotification();
 
   if (pathname === "/signin" || pathname === "/register") {
     return null;
@@ -87,6 +89,12 @@ export default function Sidebar() {
                 <div className={`relative inline-flex shrink-0 rounded-xl p-2 ${isActive ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-slate-900 group-hover:text-white"}`}>
                   <Icon size={16} aria-hidden />
                   {item.href === "/inicio" && hasUnread && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+                  )}
+                  {item.href === "/resultados" && hasUnreadResultados && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+                  )}
+                  {item.href === "/data" && hasUnreadData && (
                     <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
                   )}
                 </div>
