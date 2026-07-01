@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { LoaderCircle, LockKeyhole, LogIn, ShieldCheck } from "lucide-react";
+import { BarChart2, LoaderCircle, LockKeyhole, LogIn, ShieldCheck } from "lucide-react";
 import { signIn, useSession } from "next-auth/react";
 
 type CompanyOption = { id: string; name: string };
@@ -110,37 +110,37 @@ export default function SignInPage() {
         <section className="surface-panel min-w-0 rounded-[2rem] p-6 md:p-8 lg:p-10">
           <div className="eyebrow mb-3">Acceso privado</div>
           <h1 className="font-display max-w-2xl text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
-            Inicia sesion con una cuenta local creada dentro de la plataforma.
+            Bienvenido a Market Analyzer.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
-            Este flujo ya no depende de Microsoft u otro proveedor externo. Tus credenciales se validan contra usuarios registrados en la aplicacion.
+            La plataforma definitiva de benchmarking salarial. Ingresa con tus credenciales corporativas para consultar tabuladores, comparar curvas de mercado y medir la competitividad de tu organización.
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="metric-tile">
               <ShieldCheck className="h-5 w-5 text-teal-700" />
-              <div className="mt-4 font-display text-lg font-bold text-slate-900">Sesion propia</div>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Controlas el alta de usuarios y no dependes de un tenant externo.</p>
+              <div className="mt-4 font-display text-lg font-bold text-slate-900">Entorno Exclusivo</div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Un espacio privado y centralizado para los especialistas de compensación y gestión humana de tu empresa.</p>
             </div>
             <div className="metric-tile">
               <LockKeyhole className="h-5 w-5 text-amber-700" />
-              <div className="mt-4 font-display text-lg font-bold text-slate-900">Clave cifrada</div>
-              <p className="mt-2 text-sm leading-6 text-slate-600">La contrasena no se almacena en texto plano; se guarda con hash seguro.</p>
+              <div className="mt-4 font-display text-lg font-bold text-slate-900">Máxima Confidencialidad</div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Protegemos la integridad de tu información. Todos los datos están respaldados por estrictos protocolos de seguridad.</p>
             </div>
             <div className="metric-tile">
-              <LogIn className="h-5 w-5 text-slate-900" />
-              <div className="mt-4 font-display text-lg font-bold text-slate-900">Base para permisos</div>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Luego puedes filtrar snapshots y datos segun el usuario autenticado.</p>
+              <BarChart2 className="h-5 w-5 text-indigo-700" />
+              <div className="mt-4 font-display text-lg font-bold text-slate-900">Análisis Estratégico</div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Visualiza reportes dinámicos y compara escenarios.</p>
             </div>
           </div>
         </section>
 
         <section className="surface-card min-w-0 rounded-[2rem] p-6 md:p-8">
-          <div className="eyebrow mb-2">Iniciar sesion</div>
-          <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">Bienvenido</h2>
+          <div className="eyebrow mb-2">Iniciar sesión</div>
+          <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">Acceso al Sistema</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             {isBootstrap
               ? "La base está vacía. Crea primero el usuario administrador inicial."
-              : "Ingresa tu correo para continuar."}
+              : "Ingresa tu correo corporativo para continuar."}
           </p>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -157,7 +157,7 @@ export default function SignInPage() {
                       onChange={(e) => { setEmail(e.target.value); resetCompanies(); }}
                       onBlur={() => lookupByEmail(email)}
                       className="field pr-9"
-                      placeholder="equipo@empresa.com"
+                      placeholder="usuario@tuempresa.com"
                       autoComplete="email"
                       required
                     />
@@ -205,7 +205,7 @@ export default function SignInPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="field"
-                    placeholder="Minimo 8 caracteres"
+                    placeholder="Mínimo 8 caracteres"
                     autoComplete="current-password"
                     required
                   />
@@ -229,10 +229,19 @@ export default function SignInPage() {
                 {isSubmitting || isPending
                   ? <LoaderCircle className="h-4 w-4 animate-spin" />
                   : <LogIn className="h-4 w-4" />}
-                {isSubmitting || isPending ? "Iniciando sesion..." : "Entrar"}
+                {isSubmitting || isPending ? "Iniciando sesión..." : "Entrar a Market Analyzer →"}
               </button>
             )}
           </form>
+
+          {!isBootstrap && (
+            <p className="mt-6 text-center text-xs leading-5 text-slate-500">
+              Si tiene problema para iniciar sesión, olvidó la clave o desea registrarse debe escribir un correo a{" "}
+              <a href="mailto:marketanalyzer@acconsult.net" className="font-semibold text-teal-700 hover:underline">
+                marketanalyzer@acconsult.net
+              </a>
+            </p>
+          )}
         </section>
       </div>
     </main>
