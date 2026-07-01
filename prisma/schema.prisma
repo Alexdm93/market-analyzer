@@ -131,6 +131,8 @@ model Announcement {
   published   Boolean   @default(false)
   publishedAt DateTime?
   sortOrder   Int       @default(0)
+  mediaData   String?
+  mediaUrl    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }

@@ -23,10 +23,12 @@ export async function POST(request: Request) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
-  const body = await request.json().catch(() => null) as { title?: string; content?: string; type?: string } | null;
+  const body = await request.json().catch(() => null) as { title?: string; content?: string; type?: string; mediaData?: string; mediaUrl?: string } | null;
   const title = body?.title?.trim() ?? "";
   const content = body?.content?.trim() ?? "";
   const type = body?.type?.trim() ?? "aviso";
+  const mediaData = body?.mediaData ?? null;
+  const mediaUrl = body?.mediaUrl?.trim() || null;
 
   if (!title || !content) {
     return Response.json({ message: "Título y contenido son obligatorios." }, { status: 400 });
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
   const sortOrder = (last?.sortOrder ?? -1) + 1;
 
   const announcement = await prisma.announcement.create({
-    data: { title, content, type, sortOrder },
+    data: { title, content, type, sortOrder, mediaData, mediaUrl },
   });
   return Response.json({ announcement }, { status: 201 });
 }
@@ -53,6 +55,8 @@ export async function PUT(request: Request) {
     published?: boolean;
     action?: string;
     direction?: string;
+    mediaData?: string | null;
+    mediaUrl?: string | null;
   } | null;
 
   const id = body?.id?.trim() ?? "";
@@ -95,6 +99,8 @@ export async function PUT(request: Request) {
     data.published = body.published;
     data.publishedAt = body.published ? new Date() : null;
   }
+  if ("mediaData" in (body ?? {})) data.mediaData = body?.mediaData ?? null;
+  if ("mediaUrl" in (body ?? {})) data.mediaUrl = body?.mediaUrl?.trim() || null;
 
   const announcement = await prisma.announcement.update({ where: { id }, data });
   return Response.json({ announcement });

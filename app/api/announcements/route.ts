@@ -11,7 +11,7 @@ export async function GET() {
   const announcements = await prisma.announcement.findMany({
     where: { published: true },
     orderBy: { sortOrder: "asc" },
-    select: { id: true, title: true, content: true, type: true, publishedAt: true },
+    select: { id: true, title: true, content: true, type: true, publishedAt: true, mediaData: true, mediaUrl: true },
   });
 
   return Response.json({ announcements });

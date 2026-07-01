@@ -8,22 +8,57 @@ type Announcement = {
   content: string;
   type: string;
   publishedAt: string | null;
+  mediaData: string | null;
+  mediaUrl: string | null;
 };
 
-const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> = {
-  noticia:      { label: "Noticia",       icon: Newspaper,   color: "text-teal-700",   bg: "bg-teal-50",   border: "border-teal-200" },
-  fecha:        { label: "Fecha de corte",icon: Calendar,    color: "text-amber-700",  bg: "bg-amber-50",  border: "border-amber-200" },
-  aviso:        { label: "Aviso",         icon: Info,        color: "text-slate-700",  bg: "bg-slate-50",  border: "border-slate-200" },
-  presentacion: { label: "Presentación",  icon: MonitorPlay, color: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200" },
+const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string; pill: string }> = {
+  noticia:      { label: "Noticia",        icon: Newspaper,   color: "text-teal-700",   pill: "bg-teal-50 text-teal-700 border-teal-200" },
+  fecha:        { label: "Fecha de corte", icon: Calendar,    color: "text-amber-700",  pill: "bg-amber-50 text-amber-700 border-amber-200" },
+  aviso:        { label: "Aviso",          icon: Info,        color: "text-slate-600",  pill: "bg-slate-100 text-slate-600 border-slate-200" },
+  presentacion: { label: "Presentación",   icon: MonitorPlay, color: "text-violet-700", pill: "bg-violet-50 text-violet-700 border-violet-200" },
 };
 
 function getTypeMeta(type: string) {
-  return TYPE_META[type] ?? { label: type, icon: Megaphone, color: "text-slate-700", bg: "bg-slate-50", border: "border-slate-200" };
+  return TYPE_META[type] ?? { label: type, icon: Megaphone, color: "text-slate-600", pill: "bg-slate-100 text-slate-600 border-slate-200" };
 }
 
 function formatDate(raw: string | null) {
   if (!raw) return "";
   return new Date(raw).toLocaleDateString("es-VE", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function getYouTubeId(url: string): string | null {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+  return match?.[1] ?? null;
+}
+
+function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; mediaUrl: string | null; title: string }) {
+  if (mediaData) {
+    return (
+      <div className="overflow-hidden rounded-[1.25rem]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={mediaData} alt={title} className="w-full object-cover" />
+      </div>
+    );
+  }
+  if (mediaUrl) {
+    const ytId = getYouTubeId(mediaUrl);
+    if (ytId) {
+      return (
+        <div className="aspect-video overflow-hidden rounded-[1.25rem]">
+          <iframe
+            src={`https://www.youtube.com/embed/${ytId}`}
+            title={title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="h-full w-full border-0"
+          />
+        </div>
+      );
+    }
+  }
+  return null;
 }
 
 export default function InicioPage() {
@@ -42,14 +77,6 @@ export default function InicioPage() {
     return () => { ignore = true; };
   }, []);
 
-  const pinnedTypes = ["fecha", "noticia", "presentacion", "aviso"];
-  const grouped = pinnedTypes.map((type) => ({
-    type,
-    items: announcements.filter((a) => a.type === type),
-  })).filter((g) => g.items.length > 0);
-
-  const otherItems = announcements.filter((a) => !pinnedTypes.includes(a.type));
-
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
@@ -59,7 +86,7 @@ export default function InicioPage() {
             Bienvenido a Market Analyzer.
           </h1>
           <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-            Aquí encontrarás noticias, fechas de cortes, avisos y anuncios publicados por el equipo administrador.
+            Noticias, fechas de cortes, avisos y anuncios del equipo.
           </p>
         </section>
 
@@ -75,56 +102,39 @@ export default function InicioPage() {
           </section>
         )}
 
-        {!loading && grouped.map(({ type, items }) => {
-          const meta = getTypeMeta(type);
-          const Icon = meta.icon;
-          return (
-            <section key={type} className="surface-card overflow-hidden rounded-[2rem]">
-              <div className={`flex items-center gap-3 border-b px-6 py-4 ${meta.border}`}>
-                <div className={`rounded-full p-2 ${meta.bg}`}>
-                  <Icon size={16} className={meta.color} aria-hidden />
-                </div>
-                <h2 className={`font-display text-lg font-bold ${meta.color}`}>{meta.label}s</h2>
-              </div>
-              <div className="flex flex-col divide-y divide-slate-100">
-                {items.map((a) => (
-                  <article key={a.id} className="px-6 py-5">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <h3 className="font-display text-base font-bold text-slate-900">{a.title}</h3>
+        {!loading && announcements.length > 0 && (
+          <div className="flex flex-col gap-5">
+            {announcements.map((a) => {
+              const meta = getTypeMeta(a.type);
+              const Icon = meta.icon;
+              const hasMedia = !!(a.mediaData || a.mediaUrl);
+
+              return (
+                <article key={a.id} className="surface-card overflow-hidden rounded-[2rem]">
+                  {hasMedia && (
+                    <div className="px-5 pt-5 md:px-6 md:pt-6">
+                      <MediaBlock mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
+                    </div>
+                  )}
+
+                  <div className="px-5 py-5 md:px-6 md:py-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
+                        <Icon size={12} aria-hidden />
+                        {meta.label}
+                      </span>
                       {a.publishedAt && (
-                        <time className="shrink-0 text-xs text-slate-400">{formatDate(a.publishedAt)}</time>
+                        <time className="text-xs text-slate-400">{formatDate(a.publishedAt)}</time>
                       )}
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{a.content}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
-          );
-        })}
 
-        {!loading && otherItems.length > 0 && (
-          <section className="surface-card overflow-hidden rounded-[2rem]">
-            <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-4">
-              <div className="rounded-full bg-slate-50 p-2">
-                <Megaphone size={16} className="text-slate-600" aria-hidden />
-              </div>
-              <h2 className="font-display text-lg font-bold text-slate-700">Otros anuncios</h2>
-            </div>
-            <div className="flex flex-col divide-y divide-slate-100">
-              {otherItems.map((a) => (
-                <article key={a.id} className="px-6 py-5">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <h3 className="font-display text-base font-bold text-slate-900">{a.title}</h3>
-                    {a.publishedAt && (
-                      <time className="shrink-0 text-xs text-slate-400">{formatDate(a.publishedAt)}</time>
-                    )}
+                    <h2 className="mt-3 font-display text-lg font-bold text-slate-900 md:text-xl">{a.title}</h2>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{a.content}</p>
                   </div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{a.content}</p>
                 </article>
-              ))}
-            </div>
-          </section>
+              );
+            })}
+          </div>
         )}
       </div>
     </main>
