@@ -13,7 +13,9 @@ export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 
-  if (!token && protectedPages.has(pathname)) {
+  const sessionInvalid = !token || (typeof token.error === "string" && token.error !== "");
+
+  if (sessionInvalid && protectedPages.has(pathname)) {
     const signInUrl = new URL("/signin", request.url);
     const callbackUrl = `${pathname}${search}`;
 
