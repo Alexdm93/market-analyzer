@@ -203,7 +203,7 @@ export function computeRowTotals(
 
   return {
     totalSinPasivosMensual: Math.round(directMensual),
-    totalConPasivosMensual: Math.round(directMensual + pasivosAnual / 12),
+    totalConPasivosMensual: Math.round((directAnual + pasivosAnual) / 12),
     totalConPasivosAnual: Math.round(directAnual + pasivosAnual),
     totalDirectoMensualizado: Math.round(directAnual / 12),
   };
