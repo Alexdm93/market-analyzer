@@ -36,17 +36,15 @@ function getYouTubeId(url: string): string | null {
 function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; mediaUrl: string | null; title: string }) {
   if (mediaData) {
     return (
-      <div className="overflow-hidden rounded-[1.25rem]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={mediaData} alt={title} className="max-h-72 w-full object-cover object-center" />
-      </div>
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={mediaData} alt={title} className="max-h-64 w-full object-cover object-center" />
     );
   }
   if (mediaUrl) {
     const ytId = getYouTubeId(mediaUrl);
     if (ytId) {
       return (
-        <div className="aspect-video overflow-hidden rounded-[1.25rem]">
+        <div className="aspect-video">
           <iframe
             src={`https://www.youtube.com/embed/${ytId}`}
             title={title}
@@ -103,18 +101,16 @@ export default function InicioPage() {
         )}
 
         {!loading && announcements.length > 0 && (
-          <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
+          <div className="columns-1 gap-5 md:columns-2 xl:columns-3">
             {announcements.map((a) => {
               const meta = getTypeMeta(a.type);
               const Icon = meta.icon;
               const hasMedia = !!(a.mediaData || a.mediaUrl);
 
               return (
-                <article key={a.id} className="surface-card overflow-hidden rounded-[2rem]">
+                <article key={a.id} className="surface-card mb-5 break-inside-avoid overflow-hidden rounded-[2rem]">
                   {hasMedia && (
-                    <div className="px-5 pt-5 md:px-6 md:pt-6">
-                      <MediaBlock mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
-                    </div>
+                    <MediaBlock mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
                   )}
 
                   <div className="px-5 py-5 md:px-6 md:py-6">
@@ -128,7 +124,7 @@ export default function InicioPage() {
                       )}
                     </div>
 
-                    <h2 className="mt-3 font-display text-lg font-bold text-slate-900 md:text-xl">{a.title}</h2>
+                    <h2 className="mt-3 font-display text-lg font-bold text-slate-900">{a.title}</h2>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{a.content}</p>
                   </div>
                 </article>
