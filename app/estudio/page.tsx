@@ -105,9 +105,9 @@ function getDisplayLabel(snapshot: Snapshot) {
 
 const COMPENSATION_METRIC_KEYS = [
   "Sin pasivos — mensual",
+  "Total directo mensualizado",
   "Con pasivos — mensual",
   "Con pasivos — anual",
-  "Total directo mensualizado",
 ] as const;
 
 const COMPENSATION_METRIC_LABELS: Record<typeof COMPENSATION_METRIC_KEYS[number], string> = {
