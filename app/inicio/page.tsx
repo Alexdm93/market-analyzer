@@ -38,7 +38,7 @@ function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; 
     return (
       <div className="overflow-hidden rounded-[1.25rem]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={mediaData} alt={title} className="w-full object-cover" />
+        <img src={mediaData} alt={title} className="max-h-72 w-full object-cover object-center" />
       </div>
     );
   }
@@ -103,7 +103,7 @@ export default function InicioPage() {
         )}
 
         {!loading && announcements.length > 0 && (
-          <div className="flex flex-col gap-5">
+          <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
             {announcements.map((a) => {
               const meta = getTypeMeta(a.type);
               const Icon = meta.icon;
