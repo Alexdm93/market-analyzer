@@ -604,6 +604,8 @@ export default function EstudioPage() {
       );
       setAdminStatus("done");
       setAdminMessage(payload?.message ?? "Corte procesado correctamente.");
+      // Recargar posiciones para reflejar cambios recientes (ej. cargos eliminados desde data)
+      await handleAdminSnapshotChange(selectedSnapshotId);
     } catch (error) {
       setAdminStatus("idle");
       setAdminMessage(error instanceof Error ? error.message : "No fue posible procesar el corte.");

@@ -772,6 +772,10 @@ export async function PUT(request: Request) {
     }
 
     await prisma.$transaction(async (tx) => {
+      // Borrar todas las posiciones y snapshots de la empresa (todos los usuarios)
+      // para que el save del admin sea la fuente de verdad sin residuos de otros usuarios
+      await tx.userPosition.deleteMany({ where: { companyId: targetCompanyId } });
+      await tx.userSnapshot.deleteMany({ where: { companyId: targetCompanyId } });
       await syncRelationalWorkspace(tx, companyUser.id, targetCompanyId, nextSnapshots);
       await tx.userWorkspace.updateMany({
         where: { userId: companyUser.id },

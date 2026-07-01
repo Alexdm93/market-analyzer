@@ -34,7 +34,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  if (token && authPages.has(pathname)) {
+  if (token && !sessionInvalid && authPages.has(pathname)) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
