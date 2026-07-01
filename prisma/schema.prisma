@@ -130,6 +130,7 @@ model Announcement {
   type        String    @default("aviso")
   published   Boolean   @default(false)
   publishedAt DateTime?
+  sortOrder   Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }

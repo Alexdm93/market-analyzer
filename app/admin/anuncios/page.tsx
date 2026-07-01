@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Check, Eye, EyeOff, Loader2, Megaphone, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Eye, EyeOff, Loader2, Megaphone, Pencil, Plus, Trash2, X } from "lucide-react";
 
 type Announcement = {
   id: string;
@@ -9,6 +9,7 @@ type Announcement = {
   type: string;
   published: boolean;
   publishedAt: string | null;
+  sortOrder: number;
   createdAt: string;
 };
 
@@ -120,6 +121,23 @@ export default function AdminAnunciosPage() {
       await load();
     } catch {
       notify("Error al actualizar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleMove(id: string, direction: "up" | "down") {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/announcements", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "reorder", direction }),
+      });
+      if (!res.ok) throw new Error();
+      await load();
+    } catch {
+      notify("Error al reordenar.");
     } finally {
       setSaving(false);
     }
@@ -268,6 +286,26 @@ export default function AdminAnunciosPage() {
                   </div>
 
                   <div className="flex shrink-0 flex-wrap gap-2">
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleMove(a.id, "up")}
+                        disabled={saving || index === 0}
+                        className="btn btn-secondary px-2 disabled:opacity-30"
+                        title="Mover arriba"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMove(a.id, "down")}
+                        disabled={saving || index === announcements.length - 1}
+                        className="btn btn-secondary px-2 disabled:opacity-30"
+                        title="Mover abajo"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                     <button
                       type="button"
                       onClick={() => openEdit(a)}
