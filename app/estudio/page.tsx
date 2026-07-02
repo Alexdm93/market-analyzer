@@ -1002,18 +1002,18 @@ export default function EstudioPage() {
                   <div className="mt-3 space-y-2.5 border-t border-slate-100 pt-3">
                     <p className="text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-slate-400">Segmentar por</p>
                     <MultiCheckboxFilter
-                      label="Sector"
-                      options={availableSectors}
-                      selected={filterSectors}
-                      onChange={setFilterSectors}
-                      placeholder="Todos"
-                    />
-                    <MultiCheckboxFilter
                       label="Empresa"
                       options={availableCompanies}
                       selected={filterCompanies}
                       onChange={setFilterCompanies}
                       placeholder="Todas"
+                    />
+                    <MultiCheckboxFilter
+                      label="Sector"
+                      options={availableSectors}
+                      selected={filterSectors}
+                      onChange={setFilterSectors}
+                      placeholder="Todos"
                     />
                     <MultiCheckboxFilter
                       label="Tamaño"
@@ -1554,49 +1554,27 @@ export default function EstudioPage() {
               <div className="mt-5 border-t border-slate-100 pt-5">
                 <div className="eyebrow mb-4">Segmentar por</div>
                 <div className="flex flex-col gap-4">
-                  {(
-                    [
-                      { label: "Empresa",       options: availableUserCompanies, pending: pendingCompany,  set: setPendingCompany },
-                      { label: "Sector",        options: availableUserSectors,   pending: pendingSector,   set: setPendingSector  },
-                      { label: "Tamaño",        options: availableUserSizes,     pending: pendingSize,     set: setPendingSize    },
-                    ] as const
-                  ).map(({ label, options, pending, set }) => (
-                    <div key={label}>
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <span className="field-label mb-0">{label}</span>
-                        {pending.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => (set as React.Dispatch<React.SetStateAction<string[]>>)([])}
-                            className="text-[11px] text-slate-400 hover:text-slate-600"
-                          >
-                            Limpiar
-                          </button>
-                        )}
-                      </div>
-                      <div className="max-h-28 overflow-y-auto rounded-xl border border-slate-200 bg-white">
-                        {options.length === 0 ? (
-                          <p className="px-3 py-2 text-xs text-slate-400">Cargando opciones…</p>
-                        ) : (
-                          options.map((opt) => (
-                            <label key={opt} className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50">
-                              <input
-                                type="checkbox"
-                                checked={(pending as string[]).includes(opt)}
-                                onChange={(e) =>
-                                  (set as React.Dispatch<React.SetStateAction<string[]>>)((prev) =>
-                                    e.target.checked ? [...prev, opt] : prev.filter((x) => x !== opt),
-                                  )
-                                }
-                                className="h-3.5 w-3.5 accent-teal-700"
-                              />
-                              <span className="text-sm text-slate-700">{opt}</span>
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                  <MultiCheckboxFilter
+                    label="Empresa"
+                    options={availableUserCompanies}
+                    selected={pendingCompany}
+                    onChange={setPendingCompany}
+                    placeholder="Todas"
+                  />
+                  <MultiCheckboxFilter
+                    label="Sector"
+                    options={availableUserSectors}
+                    selected={pendingSector}
+                    onChange={setPendingSector}
+                    placeholder="Todos"
+                  />
+                  <MultiCheckboxFilter
+                    label="Tamaño"
+                    options={availableUserSizes}
+                    selected={pendingSize}
+                    onChange={setPendingSize}
+                    placeholder="Todos"
+                  />
                 </div>
               </div>
 
