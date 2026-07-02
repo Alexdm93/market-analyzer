@@ -1087,7 +1087,7 @@ export default function DataPage() {
                   </button>
                   <button onClick={exportJSON} className="btn btn-secondary whitespace-nowrap">
                     <Check className="h-3.5 w-3.5" />
-                    Exportar xlsx
+                    Exportar a Excel
                   </button>
                   {!isReadOnlyDataView ? (
                     <>
