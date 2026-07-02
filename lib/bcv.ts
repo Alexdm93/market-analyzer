@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
-const BCV_KEY = "bcv_usd_rate";
+const BCV_KEY     = "bcv_usd_rate";
+const BCV_EUR_KEY = "bcv_eur_rate";
 // Refresh if older than 23h (cron runs every 24h)
 const STALE_MS = 23 * 60 * 60 * 1000;
 
@@ -30,6 +31,43 @@ export async function getBcvRate(): Promise<{ rate: number | null; updatedAt: st
       await prisma.globalConfig.upsert({
         where: { key: BCV_KEY },
         create: { key: BCV_KEY, value: String(fresh) },
+        update: { value: String(fresh) },
+      });
+      return { rate: fresh, updatedAt: new Date().toISOString() };
+    }
+  }
+
+  if (!config) return { rate: null, updatedAt: null };
+  const rate = parseFloat(config.value);
+  return {
+    rate: Number.isFinite(rate) ? rate : null,
+    updatedAt: config.updatedAt.toISOString(),
+  };
+}
+
+export async function fetchBcvEurFromApi(): Promise<number | null> {
+  try {
+    const res = await fetch("https://ve.dolarapi.com/v1/dolares/euro", {
+      headers: { "User-Agent": "salary-intelligence/1.0" },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { promedio?: number };
+    return typeof data.promedio === "number" ? data.promedio : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getBcvEuroRate(): Promise<{ rate: number | null; updatedAt: string | null }> {
+  const config = await prisma.globalConfig.findUnique({ where: { key: BCV_EUR_KEY } });
+  const isStale = !config || Date.now() - config.updatedAt.getTime() > STALE_MS;
+
+  if (isStale) {
+    const fresh = await fetchBcvEurFromApi();
+    if (fresh !== null) {
+      await prisma.globalConfig.upsert({
+        where: { key: BCV_EUR_KEY },
+        create: { key: BCV_EUR_KEY, value: String(fresh) },
         update: { value: String(fresh) },
       });
       return { rate: fresh, updatedAt: new Date().toISOString() };

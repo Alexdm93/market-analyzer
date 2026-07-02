@@ -1,6 +1,8 @@
 import type { ExtendedMarketPosition } from "@/types/salary";
 import type { ExchangeRate } from "@/lib/workspace";
 
+export type TcrType = "bcv" | "euro" | "libre";
+
 export function freqToAnnual(freq?: string): number {
   switch (freq) {
     case "biweekly": return 24;
@@ -43,6 +45,139 @@ export function normalizeToUSD(
 
   if (!rate || rate <= 0) return 0;
   return amount / rate;
+}
+
+/**
+ * TCR normalization for a single salary component — four scenarios per spec:
+ *
+ * Esc 1 (VES/VES):  MC(Bs) / tcrRate
+ * Esc 2 (USD/VES):  MC(USD) × TC(Cliente) / tcrRate
+ * Esc 3 (USD/USD):  MC(USD)  [BCV-USD / Libre]  |  MC(USD) × (bcvRate/bcvEurRate)  [BCV-EUR]
+ * Esc 4 (VES/USD):  MC(Bs) / TC(Cliente)  [BCV-USD / Libre]  |  (MC(Bs)/TC) × (bcvRate/bcvEurRate)  [BCV-EUR]
+ *
+ * For BCV-EUR the output is in EUR; for BCV-USD and Libre the output is in USD.
+ * All four outputs are comparable and can be summed to produce the total TCR compensation.
+ */
+function tcrNormalizeComponent(
+  amount: number,
+  cuentaMoneda: string | undefined,
+  pagoMoneda: string | undefined,
+  tasaId: string | undefined,
+  tasas: ExchangeRate[],
+  bcvRate: number | null,
+  bcvEurRate: number | null,
+  libreRate: number,
+  tcrRate: number,
+  tcrType: TcrType,
+): number {
+  if (!amount || tcrRate <= 0) return 0;
+
+  const paidInVES = !pagoMoneda || pagoMoneda === "VES";
+  const isEur = tcrType === "euro";
+
+  // For BCV-EUR: convert a USD amount to EUR using BCV cross-rate
+  function usdToRef(usd: number): number {
+    if (isEur && bcvRate && bcvEurRate && bcvEurRate > 0) {
+      return usd * (bcvRate / bcvEurRate);
+    }
+    return usd; // BCV-USD and Libre: reference currency is USD — no conversion needed
+  }
+
+  if (cuentaMoneda === "VES") {
+    if (paidInVES) {
+      // Escenario 1: MC(Bs) / tcrRate
+      return amount / tcrRate;
+    }
+    // Escenario 4: MC(Bs) / TC(Cliente), then convert to reference currency
+    const tasa = tasaId ? tasas.find((t) => t.id === tasaId) : undefined;
+    const tasaValor = tasa ? Number(tasa.valor) : 0;
+    const tcCliente = tasaValor > 0 ? tasaValor : (bcvRate ?? 1);
+    return usdToRef(amount / tcCliente);
+  }
+
+  // cuentaMoneda = 'USD' (or undefined) — amount is in USD
+  if (paidInVES) {
+    // Escenario 2: MC(USD) × TC(Cliente) / tcrRate
+    const tasa = tasaId ? tasas.find((t) => t.id === tasaId) : undefined;
+    const tasaValor = tasa ? Number(tasa.valor) : 0;
+    const paymentRate = tasaValor > 0 ? tasaValor : (bcvRate ?? 1);
+    return amount * paymentRate / tcrRate;
+  }
+
+  // Escenario 3: MC(USD), then convert to reference currency
+  return usdToRef(amount);
+}
+
+/**
+ * Computes the same four totals as computeRowTotals but normalizes each component
+ * using TCR methodology instead of raw BCV conversion.
+ */
+export function computeTCRTotals(
+  row: ExtendedMarketPosition,
+  tasas: ExchangeRate[],
+  bcvRate: number | null,
+  bcvEurRate: number | null,
+  libreRate: number,
+  tcrRate: number,
+  tcrType: TcrType,
+  diasVacaciones: number,
+  diasUtilidades: number,
+): RowTotals {
+  function tcr(
+    amount: number | undefined,
+    cuentaMoneda: string | undefined,
+    pagoMoneda: string | undefined,
+    tasaId?: string,
+  ): number {
+    return tcrNormalizeComponent(amount ?? 0, cuentaMoneda, pagoMoneda, tasaId, tasas, bcvRate, bcvEurRate, libreRate, tcrRate, tcrType);
+  }
+
+  let directAnual = 0;
+  let directMensual = 0;
+  let stAnual = 0;
+
+  function add(
+    amount: number | undefined,
+    freq: string | undefined,
+    cuentaMoneda: string | undefined,
+    pagoMoneda: string | undefined,
+    impacto: boolean | undefined,
+    tasaId?: string,
+  ) {
+    const tcrAmount = tcr(amount, cuentaMoneda, pagoMoneda, tasaId);
+    const annual = tcrAmount * freqToAnnual(freq);
+    directAnual += annual;
+    if (isMonthlyOrMore(freq)) directMensual += tcrAmount * (freqToAnnual(freq) / 12);
+    if (impacto) stAnual += annual;
+  }
+
+  // Fixed
+  add(row.sueldoBasico, row.sueldoBasicoFreq, row.sueldoBasicoCuentaMoneda, row.sueldoBasicoMonedaPago, row.sueldoBasicoImpacto, row.sueldoBasicoTasaId);
+  add(row.bonoAlimentacion, row.bonoAlimentacionFreq, row.bonoAlimentacionCuentaMoneda, row.bonoAlimentacionMonedaPago, row.bonoAlimentacionImpacto, row.bonoAlimentacionTasaId);
+  add(row.bonoMovilizacion, row.bonoMovilizacionFreq, row.bonoMovilizacionCuentaMoneda, row.bonoMovilizacionMonedaPago, row.bonoMovilizacionImpacto);
+  for (const p of row.additionalFixedPayments ?? []) {
+    add(p.amount, p.freq, p.accountCurrency, p.paymentCurrency, p.impacto, p.tasaId);
+  }
+
+  // Variable
+  add(row.bonoDesempeno, row.bonoDesempenoFreq, row.bonoDesempenoCuentaMoneda, row.bonoDesempenoMonedaPago, row.bonoDesempenoImpacto);
+  add(row.comisiones, row.comisionesFreq, row.comisionesCuentaMoneda, row.comisionesMonedaPago, row.comisionesImpacto);
+  add(row.pagoVariableOtros, row.pagoVariableOtrosFreq, row.pagoVariableOtrosCuentaMoneda, row.pagoVariableOtrosMonedaPago, row.pagoVariableOtrosImpacto);
+  for (const p of row.additionalVariablePayments ?? []) {
+    add(p.amount, p.freq, p.accountCurrency, p.paymentCurrency, p.impacto, p.tasaId);
+  }
+
+  const bonoVacacional = stAnual * (diasVacaciones / 360);
+  const utilidades = (stAnual + bonoVacacional) * (diasUtilidades / 360);
+  const prestaciones = (stAnual + bonoVacacional + utilidades) * (60 / 360);
+  const pasivosAnual = bonoVacacional + utilidades + prestaciones;
+
+  return {
+    totalSinPasivosMensual: Math.round(directMensual),
+    totalConPasivosMensual: Math.round((directAnual + pasivosAnual) / 12),
+    totalConPasivosAnual: Math.round(directAnual + pasivosAnual),
+    totalDirectoMensualizado: Math.round(directAnual / 12),
+  };
 }
 
 export function pct(values: number[], p: number): number {

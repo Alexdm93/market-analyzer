@@ -24,16 +24,83 @@ function getYouTubeId(url: string): string | null {
   return match?.[1] ?? null;
 }
 
-function MediaBlock({ mediaData, mediaUrl, title, compact = false }: { mediaData: string | null; mediaUrl: string | null; title: string; compact?: boolean }) {
+function TypePill({ type, inline = false }: { type: string; inline?: boolean }) {
+  const meta = getTypeMeta(type);
+  const Icon = meta.icon;
+  if (inline) {
+    return (
+      <span className={`text-xs font-semibold uppercase tracking-wide ${meta.color}`}>
+        {meta.label}
+      </span>
+    );
+  }
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
+      <Icon size={12} aria-hidden />
+      {meta.label}
+    </span>
+  );
+}
+
+function TypeBadge({ type }: { type: string }) {
+  const meta = getTypeMeta(type);
+  const Icon = meta.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${meta.color}`}>
+      <Icon size={11} aria-hidden />
+      {meta.label}
+    </span>
+  );
+}
+
+function MediaThumb({ mediaData, mediaUrl, title, className = "" }: { mediaData: string | null; mediaUrl: string | null; title: string; className?: string }) {
   if (mediaData) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={mediaData} alt={title} className={`w-full object-cover object-center ${compact ? "max-h-64" : "max-h-[28rem] rounded-[1.25rem]"}`} />;
+    return <img src={mediaData} alt={title} className={`h-full w-full object-cover object-center ${className}`} />;
   }
   if (mediaUrl) {
     const ytId = getYouTubeId(mediaUrl);
     if (ytId) {
       return (
-        <div className={`aspect-video ${!compact ? "rounded-[1.25rem] overflow-hidden" : ""}`}>
+        <iframe
+          src={`https://www.youtube.com/embed/${ytId}`}
+          title={title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className={`h-full w-full border-0 ${className}`}
+        />
+      );
+    }
+  }
+  return null;
+}
+
+function PlaceholderThumb({ type, className = "" }: { type: string; className?: string }) {
+  const meta = getTypeMeta(type);
+  const Icon = meta.icon;
+  const bg: Record<string, string> = {
+    noticia: "bg-teal-50",
+    fecha: "bg-amber-50",
+    aviso: "bg-slate-100",
+    presentacion: "bg-violet-50",
+  };
+  return (
+    <div className={`flex h-full w-full items-center justify-center ${bg[type] ?? "bg-slate-100"} ${className}`}>
+      <Icon size={28} className={`${meta.color} opacity-40`} aria-hidden />
+    </div>
+  );
+}
+
+function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; mediaUrl: string | null; title: string }) {
+  if (mediaData) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={mediaData} alt={title} className="max-h-[28rem] w-full rounded-[1.25rem] object-cover object-center" />;
+  }
+  if (mediaUrl) {
+    const ytId = getYouTubeId(mediaUrl);
+    if (ytId) {
+      return (
+        <div className="aspect-video overflow-hidden rounded-[1.25rem]">
           <iframe
             src={`https://www.youtube.com/embed/${ytId}`}
             title={title}
@@ -59,11 +126,7 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Announceme
   }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
         <button
@@ -74,12 +137,10 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Announceme
         >
           <X size={18} />
         </button>
-
         <div className="overflow-y-auto">
           {(announcement.mediaData || announcement.mediaUrl) && (
             <MediaBlock mediaData={announcement.mediaData} mediaUrl={announcement.mediaUrl} title={announcement.title} />
           )}
-
           <div className="px-6 py-6 md:px-8 md:py-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
@@ -99,6 +160,94 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Announceme
   );
 }
 
+function HeroCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
+  const hasMedia = !!(a.mediaData || a.mediaUrl);
+  return (
+    <article
+      className={`grid cursor-pointer transition-colors hover:bg-slate-50 ${hasMedia ? "md:grid-cols-[55%_1fr]" : ""}`}
+      onClick={() => onOpen(a)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(a); }}
+      aria-label={a.title}
+    >
+      {hasMedia && (
+        <div className="relative min-h-[220px] overflow-hidden md:min-h-[280px]">
+          <MediaThumb mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
+        </div>
+      )}
+      <div className={`flex flex-col justify-center px-7 py-8 ${!hasMedia ? "col-span-full" : ""}`}>
+        <h2 className="font-display text-2xl font-bold leading-snug text-slate-900 md:text-3xl">
+          {a.title}
+        </h2>
+        <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-500">{a.content}</p>
+        <div className="mt-5 flex items-center gap-3">
+          <TypeBadge type={a.type} />
+          {a.publishedAt && (
+            <time className="text-xs text-slate-400">{formatDate(a.publishedAt)}</time>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function StripCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
+  const hasMedia = !!(a.mediaData || a.mediaUrl);
+  return (
+    <article
+      className="cursor-pointer transition-colors hover:bg-slate-50"
+      onClick={() => onOpen(a)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(a); }}
+      aria-label={a.title}
+    >
+      <div className="relative h-[130px] w-full overflow-hidden">
+        {hasMedia
+          ? <MediaThumb mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
+          : <PlaceholderThumb type={a.type} />
+        }
+      </div>
+      <div className="px-4 pb-4 pt-3">
+        <p className="line-clamp-3 text-[13px] font-semibold leading-[1.4] text-slate-800">{a.title}</p>
+        <div className="mt-2">
+          <TypeBadge type={a.type} />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ListCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
+  const hasMedia = !!(a.mediaData || a.mediaUrl);
+  return (
+    <article
+      className="grid cursor-pointer grid-cols-[120px_1fr] gap-4 px-5 py-4 transition-colors hover:bg-slate-50 sm:grid-cols-[160px_1fr]"
+      onClick={() => onOpen(a)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(a); }}
+      aria-label={a.title}
+    >
+      <div className="relative h-[90px] overflow-hidden rounded-xl sm:h-[100px]">
+        {hasMedia
+          ? <MediaThumb mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
+          : <PlaceholderThumb type={a.type} className="rounded-xl" />
+        }
+      </div>
+      <div className="flex flex-col justify-center">
+        <TypePill type={a.type} inline />
+        <h3 className="mt-1 line-clamp-2 text-sm font-bold leading-snug text-slate-900">{a.title}</h3>
+        <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{a.content}</p>
+        {a.publishedAt && (
+          <time className="mt-1.5 text-[11px] text-slate-400">{formatDate(a.publishedAt)}</time>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export default function InicioPage() {
   const { announcements, markSeen } = useAnnouncements();
   const [selected, setSelected] = useState<Announcement | null>(null);
@@ -107,6 +256,10 @@ export default function InicioPage() {
     setSelected(a);
     markSeen(a.id);
   }
+
+  const hero  = announcements[0] ?? null;
+  const strip = announcements.slice(1, 6);
+  const list  = announcements.slice(6);
 
   return (
     <>
@@ -128,42 +281,34 @@ export default function InicioPage() {
             </section>
           )}
 
-          {announcements.length > 0 && (
-            <div className="columns-1 gap-5 md:columns-2 xl:columns-3">
-              {announcements.map((a) => {
-                const meta = getTypeMeta(a.type);
-                const Icon = meta.icon;
-                const hasMedia = !!(a.mediaData || a.mediaUrl);
+          {hero && (
+            <div className="surface-card overflow-hidden rounded-[2rem]">
+              <HeroCard a={hero} onOpen={openAnnouncement} />
 
-                return (
-                  <article
-                    key={a.id}
-                    className="surface-card mb-5 break-inside-avoid cursor-pointer overflow-hidden rounded-[2rem] transition-shadow hover:shadow-[0_16px_48px_rgba(24,52,45,0.12)]"
-                    onClick={() => openAnnouncement(a)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openAnnouncement(a); }}
-                  >
-                    {hasMedia && (
-                      <MediaBlock mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} compact />
-                    )}
+              {strip.length > 0 && (
+                <>
+                  <div className="border-t border-slate-100" />
+                  <div className={`grid divide-x divide-slate-100 ${
+                    strip.length === 1 ? "grid-cols-1" :
+                    strip.length === 2 ? "grid-cols-2" :
+                    strip.length === 3 ? "grid-cols-3" :
+                    strip.length === 4 ? "grid-cols-2 sm:grid-cols-4" :
+                    "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"
+                  }`}>
+                    {strip.map((a) => (
+                      <StripCard key={a.id} a={a} onOpen={openAnnouncement} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
-                    <div className="px-5 py-5 md:px-6 md:py-6">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
-                          <Icon size={12} aria-hidden />
-                          {meta.label}
-                        </span>
-                        {a.publishedAt && (
-                          <time className="text-xs text-slate-400">{formatDate(a.publishedAt)}</time>
-                        )}
-                      </div>
-                      <h2 className="mt-3 font-display text-base font-bold text-slate-900">{a.title}</h2>
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">{a.content}</p>
-                    </div>
-                  </article>
-                );
-              })}
+          {list.length > 0 && (
+            <div className="surface-card overflow-hidden rounded-[2rem] divide-y divide-slate-100">
+              {list.map((a) => (
+                <ListCard key={a.id} a={a} onOpen={openAnnouncement} />
+              ))}
             </div>
           )}
         </div>

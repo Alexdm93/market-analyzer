@@ -7,8 +7,10 @@ import { exportStyledExcel } from "@/lib/excel-export";
 import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { type Snapshot, type CompanyInfo, type ExchangeRate, EMPTY_COMPANY_INFO } from "@/lib/workspace";
-import { resolveRowTotals, PERCENTILE_MIN_N } from "@/lib/compensation";
+import { resolveRowTotals, computeTCRTotals, PERCENTILE_MIN_N, type TcrType } from "@/lib/compensation";
 import type { PercentilesGradeResponse } from "@/app/api/percentiles-by-grade/route";
+import type { TcrPercentilesResponse, TcrCargoPercentiles } from "@/app/api/percentiles-tcr/route";
+import type { TcrRatesResponse } from "@/app/api/tcr-rates/route";
 import { FmtMoney, fmtMoneyStr } from "@/components/FmtMoney";
 
 type AdminStudySnapshot = {
@@ -246,6 +248,21 @@ export default function EstudioPage() {
   const [userStudyView, setUserStudyView] = useState<"cargo" | "grado">("cargo");
   const [gradePercentileData, setGradePercentileData] = useState<PercentilesGradeResponse | null>(null);
   const [gradePercentilesLoading, setGradePercentilesLoading] = useState(false);
+  // TCR — user study
+  const [tcrEnabled, setTcrEnabled] = useState(false);
+  const [tcrType, setTcrType] = useState<TcrType>("bcv");
+  const [tcrPercentileData, setTcrPercentileData] = useState<TcrPercentilesResponse | null>(null);
+  const [tcrLoading, setTcrLoading] = useState(false);
+  // TCR system rates (fetched from API, read-only for users)
+  const [tcrRates, setTcrRates] = useState<{ bcvUsd: number | null; bcvEur: number | null; libre: number | null; libreUpdatedAt: string | null }>({ bcvUsd: null, bcvEur: null, libre: null, libreUpdatedAt: null });
+  // TCR admin config
+  const [adminTcrLibreInput, setAdminTcrLibreInput] = useState("");
+  const [adminTcrSaveStatus, setAdminTcrSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // TCR — admin study
+  const [adminTcrEnabled, setAdminTcrEnabled] = useState(false);
+  const [adminTcrType, setAdminTcrType] = useState<TcrType>("bcv");
+  const [adminTcrPercentileData, setAdminTcrPercentileData] = useState<TcrPercentilesResponse | null>(null);
+  const [adminTcrLoading, setAdminTcrLoading] = useState(false);
   const [publishedParticipatedSnapshotIds, setPublishedParticipatedSnapshotIds] = useState<string[]>([]);
   const [pendingSector, setPendingSector] = useState<string[]>([]);
   const [pendingSize, setPendingSize] = useState<string[]>([]);
@@ -473,6 +490,24 @@ export default function EstudioPage() {
     setAvailableUserCompanies([]);
   }, [selectedSnapshotId]);
 
+  // Load TCR system rates on mount (needed by both admin and user views)
+  useEffect(() => {
+    const url = isAdmin ? "/api/admin/tcr-rates" : "/api/tcr-rates";
+    void fetch(url, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((body: TcrRatesResponse | null) => {
+        if (!body) return;
+        setTcrRates({
+          bcvUsd:        body.bcvUsd?.rate ?? null,
+          bcvEur:        body.bcvEur?.rate ?? null,
+          libre:         body.libre?.rate  ?? null,
+          libreUpdatedAt: body.libre?.updatedAt ?? null,
+        });
+        if (body.libre?.rate) setAdminTcrLibreInput(String(body.libre.rate));
+      })
+      .catch(() => {});
+  }, [isAdmin]);
+
   useEffect(() => {
     if (isAdmin || !selectedSnapshotId) return;
     let ignore = false;
@@ -520,6 +555,43 @@ export default function EstudioPage() {
       .finally(() => { if (!ignore) setGradePercentilesLoading(false); });
     return () => { ignore = true; };
   }, [isAdmin, selectedSnapshotId, appliedSector, appliedSize, appliedCompany]);
+
+  // TCR percentile fetch for user — triggers when TCR is enabled and admin has set a libre rate
+  useEffect(() => {
+    if (isAdmin || !selectedSnapshotId || !tcrEnabled || !tcrRates.libre || tcrRates.libre <= 0) {
+      setTcrPercentileData(null);
+      return;
+    }
+    let ignore = false;
+    setTcrLoading(true);
+    const params = new URLSearchParams({ snapshotId: selectedSnapshotId, tcrType });
+    if (appliedSector.length  > 0) params.set("sectors",   appliedSector.join(","));
+    if (appliedSize.length    > 0) params.set("sizes",     appliedSize.join(","));
+    if (appliedCompany.length > 0) params.set("companies", appliedCompany.join(","));
+    void fetch(`/api/percentiles-tcr?${params.toString()}`, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((body: TcrPercentilesResponse | null) => { if (!ignore) setTcrPercentileData(body); })
+      .catch(() => {})
+      .finally(() => { if (!ignore) setTcrLoading(false); });
+    return () => { ignore = true; };
+  }, [isAdmin, selectedSnapshotId, tcrEnabled, tcrType, tcrRates.libre, appliedSector, appliedSize, appliedCompany]);
+
+  // TCR percentile fetch for admin study view
+  useEffect(() => {
+    if (!isAdmin || !selectedSnapshotId || !adminTcrEnabled || !tcrRates.libre || tcrRates.libre <= 0) {
+      setAdminTcrPercentileData(null);
+      return;
+    }
+    let ignore = false;
+    setAdminTcrLoading(true);
+    const params = new URLSearchParams({ snapshotId: selectedSnapshotId, tcrType: adminTcrType });
+    void fetch(`/api/percentiles-tcr?${params.toString()}`, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((body: TcrPercentilesResponse | null) => { if (!ignore) setAdminTcrPercentileData(body); })
+      .catch(() => {})
+      .finally(() => { if (!ignore) setAdminTcrLoading(false); });
+    return () => { ignore = true; };
+  }, [isAdmin, selectedSnapshotId, adminTcrEnabled, adminTcrType, tcrRates.libre]);
 
   useEffect(() => {
     if (!isAdmin || !selectedSnapshotId) return;
@@ -897,6 +969,31 @@ export default function EstudioPage() {
     return m;
   }, [percentileData]);
 
+  const parsedLibreRate = tcrRates.libre ?? 0;
+
+  const userTcrRowTotals = useMemo(() => {
+    if (!tcrEnabled || parsedLibreRate <= 0) return null;
+    const bcvRate = (() => {
+      const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
+      return Number.isFinite(v) && v > 0 ? v : null;
+    })();
+    const tcrRate = tcrType === "libre" ? parsedLibreRate
+      : tcrType === "euro"  ? (tcrRates.bcvEur ?? parsedLibreRate)
+      : (bcvRate ?? parsedLibreRate);
+    const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
+    const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
+    return rows.map((row) => ({
+      row,
+      totals: computeTCRTotals(row, tasas, bcvRate, tcrRates.bcvEur, parsedLibreRate, tcrRate, tcrType, diasVacaciones, diasUtilidades),
+    }));
+  }, [tcrEnabled, parsedLibreRate, tcrType, tcrRates.bcvEur, rows, tasas, companyInfo]);
+
+  const tcrMarketByTitle = useMemo(() => {
+    const m = new Map<string, TcrCargoPercentiles>();
+    (tcrPercentileData?.cargos ?? []).forEach((g) => m.set(g.tituloCargo.trim().toLowerCase(), g));
+    return m;
+  }, [tcrPercentileData]);
+
   async function exportUserExcel() {
     const allMetrics = [
       { key: "sinPasivosMensual",  label: "TEM"  },
@@ -1150,6 +1247,67 @@ export default function EstudioPage() {
             </div>
           </section>
 
+          {/* TCR rate configuration */}
+          <section className="surface-card rounded-[2rem] p-5 md:p-6">
+            <div className="eyebrow mb-3">Tasas TCR</div>
+            <div className="grid gap-3 sm:grid-cols-3 mb-5">
+              {[
+                { label: "BCV USD", value: tcrRates.bcvUsd },
+                { label: "BCV EUR", value: tcrRates.bcvEur },
+                { label: "Libre USD", value: tcrRates.libre, highlight: true },
+              ].map(({ label, value, highlight }) => (
+                <div key={label} className={`rounded-[1.1rem] px-4 py-3 ${highlight ? "bg-amber-50" : "bg-slate-50"}`}>
+                  <div className={`text-[0.65rem] font-bold uppercase tracking-wide mb-1 ${highlight ? "text-amber-700" : "text-slate-500"}`}>{label}</div>
+                  <div className={`font-display text-xl font-bold ${highlight ? "text-amber-700" : "text-slate-800"}`}>
+                    {value ? value.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[10rem]">
+                <label className="field-label">Tasa libre USD (diaria)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={0.01}
+                  value={adminTcrLibreInput}
+                  onChange={(e) => { setAdminTcrLibreInput(e.target.value); setAdminTcrSaveStatus("idle"); }}
+                  className="field w-full text-sm"
+                  placeholder="Ej: 316.50"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={adminTcrSaveStatus === "saving"}
+                onClick={async () => {
+                  const rate = Number(adminTcrLibreInput);
+                  if (!rate || rate <= 0) return;
+                  setAdminTcrSaveStatus("saving");
+                  try {
+                    const res = await fetch("/api/admin/tcr-rates", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ libreRate: rate }),
+                    });
+                    if (res.ok) {
+                      setTcrRates((prev) => ({ ...prev, libre: rate, libreUpdatedAt: new Date().toISOString() }));
+                      setAdminTcrSaveStatus("saved");
+                    } else { setAdminTcrSaveStatus("error"); }
+                  } catch { setAdminTcrSaveStatus("error"); }
+                }}
+                className={`btn ${adminTcrSaveStatus === "saved" ? "btn-secondary text-emerald-700" : "btn-primary"}`}
+              >
+                {adminTcrSaveStatus === "saving" ? "Guardando…" : adminTcrSaveStatus === "saved" ? "Guardado" : "Guardar tasa"}
+              </button>
+              {tcrRates.libreUpdatedAt && (
+                <span className="text-xs text-slate-400">
+                  Actualizada {new Date(tcrRates.libreUpdatedAt).toLocaleDateString("es-VE")} {new Date(tcrRates.libreUpdatedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}
+                </span>
+              )}
+            </div>
+          </section>
+
           {adminPositions.length === 0 ? (
             <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
               Selecciona un corte para revisar sus cargos consolidados.
@@ -1213,22 +1371,33 @@ export default function EstudioPage() {
                 </div>
               </section>
 
-              {/* View toggle */}
-              <div className="flex gap-1.5 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60 self-start">
+              {/* View toggle + TCR controls (admin) */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex gap-1.5 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
+                  <button type="button" onClick={() => setStudyView("cargo")} className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "cargo" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Por cargo</button>
+                  <button type="button" onClick={() => setStudyView("grado")} className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "grado" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Por grados</button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setStudyView("cargo")}
-                  className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "cargo" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                  onClick={() => setAdminTcrEnabled((v) => !v)}
+                  className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${adminTcrEnabled ? "bg-amber-600 text-white shadow-sm" : "surface-card text-slate-500 hover:text-slate-800"}`}
                 >
-                  Por cargo
+                  TCR {adminTcrEnabled ? "activado" : "desactivado"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setStudyView("grado")}
-                  className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "grado" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-                >
-                  Por grados
-                </button>
+                {adminTcrEnabled && (
+                  <>
+                    <div className="flex gap-1 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
+                      {(["bcv", "euro", "libre"] as const).map((t) => (
+                        <button key={t} type="button" onClick={() => setAdminTcrType(t)}
+                          className={`rounded-[0.9rem] px-3 py-1.5 text-sm font-semibold transition-colors ${adminTcrType === t ? "bg-amber-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
+                          {t === "bcv" ? "BCV USD" : t === "euro" ? "BCV EUR" : "Libre"}
+                        </button>
+                      ))}
+                    </div>
+                    {adminTcrLoading && <span className="text-xs text-slate-400">Calculando TCR…</span>}
+                    {!tcrRates.libre && <span className="text-xs text-amber-700">Configura la tasa libre antes de activar TCR</span>}
+                  </>
+                )}
               </div>
 
               {studyView === "cargo" ? (
@@ -1712,6 +1881,39 @@ export default function EstudioPage() {
           </div>
         </div>
 
+        {/* TCR controls */}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setTcrEnabled((v) => !v)}
+            className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+              tcrEnabled ? "bg-amber-600 text-white shadow-sm" : "surface-card text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            TCR {tcrEnabled ? "activado" : "desactivado"}
+          </button>
+          {tcrEnabled && (
+            <>
+              <div className="flex gap-1 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
+                {(["bcv", "euro", "libre"] as const).map((t) => (
+                  <button key={t} type="button" onClick={() => setTcrType(t)}
+                    className={`rounded-[0.9rem] px-3 py-1.5 text-sm font-semibold transition-colors ${tcrType === t ? "bg-amber-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
+                    {t === "bcv" ? "TCR-BCV USD" : t === "euro" ? "TCR-BCV EUR" : "TCR-Libre"}
+                  </button>
+                ))}
+              </div>
+              {tcrRates.libre && (
+                <span className="text-xs text-slate-400">
+                  Tasa libre: <strong className="text-slate-600">{tcrRates.libre.toLocaleString("es-VE", { minimumFractionDigits: 2 })}</strong>
+                  {tcrRates.libreUpdatedAt && ` · ${new Date(tcrRates.libreUpdatedAt).toLocaleDateString("es-VE")}`}
+                </span>
+              )}
+              {tcrLoading && <span className="text-xs text-slate-400">Calculando TCR…</span>}
+              {!tcrRates.libre && <span className="text-xs text-amber-700">La tasa libre aún no ha sido configurada por el administrador</span>}
+            </>
+          )}
+        </div>
+
         {userStudyView === "cargo" && userRowTotals.length === 0 ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
             No hay posiciones cargadas en este corte. Ve a{" "}
@@ -1736,7 +1938,11 @@ export default function EstudioPage() {
           <section className="surface-card overflow-hidden rounded-[2rem]">
             <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="eyebrow mb-2">Tabla comparativa</div>
+                <div className="eyebrow mb-2">
+                  {tcrEnabled
+                    ? `Tabla comparativa · ${tcrType === "bcv" ? "TCR-BCV USD" : tcrType === "euro" ? "TCR-BCV EUR" : "TCR-Libre"}`
+                    : "Tabla comparativa"}
+                </div>
                 <h2 className="font-display text-2xl font-bold text-slate-900">
                   {activeMetric === "sinPasivosMensual" && "TEM — Total Efectivo Mensual (USD)"}
                   {activeMetric === "directoMensualizado" && "TEMz — Total Efectivo Mensualizado (USD)"}
@@ -1769,9 +1975,15 @@ export default function EstudioPage() {
                 <tbody>
                   {userRowTotals.map(({ row, totals }) => {
                     const normTitle = (row.tituloCargo ?? "").trim().toLowerCase();
-                    const mkt = marketByTitle.get(normTitle);
-                    const mktData = mkt ? mkt[activeMetric] : null;
-                    const myValue = totals[METRIC_KEY[activeMetric]];
+                    // When TCR is active, use TCR market data and TCR user values
+                    const activeMkt = tcrEnabled && userTcrRowTotals
+                      ? tcrMarketByTitle.get(normTitle)
+                      : marketByTitle.get(normTitle);
+                    const mktData = activeMkt ? activeMkt[activeMetric] : null;
+                    const tcrTotals = tcrEnabled && userTcrRowTotals
+                      ? userTcrRowTotals.find((r) => r.row.id === row.id)?.totals
+                      : undefined;
+                    const myValue = (tcrTotals ?? totals)[METRIC_KEY[activeMetric]];
                     const position = mktData ? resolvePosition(myValue, mktData) : null;
                     const posColor =
                       position === "Sobre P90" || position === "P75–P90"
@@ -1789,7 +2001,7 @@ export default function EstudioPage() {
                           {row.tituloCargo || "Sin título"}
                         </td>
                         <td className="px-4 py-4 text-center font-semibold text-slate-600">
-                          {mkt ? mkt.n : "—"}
+                          {activeMkt ? activeMkt.n : "—"}
                         </td>
                         <td className="px-4 py-4 text-right font-display font-bold text-teal-700">
                           <FmtMoney value={myValue} />
@@ -1885,9 +2097,13 @@ export default function EstudioPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {gradePercentileData.grupos.map((g) => {
+                    {(tcrEnabled && tcrPercentileData?.grades?.length
+                      ? tcrPercentileData.grades
+                      : gradePercentileData.grupos
+                    ).map((g) => {
                       const mktData = g[activeMetric];
-                      const myRows  = userRowTotals.filter(({ row }) => row.hayGrade === g.grade);
+                      const activeRowTotals = tcrEnabled && userTcrRowTotals ? userTcrRowTotals : userRowTotals;
+                      const myRows  = activeRowTotals.filter(({ row }) => row.hayGrade === g.grade);
                       const myAvg   = myRows.length
                         ? Math.round(myRows.reduce((s, { totals }) => s + totals[METRIC_KEY[activeMetric]], 0) / myRows.length)
                         : null;
