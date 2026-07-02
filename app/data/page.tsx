@@ -1154,7 +1154,7 @@ export default function DataPage() {
 
                         {/* Tab: Identidad */}
                         {(activeTab[r.id] ?? "identidad") === "identidad" && (
-                          <div className="grid gap-3 md:grid-cols-3">
+                          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
                             <div>
                               <label className="field-label">Unidad / Departamento</label>
                               <input readOnly value={r.departamento || "—"} className="field bg-slate-100 text-sm w-full" aria-label="Unidad organizacional o departamento" />
@@ -1163,31 +1163,29 @@ export default function DataPage() {
                               <label className="field-label">Título del cargo</label>
                               <input readOnly value={r.tituloCargo || "—"} className="field bg-slate-100 text-sm w-full" aria-label="Título del cargo" />
                             </div>
-                            <div className="flex items-end gap-2">
-                              <div className="flex-1">
-                                <label className="field-label">Metodología CAPRI</label>
-                                <div className={`field flex items-center gap-2 bg-slate-50 text-sm select-none ${r.hayGrade ? "text-teal-700 font-semibold" : "text-slate-400"}`}>
-                                  {r.hayGrade ? (
-                                    <>
-                                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{r.hayGrade}</span>
-                                      Grado {r.hayGrade}
-                                    </>
-                                  ) : "Sin grado"}
-                                </div>
+                            <div>
+                              <label className="field-label">Metodología CAPRI</label>
+                              <div className={`field flex items-center gap-2 bg-slate-50 text-sm select-none ${r.hayGrade ? "text-teal-700 font-semibold" : "text-slate-400"}`}>
+                                {r.hayGrade ? (
+                                  <>
+                                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{r.hayGrade}</span>
+                                    Grado {r.hayGrade}
+                                  </>
+                                ) : "Sin grado"}
                               </div>
-                              {!isReadOnlyDataView && (
-                                <button
-                                  type="button"
-                                  onClick={() => setCapriModal({ rowIndex: i })}
-                                  className="btn btn-primary flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                                  title={r.hayGrade ? "Re-clasificar con CAPRI" : "Clasificar con CAPRI"}
-                                >
-                                  <Layers className="h-4 w-4" />
-                                  {r.hayGrade ? "Re-clasificar" : "Clasificar"}
-                                </button>
-                              )}
                             </div>
-                            <div className="md:col-span-3">
+                            {!isReadOnlyDataView && (
+                              <button
+                                type="button"
+                                onClick={() => setCapriModal({ rowIndex: i })}
+                                className="btn btn-primary flex items-center gap-1.5 whitespace-nowrap"
+                                title={r.hayGrade ? "Re-clasificar con CAPRI" : "Clasificar con CAPRI"}
+                              >
+                                <Layers className="h-4 w-4" />
+                                {r.hayGrade ? "Re-clasificar" : "Clasificar"}
+                              </button>
+                            )}
+                            <div className="md:col-span-4">
                               <label className="field-label">Descripción</label>
                               <textarea placeholder="Resume alcance, foco funcional y responsabilidades principales" value={r.descripcion} onChange={(e) => update(i, "descripcion", e.target.value)} className="field-textarea" />
                             </div>
