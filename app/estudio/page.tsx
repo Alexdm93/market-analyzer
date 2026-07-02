@@ -822,38 +822,47 @@ export default function EstudioPage() {
   }, [percentileData]);
 
   function exportUserExcel() {
-    const metricLabel = METRIC_LABEL[activeMetric];
-    const sheetRows = userRowTotals.map(({ row, totals }) => {
-      const normTitle = (row.tituloCargo ?? "").trim().toLowerCase();
-      const mkt = marketByTitle.get(normTitle);
-      const mktData = mkt ? mkt[activeMetric] : null;
-      const myValue = totals[METRIC_KEY[activeMetric]];
-      const position = mktData ? resolvePosition(myValue, mktData) : "—";
-      const nd = (v: number | null) => (v !== null ? v : null);
-      return {
-        Cargo: row.tituloCargo || "Sin título",
-        N: mkt ? mkt.n : null,
-        [`Mi valor (${metricLabel})`]: myValue || null,
-        P10: mktData ? nd(mktData.p10) : null,
-        P25: mktData ? nd(mktData.p25) : null,
-        P50: mktData ? nd(mktData.p50) : null,
-        P75: mktData ? nd(mktData.p75) : null,
-        P90: mktData ? nd(mktData.p90) : null,
-        Promedio: mktData ? nd(mktData.promedio) : null,
-        "Posición": position,
-      };
-    });
     const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
-    worksheet["!cols"] = [
-      { wch: 40 }, { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
-      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, worksheet, metricLabel);
+    const allMetrics = [
+      { key: "sinPasivosMensual", label: "TEM" },
+      { key: "directoMensualizado", label: "TEMz" },
+      { key: "conPasivosMensual", label: "CIM" },
+      { key: "conPasivosAnual", label: "PCTA" },
+    ] as const;
+
+    for (const { key, label } of allMetrics) {
+      const sheetRows = userRowTotals.map(({ row, totals }) => {
+        const normTitle = (row.tituloCargo ?? "").trim().toLowerCase();
+        const mkt = marketByTitle.get(normTitle);
+        const mktData = mkt ? mkt[key] : null;
+        const myValue = totals[METRIC_KEY[key]];
+        const position = mktData ? resolvePosition(myValue, mktData) : "—";
+        const nd = (v: number | null) => (v !== null ? v : null);
+        return {
+          Cargo: row.tituloCargo || "Sin título",
+          N: mkt ? mkt.n : null,
+          [`Mi valor (${label})`]: myValue || null,
+          P10: mktData ? nd(mktData.p10) : null,
+          P25: mktData ? nd(mktData.p25) : null,
+          P50: mktData ? nd(mktData.p50) : null,
+          P75: mktData ? nd(mktData.p75) : null,
+          P90: mktData ? nd(mktData.p90) : null,
+          Promedio: mktData ? nd(mktData.promedio) : null,
+          "Posición": position,
+        };
+      });
+      const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+      worksheet["!cols"] = [
+        { wch: 40 }, { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+        { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
+      ];
+      XLSX.utils.book_append_sheet(workbook, worksheet, label);
+    }
+
     const snapshotLabel = selectedSnapshotId
       ? sanitizeFileSegment(snapshots[selectedSnapshotId]?.label || selectedSnapshotId)
       : "estudio";
-    XLSX.writeFile(workbook, `posicionamiento-${metricLabel.toLowerCase()}-${snapshotLabel}.xlsx`);
+    XLSX.writeFile(workbook, `posicionamiento-${snapshotLabel}.xlsx`);
   }
 
   if (isAdmin) {
