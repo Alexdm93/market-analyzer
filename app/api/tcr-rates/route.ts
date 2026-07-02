@@ -1,13 +1,12 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getBcvRate, getBcvEuroRate } from "@/lib/bcv";
+import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { getLibreRate } from "@/lib/tcr-config";
 
-export type TcrRatesResponse = {
-  bcvUsd:    { rate: number | null; updatedAt: string | null };
-  bcvEur:    { rate: number | null; updatedAt: string | null };
-  libre:     { rate: number | null; updatedAt: string | null };
-};
+function autoLibre(binance: number | null, bcvEur: number | null): number | null {
+  if (binance && bcvEur) return Math.round(((binance + bcvEur) / 2) * 100) / 100;
+  return binance ?? bcvEur ?? null;
+}
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -15,11 +14,21 @@ export async function GET() {
     return Response.json({ message: "No autorizado." }, { status: 401 });
   }
 
-  const [bcvUsd, bcvEur, libre] = await Promise.all([
-    getBcvRate(),
-    getBcvEuroRate(),
-    getLibreRate(),
+  const [bcvUsd, bcvEur, binance, libreOverride] = await Promise.all([
+    getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
   ]);
 
-  return Response.json({ bcvUsd, bcvEur, libre } satisfies TcrRatesResponse);
+  const isManual  = libreOverride.rate !== null;
+  const libreRate = isManual ? libreOverride.rate : autoLibre(binance.rate, bcvEur.rate);
+
+  return Response.json({
+    bcvUsd,
+    bcvEur,
+    binance,
+    libre: {
+      rate:      libreRate,
+      updatedAt: isManual ? libreOverride.updatedAt : (binance.updatedAt ?? bcvEur.updatedAt),
+      isManual,
+    },
+  });
 }

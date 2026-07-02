@@ -136,10 +136,12 @@ export default function AdminPage() {
   // TCR rates
   const [tcrBcvUsd, setTcrBcvUsd] = useState<number | null>(null);
   const [tcrBcvEur, setTcrBcvEur] = useState<number | null>(null);
+  const [tcrBinance, setTcrBinance] = useState<number | null>(null);
   const [tcrLibre, setTcrLibre] = useState<number | null>(null);
+  const [tcrLibreIsManual, setTcrLibreIsManual] = useState(false);
   const [tcrLibreUpdatedAt, setTcrLibreUpdatedAt] = useState<string | null>(null);
   const [tcrLibreInput, setTcrLibreInput] = useState("");
-  const [tcrSaveStatus, setTcrSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [tcrSaveStatus, setTcrSaveStatus] = useState<"idle" | "saving" | "saved" | "error" | "resetting">("idle");
 
   useEffect(() => {
     let ignore = false;
@@ -262,13 +264,20 @@ export default function AdminPage() {
   useEffect(() => {
     void fetch("/api/admin/tcr-rates", { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((body: { bcvUsd?: { rate: number | null }; bcvEur?: { rate: number | null }; libre?: { rate: number | null; updatedAt: string | null } } | null) => {
+      .then((body: {
+        bcvUsd?:  { rate: number | null };
+        bcvEur?:  { rate: number | null };
+        binance?: { rate: number | null };
+        libre?:   { rate: number | null; updatedAt: string | null; isManual?: boolean };
+      } | null) => {
         if (!body) return;
         setTcrBcvUsd(body.bcvUsd?.rate ?? null);
         setTcrBcvEur(body.bcvEur?.rate ?? null);
+        setTcrBinance(body.binance?.rate ?? null);
         setTcrLibre(body.libre?.rate ?? null);
+        setTcrLibreIsManual(body.libre?.isManual ?? false);
         setTcrLibreUpdatedAt(body.libre?.updatedAt ?? null);
-        if (body.libre?.rate) setTcrLibreInput(String(body.libre.rate));
+        if (body.libre?.isManual && body.libre.rate) setTcrLibreInput(String(body.libre.rate));
       })
       .catch(() => {});
   }, []);
@@ -891,14 +900,20 @@ export default function AdminPage() {
         {/* TCR rate configuration */}
         <section className="surface-card overflow-hidden rounded-[1.75rem] p-5 md:p-6">
           <div className="eyebrow mb-4">Tasas TCR</div>
-          <div className="grid gap-3 sm:grid-cols-3 mb-5">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-5">
             {[
               { label: "BCV USD",   value: tcrBcvUsd },
               { label: "BCV EUR",   value: tcrBcvEur },
-              { label: "Libre USD", value: tcrLibre, highlight: true },
-            ].map(({ label, value, highlight }) => (
+              { label: "Binance",   value: tcrBinance },
+              { label: "Libre USD", value: tcrLibre, highlight: true, tag: tcrLibreIsManual ? "manual" : "auto" },
+            ].map(({ label, value, highlight, tag }) => (
               <div key={label} className={`rounded-[1.1rem] px-4 py-3 ${highlight ? "bg-amber-50" : "bg-slate-50"}`}>
-                <div className={`text-[0.65rem] font-bold uppercase tracking-wide mb-1 ${highlight ? "text-amber-700" : "text-slate-500"}`}>{label}</div>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className={`text-[0.65rem] font-bold uppercase tracking-wide ${highlight ? "text-amber-700" : "text-slate-500"}`}>{label}</span>
+                  {tag && (
+                    <span className={`text-[0.6rem] font-semibold rounded-full px-1.5 py-0.5 ${tag === "manual" ? "bg-amber-200 text-amber-800" : "bg-slate-200 text-slate-600"}`}>{tag}</span>
+                  )}
+                </div>
                 <div className={`font-display text-xl font-bold ${highlight ? "text-amber-700" : "text-slate-800"}`}>
                   {value != null ? value.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                 </div>
@@ -907,7 +922,7 @@ export default function AdminPage() {
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[10rem]">
-              <label className="field-label">Tasa libre USD (diaria)</label>
+              <label className="field-label">Override tasa libre (opcional)</label>
               <input
                 type="number"
                 min={1}
@@ -915,7 +930,7 @@ export default function AdminPage() {
                 value={tcrLibreInput}
                 onChange={(e) => { setTcrLibreInput(e.target.value); setTcrSaveStatus("idle"); }}
                 className="field w-full text-sm"
-                placeholder="Ej: 316.50"
+                placeholder={tcrLibre != null ? `Auto: ${tcrLibre.toLocaleString("es-VE", { minimumFractionDigits: 2 })}` : "Ej: 316.50"}
               />
             </div>
             <button
@@ -933,6 +948,7 @@ export default function AdminPage() {
                   });
                   if (res.ok) {
                     setTcrLibre(rate);
+                    setTcrLibreIsManual(true);
                     setTcrLibreUpdatedAt(new Date().toISOString());
                     setTcrSaveStatus("saved");
                   } else { setTcrSaveStatus("error"); }
@@ -940,11 +956,40 @@ export default function AdminPage() {
               }}
               className={`btn ${tcrSaveStatus === "saved" ? "btn-secondary text-emerald-700" : "btn-primary"}`}
             >
-              {tcrSaveStatus === "saving" ? "Guardando…" : tcrSaveStatus === "saved" ? "Guardado" : "Guardar tasa"}
+              {tcrSaveStatus === "saving" ? "Guardando…" : tcrSaveStatus === "saved" ? "Guardado" : "Guardar override"}
             </button>
+            {tcrLibreIsManual && (
+              <button
+                type="button"
+                disabled={tcrSaveStatus === "resetting"}
+                onClick={async () => {
+                  setTcrSaveStatus("resetting");
+                  try {
+                    const res = await fetch("/api/admin/tcr-rates", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ libreRate: null }),
+                    });
+                    if (res.ok) {
+                      const auto = (tcrBinance && tcrBcvEur)
+                        ? Math.round(((tcrBinance + tcrBcvEur) / 2) * 100) / 100
+                        : (tcrBinance ?? tcrBcvEur ?? null);
+                      setTcrLibre(auto);
+                      setTcrLibreIsManual(false);
+                      setTcrLibreInput("");
+                      setTcrSaveStatus("idle");
+                    }
+                  } catch { setTcrSaveStatus("idle"); }
+                }}
+                className="btn btn-secondary text-slate-600"
+              >
+                {tcrSaveStatus === "resetting" ? "Restableciendo…" : "Usar automático"}
+              </button>
+            )}
             {tcrLibreUpdatedAt && (
               <span className="text-xs text-slate-400">
-                Actualizada {new Date(tcrLibreUpdatedAt).toLocaleDateString("es-VE")} {new Date(tcrLibreUpdatedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}
+                {tcrLibreIsManual ? "Override " : "Auto "}
+                {new Date(tcrLibreUpdatedAt).toLocaleDateString("es-VE")} {new Date(tcrLibreUpdatedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}
               </span>
             )}
           </div>

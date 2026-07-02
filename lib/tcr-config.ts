@@ -19,3 +19,7 @@ export async function setLibreRate(rate: number): Promise<void> {
     update: { value: String(rate) },
   });
 }
+
+export async function clearLibreRate(): Promise<void> {
+  await prisma.globalConfig.deleteMany({ where: { key: LIBRE_KEY } });
+}

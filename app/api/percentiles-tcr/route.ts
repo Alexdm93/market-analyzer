@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { safeParseSnapshots, safeParseCompanyInfo } from "@/lib/workspace";
 import { computeTCRTotals, computeMetricPercentiles, type MetricPercentiles, type TcrType } from "@/lib/compensation";
-import { getBcvRate, getBcvEuroRate } from "@/lib/bcv";
+import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { getLibreRate } from "@/lib/tcr-config";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 
@@ -76,18 +76,23 @@ export async function GET(request: Request) {
     return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
   }
 
-  const [{ rate: bcvRate }, { rate: bcvEurRate }, { rate: libreRate }, workspaces] = await Promise.all([
+  const [{ rate: bcvRate }, { rate: bcvEurRate }, { rate: binanceRate }, { rate: libreOverride }, workspaces] = await Promise.all([
     getBcvRate(),
     getBcvEuroRate(),
+    getBinanceRate(),
     getLibreRate(),
     prisma.userWorkspace.findMany({
       select: { userId: true, snapshotsJson: true, companyInfoJson: true },
     }),
   ]);
 
-  // Tasa libre requerida para todos los tipos TCR (valora componentes pagados en USD)
+  // Auto-compute libre as avg(binance, bcvEur) if no manual override
+  const libreRate = libreOverride
+    ?? (binanceRate && bcvEurRate ? Math.round(((binanceRate + bcvEurRate) / 2) * 100) / 100
+      : binanceRate ?? bcvEurRate ?? null);
+
   if (!libreRate || libreRate <= 0) {
-    return Response.json({ message: "La tasa libre aún no ha sido configurada por el administrador." }, { status: 422 });
+    return Response.json({ message: "No hay tasas de mercado disponibles para calcular TCR. Intenta más tarde." }, { status: 422 });
   }
 
   // Verify the requesting user participated
