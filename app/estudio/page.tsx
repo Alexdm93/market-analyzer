@@ -3,7 +3,7 @@ import { ChevronDown, Database, Layers3, SlidersHorizontal } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import * as XLSX from "xlsx";
+import { exportStyledExcel } from "@/lib/excel-export";
 import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { type Snapshot, type CompanyInfo, type ExchangeRate, EMPTY_COMPANY_INFO } from "@/lib/workspace";
@@ -688,29 +688,33 @@ export default function EstudioPage() {
     }
   }
 
-  function exportAdminRawExcel(snapshotLabel: string, cargoTitle: string, positions: AdminStudyPosition[]) {
+  async function exportAdminRawExcel(snapshotLabel: string, cargoTitle: string, positions: AdminStudyPosition[]) {
     if (positions.length === 0) {
       setAdminMessage("No hay data cruda para exportar en el cargo seleccionado.");
       return;
     }
-    const sheetRows = positions.map((p) => ({
-      Empresa: p.companyName,
-      Cargo: p.title,
-      Nivel: p.level || "—",
-      TEM: Number(p.conceptValues?.["Sin pasivos — mensual"] ?? 0) || null,
-      TEMz: Number(p.conceptValues?.["Total directo mensualizado"] ?? 0) || null,
-      PCTA: Number(p.conceptValues?.["Con pasivos — anual"] ?? 0) || null,
-    }));
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
-    worksheet["!cols"] = [
-      { wch: 32 }, { wch: 32 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Data cruda");
-    XLSX.writeFile(workbook, `data-cruda-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`);
+    await exportStyledExcel([{
+      name: "Data cruda",
+      columns: [
+        { header: "Empresa", key: "empresa", width: 32, align: "left"  },
+        { header: "Cargo",   key: "cargo",   width: 32, align: "left"  },
+        { header: "Nivel",   key: "nivel",   width: 20, align: "left"  },
+        { header: "TEM",     key: "tem",     width: 16, align: "right" },
+        { header: "TEMz",    key: "temz",    width: 16, align: "right" },
+        { header: "PCTA",    key: "pcta",    width: 16, align: "right" },
+      ],
+      rows: positions.map((p) => ({
+        empresa: p.companyName,
+        cargo:   p.title,
+        nivel:   p.level || "—",
+        tem:     Number(p.conceptValues?.["Sin pasivos — mensual"]      ?? 0) || null,
+        temz:    Number(p.conceptValues?.["Total directo mensualizado"] ?? 0) || null,
+        pcta:    Number(p.conceptValues?.["Con pasivos — anual"]        ?? 0) || null,
+      })),
+    }], `data-cruda-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`);
   }
 
-  function exportAdminProcessedExcel(snapshotLabel: string, cargoTitle: string, positions: AdminStudyPosition[]) {
+  async function exportAdminProcessedExcel(snapshotLabel: string, cargoTitle: string, positions: AdminStudyPosition[]) {
     const sheetRows = COMPENSATION_METRIC_KEYS.map((key) => {
       const values = positions
         .map((p) => Number(p.conceptValues?.[key] ?? 0))
@@ -718,34 +722,42 @@ export default function EstudioPage() {
       const n = values.length;
       const pct = (q: number) => n > 0 ? Math.round(percentile(values, q)) : null;
       return {
-        Concepto: COMPENSATION_METRIC_LABELS[key],
-        N: n,
-        Promedio: n >= PERCENTILE_MIN_N.promedio ? Math.round(values.reduce((a, b) => a + b, 0) / n) : null,
-        Min: n ? Math.min(...values) : null,
-        P10: n >= PERCENTILE_MIN_N.p10 ? pct(10) : null,
-        P25: n >= PERCENTILE_MIN_N.p25 ? pct(25) : null,
-        P50: n >= PERCENTILE_MIN_N.p50 ? pct(50) : null,
-        P75: n >= PERCENTILE_MIN_N.p75 ? pct(75) : null,
-        P90: n >= PERCENTILE_MIN_N.p90 ? pct(90) : null,
-        Max: n ? Math.max(...values) : null,
+        concepto: COMPENSATION_METRIC_LABELS[key],
+        n,
+        promedio: n >= PERCENTILE_MIN_N.promedio ? Math.round(values.reduce((a, b) => a + b, 0) / n) : null,
+        min:      n ? Math.min(...values) : null,
+        p10:      n >= PERCENTILE_MIN_N.p10 ? pct(10) : null,
+        p25:      n >= PERCENTILE_MIN_N.p25 ? pct(25) : null,
+        p50:      n >= PERCENTILE_MIN_N.p50 ? pct(50) : null,
+        p75:      n >= PERCENTILE_MIN_N.p75 ? pct(75) : null,
+        p90:      n >= PERCENTILE_MIN_N.p90 ? pct(90) : null,
+        max:      n ? Math.max(...values) : null,
       };
-    }).filter((r) => r.N > 0);
+    }).filter((r) => r.n > 0);
 
     if (sheetRows.length === 0) {
       setAdminMessage("No hay percentiles procesados para exportar en el cargo seleccionado.");
       return;
     }
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
-    worksheet["!cols"] = [
-      { wch: 46 }, { wch: 6 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Percentiles");
-    XLSX.writeFile(workbook, `percentiles-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`);
+    await exportStyledExcel([{
+      name: "Percentiles",
+      columns: [
+        { header: "Concepto", key: "concepto", width: 46, align: "left"   },
+        { header: "N",        key: "n",        width: 8,  align: "center" },
+        { header: "Promedio", key: "promedio", width: 14, align: "right"  },
+        { header: "Min",      key: "min",      width: 14, align: "right"  },
+        { header: "P10",      key: "p10",      width: 14, align: "right"  },
+        { header: "P25",      key: "p25",      width: 14, align: "right"  },
+        { header: "P50",      key: "p50",      width: 14, align: "right"  },
+        { header: "P75",      key: "p75",      width: 14, align: "right"  },
+        { header: "P90",      key: "p90",      width: 14, align: "right"  },
+        { header: "Max",      key: "max",      width: 14, align: "right"  },
+      ],
+      rows: sheetRows,
+    }], `percentiles-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`);
   }
 
-  function exportAdminGradosExcel(snapshotLabel: string, positions: AdminStudyPosition[]) {
+  async function exportAdminGradosExcel(snapshotLabel: string, positions: AdminStudyPosition[]) {
     const companyMap = new Map<string, Set<string>>();
     const valMap = new Map<string, number[]>();
     positions.forEach((p) => {
@@ -761,16 +773,16 @@ export default function EstudioPage() {
       const totals = valMap.get(nivel) ?? [];
       if (!totals.length) return null;
       return {
-        Grado: nivel,
-        Empresas: companyMap.get(nivel)?.size ?? 0,
-        Observaciones: totals.length,
-        Min: Math.min(...totals),
-        P25: Math.round(percentile(totals, 25)),
-        P50: Math.round(percentile(totals, 50)),
-        P75: Math.round(percentile(totals, 75)),
-        P90: Math.round(percentile(totals, 90)),
-        Max: Math.max(...totals),
-        Promedio: Math.round(totals.reduce((a, b) => a + b, 0) / totals.length),
+        grado:        nivel,
+        empresas:     companyMap.get(nivel)?.size ?? 0,
+        observaciones:totals.length,
+        min:          Math.min(...totals),
+        p25:          Math.round(percentile(totals, 25)),
+        p50:          Math.round(percentile(totals, 50)),
+        p75:          Math.round(percentile(totals, 75)),
+        p90:          Math.round(percentile(totals, 90)),
+        max:          Math.max(...totals),
+        promedio:     Math.round(totals.reduce((a, b) => a + b, 0) / totals.length),
       };
     }).filter(Boolean);
 
@@ -778,14 +790,22 @@ export default function EstudioPage() {
       setAdminMessage("No hay data de grados para exportar.");
       return;
     }
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
-    worksheet["!cols"] = [
-      { wch: 20 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Por grados");
-    XLSX.writeFile(workbook, `grados-${sanitizeFileSegment(snapshotLabel)}.xlsx`);
+    await exportStyledExcel([{
+      name: "Por grados",
+      columns: [
+        { header: "Grado",        key: "grado",         width: 20, align: "left"   },
+        { header: "Empresas",     key: "empresas",      width: 12, align: "center" },
+        { header: "Obs.",         key: "observaciones", width: 10, align: "center" },
+        { header: "Min",          key: "min",           width: 14, align: "right"  },
+        { header: "P25",          key: "p25",           width: 14, align: "right"  },
+        { header: "P50",          key: "p50",           width: 14, align: "right"  },
+        { header: "P75",          key: "p75",           width: 14, align: "right"  },
+        { header: "P90",          key: "p90",           width: 14, align: "right"  },
+        { header: "Max",          key: "max",           width: 14, align: "right"  },
+        { header: "Promedio",     key: "promedio",      width: 14, align: "right"  },
+      ],
+      rows: sheetRows as Record<string, string | number | null | undefined>[],
+    }], `grados-${sanitizeFileSegment(snapshotLabel)}.xlsx`);
   }
 
   const METRIC_KEY = {
@@ -821,48 +841,53 @@ export default function EstudioPage() {
     return m;
   }, [percentileData]);
 
-  function exportUserExcel() {
-    const workbook = XLSX.utils.book_new();
+  async function exportUserExcel() {
     const allMetrics = [
-      { key: "sinPasivosMensual", label: "TEM" },
-      { key: "directoMensualizado", label: "TEMz" },
-      { key: "conPasivosMensual", label: "CIM" },
-      { key: "conPasivosAnual", label: "PCTA" },
+      { key: "sinPasivosMensual",  label: "TEM"  },
+      { key: "directoMensualizado",label: "TEMz" },
+      { key: "conPasivosMensual",  label: "CIM"  },
+      { key: "conPasivosAnual",    label: "PCTA" },
     ] as const;
 
-    for (const { key, label } of allMetrics) {
-      const sheetRows = userRowTotals.map(({ row, totals }) => {
+    const sheets = allMetrics.map(({ key, label }) => ({
+      name: label,
+      columns: [
+        { header: "Cargo",              key: "cargo",    width: 40, align: "left"   as const },
+        { header: "N",                  key: "n",        width: 8,  align: "center" as const },
+        { header: `Mi valor (${label})`,key: "miValor",  width: 16, align: "right"  as const },
+        { header: "P10",                key: "p10",      width: 14, align: "right"  as const },
+        { header: "P25",                key: "p25",      width: 14, align: "right"  as const },
+        { header: "P50",                key: "p50",      width: 14, align: "right"  as const },
+        { header: "P75",                key: "p75",      width: 14, align: "right"  as const },
+        { header: "P90",                key: "p90",      width: 14, align: "right"  as const },
+        { header: "Promedio",           key: "promedio", width: 14, align: "right"  as const },
+        { header: "Posición",           key: "posicion", width: 20, align: "left"   as const },
+      ],
+      rows: userRowTotals.map(({ row, totals }) => {
         const normTitle = (row.tituloCargo ?? "").trim().toLowerCase();
         const mkt = marketByTitle.get(normTitle);
         const mktData = mkt ? mkt[key] : null;
         const myValue = totals[METRIC_KEY[key]];
-        const position = mktData ? resolvePosition(myValue, mktData) : "—";
-        const nd = (v: number | null) => (v !== null ? v : null);
+        const nd = (v: number | null) => v ?? null;
         return {
-          Cargo: row.tituloCargo || "Sin título",
-          N: mkt ? mkt.n : null,
-          [`Mi valor (${label})`]: myValue || null,
-          P10: mktData ? nd(mktData.p10) : null,
-          P25: mktData ? nd(mktData.p25) : null,
-          P50: mktData ? nd(mktData.p50) : null,
-          P75: mktData ? nd(mktData.p75) : null,
-          P90: mktData ? nd(mktData.p90) : null,
-          Promedio: mktData ? nd(mktData.promedio) : null,
-          "Posición": position,
+          cargo:    row.tituloCargo || "Sin título",
+          n:        mkt ? mkt.n : null,
+          miValor:  myValue || null,
+          p10:      mktData ? nd(mktData.p10)      : null,
+          p25:      mktData ? nd(mktData.p25)      : null,
+          p50:      mktData ? nd(mktData.p50)      : null,
+          p75:      mktData ? nd(mktData.p75)      : null,
+          p90:      mktData ? nd(mktData.p90)      : null,
+          promedio: mktData ? nd(mktData.promedio) : null,
+          posicion: mktData ? resolvePosition(myValue, mktData) : "—",
         };
-      });
-      const worksheet = XLSX.utils.json_to_sheet(sheetRows);
-      worksheet["!cols"] = [
-        { wch: 40 }, { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
-        { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
-      ];
-      XLSX.utils.book_append_sheet(workbook, worksheet, label);
-    }
+      }),
+    }));
 
     const snapshotLabel = selectedSnapshotId
       ? sanitizeFileSegment(snapshots[selectedSnapshotId]?.label || selectedSnapshotId)
       : "estudio";
-    XLSX.writeFile(workbook, `posicionamiento-${snapshotLabel}.xlsx`);
+    await exportStyledExcel(sheets, `posicionamiento-${snapshotLabel}.xlsx`);
   }
 
   if (isAdmin) {
@@ -1149,7 +1174,7 @@ export default function EstudioPage() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
+                          onClick={() => void exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
                           className="btn btn-secondary"
                         >
                           Exportar Excel
@@ -1213,7 +1238,7 @@ export default function EstudioPage() {
                           <div className="pill">Procesada</div>
                           <button
                             type="button"
-                            onClick={() => exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
+                            onClick={() => void exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
                             className="btn btn-secondary"
                           >
                             Exportar Excel
@@ -1295,7 +1320,7 @@ export default function EstudioPage() {
                       {hasActiveFilters && <div className="pill">Filtrado</div>}
                       <button
                         type="button"
-                        onClick={() => exportAdminGradosExcel(selectedAdminSnapshot?.label || "corte", filteredPositions)}
+                        onClick={() => void exportAdminGradosExcel(selectedAdminSnapshot?.label || "corte", filteredPositions)}
                         className="btn btn-secondary"
                       >
                         Exportar Excel
@@ -1502,6 +1527,13 @@ export default function EstudioPage() {
               >
                 Abrir en Suministro de Data
               </button>
+              <button
+                type="button"
+                onClick={() => void exportUserExcel()}
+                className="btn btn-secondary mt-3 w-full"
+              >
+                Exportar a Excel
+              </button>
             </div>
           </div>
         </section>
@@ -1562,18 +1594,9 @@ export default function EstudioPage() {
                   {activeMetric === "conPasivosAnual" && "PCTA — Paquete de Compensación Total Anual (USD)"}
                 </h2>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="pill">
-                  <Layers3 size={14} aria-hidden />
-                  ND = muestra insuficiente
-                </div>
-                <button
-                  type="button"
-                  onClick={exportUserExcel}
-                  className="btn btn-secondary"
-                >
-                  Exportar a Excel
-                </button>
+              <div className="pill">
+                <Layers3 size={14} aria-hidden />
+                ND = muestra insuficiente
               </div>
             </div>
 

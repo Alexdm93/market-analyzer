@@ -1,5 +1,5 @@
 "use client";
-import * as XLSX from "xlsx";
+import { exportStyledExcel } from "@/lib/excel-export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -845,34 +845,33 @@ export default function DataPage() {
   // legacy save function removed (use snapshots / saveCurrentToSnapshot instead)
 
 
-  function exportJSON() {
+  async function exportJSON() {
     const _bcvRate = (() => { const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor); return Number.isFinite(v) && v > 0 ? v : null; })();
     const diasVac = Number(companyInfo.minVacationDays) || 0;
     const diasUtil = Number(companyInfo.minUtilityDays) || 0;
-    const sheetRows = rows.map((row) => {
-      const totals = resolveRowTotals(row, tasas, _bcvRate, diasVac, diasUtil);
-      return {
-        "Cargo": row.tituloCargo ?? "",
-        "Nivel": row.nivelOrganizacional ?? "",
-        "Clasificación": row.clasificacion ?? "",
-        "TEM (USD)": totals.totalSinPasivosMensual || null,
-        "PCTA (USD)": totals.totalConPasivosAnual || null,
-      };
-    });
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
-    worksheet["!cols"] = [
-      { wch: 40 },
-      { wch: 32 },
-      { wch: 32 },
-      { wch: 14 },
-      { wch: 14 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Cargos");
     const snapshotLabel = selectedSnapshotId
       ? (snapshots[selectedSnapshotId]?.label || selectedSnapshotId).replace(/[^a-zA-Z0-9-_]/g, "-").toLowerCase()
       : "data";
-    XLSX.writeFile(workbook, `cargos-${snapshotLabel}.xlsx`);
+    await exportStyledExcel([{
+      name: "Cargos",
+      columns: [
+        { header: "Cargo",        key: "cargo",        width: 40, align: "left"  },
+        { header: "Nivel",        key: "nivel",        width: 32, align: "left"  },
+        { header: "Clasificación",key: "clasificacion",width: 32, align: "left"  },
+        { header: "TEM (USD)",    key: "tem",          width: 14, align: "right" },
+        { header: "PCTA (USD)",   key: "pcta",         width: 14, align: "right" },
+      ],
+      rows: rows.map((row) => {
+        const totals = resolveRowTotals(row, tasas, _bcvRate, diasVac, diasUtil);
+        return {
+          cargo:        row.tituloCargo         ?? "",
+          nivel:        row.nivelOrganizacional ?? "",
+          clasificacion:row.clasificacion       ?? "",
+          tem:          totals.totalSinPasivosMensual || null,
+          pcta:         totals.totalConPasivosAnual   || null,
+        };
+      }),
+    }], `cargos-${snapshotLabel}.xlsx`);
     void fetch("/api/workspace/track-export", { method: "POST" });
   }
 

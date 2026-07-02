@@ -1,5 +1,5 @@
 "use client";
-import * as XLSX from "xlsx";
+import { exportStyledExcel } from "@/lib/excel-export";
 import { Database, FileSpreadsheet, Loader2, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -176,31 +176,37 @@ export default function ResultadosPage() {
       .sort((a, b) => b.count - a.count);
   }, [rows, percentileData, selectedSnapshotId, isAdmin, isPublished]);
 
-  function exportExcel() {
+  async function exportExcel() {
     const selectedSnapshot = selectedSnapshotId ? snapshots[selectedSnapshotId] : undefined;
     const label = selectedSnapshot ? getDisplayLabel(selectedSnapshot) : selectedSnapshotId;
     const safeLabel = label.replace(/[^a-zA-Z0-9-_]/g, "-").toLowerCase();
-    const sheetRows = groups.map((g) => ({
-      Cargo: g.tituloCargo,
-      Observaciones: g.count || null,
-      "CIM — P50": g.cim_p50Raw || null,
-      "CIM — Promedio": g.cim_promedioRaw || null,
-      "CIM — Mínimo": g.cim_minRaw || null,
-      "CIM — Máximo": g.cim_maxRaw || null,
-      "PCTA — P50": g.pcta_p50Raw || null,
-      "PCTA — Promedio": g.pcta_promedioRaw || null,
-      "PCTA — Mínimo": g.pcta_minRaw || null,
-      "PCTA — Máximo": g.pcta_maxRaw || null,
-    }));
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
-    worksheet["!cols"] = [
-      { wch: 36 }, { wch: 14 },
-      { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
-      { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Resultados");
-    XLSX.writeFile(workbook, `resultados-${safeLabel}.xlsx`);
+    await exportStyledExcel([{
+      name: "Resultados",
+      columns: [
+        { header: "Cargo",          key: "cargo",        width: 36, align: "left"   },
+        { header: "Obs.",           key: "obs",          width: 8,  align: "center" },
+        { header: "CIM — P50",      key: "cim_p50",      width: 16, align: "right"  },
+        { header: "CIM — Promedio", key: "cim_promedio", width: 16, align: "right"  },
+        { header: "CIM — Mínimo",   key: "cim_min",      width: 14, align: "right"  },
+        { header: "CIM — Máximo",   key: "cim_max",      width: 14, align: "right"  },
+        { header: "PCTA — P50",     key: "pcta_p50",     width: 16, align: "right"  },
+        { header: "PCTA — Promedio",key: "pcta_promedio",width: 16, align: "right"  },
+        { header: "PCTA — Mínimo",  key: "pcta_min",     width: 14, align: "right"  },
+        { header: "PCTA — Máximo",  key: "pcta_max",     width: 14, align: "right"  },
+      ],
+      rows: groups.map((g) => ({
+        cargo:        g.tituloCargo,
+        obs:          g.count || null,
+        cim_p50:      g.cim_p50Raw      || null,
+        cim_promedio: g.cim_promedioRaw || null,
+        cim_min:      g.cim_minRaw      || null,
+        cim_max:      g.cim_maxRaw      || null,
+        pcta_p50:     g.pcta_p50Raw     || null,
+        pcta_promedio:g.pcta_promedioRaw|| null,
+        pcta_min:     g.pcta_minRaw     || null,
+        pcta_max:     g.pcta_maxRaw     || null,
+      })),
+    }], `resultados-${safeLabel}.xlsx`);
   }
 
   const totalObservations = groups.reduce((acc, g) => acc + g.count, 0);
