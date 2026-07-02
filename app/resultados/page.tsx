@@ -300,7 +300,7 @@ export default function ResultadosPage() {
           <section className="surface-card overflow-hidden rounded-[2rem]">
             <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="eyebrow mb-2">Tabla comparativa — PCTA</div>
+                <div className="eyebrow mb-2">Tabla comparativa — CIM y PCTA</div>
                 <h2 className="font-display text-2xl font-bold text-slate-900">Métricas por cargo</h2>
               </div>
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -310,32 +310,36 @@ export default function ResultadosPage() {
             </div>
 
             <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
-              <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+              <table className="min-w-full border-separate border-spacing-y-0 text-sm">
                 <thead>
-                  <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                    <th className="px-4 py-2">Cargo</th>
-                    <th className="px-4 py-2 text-center">Obs.</th>
-                    <th className="px-4 py-2 text-right text-teal-600">CIM P50</th>
-                    <th className="px-4 py-2 text-right text-teal-600">CIM Prom.</th>
-                    <th className="px-4 py-2 text-right text-teal-600">CIM Min</th>
-                    <th className="px-4 py-2 text-right text-teal-600">CIM Max</th>
-                    <th className="px-4 py-2 text-right text-amber-600">PCTA P50</th>
-                    <th className="px-4 py-2 text-right text-amber-600">PCTA Prom.</th>
-                    <th className="px-4 py-2 text-right text-amber-600">PCTA Min</th>
-                    <th className="px-4 py-2 text-right text-amber-600">PCTA Max</th>
+                  <tr className="text-xs font-extrabold uppercase tracking-[0.14em]">
+                    <th className="px-4 py-2 text-left text-slate-500" rowSpan={2}>Cargo</th>
+                    <th className="px-4 py-2 text-center text-slate-500" rowSpan={2}>Obs.</th>
+                    <th colSpan={4} className="rounded-t-[0.75rem] bg-blue-600 px-4 py-2 text-center text-white">CIM</th>
+                    <th colSpan={4} className="rounded-t-[0.75rem] bg-teal-700 px-4 py-2 text-center text-white">PCTA</th>
+                  </tr>
+                  <tr className="text-xs font-bold uppercase tracking-[0.13em] text-slate-500">
+                    <th className="bg-blue-50 px-4 py-2 text-right">P50</th>
+                    <th className="bg-blue-50 px-4 py-2 text-right">Promedio</th>
+                    <th className="bg-blue-50 px-4 py-2 text-right">Min</th>
+                    <th className="bg-blue-50 px-4 py-2 text-right">Max</th>
+                    <th className="bg-teal-50 px-4 py-2 text-right">P50</th>
+                    <th className="bg-teal-50 px-4 py-2 text-right">Promedio</th>
+                    <th className="bg-teal-50 px-4 py-2 text-right">Min</th>
+                    <th className="rounded-b-[0rem] bg-teal-50 px-4 py-2 text-right">Max</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="[&>tr:first-child>td]:pt-5">
                   {groups.map((g) => (
                     <tr key={g.tituloCargo} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
                       <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{g.tituloCargo}</td>
                       <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.count}</td>
-                      <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{g.cim_p50}</td>
-                      <td className="px-4 py-4 text-right font-display text-teal-600">{g.cim_promedio}</td>
+                      <td className="px-4 py-4 text-right font-display font-semibold text-slate-800">{g.cim_p50}</td>
+                      <td className="px-4 py-4 text-right font-display text-slate-700">{g.cim_promedio}</td>
                       <td className="px-4 py-4 text-right font-display text-slate-500">{g.cim_min}</td>
                       <td className="px-4 py-4 text-right font-display text-slate-500">{g.cim_max}</td>
-                      <td className="px-4 py-4 text-right font-display font-semibold text-amber-700">{g.pcta_p50}</td>
-                      <td className="px-4 py-4 text-right font-display text-amber-600">{g.pcta_promedio}</td>
+                      <td className="px-4 py-4 text-right font-display font-semibold text-slate-800">{g.pcta_p50}</td>
+                      <td className="px-4 py-4 text-right font-display text-slate-700">{g.pcta_promedio}</td>
                       <td className="px-4 py-4 text-right font-display text-slate-500">{g.pcta_min}</td>
                       <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-slate-500">{g.pcta_max}</td>
                     </tr>
