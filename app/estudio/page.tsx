@@ -10,7 +10,6 @@ import { type Snapshot, type CompanyInfo, type ExchangeRate, EMPTY_COMPANY_INFO 
 import { resolveRowTotals, computeTCRTotals, PERCENTILE_MIN_N, type TcrType } from "@/lib/compensation";
 import type { PercentilesGradeResponse } from "@/app/api/percentiles-by-grade/route";
 import type { TcrPercentilesResponse, TcrCargoPercentiles } from "@/app/api/percentiles-tcr/route";
-import type { TcrRatesResponse } from "@/app/api/tcr-rates/route";
 import { FmtMoney, fmtMoneyStr } from "@/components/FmtMoney";
 
 type AdminStudySnapshot = {
@@ -253,11 +252,8 @@ export default function EstudioPage() {
   const [tcrType, setTcrType] = useState<TcrType>("bcv");
   const [tcrPercentileData, setTcrPercentileData] = useState<TcrPercentilesResponse | null>(null);
   const [tcrLoading, setTcrLoading] = useState(false);
-  // TCR system rates (fetched from API, read-only for users)
-  const [tcrRates, setTcrRates] = useState<{ bcvUsd: number | null; bcvEur: number | null; libre: number | null; libreUpdatedAt: string | null }>({ bcvUsd: null, bcvEur: null, libre: null, libreUpdatedAt: null });
-  // TCR admin config
-  const [adminTcrLibreInput, setAdminTcrLibreInput] = useState("");
-  const [adminTcrSaveStatus, setAdminTcrSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // TCR libre rate (fetched from API; BCV USD/EUR come from tasas array)
+  const [tcrRates, setTcrRates] = useState<{ libre: number | null; libreUpdatedAt: string | null }>({ libre: null, libreUpdatedAt: null });
   // TCR — admin study
   const [adminTcrEnabled, setAdminTcrEnabled] = useState(false);
   const [adminTcrType, setAdminTcrType] = useState<TcrType>("bcv");
@@ -490,20 +486,17 @@ export default function EstudioPage() {
     setAvailableUserCompanies([]);
   }, [selectedSnapshotId]);
 
-  // Load TCR system rates on mount (needed by both admin and user views)
+  // Load TCR libre rate on mount (BCV USD/EUR come from tasas array)
   useEffect(() => {
     const url = isAdmin ? "/api/admin/tcr-rates" : "/api/tcr-rates";
     void fetch(url, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((body: TcrRatesResponse | null) => {
+      .then((body: { libre?: { rate: number | null; updatedAt: string | null } } | null) => {
         if (!body) return;
         setTcrRates({
-          bcvUsd:        body.bcvUsd?.rate ?? null,
-          bcvEur:        body.bcvEur?.rate ?? null,
           libre:         body.libre?.rate  ?? null,
           libreUpdatedAt: body.libre?.updatedAt ?? null,
         });
-        if (body.libre?.rate) setAdminTcrLibreInput(String(body.libre.rate));
       })
       .catch(() => {});
   }, [isAdmin]);
@@ -977,16 +970,20 @@ export default function EstudioPage() {
       const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
       return Number.isFinite(v) && v > 0 ? v : null;
     })();
+    const bcvEurRate = (() => {
+      const v = Number(tasas.find((t) => t.id === "bcv-eur")?.valor);
+      return Number.isFinite(v) && v > 0 ? v : null;
+    })();
     const tcrRate = tcrType === "libre" ? parsedLibreRate
-      : tcrType === "euro"  ? (tcrRates.bcvEur ?? parsedLibreRate)
+      : tcrType === "euro"  ? (bcvEurRate ?? parsedLibreRate)
       : (bcvRate ?? parsedLibreRate);
     const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
     const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
     return rows.map((row) => ({
       row,
-      totals: computeTCRTotals(row, tasas, bcvRate, tcrRates.bcvEur, parsedLibreRate, tcrRate, tcrType, diasVacaciones, diasUtilidades),
+      totals: computeTCRTotals(row, tasas, bcvRate, bcvEurRate, parsedLibreRate, tcrRate, tcrType, diasVacaciones, diasUtilidades),
     }));
-  }, [tcrEnabled, parsedLibreRate, tcrType, tcrRates.bcvEur, rows, tasas, companyInfo]);
+  }, [tcrEnabled, parsedLibreRate, tcrType, rows, tasas, companyInfo]);
 
   const tcrMarketByTitle = useMemo(() => {
     const m = new Map<string, TcrCargoPercentiles>();
@@ -1244,67 +1241,6 @@ export default function EstudioPage() {
 
                 {adminMessage ? <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{adminMessage}</div> : null}
               </div>
-            </div>
-          </section>
-
-          {/* TCR rate configuration */}
-          <section className="surface-card rounded-[2rem] p-5 md:p-6">
-            <div className="eyebrow mb-3">Tasas TCR</div>
-            <div className="grid gap-3 sm:grid-cols-3 mb-5">
-              {[
-                { label: "BCV USD", value: tcrRates.bcvUsd },
-                { label: "BCV EUR", value: tcrRates.bcvEur },
-                { label: "Libre USD", value: tcrRates.libre, highlight: true },
-              ].map(({ label, value, highlight }) => (
-                <div key={label} className={`rounded-[1.1rem] px-4 py-3 ${highlight ? "bg-amber-50" : "bg-slate-50"}`}>
-                  <div className={`text-[0.65rem] font-bold uppercase tracking-wide mb-1 ${highlight ? "text-amber-700" : "text-slate-500"}`}>{label}</div>
-                  <div className={`font-display text-xl font-bold ${highlight ? "text-amber-700" : "text-slate-800"}`}>
-                    {value ? value.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="flex-1 min-w-[10rem]">
-                <label className="field-label">Tasa libre USD (diaria)</label>
-                <input
-                  type="number"
-                  min={1}
-                  step={0.01}
-                  value={adminTcrLibreInput}
-                  onChange={(e) => { setAdminTcrLibreInput(e.target.value); setAdminTcrSaveStatus("idle"); }}
-                  className="field w-full text-sm"
-                  placeholder="Ej: 316.50"
-                />
-              </div>
-              <button
-                type="button"
-                disabled={adminTcrSaveStatus === "saving"}
-                onClick={async () => {
-                  const rate = Number(adminTcrLibreInput);
-                  if (!rate || rate <= 0) return;
-                  setAdminTcrSaveStatus("saving");
-                  try {
-                    const res = await fetch("/api/admin/tcr-rates", {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ libreRate: rate }),
-                    });
-                    if (res.ok) {
-                      setTcrRates((prev) => ({ ...prev, libre: rate, libreUpdatedAt: new Date().toISOString() }));
-                      setAdminTcrSaveStatus("saved");
-                    } else { setAdminTcrSaveStatus("error"); }
-                  } catch { setAdminTcrSaveStatus("error"); }
-                }}
-                className={`btn ${adminTcrSaveStatus === "saved" ? "btn-secondary text-emerald-700" : "btn-primary"}`}
-              >
-                {adminTcrSaveStatus === "saving" ? "Guardando…" : adminTcrSaveStatus === "saved" ? "Guardado" : "Guardar tasa"}
-              </button>
-              {tcrRates.libreUpdatedAt && (
-                <span className="text-xs text-slate-400">
-                  Actualizada {new Date(tcrRates.libreUpdatedAt).toLocaleDateString("es-VE")} {new Date(tcrRates.libreUpdatedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}
-                </span>
-              )}
             </div>
           </section>
 

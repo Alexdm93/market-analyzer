@@ -92,3 +92,16 @@ export function buildBcvTasa(rate: number | null, updatedAt: string | null) {
     updatedAt: updatedAt ?? undefined,
   };
 }
+
+export const BCV_EUR_TASA_ID = "bcv-eur";
+
+export function buildBcvEurTasa(rate: number | null, updatedAt: string | null) {
+  return {
+    id: BCV_EUR_TASA_ID,
+    nombre: "Tasa BCV (Bs./EUR)",
+    referencia: "BCV oficial EUR",
+    valor: rate !== null ? String(rate) : "",
+    isSystem: true as const,
+    updatedAt: updatedAt ?? undefined,
+  };
+}

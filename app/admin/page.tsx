@@ -133,6 +133,13 @@ export default function AdminPage() {
   const [isSavingSnapshotCompanies, setIsSavingSnapshotCompanies] = useState(false);
   const [createSnapshotCompanyIds, setCreateSnapshotCompanyIds] = useState<Set<string>>(new Set());
   const [createCompaniesModalOpen, setCreateCompaniesModalOpen] = useState(false);
+  // TCR rates
+  const [tcrBcvUsd, setTcrBcvUsd] = useState<number | null>(null);
+  const [tcrBcvEur, setTcrBcvEur] = useState<number | null>(null);
+  const [tcrLibre, setTcrLibre] = useState<number | null>(null);
+  const [tcrLibreUpdatedAt, setTcrLibreUpdatedAt] = useState<string | null>(null);
+  const [tcrLibreInput, setTcrLibreInput] = useState("");
+  const [tcrSaveStatus, setTcrSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     let ignore = false;
@@ -250,6 +257,20 @@ export default function AdminPage() {
 
     void loadConfig();
     return () => { ignore = true; };
+  }, []);
+
+  useEffect(() => {
+    void fetch("/api/admin/tcr-rates", { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((body: { bcvUsd?: { rate: number | null }; bcvEur?: { rate: number | null }; libre?: { rate: number | null; updatedAt: string | null } } | null) => {
+        if (!body) return;
+        setTcrBcvUsd(body.bcvUsd?.rate ?? null);
+        setTcrBcvEur(body.bcvEur?.rate ?? null);
+        setTcrLibre(body.libre?.rate ?? null);
+        setTcrLibreUpdatedAt(body.libre?.updatedAt ?? null);
+        if (body.libre?.rate) setTcrLibreInput(String(body.libre.rate));
+      })
+      .catch(() => {});
   }, []);
 
   async function saveSectors(next: SectorEntry[]) {
@@ -865,6 +886,68 @@ export default function AdminPage() {
               </Link>
             );
           })}
+        </section>
+
+        {/* TCR rate configuration */}
+        <section className="surface-card overflow-hidden rounded-[1.75rem] p-5 md:p-6">
+          <div className="eyebrow mb-4">Tasas TCR</div>
+          <div className="grid gap-3 sm:grid-cols-3 mb-5">
+            {[
+              { label: "BCV USD",   value: tcrBcvUsd },
+              { label: "BCV EUR",   value: tcrBcvEur },
+              { label: "Libre USD", value: tcrLibre, highlight: true },
+            ].map(({ label, value, highlight }) => (
+              <div key={label} className={`rounded-[1.1rem] px-4 py-3 ${highlight ? "bg-amber-50" : "bg-slate-50"}`}>
+                <div className={`text-[0.65rem] font-bold uppercase tracking-wide mb-1 ${highlight ? "text-amber-700" : "text-slate-500"}`}>{label}</div>
+                <div className={`font-display text-xl font-bold ${highlight ? "text-amber-700" : "text-slate-800"}`}>
+                  {value != null ? value.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[10rem]">
+              <label className="field-label">Tasa libre USD (diaria)</label>
+              <input
+                type="number"
+                min={1}
+                step={0.01}
+                value={tcrLibreInput}
+                onChange={(e) => { setTcrLibreInput(e.target.value); setTcrSaveStatus("idle"); }}
+                className="field w-full text-sm"
+                placeholder="Ej: 316.50"
+              />
+            </div>
+            <button
+              type="button"
+              disabled={tcrSaveStatus === "saving"}
+              onClick={async () => {
+                const rate = Number(tcrLibreInput);
+                if (!rate || rate <= 0) return;
+                setTcrSaveStatus("saving");
+                try {
+                  const res = await fetch("/api/admin/tcr-rates", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ libreRate: rate }),
+                  });
+                  if (res.ok) {
+                    setTcrLibre(rate);
+                    setTcrLibreUpdatedAt(new Date().toISOString());
+                    setTcrSaveStatus("saved");
+                  } else { setTcrSaveStatus("error"); }
+                } catch { setTcrSaveStatus("error"); }
+              }}
+              className={`btn ${tcrSaveStatus === "saved" ? "btn-secondary text-emerald-700" : "btn-primary"}`}
+            >
+              {tcrSaveStatus === "saving" ? "Guardando…" : tcrSaveStatus === "saved" ? "Guardado" : "Guardar tasa"}
+            </button>
+            {tcrLibreUpdatedAt && (
+              <span className="text-xs text-slate-400">
+                Actualizada {new Date(tcrLibreUpdatedAt).toLocaleDateString("es-VE")} {new Date(tcrLibreUpdatedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}
+              </span>
+            )}
+          </div>
         </section>
 
         {/* Cargo management */}

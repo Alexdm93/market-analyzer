@@ -13,7 +13,7 @@ import {
   safeParseCompanyInfo,
   safeParseSnapshots,
 } from "@/lib/workspace";
-import { getBcvRate, buildBcvTasa } from "@/lib/bcv";
+import { getBcvRate, getBcvEuroRate, buildBcvTasa, buildBcvEurTasa } from "@/lib/bcv";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 
 type TransactionClient = Prisma.TransactionClient;
@@ -665,17 +665,17 @@ async function buildCompanyPayload(companyId: string) {
   };
 }
 
-function injectBcvTasa<T extends { companyInfo: CompanyInfo }>(
+function injectSystemTasas<T extends { companyInfo: CompanyInfo }>(
   payload: T,
-  bcv: { rate: number | null; updatedAt: string | null }
+  bcv: { rate: number | null; updatedAt: string | null },
+  bcvEur: { rate: number | null; updatedAt: string | null }
 ): T {
-  const bcvTasa = buildBcvTasa(bcv.rate, bcv.updatedAt);
   const userTasas = (payload.companyInfo.tasas ?? []).filter((t) => !t.isSystem);
   return {
     ...payload,
     companyInfo: {
       ...payload.companyInfo,
-      tasas: [bcvTasa, ...userTasas],
+      tasas: [buildBcvTasa(bcv.rate, bcv.updatedAt), buildBcvEurTasa(bcvEur.rate, bcvEur.updatedAt), ...userTasas],
     },
   };
 }
@@ -696,16 +696,17 @@ export async function GET(request: Request) {
       return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
     }
 
-    const [companyPayload, bcv] = await Promise.all([
+    const [companyPayload, bcv, bcvEur] = await Promise.all([
       buildCompanyPayload(companyId),
       getBcvRate(),
+      getBcvEuroRate(),
     ]);
 
     if (!companyPayload) {
       return Response.json({ message: "La empresa seleccionada no existe." }, { status: 404 });
     }
 
-    return Response.json(injectBcvTasa(companyPayload, bcv));
+    return Response.json(injectSystemTasas(companyPayload, bcv, bcvEur));
   }
 
   const workspace = await getOrCreateWorkspace(userId);
@@ -716,9 +717,10 @@ export async function GET(request: Request) {
   ]);
   const userCompanyId = userRecord?.companyId ?? "";
 
-  const [payload, bcv, publishedIds] = await Promise.all([
+  const [payload, bcv, bcvEur, publishedIds] = await Promise.all([
     buildUserPayload(userId, userCompanyId, workspace, company),
     getBcvRate(),
+    getBcvEuroRate(),
     getPublishedSnapshotIds(),
   ]);
 
@@ -729,7 +731,7 @@ export async function GET(request: Request) {
     .map(([id]) => id);
 
   return Response.json({
-    ...injectBcvTasa(payload, bcv),
+    ...injectSystemTasas(payload, bcv, bcvEur),
     publishedParticipatedSnapshotIds,
   });
 }
