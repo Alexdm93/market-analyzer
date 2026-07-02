@@ -1,4 +1,5 @@
 "use client";
+import * as XLSX from "xlsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -829,17 +830,13 @@ export default function DataPage() {
       showNotification("Seleccione una actualización");
       return;
     }
-    const current: Snapshot = snapshots[selectedSnapshotId] || { id: selectedSnapshotId, label: selectedSnapshotId, date: selectedSnapshotId, rows: [] };
-    const nextRows = Array.isArray(current.rows) ? [...current.rows] : [];
     const rowIndex = rows.findIndex((rr) => rr.id === rowId);
     if (rowIndex === -1) return;
     const rowToSave = JSON.parse(JSON.stringify(stampRowTotals(rows[rowIndex])));
-    const existingIndex = nextRows.findIndex((rr) => rr.id === rowToSave.id);
-    if (existingIndex !== -1) {
-      nextRows[existingIndex] = rowToSave;
-    } else {
-      nextRows.splice(rowIndex, 0, rowToSave);
-    }
+    // Build nextRows from the current rows state (not snapshots) so that local deletes
+    // are respected and don't get re-introduced when saving an individual cargo.
+    const nextRows = rows.map((r) => (r.id === rowToSave.id ? rowToSave : r));
+    const current: Snapshot = snapshots[selectedSnapshotId] || { id: selectedSnapshotId, label: selectedSnapshotId, date: selectedSnapshotId, rows: [] };
     const next = { ...snapshots, [selectedSnapshotId]: { ...current, rows: nextRows } };
     const wasPersisted = await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
     showNotification(wasPersisted ? 'Cargo guardado' : 'No se pudo guardar el cargo en la base de datos');
@@ -852,25 +849,30 @@ export default function DataPage() {
     const _bcvRate = (() => { const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor); return Number.isFinite(v) && v > 0 ? v : null; })();
     const diasVac = Number(companyInfo.minVacationDays) || 0;
     const diasUtil = Number(companyInfo.minUtilityDays) || 0;
-    const headers = ["Cargo", "Nivel", "Clasificación", "TEM (USD)", "PCTA (USD)"];
-    const csvRows = rows.map((row) => {
+    const sheetRows = rows.map((row) => {
       const totals = resolveRowTotals(row, tasas, _bcvRate, diasVac, diasUtil);
-      return [
-        `"${(row.tituloCargo ?? "").replace(/"/g, '""')}"`,
-        `"${(row.nivelOrganizacional ?? "").replace(/"/g, '""')}"`,
-        `"${(row.clasificacion ?? "").replace(/"/g, '""')}"`,
-        totals.totalSinPasivosMensual,
-        totals.totalConPasivosAnual,
-      ].join(",");
+      return {
+        "Cargo": row.tituloCargo ?? "",
+        "Nivel": row.nivelOrganizacional ?? "",
+        "Clasificación": row.clasificacion ?? "",
+        "TEM (USD)": totals.totalSinPasivosMensual || null,
+        "PCTA (USD)": totals.totalConPasivosAnual || null,
+      };
     });
-    const csv = [headers.join(","), ...csvRows].join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `cargos-${selectedSnapshotId || "data"}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    worksheet["!cols"] = [
+      { wch: 40 },
+      { wch: 32 },
+      { wch: 32 },
+      { wch: 14 },
+      { wch: 14 },
+    ];
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Cargos");
+    const snapshotLabel = selectedSnapshotId
+      ? (snapshots[selectedSnapshotId]?.label || selectedSnapshotId).replace(/[^a-zA-Z0-9-_]/g, "-").toLowerCase()
+      : "data";
+    XLSX.writeFile(workbook, `cargos-${snapshotLabel}.xlsx`);
     void fetch("/api/workspace/track-export", { method: "POST" });
   }
 
@@ -1085,7 +1087,7 @@ export default function DataPage() {
                   </button>
                   <button onClick={exportJSON} className="btn btn-secondary whitespace-nowrap">
                     <Check className="h-3.5 w-3.5" />
-                    Exportar a Excel
+                    Exportar xlsx
                   </button>
                   {!isReadOnlyDataView ? (
                     <>
@@ -1435,12 +1437,12 @@ export default function DataPage() {
                       if (!deleteId) return;
                       const newRows = rows.filter((row) => row.id !== deleteId);
                       setRows(newRows);
-                      if (isAdminCompanyView && selectedSnapshotId) {
+                      if (selectedSnapshotId && !isReadOnlyDataView) {
                         const stamped = newRows.map(stampRowTotals);
                         const current = snapshots[selectedSnapshotId] ?? { id: selectedSnapshotId, label: selectedSnapshotId, date: selectedSnapshotId, rows: [] };
                         const next = { ...snapshots, [selectedSnapshotId]: { ...current, rows: JSON.parse(JSON.stringify(stamped)) } };
                         const wasPersisted = await persistSnapshots(next, selectedSnapshotId, { showErrorNotification: true });
-                        showNotification(wasPersisted ? "Cargo eliminado y guardado" : "No se pudo guardar la eliminación");
+                        showNotification(wasPersisted ? "Cargo eliminado" : "No se pudo guardar la eliminación");
                       }
                     }}
                     className="btn btn-danger"
@@ -1464,13 +1466,13 @@ export default function DataPage() {
                 )}
 
                 <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="metric-tile">
+                  <div className="metric-tile flex flex-col items-center justify-center text-center">
                     <div className="metric-label">Total Efectivo Mensual (TEM)</div>
                     <div className="font-display mt-2 text-xl font-bold text-teal-700">
                       {fmtMoney(modalTotals?.totalSinPasivosMensual ?? 0)}
                     </div>
                   </div>
-                  <div className="metric-tile">
+                  <div className="metric-tile flex flex-col items-center justify-center text-center">
                     <div className="metric-label">Paquete de Compensación Total Anual (PCTA)</div>
                     <div className="font-display mt-2 text-xl font-bold text-amber-700">
                       {fmtMoney(modalTotals?.totalConPasivosAnual ?? 0)}

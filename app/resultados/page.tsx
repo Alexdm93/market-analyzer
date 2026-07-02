@@ -51,14 +51,22 @@ type PercentilesPayload = {
 type Group = {
   tituloCargo: string;
   count: number;
-  p50Raw: number;
-  promedioRaw: number;
-  minRaw: number;
-  maxRaw: number;
-  p50: string;
-  promedio: string;
-  min: string;
-  max: string;
+  cim_p50Raw: number;
+  cim_promedioRaw: number;
+  cim_minRaw: number;
+  cim_maxRaw: number;
+  cim_p50: string;
+  cim_promedio: string;
+  cim_min: string;
+  cim_max: string;
+  pcta_p50Raw: number;
+  pcta_promedioRaw: number;
+  pcta_minRaw: number;
+  pcta_maxRaw: number;
+  pcta_p50: string;
+  pcta_promedio: string;
+  pcta_min: string;
+  pcta_max: string;
 };
 
 export default function ResultadosPage() {
@@ -142,18 +150,27 @@ export default function ResultadosPage() {
     return percentileData.grupos
       .filter((g) => showAll || myTitleKeys.has(g.tituloCargo.trim().toLowerCase()))
       .map((g) => {
+        const cim = g.conPasivosMensual;
         const pcta = g.conPasivosAnual;
         return {
           tituloCargo: g.tituloCargo,
           count: pcta.n,
-          p50Raw: pcta.p50 ?? 0,
-          promedioRaw: pcta.promedio ?? 0,
-          minRaw: pcta.min ?? 0,
-          maxRaw: pcta.max ?? 0,
-          p50: formatMoney(pcta.p50),
-          promedio: formatMoney(pcta.promedio),
-          min: formatMoney(pcta.min),
-          max: formatMoney(pcta.max),
+          cim_p50Raw: cim.p50 ?? 0,
+          cim_promedioRaw: cim.promedio ?? 0,
+          cim_minRaw: cim.min ?? 0,
+          cim_maxRaw: cim.max ?? 0,
+          cim_p50: formatMoney(cim.p50),
+          cim_promedio: formatMoney(cim.promedio),
+          cim_min: formatMoney(cim.min),
+          cim_max: formatMoney(cim.max),
+          pcta_p50Raw: pcta.p50 ?? 0,
+          pcta_promedioRaw: pcta.promedio ?? 0,
+          pcta_minRaw: pcta.min ?? 0,
+          pcta_maxRaw: pcta.max ?? 0,
+          pcta_p50: formatMoney(pcta.p50),
+          pcta_promedio: formatMoney(pcta.promedio),
+          pcta_min: formatMoney(pcta.min),
+          pcta_max: formatMoney(pcta.max),
         };
       })
       .sort((a, b) => b.count - a.count);
@@ -166,15 +183,21 @@ export default function ResultadosPage() {
     const sheetRows = groups.map((g) => ({
       Cargo: g.tituloCargo,
       Observaciones: g.count || null,
-      "P50 (PCTA)": g.p50Raw || null,
-      "Promedio (PCTA)": g.promedioRaw || null,
-      "Mínimo (PCTA)": g.minRaw || null,
-      "Máximo (PCTA)": g.maxRaw || null,
+      "CIM — P50": g.cim_p50Raw || null,
+      "CIM — Promedio": g.cim_promedioRaw || null,
+      "CIM — Mínimo": g.cim_minRaw || null,
+      "CIM — Máximo": g.cim_maxRaw || null,
+      "PCTA — P50": g.pcta_p50Raw || null,
+      "PCTA — Promedio": g.pcta_promedioRaw || null,
+      "PCTA — Mínimo": g.pcta_minRaw || null,
+      "PCTA — Máximo": g.pcta_maxRaw || null,
     }));
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(sheetRows);
     worksheet["!cols"] = [
-      { wch: 36 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+      { wch: 36 }, { wch: 14 },
+      { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+      { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
     ];
     XLSX.utils.book_append_sheet(workbook, worksheet, "Resultados");
     XLSX.writeFile(workbook, `resultados-${safeLabel}.xlsx`);
@@ -287,26 +310,38 @@ export default function ResultadosPage() {
             </div>
 
             <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
-              <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+              <table className="min-w-full border-separate border-spacing-y-1 text-sm">
                 <thead>
-                  <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                    <th className="px-4 py-2">Cargo</th>
-                    <th className="px-4 py-2 text-center">Obs.</th>
-                    <th className="px-4 py-2 text-right">P50</th>
-                    <th className="px-4 py-2 text-right">Promedio</th>
-                    <th className="px-4 py-2 text-right">Min</th>
-                    <th className="px-4 py-2 text-right">Max</th>
+                  <tr className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                    <th className="px-4 pb-1 pt-2 text-left" rowSpan={2}>Cargo</th>
+                    <th className="px-4 pb-1 pt-2 text-center" rowSpan={2}>Obs.</th>
+                    <th colSpan={4} className="px-4 pb-1 pt-2 text-center text-teal-700">CIM — Compensación Integral Mensual</th>
+                    <th colSpan={4} className="px-4 pb-1 pt-2 text-center text-amber-700">PCTA — Paquete de Compensación Total Anual</th>
+                  </tr>
+                  <tr className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                    <th className="px-4 pb-2 text-right">P50</th>
+                    <th className="px-4 pb-2 text-right">Promedio</th>
+                    <th className="px-4 pb-2 text-right">Min</th>
+                    <th className="px-4 pb-2 text-right">Max</th>
+                    <th className="px-4 pb-2 text-right">P50</th>
+                    <th className="px-4 pb-2 text-right">Promedio</th>
+                    <th className="px-4 pb-2 text-right">Min</th>
+                    <th className="px-4 pb-2 text-right">Max</th>
                   </tr>
                 </thead>
                 <tbody>
                   {groups.map((g) => (
                     <tr key={g.tituloCargo} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                      <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{g.tituloCargo}</td>
-                      <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.count}</td>
-                      <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{g.p50}</td>
-                      <td className="px-4 py-4 text-right font-display text-amber-700">{g.promedio}</td>
-                      <td className="px-4 py-4 text-right font-display text-slate-600">{g.min}</td>
-                      <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-slate-600">{g.max}</td>
+                      <td className="rounded-l-[1.25rem] px-4 py-3.5 font-medium text-slate-900">{g.tituloCargo}</td>
+                      <td className="px-4 py-3.5 text-center font-semibold text-slate-700">{g.count}</td>
+                      <td className="px-4 py-3.5 text-right font-display font-semibold text-teal-700">{g.cim_p50}</td>
+                      <td className="px-4 py-3.5 text-right font-display text-teal-600">{g.cim_promedio}</td>
+                      <td className="px-4 py-3.5 text-right font-display text-slate-500">{g.cim_min}</td>
+                      <td className="px-4 py-3.5 text-right font-display text-slate-500 border-r border-slate-100">{g.cim_max}</td>
+                      <td className="px-4 py-3.5 text-right font-display font-semibold text-amber-700">{g.pcta_p50}</td>
+                      <td className="px-4 py-3.5 text-right font-display text-amber-600">{g.pcta_promedio}</td>
+                      <td className="px-4 py-3.5 text-right font-display text-slate-500">{g.pcta_min}</td>
+                      <td className="rounded-r-[1.25rem] px-4 py-3.5 text-right font-display text-slate-500">{g.pcta_max}</td>
                     </tr>
                   ))}
                 </tbody>
