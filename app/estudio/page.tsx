@@ -241,11 +241,12 @@ export default function EstudioPage() {
   const [percentilesLoading, setPercentilesLoading] = useState(false);
   const [percentilesError, setPercentilesError] = useState<string | null>(null);
   const [publishedParticipatedSnapshotIds, setPublishedParticipatedSnapshotIds] = useState<string[]>([]);
-  const [userFilterSectors, setUserFilterSectors] = useState<string[]>([]);
-  const [userFilterSizes, setUserFilterSizes] = useState<string[]>([]);
+  const [pendingSector, setPendingSector] = useState("");
+  const [pendingSize, setPendingSize] = useState("");
+  const [appliedSector, setAppliedSector] = useState("");
+  const [appliedSize, setAppliedSize] = useState("");
   const [availableUserSectors, setAvailableUserSectors] = useState<string[]>([]);
   const [availableUserSizes, setAvailableUserSizes] = useState<string[]>([]);
-  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [adminPublishStatus, setAdminPublishStatus] = useState<"idle" | "working">("idle");
   const [nivelMin, setNivelMin] = useState<Record<string, number>>({});
   const [nivelMax, setNivelMax] = useState<Record<string, number>>({});
@@ -451,9 +452,12 @@ export default function EstudioPage() {
   }, [isAdmin]);
 
   useEffect(() => {
-    setUserFilterSectors([]);
-    setUserFilterSizes([]);
-    setFilterPanelOpen(false);
+    setPendingSector("");
+    setPendingSize("");
+    setAppliedSector("");
+    setAppliedSize("");
+    setAvailableUserSectors([]);
+    setAvailableUserSizes([]);
   }, [selectedSnapshotId]);
 
   useEffect(() => {
@@ -462,8 +466,8 @@ export default function EstudioPage() {
     setPercentilesLoading(true);
     setPercentilesError(null);
     const params = new URLSearchParams({ snapshotId: selectedSnapshotId });
-    if (userFilterSectors.length > 0) params.set("sectors", userFilterSectors.join(","));
-    if (userFilterSizes.length   > 0) params.set("sizes",   userFilterSizes.join(","));
+    if (appliedSector) params.set("sectors", appliedSector);
+    if (appliedSize)   params.set("sizes",   appliedSize);
     void fetch(`/api/percentiles?${params.toString()}`, { cache: "no-store" })
       .then(async (r) => {
         const body = await r.json().catch(() => null) as PercentilesPayload & { message?: string } | null;
@@ -481,7 +485,7 @@ export default function EstudioPage() {
       .catch(() => { if (!ignore) { setPercentileData(null); setPercentilesError("Error de conexión."); } })
       .finally(() => { if (!ignore) setPercentilesLoading(false); });
     return () => { ignore = true; };
-  }, [isAdmin, selectedSnapshotId, userFilterSectors, userFilterSizes]);
+  }, [isAdmin, selectedSnapshotId, appliedSector, appliedSize]);
 
   useEffect(() => {
     if (!isAdmin || !selectedSnapshotId) return;
@@ -1515,13 +1519,13 @@ export default function EstudioPage() {
                   <Database size={18} aria-hidden />
                 </div>
                 <div>
-                  <div className="eyebrow mb-1">Fuente activa</div>
-                  <h2 className="font-display text-2xl font-bold text-slate-900">Corte</h2>
+                  <div className="eyebrow mb-1">Control de versiones / Cortes</div>
+                  <h2 className="font-display text-2xl font-bold text-slate-900">Actualización</h2>
                 </div>
               </div>
 
               <div className="mt-5">
-                <label htmlFor="estudioSnapshot" className="field-label">Corte de datos</label>
+                <label htmlFor="estudioSnapshot" className="field-label">Seleccionar corte</label>
                 <select
                   id="estudioSnapshot"
                   value={selectedSnapshotId}
@@ -1538,12 +1542,47 @@ export default function EstudioPage() {
                 </select>
               </div>
 
+              <div className="mt-5 border-t border-slate-100 pt-5">
+                <div className="eyebrow mb-4">Segmentar por</div>
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <label htmlFor="filterSector" className="field-label">Sector</label>
+                    <select
+                      id="filterSector"
+                      value={pendingSector}
+                      onChange={(e) => setPendingSector(e.target.value)}
+                      className="field-select"
+                    >
+                      <option value="">Todos</option>
+                      {availableUserSectors.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="filterSize" className="field-label">Tamaño</label>
+                    <select
+                      id="filterSize"
+                      value={pendingSize}
+                      onChange={(e) => setPendingSize(e.target.value)}
+                      className="field-select"
+                    >
+                      <option value="">Todos</option>
+                      {availableUserSizes.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <button
                 type="button"
-                onClick={() => router.push("/data")}
-                className="btn btn-primary mt-5 w-full"
+                disabled={percentilesLoading}
+                onClick={() => { setAppliedSector(pendingSector); setAppliedSize(pendingSize); }}
+                className="btn btn-primary mt-5 w-full disabled:opacity-60"
               >
-                Abrir en Suministro de Data
+                {percentilesLoading ? "Procesando…" : "Procesar corte"}
               </button>
               <button
                 type="button"
@@ -1556,7 +1595,7 @@ export default function EstudioPage() {
           </div>
         </section>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-2">
           {(
             [
               { key: "sinPasivosMensual", label: "TEM" },
@@ -1578,95 +1617,7 @@ export default function EstudioPage() {
               {label}
             </button>
           ))}
-
-          {(availableUserSectors.length > 0 || availableUserSizes.length > 0) && (
-            <div className="ml-auto flex items-center gap-2">
-              {(userFilterSectors.length > 0 || userFilterSizes.length > 0) && (
-                <button
-                  type="button"
-                  onClick={() => { setUserFilterSectors([]); setUserFilterSizes([]); }}
-                  className="text-xs text-slate-400 hover:text-slate-600"
-                >
-                  Limpiar filtros
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setFilterPanelOpen((v) => !v)}
-                className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                  filterPanelOpen || userFilterSectors.length > 0 || userFilterSizes.length > 0
-                    ? "bg-teal-700 text-white shadow-sm"
-                    : "surface-card text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <SlidersHorizontal size={14} aria-hidden />
-                Filtrar muestra
-                {(userFilterSectors.length > 0 || userFilterSizes.length > 0) && (
-                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white/25 px-1 text-[10px] font-bold">
-                    {userFilterSectors.length + userFilterSizes.length}
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
         </div>
-
-        {filterPanelOpen && (availableUserSectors.length > 0 || availableUserSizes.length > 0) && (
-          <div className="surface-card rounded-[1.75rem] p-5 md:p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-700">
-                Filtrar participantes de la muestra de mercado
-              </p>
-              <p className="text-xs text-slate-400">Los percentiles se recalculan con los seleccionados</p>
-            </div>
-            <div className="grid gap-6 md:grid-cols-2">
-              {availableUserSectors.length > 0 && (
-                <div>
-                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Sector</div>
-                  <div className="flex flex-col gap-2">
-                    {availableUserSectors.map((sector) => (
-                      <label key={sector} className="flex cursor-pointer items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={userFilterSectors.includes(sector)}
-                          onChange={(e) =>
-                            setUserFilterSectors((prev) =>
-                              e.target.checked ? [...prev, sector] : prev.filter((s) => s !== sector),
-                            )
-                          }
-                          className="h-4 w-4 rounded accent-teal-700"
-                        />
-                        <span className="text-sm text-slate-700">{sector}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {availableUserSizes.length > 0 && (
-                <div>
-                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Clasificación</div>
-                  <div className="flex flex-col gap-2">
-                    {availableUserSizes.map((size) => (
-                      <label key={size} className="flex cursor-pointer items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={userFilterSizes.includes(size)}
-                          onChange={(e) =>
-                            setUserFilterSizes((prev) =>
-                              e.target.checked ? [...prev, size] : prev.filter((s) => s !== size),
-                            )
-                          }
-                          className="h-4 w-4 rounded accent-teal-700"
-                        />
-                        <span className="text-sm text-slate-700">{size}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {userRowTotals.length === 0 ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
