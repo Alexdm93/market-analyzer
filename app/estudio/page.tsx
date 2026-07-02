@@ -795,6 +795,13 @@ export default function EstudioPage() {
     directoMensualizado: "totalDirectoMensualizado",
   } as const;
 
+  const METRIC_LABEL = {
+    sinPasivosMensual: "TEM",
+    directoMensualizado: "TEMz",
+    conPasivosMensual: "CIM",
+    conPasivosAnual: "PCTA",
+  } as const;
+
   const userRowTotals = useMemo(() => {
     const bcvRate = (() => {
       const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
@@ -813,6 +820,41 @@ export default function EstudioPage() {
     (percentileData?.grupos ?? []).forEach((g) => m.set(g.tituloCargo.trim().toLowerCase(), g));
     return m;
   }, [percentileData]);
+
+  function exportUserExcel() {
+    const metricLabel = METRIC_LABEL[activeMetric];
+    const sheetRows = userRowTotals.map(({ row, totals }) => {
+      const normTitle = (row.tituloCargo ?? "").trim().toLowerCase();
+      const mkt = marketByTitle.get(normTitle);
+      const mktData = mkt ? mkt[activeMetric] : null;
+      const myValue = totals[METRIC_KEY[activeMetric]];
+      const position = mktData ? resolvePosition(myValue, mktData) : "—";
+      const nd = (v: number | null) => (v !== null ? v : null);
+      return {
+        Cargo: row.tituloCargo || "Sin título",
+        N: mkt ? mkt.n : null,
+        [`Mi valor (${metricLabel})`]: myValue || null,
+        P10: mktData ? nd(mktData.p10) : null,
+        P25: mktData ? nd(mktData.p25) : null,
+        P50: mktData ? nd(mktData.p50) : null,
+        P75: mktData ? nd(mktData.p75) : null,
+        P90: mktData ? nd(mktData.p90) : null,
+        Promedio: mktData ? nd(mktData.promedio) : null,
+        "Posición": position,
+      };
+    });
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+    worksheet["!cols"] = [
+      { wch: 40 }, { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
+    ];
+    XLSX.utils.book_append_sheet(workbook, worksheet, metricLabel);
+    const snapshotLabel = selectedSnapshotId
+      ? sanitizeFileSegment(snapshots[selectedSnapshotId]?.label || selectedSnapshotId)
+      : "estudio";
+    XLSX.writeFile(workbook, `posicionamiento-${metricLabel.toLowerCase()}-${snapshotLabel}.xlsx`);
+  }
 
   if (isAdmin) {
     const selectedAdminSnapshot = adminSnapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? null;
@@ -1511,9 +1553,18 @@ export default function EstudioPage() {
                   {activeMetric === "conPasivosAnual" && "PCTA — Paquete de Compensación Total Anual (USD)"}
                 </h2>
               </div>
-              <div className="pill">
-                <Layers3 size={14} aria-hidden />
-                ND = muestra insuficiente
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="pill">
+                  <Layers3 size={14} aria-hidden />
+                  ND = muestra insuficiente
+                </div>
+                <button
+                  type="button"
+                  onClick={exportUserExcel}
+                  className="btn btn-secondary"
+                >
+                  Exportar a Excel
+                </button>
               </div>
             </div>
 
