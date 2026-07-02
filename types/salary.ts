@@ -45,6 +45,7 @@ export interface ExtendedMarketPosition {
   tituloCargo: string;
   nivelOrganizacional?: string;
   clasificacion?: string;
+  hayGrade?: number;
   descripcion?: string;
 
   // Compensación fija garantizada

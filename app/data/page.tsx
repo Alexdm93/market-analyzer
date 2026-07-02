@@ -1,7 +1,8 @@
 "use client";
 import { exportStyledExcel } from "@/lib/excel-export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BriefcaseBusiness, CalendarDays, Check, Edit, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, Check, Edit, Layers, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { CapriWizardModal } from "@/components/CapriWizardModal";
 import { useSession } from "next-auth/react";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
@@ -18,60 +19,19 @@ type CompanyOption = {
 };
 
 
-const ORGANIZATIONAL_LEVEL_OPTIONS = [
-  { value: "Operativo Auxiliar Asistente AnalistaJR", label: "Operativo / Auxiliares / Asistentes / Analistas Jr" },
-  { value: "Profesional Especialista", label: "Profesional / Especialista" },
-  { value: "Supervisor Coordinador", label: "Supervisor / Coordinadores" },
-  { value: "Gerencia Media", label: "Gerencia Media" },
-  { value: "Gerencia Alta", label: "Gerencia Alta" },
-  { value: "Ejecutivo", label: "Ejecutivo" },
-] as const;
-
-const CLASSIFICATION_OPTIONS_BY_LEVEL: Record<string, string[]> = {
-  "Operativo Auxiliar Asistente AnalistaJR": [
-    "Trabajo Simple y Rutinario",
-    "Trabajo Semi-Complejo",
-    "Trabajo Técnico Variado",
-    "Trabajo Técnico Especializado",
-    "Trabajo Técnico Especializado (Nivel Superior)",
-    "Trabajo Profesional Básico",
-  ],
-  "Profesional Especialista": [
-    "Profesional con Experiencia",
-    "Especialista Técnico Inicial",
-    "Especialista Técnico Semi Senior",
-    "Especialista Senior",
-    "Especialista - Mejora Continua",
-    "Especialista en Innovación",
-  ],
-  "Supervisor Coordinador": [
-    "Supervisor/Coordinador Inicial",
-    "Supervisor/Coordinador Técnico",
-    "Supervisor/Coordinador Senior",
-  ],
-  "Gerencia Media": [
-    "Gerencia Media Inicial",
-    "Gerencia Media Intermedia",
-    "Gerencia Media Avanzada",
-  ],
-  "Gerencia Alta": [
-    "Gerencia Alta Inicial",
-    "Gerencia Alta Intermedia",
-    "Gerencia Alta Avanzada",
-  ],
-  Ejecutivo: [
-    "Gerencia Ejecutiva Inicial",
-    "Gerencia Ejecutiva Intermedia",
-    "Gerencia Ejecutiva Avanzada",
-  ],
-};
-
-
 function fmtMoney(n: number) {
   return <FmtMoney value={n} />;
 }
 
-const NIVELES_ADMIN = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
+const NIVELES_ADMIN = ["Operativo", "Profesional", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
+
+const GRADE_RANGES: Record<string, [number, number]> = {
+  "Operativo":      [8,  12],
+  "Profesional":    [13, 16],
+  "Gerencia Media": [17, 19],
+  "Gerencia Alta":  [20, 22],
+  "Ejecutivo":      [23, 25],
+};
 
 function computeRowTotalAdmin(r: ExtendedMarketPosition): number {
   let s = Number(r.sueldoBasico ?? 0) + Number(r.bonoAlimentacion ?? 0) + Number(r.bonoMovilizacion ?? 0)
@@ -96,8 +56,6 @@ const empty = (i: number): ExtendedMarketPosition => ({
   id: `r-${Date.now()}-${i}`,
   departamento: "",
   tituloCargo: "",
-  nivelOrganizacional: "",
-  clasificacion: "",
   descripcion: "",
   sueldoBasico: 0,
   bonoAlimentacion: 0,
@@ -551,6 +509,7 @@ export default function DataPage() {
 
   // modal state
   const [modal, setModal] = useState<{ type: 'save' | 'confirm-delete' | null; id?: string }>(() => ({ type: null }));
+  const [capriModal, setCapriModal] = useState<{ rowIndex: number } | null>(null);
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
 
   function closeModal() {
@@ -588,24 +547,6 @@ export default function DataPage() {
     setRows((prev) => {
       const next = [...prev];
       next[i] = { ...next[i], [key]: value } as ExtendedMarketPosition;
-      return next;
-    });
-  }
-
-  function updateOrganizationalLevel(i: number, level: string) {
-    setRows((prev) => {
-      const next = [...prev];
-      const current = next[i];
-      const normalizedLevel =
-        level === "Operativo" || level === "Auxiliar" || level === "Asistente" || level === "AnalistaJR"
-          ? "Operativo Auxiliar Asistente AnalistaJR"
-          : level;
-      const allowedClassifications = CLASSIFICATION_OPTIONS_BY_LEVEL[normalizedLevel] || [];
-      next[i] = {
-        ...current,
-        nivelOrganizacional: normalizedLevel,
-        clasificacion: allowedClassifications.includes(current.clasificacion || "") ? current.clasificacion : "",
-      } as ExtendedMarketPosition;
       return next;
     });
   }
@@ -855,20 +796,18 @@ export default function DataPage() {
     await exportStyledExcel([{
       name: "Cargos",
       columns: [
-        { header: "Cargo",        key: "cargo",        width: 40, align: "left"  },
-        { header: "Nivel",        key: "nivel",        width: 32, align: "left"  },
-        { header: "Clasificación",key: "clasificacion",width: 32, align: "left"  },
-        { header: "TEM (USD)",    key: "tem",          width: 14, align: "right" },
-        { header: "PCTA (USD)",   key: "pcta",         width: 14, align: "right" },
+        { header: "Cargo",         key: "cargo",  width: 40, align: "left"  },
+        { header: "Grado CAPRI",   key: "grado",  width: 14, align: "center" },
+        { header: "TEM (USD)",     key: "tem",    width: 14, align: "right"  },
+        { header: "PCTA (USD)",    key: "pcta",   width: 14, align: "right"  },
       ],
       rows: rows.map((row) => {
         const totals = resolveRowTotals(row, tasas, _bcvRate, diasVac, diasUtil);
         return {
-          cargo:        row.tituloCargo         ?? "",
-          nivel:        row.nivelOrganizacional ?? "",
-          clasificacion:row.clasificacion       ?? "",
-          tem:          totals.totalSinPasivosMensual || null,
-          pcta:         totals.totalConPasivosAnual   || null,
+          cargo: row.tituloCargo ?? "",
+          grado: row.hayGrade ?? null,
+          tem:   totals.totalSinPasivosMensual || null,
+          pcta:  totals.totalConPasivosAnual   || null,
         };
       }),
     }], `cargos-${snapshotLabel}.xlsx`);
@@ -903,12 +842,13 @@ export default function DataPage() {
     if (!companyInfo.hrEmail) missingCompanyFields.push("Correo de contacto de RRHH");
   }
 
-  // Admin: medians per nivel from current rows
+  // Admin: medians per grade group from current rows
   const medianasPorNivelAdmin = useMemo(() => {
     const result: Record<string, number> = {};
     for (const nivel of NIVELES_ADMIN) {
+      const [lo, hi] = GRADE_RANGES[nivel] ?? [0, 0];
       const totals = rows
-        .filter((r) => r.nivelOrganizacional?.trim() === nivel)
+        .filter((r) => { const g = r.hayGrade; return g !== undefined && g >= lo && g <= hi; })
         .map(computeRowTotalAdmin)
         .filter((v) => v > 0 && Number.isFinite(v));
       result[nivel] = totals.length ? Math.round(pct(totals, 50)) : 0;
@@ -1161,12 +1101,15 @@ export default function DataPage() {
                       {r.tituloCargo || `Cargo ${i + 1}`}
                     </h2>
                     <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-600 md:text-[0.82rem]">
-                      {r.descripcion || "Completa primero identidad, nivel y clasificación para dejar el cargo listo antes de cargar su compensación."}
+                      {r.descripcion || "Completa la identidad y clasifica con CAPRI para dejar el cargo listo antes de cargar su compensación."}
                     </p>
 
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <div className="pill">{r.nivelOrganizacional || "Sin nivel"}</div>
-                      <div className="pill">{r.clasificacion || "Sin clasificación"}</div>
+                      {r.hayGrade ? (
+                        <div className="pill bg-teal-50 font-semibold text-teal-700">Grado {r.hayGrade}</div>
+                      ) : (
+                        <div className="pill text-slate-400">Sin grado CAPRI</div>
+                      )}
                       <div className="pill">{(r.additionalFixedPayments || []).length} conceptos fijos</div>
                       <div className="pill">{(r.additionalVariablePayments || []).length} conceptos variables</div>
                     </div>
@@ -1220,21 +1163,28 @@ export default function DataPage() {
                               <label className="field-label">Título del cargo</label>
                               <input readOnly value={r.tituloCargo || "—"} className="field bg-slate-100 text-sm w-full" aria-label="Título del cargo" />
                             </div>
-                            <div>
-                              <label className="field-label">Nivel organizacional</label>
-                              <select value={r.nivelOrganizacional} onChange={(e) => updateOrganizationalLevel(i, e.target.value)} className="field-select" aria-label="Nivel organizacional">
-                                <option value="">Seleccionar nivel</option>
-                                {ORGANIZATIONAL_LEVEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="field-label">Clasificación</label>
-                              <select value={r.clasificacion} onChange={(e) => update(i, "clasificacion", e.target.value)} className="field-select" aria-label="Clasificación" disabled={!r.nivelOrganizacional}>
-                                <option value="">Seleccionar clasificación</option>
-                                {(r.nivelOrganizacional ? CLASSIFICATION_OPTIONS_BY_LEVEL[r.nivelOrganizacional] ?? [] : []).map((option: string) => (
-                                  <option key={option} value={option}>{option === "AnalistaJR" ? "Analista JR" : option}</option>
-                                ))}
-                              </select>
+                            <div className="md:col-span-2 flex items-end gap-3">
+                              <div className="flex-1">
+                                <label className="field-label">Grado CAPRI</label>
+                                <div className={`field flex items-center gap-2 bg-slate-50 text-sm select-none ${r.hayGrade ? "text-teal-700 font-semibold" : "text-slate-400"}`}>
+                                  {r.hayGrade ? (
+                                    <>
+                                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{r.hayGrade}</span>
+                                      Grado {r.hayGrade}
+                                    </>
+                                  ) : "Sin grado — clasificar con CAPRI"}
+                                </div>
+                              </div>
+                              {!isReadOnlyDataView && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCapriModal({ rowIndex: i })}
+                                  className="btn btn-primary flex items-center gap-1.5 whitespace-nowrap"
+                                >
+                                  <Layers className="h-4 w-4" />
+                                  {r.hayGrade ? "Re-clasificar" : "Clasificar con CAPRI"}
+                                </button>
+                              )}
                             </div>
                             <div className="md:col-span-2">
                               <label className="field-label">Descripción</label>
@@ -1460,8 +1410,8 @@ export default function DataPage() {
                 <h3 className="font-display text-2xl font-bold text-slate-900">
                   {modalSaveRow?.tituloCargo || "Cargo sin nombre"}
                 </h3>
-                {modalSaveRow?.nivelOrganizacional && (
-                  <p className="mt-1 text-sm text-slate-500">{modalSaveRow.nivelOrganizacional}</p>
+                {modalSaveRow?.hayGrade && (
+                  <p className="mt-1 text-sm font-semibold text-teal-600">Grado CAPRI {modalSaveRow.hayGrade}</p>
                 )}
 
                 <div className="mt-5 grid grid-cols-2 gap-3">
@@ -1577,6 +1527,19 @@ export default function DataPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* CAPRI Wizard Modal */}
+      {capriModal !== null && (
+        <CapriWizardModal
+          companyInfo={companyInfo}
+          cargoNombre={rows[capriModal.rowIndex]?.tituloCargo || "Cargo"}
+          existingGrade={rows[capriModal.rowIndex]?.hayGrade}
+          onSave={(grade) => {
+            update(capriModal.rowIndex, "hayGrade", grade);
+          }}
+          onClose={() => setCapriModal(null)}
+        />
       )}
     </main>
   );
