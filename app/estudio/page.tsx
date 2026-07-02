@@ -72,6 +72,7 @@ type PercentilesPayload = {
   grupos: MarketCargoGroup[];
   availableSectors?: string[];
   availableSizes?: string[];
+  availableCompanies?: string[];
 };
 
 function percentile(values: number[], p: number) {
@@ -243,10 +244,13 @@ export default function EstudioPage() {
   const [publishedParticipatedSnapshotIds, setPublishedParticipatedSnapshotIds] = useState<string[]>([]);
   const [pendingSector, setPendingSector] = useState("");
   const [pendingSize, setPendingSize] = useState("");
+  const [pendingCompany, setPendingCompany] = useState("");
   const [appliedSector, setAppliedSector] = useState("");
   const [appliedSize, setAppliedSize] = useState("");
+  const [appliedCompany, setAppliedCompany] = useState("");
   const [availableUserSectors, setAvailableUserSectors] = useState<string[]>([]);
   const [availableUserSizes, setAvailableUserSizes] = useState<string[]>([]);
+  const [availableUserCompanies, setAvailableUserCompanies] = useState<string[]>([]);
   const [adminPublishStatus, setAdminPublishStatus] = useState<"idle" | "working">("idle");
   const [nivelMin, setNivelMin] = useState<Record<string, number>>({});
   const [nivelMax, setNivelMax] = useState<Record<string, number>>({});
@@ -454,10 +458,13 @@ export default function EstudioPage() {
   useEffect(() => {
     setPendingSector("");
     setPendingSize("");
+    setPendingCompany("");
     setAppliedSector("");
     setAppliedSize("");
+    setAppliedCompany("");
     setAvailableUserSectors([]);
     setAvailableUserSizes([]);
+    setAvailableUserCompanies([]);
   }, [selectedSnapshotId]);
 
   useEffect(() => {
@@ -466,16 +473,18 @@ export default function EstudioPage() {
     setPercentilesLoading(true);
     setPercentilesError(null);
     const params = new URLSearchParams({ snapshotId: selectedSnapshotId });
-    if (appliedSector) params.set("sectors", appliedSector);
-    if (appliedSize)   params.set("sizes",   appliedSize);
+    if (appliedSector)  params.set("sectors",   appliedSector);
+    if (appliedSize)    params.set("sizes",     appliedSize);
+    if (appliedCompany) params.set("companies", appliedCompany);
     void fetch(`/api/percentiles?${params.toString()}`, { cache: "no-store" })
       .then(async (r) => {
         const body = await r.json().catch(() => null) as PercentilesPayload & { message?: string } | null;
         if (!ignore) {
           if (r.ok) {
             setPercentileData(body);
-            if (body?.availableSectors?.length) setAvailableUserSectors(body.availableSectors);
-            if (body?.availableSizes?.length)   setAvailableUserSizes(body.availableSizes);
+            if (body?.availableSectors?.length)   setAvailableUserSectors(body.availableSectors);
+            if (body?.availableSizes?.length)     setAvailableUserSizes(body.availableSizes);
+            if (body?.availableCompanies?.length) setAvailableUserCompanies(body.availableCompanies);
           } else {
             setPercentileData(null);
             setPercentilesError(body?.message ?? "No fue posible cargar los datos de mercado.");
@@ -485,7 +494,7 @@ export default function EstudioPage() {
       .catch(() => { if (!ignore) { setPercentileData(null); setPercentilesError("Error de conexión."); } })
       .finally(() => { if (!ignore) setPercentilesLoading(false); });
     return () => { ignore = true; };
-  }, [isAdmin, selectedSnapshotId, appliedSector, appliedSize]);
+  }, [isAdmin, selectedSnapshotId, appliedSector, appliedSize, appliedCompany]);
 
   useEffect(() => {
     if (!isAdmin || !selectedSnapshotId) return;
@@ -1560,6 +1569,20 @@ export default function EstudioPage() {
                     </select>
                   </div>
                   <div>
+                    <label htmlFor="filterCompany" className="field-label">Empresa</label>
+                    <select
+                      id="filterCompany"
+                      value={pendingCompany}
+                      onChange={(e) => setPendingCompany(e.target.value)}
+                      className="field-select"
+                    >
+                      <option value="">Todas</option>
+                      {availableUserCompanies.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label htmlFor="filterSize" className="field-label">Tamaño</label>
                     <select
                       id="filterSize"
@@ -1579,7 +1602,7 @@ export default function EstudioPage() {
               <button
                 type="button"
                 disabled={percentilesLoading}
-                onClick={() => { setAppliedSector(pendingSector); setAppliedSize(pendingSize); }}
+                onClick={() => { setAppliedSector(pendingSector); setAppliedSize(pendingSize); setAppliedCompany(pendingCompany); }}
                 className="btn btn-primary mt-5 w-full disabled:opacity-60"
               >
                 {percentilesLoading ? "Procesando…" : "Procesar corte"}

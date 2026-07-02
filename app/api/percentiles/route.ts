@@ -21,6 +21,7 @@ export type PercentilesResponse = {
   grupos: CargoPercentiles[];
   availableSectors: string[];
   availableSizes: string[];
+  availableCompanies: string[];
 };
 
 type CargoAccum = {
@@ -40,8 +41,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const snapshotId = searchParams.get("snapshotId")?.trim() ?? "";
-  const filterSectors = searchParams.get("sectors")?.split(",").filter(Boolean) ?? [];
-  const filterSizes   = searchParams.get("sizes")?.split(",").filter(Boolean) ?? [];
+  const filterSectors   = searchParams.get("sectors")?.split(",").filter(Boolean) ?? [];
+  const filterSizes     = searchParams.get("sizes")?.split(",").filter(Boolean) ?? [];
+  const filterCompanies = searchParams.get("companies")?.split(",").filter(Boolean) ?? [];
 
   if (!snapshotId) {
     return Response.json({ message: "Indica el corte." }, { status: 400 });
@@ -75,8 +77,9 @@ export async function GET(request: Request) {
 
   // Accumulate one value per (company × tituloCargo)
   const groups = new Map<string, CargoAccum>();
-  const availableSectors = new Set<string>();
-  const availableSizes   = new Set<string>();
+  const availableSectors   = new Set<string>();
+  const availableSizes     = new Set<string>();
+  const availableCompanies = new Set<string>();
 
   for (const workspace of workspaces) {
     const snapshots = safeParseSnapshots(workspace.snapshotsJson);
@@ -92,10 +95,12 @@ export async function GET(request: Request) {
     // Collect filter options from ALL valid participants (before applying filters)
     if (companyInfo.sector)         availableSectors.add(companyInfo.sector);
     if (companyInfo.classification) availableSizes.add(companyInfo.classification);
+    if (companyInfo.companyName)    availableCompanies.add(companyInfo.companyName);
 
     // Apply user-selected filters
-    if (filterSectors.length > 0 && (!companyInfo.sector || !filterSectors.includes(companyInfo.sector))) continue;
-    if (filterSizes.length   > 0 && (!companyInfo.classification || !filterSizes.includes(companyInfo.classification))) continue;
+    if (filterSectors.length   > 0 && (!companyInfo.sector         || !filterSectors.includes(companyInfo.sector)))                   continue;
+    if (filterSizes.length     > 0 && (!companyInfo.classification || !filterSizes.includes(companyInfo.classification)))             continue;
+    if (filterCompanies.length > 0 && (!companyInfo.companyName    || !filterCompanies.includes(companyInfo.companyName)))            continue;
     const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
     const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
     const tasas = companyInfo.tasas ?? [];
@@ -146,8 +151,9 @@ export async function GET(request: Request) {
     snapshotId,
     bcvRate,
     grupos,
-    availableSectors: Array.from(availableSectors).sort((a, b) => a.localeCompare(b, "es")),
-    availableSizes:   Array.from(availableSizes).sort((a, b) => a.localeCompare(b, "es")),
+    availableSectors:   Array.from(availableSectors).sort((a, b) => a.localeCompare(b, "es")),
+    availableSizes:     Array.from(availableSizes).sort((a, b) => a.localeCompare(b, "es")),
+    availableCompanies: Array.from(availableCompanies).sort((a, b) => a.localeCompare(b, "es")),
   };
 
   return Response.json(response);
