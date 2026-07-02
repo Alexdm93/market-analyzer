@@ -1555,20 +1555,6 @@ export default function EstudioPage() {
                 <div className="eyebrow mb-4">Segmentar por</div>
                 <div className="flex flex-col gap-4">
                   <div>
-                    <label htmlFor="filterSector" className="field-label">Sector</label>
-                    <select
-                      id="filterSector"
-                      value={pendingSector}
-                      onChange={(e) => setPendingSector(e.target.value)}
-                      className="field-select"
-                    >
-                      <option value="">Todos</option>
-                      {availableUserSectors.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
                     <label htmlFor="filterCompany" className="field-label">Empresa</label>
                     <select
                       id="filterCompany"
@@ -1579,6 +1565,20 @@ export default function EstudioPage() {
                       <option value="">Todas</option>
                       {availableUserCompanies.map((c) => (
                         <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="filterSector" className="field-label">Sector</label>
+                    <select
+                      id="filterSector"
+                      value={pendingSector}
+                      onChange={(e) => setPendingSector(e.target.value)}
+                      className="field-select"
+                    >
+                      <option value="">Todos</option>
+                      {availableUserSectors.map((s) => (
+                        <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
                   </div>
