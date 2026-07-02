@@ -1154,7 +1154,7 @@ export default function DataPage() {
 
                         {/* Tab: Identidad */}
                         {(activeTab[r.id] ?? "identidad") === "identidad" && (
-                          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+                          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
                             <div>
                               <label className="field-label">Unidad / Departamento</label>
                               <input readOnly value={r.departamento || "—"} className="field bg-slate-100 text-sm w-full" aria-label="Unidad organizacional o departamento" />
@@ -1178,7 +1178,7 @@ export default function DataPage() {
                               <button
                                 type="button"
                                 onClick={() => setCapriModal({ rowIndex: i })}
-                                className="btn btn-primary flex items-center gap-1.5 whitespace-nowrap"
+                                className="btn btn-primary flex items-center gap-1.5 whitespace-nowrap self-end"
                                 title={r.hayGrade ? "Re-clasificar con CAPRI" : "Clasificar con CAPRI"}
                               >
                                 <Layers className="h-4 w-4" />
