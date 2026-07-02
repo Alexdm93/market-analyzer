@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
   }
 
-  const [{ rate: bcvRate }, { rate: bcvEurRate }, { rate: binanceRate }, { rate: libreOverride }, workspaces] = await Promise.all([
+  const [{ rate: globalBcvRate }, { rate: globalBcvEurRate }, { rate: globalBinanceRate }, { rate: libreOverride }, workspaces] = await Promise.all([
     getBcvRate(),
     getBcvEuroRate(),
     getBinanceRate(),
@@ -86,12 +86,13 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  // Auto-compute libre as avg(binance, bcvEur) if no manual override
-  const libreRate = libreOverride
-    ?? (binanceRate && bcvEurRate ? Math.round(((binanceRate + bcvEurRate) / 2) * 100) / 100
-      : binanceRate ?? bcvEurRate ?? null);
+  // Fallback global libre (used only when a company has no ratesAtSave)
+  const globalLibreRate = libreOverride
+    ?? (globalBinanceRate && globalBcvEurRate
+      ? Math.round(((globalBinanceRate + globalBcvEurRate) / 2) * 100) / 100
+      : globalBinanceRate ?? globalBcvEurRate ?? null);
 
-  if (!libreRate || libreRate <= 0) {
+  if (!globalLibreRate && !globalBcvRate) {
     return Response.json({ message: "No hay tasas de mercado disponibles para calcular TCR. Intenta más tarde." }, { status: 422 });
   }
 
@@ -103,11 +104,6 @@ export async function GET(request: Request) {
   if (!userParticipated) {
     return Response.json({ message: "No participaste en este corte." }, { status: 403 });
   }
-
-  // tcrRate is the denominator for standardization; libreRate is used for USD components in all types
-  const tcrRate = tcrType === "libre" ? libreRate
-    : tcrType === "euro" ? (bcvEurRate ?? libreRate)
-    : (bcvRate ?? libreRate);
 
   const cargoGroups = new Map<string, CargoAccum>();
   const gradeGroups = new Map<number, GradeAccum>();
@@ -125,6 +121,21 @@ export async function GET(request: Request) {
     if (filterSectors.length   > 0 && (!companyInfo.sector         || !filterSectors.includes(companyInfo.sector)))                continue;
     if (filterSizes.length     > 0 && (!companyInfo.classification || !filterSizes.includes(companyInfo.classification)))          continue;
     if (filterCompanies.length > 0 && (!companyInfo.companyName    || !filterCompanies.includes(companyInfo.companyName)))         continue;
+
+    // Use rates from when this company last saved — fall back to global rates for legacy data
+    const saved      = companyInfo.ratesAtSave;
+    const bcvRate    = saved?.bcvUsd   ?? globalBcvRate;
+    const bcvEurRate = saved?.bcvEur   ?? globalBcvEurRate;
+    const binRate    = saved?.binance  ?? globalBinanceRate;
+    const libreRate  = libreOverride
+      ?? (binRate && bcvEurRate
+        ? Math.round(((binRate + bcvEurRate) / 2) * 100) / 100
+        : binRate ?? bcvEurRate ?? globalLibreRate ?? 1);
+
+    // tcrRate uses this company's contemporaneous reference rate as denominator
+    const tcrRate = tcrType === "libre" ? libreRate
+      : tcrType === "euro" ? (bcvEurRate ?? libreRate)
+      : (bcvRate ?? libreRate);
 
     const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
     const diasUtilidades = Number(companyInfo.minUtilityDays)  || 0;
@@ -200,10 +211,10 @@ export async function GET(request: Request) {
 
   return Response.json({
     snapshotId,
-    bcvRate,
+    bcvRate:   globalBcvRate,
     tcrType,
-    tcrRate,
-    libreRate,
+    tcrRate:   globalBcvRate ?? 1,
+    libreRate: globalLibreRate ?? 1,
     cargos,
     grades,
   } satisfies TcrPercentilesResponse);

@@ -62,6 +62,12 @@ export type CompanyInfo = {
   locality: string;
   tasas?: ExchangeRate[];
   compensationTemplate?: CompensationTemplate;
+  ratesAtSave?: {
+    bcvUsd:   number | null;
+    bcvEur:   number | null;
+    binance:  number | null;
+    savedAt:  string;
+  };
 };
 
 export type UserWorkspacePayload = {

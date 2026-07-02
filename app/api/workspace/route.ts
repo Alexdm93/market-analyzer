@@ -13,7 +13,7 @@ import {
   safeParseCompanyInfo,
   safeParseSnapshots,
 } from "@/lib/workspace";
-import { getBcvRate, getBcvEuroRate, buildBcvTasa, buildBcvEurTasa } from "@/lib/bcv";
+import { getBcvRate, getBcvEuroRate, getBinanceRate, buildBcvTasa, buildBcvEurTasa } from "@/lib/bcv";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 
 type TransactionClient = Prisma.TransactionClient;
@@ -796,6 +796,12 @@ export async function PUT(request: Request) {
 
   const nextSnapshots = body.snapshots && typeof body.snapshots === "object" ? body.snapshots : safeParseSnapshots(existingWorkspace.snapshotsJson);
   const nextSelectedSnapshotId = typeof body.selectedSnapshotId === "string" ? body.selectedSnapshotId : existingWorkspace.selectedSnapshotId ?? "";
+
+  // Capture current rates at save time for temporal consistency in TCR calculations
+  const [currentBcv, currentBcvEur, currentBinance] = await Promise.all([
+    getBcvRate(), getBcvEuroRate(), getBinanceRate(),
+  ]);
+
   const requestedCompanyInfo =
     body.companyInfo && typeof body.companyInfo === "object"
       ? {
@@ -804,6 +810,12 @@ export async function PUT(request: Request) {
           tasas: ((body.companyInfo as CompanyInfo).tasas ?? []).filter(
             (t: ExchangeRate) => !t.isSystem
           ),
+          ratesAtSave: {
+            bcvUsd:  currentBcv.rate,
+            bcvEur:  currentBcvEur.rate,
+            binance: currentBinance.rate,
+            savedAt: new Date().toISOString(),
+          },
         }
       : safeParseCompanyInfo(existingWorkspace.companyInfoJson);
   const duplicateCargoTitles = getDuplicateCargoTitles(nextSnapshots);

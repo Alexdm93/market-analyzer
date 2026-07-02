@@ -94,7 +94,7 @@ textarea {
 .page-wrap {
   position: relative;
   z-index: 1;
-  padding: 0;
+  padding: var(--shell-gap);
 }
 
 @media (min-width: 1024px) {
