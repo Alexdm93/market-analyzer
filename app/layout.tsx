@@ -31,7 +31,13 @@ export default function RootLayout({
         <Providers>
           <NavigationProgress>
             <Sidebar />
-            <main className="app-main min-h-screen min-w-0 flex-1 w-full">{children}</main>
+            <div className="app-main min-h-screen min-w-0 flex-1 w-full flex flex-col">
+              <div className="flex-1">{children}</div>
+              <footer className="px-6 py-10 text-center text-xs leading-6 text-slate-400 md:px-10">
+                <p>© 2026 Desarrollado por AC Consulting en alianza con AVGH. Todos los derechos reservados.</p>
+                <p>Tus datos están protegidos bajo estrictos acuerdos de confidencialidad.</p>
+              </footer>
+            </div>
           </NavigationProgress>
         </Providers>
       </body>
