@@ -1433,6 +1433,15 @@ export default function DataPage() {
                   Todos los montos en USD. Pagos en Bs con moneda de pago=Bs usan tasa BCV; con moneda de pago=USD usan la tasa establecida en el campo.
                 </p>
 
+                {!modalSaveRow?.hayGrade && (
+                  <div className="mt-4 rounded-[1.1rem] border border-red-200 bg-red-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-red-700">Clasificación CAPRI requerida</p>
+                    <p className="mt-1 text-xs leading-5 text-red-700">
+                      Este cargo no tiene grado CAPRI asignado. Abre la pestaña <strong>Identidad</strong> y clasifícalo antes de guardar.
+                    </p>
+                  </div>
+                )}
+
                 {missingCompanyFields.length > 0 && (
                   <div className="mt-4 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3">
                     <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-700">Información de empresa incompleta</p>
@@ -1452,7 +1461,7 @@ export default function DataPage() {
 
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
-                  <button onClick={() => { const id = modal.id; if (id) { void saveRowById(id); setExpanded((prev) => ({ ...prev, [id]: false })); } setModal({ type: null }); }} disabled={missingCompanyFields.length > 0} className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">Guardar</button>
+                  <button onClick={() => { const id = modal.id; if (id) { void saveRowById(id); setExpanded((prev) => ({ ...prev, [id]: false })); } setModal({ type: null }); }} disabled={!modalSaveRow?.hayGrade || missingCompanyFields.length > 0} className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">Guardar</button>
                 </div>
               </div>
             )}

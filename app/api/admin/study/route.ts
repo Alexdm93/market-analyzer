@@ -194,6 +194,7 @@ export async function GET(request: Request) {
         headcount: position.company.headcount || "",
         title: position.title || String(parsed.tituloCargo ?? "Sin título"),
         level: String(parsed.nivelOrganizacional ?? ""),
+        hayGrade: parsed.hayGrade,
         classification: String(parsed.clasificacion ?? ""),
         description: String(parsed.descripcion ?? ""),
         baseSalary: formatMoney(Number(parsed.sueldoBasico ?? 0)),

@@ -8,6 +8,7 @@ import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { type Snapshot, type CompanyInfo, type ExchangeRate, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { resolveRowTotals, PERCENTILE_MIN_N } from "@/lib/compensation";
+import type { PercentilesGradeResponse } from "@/app/api/percentiles-by-grade/route";
 import { FmtMoney, fmtMoneyStr } from "@/components/FmtMoney";
 
 type AdminStudySnapshot = {
@@ -26,6 +27,7 @@ type AdminStudyPosition = {
   headcount: string;
   title: string;
   level: string;
+  hayGrade?: number;
   classification: string;
   description: string;
   baseSalary: string;
@@ -241,6 +243,9 @@ export default function EstudioPage() {
   const [percentileData, setPercentileData] = useState<PercentilesPayload | null>(null);
   const [percentilesLoading, setPercentilesLoading] = useState(false);
   const [percentilesError, setPercentilesError] = useState<string | null>(null);
+  const [userStudyView, setUserStudyView] = useState<"cargo" | "grado">("cargo");
+  const [gradePercentileData, setGradePercentileData] = useState<PercentilesGradeResponse | null>(null);
+  const [gradePercentilesLoading, setGradePercentilesLoading] = useState(false);
   const [publishedParticipatedSnapshotIds, setPublishedParticipatedSnapshotIds] = useState<string[]>([]);
   const [pendingSector, setPendingSector] = useState<string[]>([]);
   const [pendingSize, setPendingSize] = useState<string[]>([]);
@@ -355,33 +360,34 @@ export default function EstudioPage() {
   const NIVELES_ESTUDIO = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
 
   const adminPositionsByGrado = useMemo(() => {
-    const map = new Map<string, { companies: Set<string>; totals: number[] }>();
+    const map = new Map<number, { companies: Set<string>; totals: number[] }>();
     filteredPositions.forEach((p) => {
-      const nivel = p.level.trim();
-      const normalized = NIVELES_ESTUDIO.find((n) => nivel.toLowerCase().includes(n.toLowerCase())) ?? nivel;
-      if (!normalized) return;
-      if (!map.has(normalized)) map.set(normalized, { companies: new Set(), totals: [] });
-      const entry = map.get(normalized)!;
+      const grade = p.hayGrade;
+      if (!grade) return;
+      if (!map.has(grade)) map.set(grade, { companies: new Set(), totals: [] });
+      const entry = map.get(grade)!;
       entry.companies.add(p.companyName);
-      const total = p.conceptValues["Compensación total"] ?? 0;
+      const total = p.conceptValues["Total directo mensualizado"] ?? p.conceptValues["Compensación total"] ?? 0;
       if (total > 0) entry.totals.push(Number(total));
     });
-    return NIVELES_ESTUDIO.map((nivel) => {
-      const entry = map.get(nivel);
-      const totals = entry?.totals ?? [];
-      return {
-        nivel,
-        empresas: entry?.companies.size ?? 0,
-        obs: totals.length,
-        min: totals.length ? formatMoney(Math.min(...totals)) : "—",
-        p25: totals.length ? formatMoney(Math.round(percentile(totals, 25))) : "—",
-        p50: totals.length ? formatMoney(Math.round(percentile(totals, 50))) : "—",
-        p75: totals.length ? formatMoney(Math.round(percentile(totals, 75))) : "—",
-        p90: totals.length ? formatMoney(Math.round(percentile(totals, 90))) : "—",
-        max: totals.length ? formatMoney(Math.max(...totals)) : "—",
-        promedio: totals.length ? formatMoney(Math.round(totals.reduce((a, b) => a + b, 0) / totals.length)) : "—",
-      };
-    }).filter((g) => g.obs > 0);
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([grade, entry]) => {
+        const totals = entry.totals;
+        return {
+          grade,
+          empresas: entry.companies.size,
+          obs: totals.length,
+          min:     totals.length ? formatMoney(Math.min(...totals)) : "—",
+          p25:     totals.length ? formatMoney(Math.round(percentile(totals, 25))) : "—",
+          p50:     totals.length ? formatMoney(Math.round(percentile(totals, 50))) : "—",
+          p75:     totals.length ? formatMoney(Math.round(percentile(totals, 75))) : "—",
+          p90:     totals.length ? formatMoney(Math.round(percentile(totals, 90))) : "—",
+          max:     totals.length ? formatMoney(Math.max(...totals)) : "—",
+          promedio:totals.length ? formatMoney(Math.round(totals.reduce((a, b) => a + b, 0) / totals.length)) : "—",
+        };
+      })
+      .filter((g) => g.obs > 0);
   }, [filteredPositions]);
 
   const adminCompanySummary = useMemo(() => {
@@ -493,6 +499,25 @@ export default function EstudioPage() {
       })
       .catch(() => { if (!ignore) { setPercentileData(null); setPercentilesError("Error de conexión."); } })
       .finally(() => { if (!ignore) setPercentilesLoading(false); });
+    return () => { ignore = true; };
+  }, [isAdmin, selectedSnapshotId, appliedSector, appliedSize, appliedCompany]);
+
+  // Grade percentiles for user view
+  useEffect(() => {
+    if (isAdmin || !selectedSnapshotId) return;
+    let ignore = false;
+    setGradePercentilesLoading(true);
+    const params = new URLSearchParams({ snapshotId: selectedSnapshotId });
+    if (appliedSector.length  > 0) params.set("sectors",   appliedSector.join(","));
+    if (appliedSize.length    > 0) params.set("sizes",     appliedSize.join(","));
+    if (appliedCompany.length > 0) params.set("companies", appliedCompany.join(","));
+    void fetch(`/api/percentiles-by-grade?${params.toString()}`, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((body: PercentilesGradeResponse | null) => {
+        if (!ignore) setGradePercentileData(body);
+      })
+      .catch(() => {})
+      .finally(() => { if (!ignore) setGradePercentilesLoading(false); });
     return () => { ignore = true; };
   }, [isAdmin, selectedSnapshotId, appliedSector, appliedSize, appliedCompany]);
 
@@ -789,33 +814,33 @@ export default function EstudioPage() {
   }
 
   async function exportAdminGradosExcel(snapshotLabel: string, positions: AdminStudyPosition[]) {
-    const companyMap = new Map<string, Set<string>>();
-    const valMap = new Map<string, number[]>();
+    const companyMap = new Map<number, Set<string>>();
+    const valMap     = new Map<number, number[]>();
     positions.forEach((p) => {
-      const nivel = p.level.trim();
-      const normalized = NIVELES_ESTUDIO.find((n) => nivel.toLowerCase().includes(n.toLowerCase())) ?? nivel;
-      if (!normalized) return;
-      if (!companyMap.has(normalized)) { companyMap.set(normalized, new Set()); valMap.set(normalized, []); }
-      companyMap.get(normalized)!.add(p.companyName);
-      const total = Number(p.conceptValues["Compensación total"] ?? 0);
-      if (total > 0) valMap.get(normalized)!.push(total);
+      const grade = p.hayGrade;
+      if (!grade) return;
+      if (!companyMap.has(grade)) { companyMap.set(grade, new Set()); valMap.set(grade, []); }
+      companyMap.get(grade)!.add(p.companyName);
+      const total = Number(p.conceptValues["Total directo mensualizado"] ?? p.conceptValues["Compensación total"] ?? 0);
+      if (total > 0) valMap.get(grade)!.push(total);
     });
-    const sheetRows = NIVELES_ESTUDIO.map((nivel) => {
-      const totals = valMap.get(nivel) ?? [];
-      if (!totals.length) return null;
-      return {
-        grado:        nivel,
-        empresas:     companyMap.get(nivel)?.size ?? 0,
-        observaciones:totals.length,
-        min:          Math.min(...totals),
-        p25:          Math.round(percentile(totals, 25)),
-        p50:          Math.round(percentile(totals, 50)),
-        p75:          Math.round(percentile(totals, 75)),
-        p90:          Math.round(percentile(totals, 90)),
-        max:          Math.max(...totals),
-        promedio:     Math.round(totals.reduce((a, b) => a + b, 0) / totals.length),
-      };
-    }).filter(Boolean);
+    const sheetRows = Array.from(valMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([grade, totals]) => {
+        if (!totals.length) return null;
+        return {
+          grado:         `Grado ${grade}`,
+          empresas:      companyMap.get(grade)?.size ?? 0,
+          observaciones: totals.length,
+          min:           Math.min(...totals),
+          p25:           Math.round(percentile(totals, 25)),
+          p50:           Math.round(percentile(totals, 50)),
+          p75:           Math.round(percentile(totals, 75)),
+          p90:           Math.round(percentile(totals, 90)),
+          max:           Math.max(...totals),
+          promedio:      Math.round(totals.reduce((a, b) => a + b, 0) / totals.length),
+        };
+      }).filter(Boolean);
 
     if (sheetRows.length === 0) {
       setAdminMessage("No hay data de grados para exportar.");
@@ -919,6 +944,52 @@ export default function EstudioPage() {
       ? sanitizeFileSegment(snapshots[selectedSnapshotId]?.label || selectedSnapshotId)
       : "estudio";
     await exportStyledExcel(sheets, `posicionamiento-${snapshotLabel}.xlsx`);
+  }
+
+  async function exportUserGradeExcel() {
+    if (!gradePercentileData?.grupos.length) return;
+    const allMetrics = [
+      { key: "sinPasivosMensual"  as const, label: "TEM"  },
+      { key: "directoMensualizado"as const, label: "TEMz" },
+      { key: "conPasivosMensual"  as const, label: "CIM"  },
+      { key: "conPasivosAnual"    as const, label: "PCTA" },
+    ];
+    const snapshotLabel = selectedSnapshotId
+      ? sanitizeFileSegment(snapshots[selectedSnapshotId]?.label || selectedSnapshotId)
+      : "estudio";
+    const sheets = allMetrics.map(({ key, label }) => ({
+      name: label,
+      columns: [
+        { header: "Grado",      key: "grado",    width: 12, align: "center" as const },
+        { header: "N",          key: "n",         width: 8,  align: "center" as const },
+        { header: `Mi valor (${label})`, key: "miValor", width: 16, align: "right" as const },
+        { header: "P10",        key: "p10",       width: 14, align: "right"  as const },
+        { header: "P25",        key: "p25",       width: 14, align: "right"  as const },
+        { header: "P50",        key: "p50",       width: 14, align: "right"  as const },
+        { header: "P75",        key: "p75",       width: 14, align: "right"  as const },
+        { header: "P90",        key: "p90",       width: 14, align: "right"  as const },
+        { header: "Promedio",   key: "promedio",  width: 14, align: "right"  as const },
+      ],
+      rows: gradePercentileData.grupos.map((g) => {
+        const mktData = g[key];
+        const myRows  = userRowTotals.filter(({ row }) => row.hayGrade === g.grade);
+        const myAvg   = myRows.length
+          ? Math.round(myRows.reduce((s, { totals }) => s + totals[METRIC_KEY[key]], 0) / myRows.length)
+          : null;
+        return {
+          grado:   g.grade,
+          n:       mktData.n,
+          miValor: myAvg,
+          p10:     mktData.p10,
+          p25:     mktData.p25,
+          p50:     mktData.p50,
+          p75:     mktData.p75,
+          p90:     mktData.p90,
+          promedio:mktData.promedio !== null ? Math.round(mktData.promedio ?? 0) : null,
+        };
+      }),
+    }));
+    await exportStyledExcel(sheets, `grados-${snapshotLabel}.xlsx`);
   }
 
   if (isAdmin) {
@@ -1360,13 +1431,13 @@ export default function EstudioPage() {
                   </div>
 
                   {adminPositionsByGrado.length === 0 ? (
-                    <div className="px-6 py-8 text-sm text-slate-500">No hay posiciones con nivel asignado en el corte actual.</div>
+                    <div className="px-6 py-8 text-sm text-slate-500">No hay posiciones con grado CAPRI asignado en el corte actual.</div>
                   ) : (
                     <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
                       <table className="min-w-full border-separate border-spacing-y-3 text-sm">
                         <thead>
                           <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                            <th className="px-4 py-2">Grado</th>
+                            <th className="px-4 py-2">Grado CAPRI</th>
                             <th className="px-4 py-2 text-center">Empresas</th>
                             <th className="px-4 py-2 text-center">Obs.</th>
                             <th className="px-4 py-2 text-right">Min</th>
@@ -1380,8 +1451,10 @@ export default function EstudioPage() {
                         </thead>
                         <tbody>
                           {adminPositionsByGrado.map((g) => (
-                            <tr key={g.nivel} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                              <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{g.nivel}</td>
+                            <tr key={g.grade} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                              <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
+                                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{g.grade}</span>
+                              </td>
                               <td className="px-4 py-4 text-center text-slate-600">{g.empresas}</td>
                               <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.obs}</td>
                               <td className="px-4 py-4 text-right font-display text-slate-600">{g.min}</td>
@@ -1597,31 +1670,49 @@ export default function EstudioPage() {
           </div>
         </section>
 
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              { key: "sinPasivosMensual", label: "TEM" },
-              { key: "directoMensualizado", label: "TEMz" },
-              { key: "conPasivosMensual", label: "CIM" },
-              { key: "conPasivosAnual", label: "PCTA" },
-            ] as const
-          ).map(({ key, label }) => (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { key: "sinPasivosMensual", label: "TEM" },
+                { key: "directoMensualizado", label: "TEMz" },
+                { key: "conPasivosMensual", label: "CIM" },
+                { key: "conPasivosAnual", label: "PCTA" },
+              ] as const
+            ).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveMetric(key)}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+                  activeMetric === key
+                    ? "bg-teal-700 text-white shadow-sm"
+                    : "surface-card text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1.5 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
             <button
-              key={key}
               type="button"
-              onClick={() => setActiveMetric(key)}
-              className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
-                activeMetric === key
-                  ? "bg-teal-700 text-white shadow-sm"
-                  : "surface-card text-slate-600 hover:text-slate-900"
-              }`}
+              onClick={() => setUserStudyView("cargo")}
+              className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${userStudyView === "cargo" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
             >
-              {label}
+              Por cargo
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setUserStudyView("grado")}
+              className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${userStudyView === "grado" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              Por grado
+            </button>
+          </div>
         </div>
 
-        {userRowTotals.length === 0 ? (
+        {userStudyView === "cargo" && userRowTotals.length === 0 ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
             No hay posiciones cargadas en este corte. Ve a{" "}
             <button
@@ -1633,15 +1724,15 @@ export default function EstudioPage() {
             </button>{" "}
             y agrega cargos para ver tu posicionamiento.
           </section>
-        ) : percentilesLoading ? (
+        ) : userStudyView === "cargo" && percentilesLoading ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm text-slate-500">
             Cargando datos de mercado…
           </section>
-        ) : percentilesError ? (
+        ) : userStudyView === "cargo" && percentilesError ? (
           <section className="surface-card rounded-[2rem] p-8 text-sm text-slate-600">
             {percentilesError}
           </section>
-        ) : (
+        ) : userStudyView === "cargo" ? (
           <section className="surface-card overflow-hidden rounded-[2rem]">
             <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
               <div>
@@ -1739,6 +1830,103 @@ export default function EstudioPage() {
               </table>
             </div>
           </section>
+        ) : null}
+
+        {/* Grade study view */}
+        {userStudyView === "grado" && (
+          gradePercentilesLoading ? (
+            <section className="surface-card rounded-[2rem] p-8 text-sm text-slate-500">
+              Cargando datos de mercado por grado…
+            </section>
+          ) : !gradePercentileData || gradePercentileData.grupos.length === 0 ? (
+            <section className="surface-card rounded-[2rem] p-8 text-sm text-slate-500">
+              No hay cargos con grado CAPRI asignado en este corte. Clasifica tus cargos con CAPRI en Suministro de Data para ver este estudio.
+            </section>
+          ) : (
+            <section className="surface-card overflow-hidden rounded-[2rem]">
+              <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="eyebrow mb-2">Estudio de mercado</div>
+                  <h2 className="font-display text-2xl font-bold text-slate-900">
+                    {activeMetric === "sinPasivosMensual" && "TEM — Total Efectivo Mensual por grado"}
+                    {activeMetric === "directoMensualizado" && "TEMz — Total Efectivo Mensualizado por grado"}
+                    {activeMetric === "conPasivosMensual" && "CIM — Compensación Integral Mensualizada por grado"}
+                    {activeMetric === "conPasivosAnual" && "PCTA — Paquete de Compensación Total Anual por grado"}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="pill">
+                    <Layers3 size={14} aria-hidden />
+                    ND = muestra insuficiente
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void exportUserGradeExcel()}
+                    className="btn btn-secondary"
+                  >
+                    Exportar a Excel
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
+                <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                      <th className="px-4 py-2">Grado CAPRI</th>
+                      <th className="px-4 py-2 text-center">N</th>
+                      <th className="px-4 py-2 text-right text-teal-700">Mi valor</th>
+                      <th className="px-4 py-2 text-right">P10</th>
+                      <th className="px-4 py-2 text-right">P25</th>
+                      <th className="px-4 py-2 text-right text-teal-700">P50</th>
+                      <th className="px-4 py-2 text-right">P75</th>
+                      <th className="px-4 py-2 text-right">P90</th>
+                      <th className="px-4 py-2 text-right">Prom.</th>
+                      <th className="px-4 py-2">Posición</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gradePercentileData.grupos.map((g) => {
+                      const mktData = g[activeMetric];
+                      const myRows  = userRowTotals.filter(({ row }) => row.hayGrade === g.grade);
+                      const myAvg   = myRows.length
+                        ? Math.round(myRows.reduce((s, { totals }) => s + totals[METRIC_KEY[activeMetric]], 0) / myRows.length)
+                        : null;
+                      const position = myAvg !== null && mktData ? resolvePosition(myAvg, mktData) : null;
+                      const posColor =
+                        position === "Sobre P90" || position === "P75–P90" ? "bg-emerald-50 text-emerald-700"
+                        : position === "P50–P75" ? "bg-teal-50 text-teal-700"
+                        : position === "P25–P50" ? "bg-amber-50 text-amber-700"
+                        : "bg-rose-50 text-rose-700";
+                      const nd = (v: number | null) => (v !== null ? formatMoney(v) : "ND");
+                      return (
+                        <tr key={g.grade} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                          <td className="rounded-l-[1.25rem] px-4 py-4">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{g.grade}</span>
+                          </td>
+                          <td className="px-4 py-4 text-center font-semibold text-slate-700">{mktData.n ?? "—"}</td>
+                          <td className="px-4 py-4 text-right font-semibold text-teal-700">
+                            {myAvg !== null ? formatMoney(myAvg) : <span className="text-slate-400">—</span>}
+                            {myRows.length > 1 && <span className="ml-1 text-[0.65rem] text-slate-400">({myRows.length} cargos)</span>}
+                          </td>
+                          <td className="px-4 py-4 text-right text-slate-700">{nd(mktData.p10)}</td>
+                          <td className="px-4 py-4 text-right text-slate-700">{nd(mktData.p25)}</td>
+                          <td className="px-4 py-4 text-right font-semibold text-teal-700">{nd(mktData.p50)}</td>
+                          <td className="px-4 py-4 text-right text-slate-700">{nd(mktData.p75)}</td>
+                          <td className="px-4 py-4 text-right text-slate-700">{nd(mktData.p90)}</td>
+                          <td className="px-4 py-4 text-right text-slate-600">{mktData.promedio !== null ? formatMoney(Math.round(mktData.promedio ?? 0)) : "ND"}</td>
+                          <td className="rounded-r-[1.25rem] px-4 py-4">
+                            {position ? (
+                              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${posColor}`}>{position}</span>
+                            ) : <span className="text-slate-400">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )
         )}
       </div>
 
