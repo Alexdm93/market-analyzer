@@ -370,6 +370,38 @@ export default function EstudioPage() {
     return entries;
   }, [adminPositionsByCargo]);
 
+  // Same structure as adminProcessedMetrics but sourced from TCR percentile data
+  const adminTcrConceptMetrics = useMemo(() => {
+    const entries = new Map<string, AdminConceptMetric[]>();
+    if (!adminTcrPercentileData) return entries;
+    const TCR_CONCEPT_MAP: Array<{ key: keyof typeof adminTcrPercentileData.cargos[number]; concept: string }> = [
+      { key: "sinPasivosMensual",  concept: "Sin pasivos — mensual" },
+      { key: "directoMensualizado",concept: "Total directo mensualizado" },
+      { key: "conPasivosMensual",  concept: "Con pasivos — mensual" },
+      { key: "conPasivosAnual",    concept: "Con pasivos — anual" },
+    ];
+    for (const cargo of adminTcrPercentileData.cargos) {
+      const conceptMetrics: AdminConceptMetric[] = TCR_CONCEPT_MAP.map(({ key, concept }) => {
+        const m = cargo[key] as import("@/lib/compensation").MetricPercentiles;
+        const fmt = (v: number | null) => (v != null ? formatMoney(v) : "ND");
+        return {
+          concept,
+          count: m.n,
+          min:     m.min != null ? formatMoney(m.min) : "—",
+          max:     m.max != null ? formatMoney(m.max) : "—",
+          average: fmt(m.promedio),
+          p10: fmt(m.p10),
+          p25: fmt(m.p25),
+          p50: fmt(m.p50),
+          p75: fmt(m.p75),
+          p90: fmt(m.p90),
+        };
+      });
+      entries.set(cargo.tituloCargo, conceptMetrics);
+    }
+    return entries;
+  }, [adminTcrPercentileData]);
+
   const NIVELES_ESTUDIO = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
 
   const adminPositionsByGrado = useMemo(() => {
@@ -1091,7 +1123,9 @@ export default function EstudioPage() {
     const availableAdminCargos = adminPositionsByCargo.map((entry) => entry.title);
     const activeAdminCargo = adminPositionsByCargo.find((entry) => entry.title === selectedAdminCargo)?.title ?? availableAdminCargos[0] ?? "";
     const activeRawPositions = adminPositionsByCargo.find((entry) => entry.title === activeAdminCargo)?.positions ?? [];
-    const activeProcessedMetrics = adminProcessedMetrics.get(activeAdminCargo) ?? [];
+    const activeProcessedMetrics = (adminTcrEnabled && adminTcrConceptMetrics.size > 0
+      ? adminTcrConceptMetrics.get(activeAdminCargo)
+      : adminProcessedMetrics.get(activeAdminCargo)) ?? [];
     const hasActiveFilters = filterSectors.length > 0 || filterCompanies.length > 0 || filterSizes.length > 0;
 
     return (
