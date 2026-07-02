@@ -35,7 +35,7 @@ async function fetchDolarApi(path: string): Promise<number | null> {
   }
 }
 
-/** Fetches all rates at once and returns a map by slug (useful as fallback) */
+/** Fetches all rates at once and returns a map by every label variant (useful as fallback) */
 async function fetchAllDolarApi(): Promise<Map<string, number>> {
   try {
     const res = await fetch("https://ve.dolarapi.com/v1/dolares", {
@@ -48,8 +48,16 @@ async function fetchAllDolarApi(): Promise<Map<string, number>> {
     for (const item of data) {
       const v = item.promedio ?? item.promedioVenta;
       if (typeof v !== "number" || v <= 0) continue;
-      const key = (item.fuente ?? item.nombre ?? "").toLowerCase();
-      map.set(key, v);
+      // Index by every token so partial matches work (e.g. "euro", "eur", "paralelo")
+      for (const label of [item.fuente, item.nombre]) {
+        if (!label) continue;
+        const slug = label.toLowerCase().trim();
+        map.set(slug, v);
+        // Also index each word individually
+        for (const word of slug.split(/[\s/,_-]+/)) {
+          if (word.length > 1) map.set(word, v);
+        }
+      }
     }
     return map;
   } catch {
@@ -62,11 +70,22 @@ export async function fetchBcvFromApi(): Promise<number | null> {
 }
 
 export async function fetchBcvEurFromApi(): Promise<number | null> {
-  const direct = await fetchDolarApi("euro");
-  if (direct !== null) return direct;
-  // Fallback: list endpoint
+  // Try known paths first
+  for (const path of ["euro", "eur", "euros"]) {
+    const v = await fetchDolarApi(path);
+    if (v !== null) return v;
+  }
+  // Fallback: list endpoint — match common label variants
   const all = await fetchAllDolarApi();
-  return all.get("euro") ?? all.get("eur") ?? null;
+  return (
+    all.get("euro") ??
+    all.get("eur") ??
+    all.get("euros") ??
+    all.get("eur oficial") ??
+    all.get("oficial eur") ??
+    all.get("bce") ??
+    null
+  );
 }
 
 export async function fetchBinanceFromApi(): Promise<number | null> {

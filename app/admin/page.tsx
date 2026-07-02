@@ -900,11 +900,10 @@ export default function AdminPage() {
         {/* TCR rate configuration */}
         <section className="surface-card overflow-hidden rounded-[1.75rem] p-5 md:p-6">
           <div className="eyebrow mb-4">Tasas TCR</div>
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-5">
+          <div className="grid gap-3 grid-cols-3 mb-5">
             {[
               { label: "BCV USD",   value: tcrBcvUsd },
               { label: "BCV EUR",   value: tcrBcvEur },
-              { label: "Binance",   value: tcrBinance },
               { label: "Libre USD", value: tcrLibre, highlight: true, tag: tcrLibreIsManual ? "manual" : "auto" },
             ].map(({ label, value, highlight, tag }) => (
               <div key={label} className={`rounded-[1.1rem] px-4 py-3 ${highlight ? "bg-amber-50" : "bg-slate-50"}`}>
