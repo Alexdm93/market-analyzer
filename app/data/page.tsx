@@ -1165,10 +1165,10 @@ export default function DataPage() {
                             </div>
                             <div>
                               <label className="field-label">Metodología CAPRI</label>
-                              <div className={`field flex items-center gap-2 bg-slate-50 text-sm select-none ${r.hayGrade ? "text-teal-700 font-semibold" : "text-slate-400"}`}>
+                              <div className={`field flex items-center gap-2 bg-slate-50 text-sm select-none leading-none ${r.hayGrade ? "text-teal-700 font-semibold" : "text-slate-400"}`}>
                                 {r.hayGrade ? (
                                   <>
-                                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{r.hayGrade}</span>
+                                    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-teal-600 text-[0.6rem] font-black text-white">{r.hayGrade}</span>
                                     Grado {r.hayGrade}
                                   </>
                                 ) : "Sin grado"}
