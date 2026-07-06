@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 const BCV_KEY      = "bcv_usd_rate";
 const BCV_EUR_KEY  = "bcv_eur_rate";
 const BINANCE_KEY  = "binance_rate";
-// Refresh if older than 22h — keeps all rates on the same daily cycle
-const STALE_MS = 22 * 60 * 60 * 1000;
+// Refresh if older than 12h — ensures rates update at least twice daily
+const STALE_MS = 12 * 60 * 60 * 1000;
 
 export const BCV_TASA_ID     = "bcv-usd";
 export const BCV_EUR_TASA_ID = "bcv-eur";
