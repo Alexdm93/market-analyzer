@@ -1,5 +1,5 @@
 "use client";
-import { Building2, Contact2, Globe2, Layers, Lock, Plus, Save, Sparkles, Trash2, TrendingUp } from "lucide-react";
+import { Building2, Contact2, Globe2, Layers, Lock, Plus, RefreshCw, Save, Sparkles, Trash2, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EMPTY_COMPANY_INFO, type CompanyInfo, type CompensationTemplateConcept, type ExchangeRate } from "@/lib/workspace";
 import { FREQUENCY_OPTIONS, SYSTEM_FIXED_CONCEPTS, VARIABLE_BONUS_TYPES, VARIABLE_COMMISSION_TYPES, VARIABLE_CALCULATION_DETAILS, VARIABLE_GOALS_TARGETS } from "@/lib/compensation-options";
@@ -76,6 +76,44 @@ export default function Informacion() {
   }, []);
   const [notification, setNotification] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [isRefreshingTasas, setIsRefreshingTasas] = useState(false);
+
+  async function refreshSystemTasas() {
+    setIsRefreshingTasas(true);
+    try {
+      // Try admin force-refresh first; fall back to reading current cache via workspace GET
+      const adminRes = await fetch("/api/admin/tcr-rates", { method: "POST" });
+      if (adminRes.ok) {
+        const data = await adminRes.json() as {
+          bcvUsd: { rate: number | null; updatedAt: string | null };
+          bcvEur: { rate: number | null; updatedAt: string | null };
+        };
+        setCompanyInfo((prev) => ({
+          ...prev,
+          tasas: (prev.tasas ?? []).map((t) => {
+            if (t.id === "bcv-usd") return { ...t, valor: data.bcvUsd.rate != null ? String(data.bcvUsd.rate) : t.valor, updatedAt: data.bcvUsd.updatedAt ?? t.updatedAt };
+            if (t.id === "bcv-eur") return { ...t, valor: data.bcvEur.rate != null ? String(data.bcvEur.rate) : t.valor, updatedAt: data.bcvEur.updatedAt ?? t.updatedAt };
+            return t;
+          }),
+        }));
+      } else {
+        // Not admin — reload workspace to get current cached rates, only update system tasas
+        const ws = await fetchWorkspace();
+        const fresh = (ws.companyInfo.tasas ?? []).filter((t) => t.isSystem);
+        setCompanyInfo((prev) => ({
+          ...prev,
+          tasas: [
+            ...fresh,
+            ...(prev.tasas ?? []).filter((t) => !t.isSystem),
+          ],
+        }));
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setIsRefreshingTasas(false);
+    }
+  }
 
   function updateCompany<K extends keyof CompanyInfo>(key: K, value: string) {
     setCompanyInfo((prev) => ({ ...prev, [key]: value }));
@@ -377,15 +415,26 @@ export default function Informacion() {
                 <p className="mt-0.5 text-sm text-slate-500">Máximo {MAX_TASAS} tasas adicionales. Se usarán en los selectores de cada concepto.</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={addTasa}
-              disabled={userTasas.length >= MAX_TASAS}
-              className="btn btn-primary"
-            >
-              <Plus className="h-4 w-4" />
-              Agregar tasa
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={refreshSystemTasas}
+                disabled={isRefreshingTasas}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw size={13} aria-hidden className={isRefreshingTasas ? "animate-spin" : ""} />
+                {isRefreshingTasas ? "Actualizando…" : "Actualizar"}
+              </button>
+              <button
+                type="button"
+                onClick={addTasa}
+                disabled={userTasas.length >= MAX_TASAS}
+                className="btn btn-primary"
+              >
+                <Plus className="h-4 w-4" />
+                Agregar tasa
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 space-y-3">
