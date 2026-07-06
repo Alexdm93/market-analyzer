@@ -797,11 +797,10 @@ export async function PUT(request: Request) {
   const nextSnapshots = body.snapshots && typeof body.snapshots === "object" ? body.snapshots : safeParseSnapshots(existingWorkspace.snapshotsJson);
   const nextSelectedSnapshotId = typeof body.selectedSnapshotId === "string" ? body.selectedSnapshotId : existingWorkspace.selectedSnapshotId ?? "";
 
-  // Capture current rates at save time for temporal consistency in TCR calculations
-  const [currentBcv, currentBcvEur, currentBinance] = await Promise.all([
-    getBcvRate(), getBcvEuroRate(), getBinanceRate(),
-  ]);
+  const existingCompanyInfo = safeParseCompanyInfo(existingWorkspace.companyInfoJson);
 
+  // Build companyInfo preserving existing ratesAtSave — rates are only refreshed
+  // when the user explicitly saves snapshot (salary) data, not just profile info.
   const requestedCompanyInfo =
     body.companyInfo && typeof body.companyInfo === "object"
       ? {
@@ -810,14 +809,23 @@ export async function PUT(request: Request) {
           tasas: ((body.companyInfo as CompanyInfo).tasas ?? []).filter(
             (t: ExchangeRate) => !t.isSystem
           ),
-          ratesAtSave: {
-            bcvUsd:  currentBcv.rate,
-            bcvEur:  currentBcvEur.rate,
-            binance: currentBinance.rate,
-            savedAt: new Date().toISOString(),
-          },
+          ratesAtSave: existingCompanyInfo.ratesAtSave,
         }
-      : safeParseCompanyInfo(existingWorkspace.companyInfoJson);
+      : existingCompanyInfo;
+
+  // Capture current rates only when snapshot data is being saved
+  const savingSnapshots = body.snapshots && typeof body.snapshots === "object";
+  if (savingSnapshots) {
+    const [currentBcv, currentBcvEur, currentBinance] = await Promise.all([
+      getBcvRate(), getBcvEuroRate(), getBinanceRate(),
+    ]);
+    requestedCompanyInfo.ratesAtSave = {
+      bcvUsd:  currentBcv.rate,
+      bcvEur:  currentBcvEur.rate,
+      binance: currentBinance.rate,
+      savedAt: new Date().toISOString(),
+    };
+  }
   const duplicateCargoTitles = getDuplicateCargoTitles(nextSnapshots);
 
   if (duplicateCargoTitles.length > 0) {

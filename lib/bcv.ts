@@ -70,22 +70,27 @@ export async function fetchBcvFromApi(): Promise<number | null> {
 }
 
 export async function fetchBcvEurFromApi(): Promise<number | null> {
-  // Try known paths first
-  for (const path of ["euro", "eur", "euros"]) {
-    const v = await fetchDolarApi(path);
-    if (v !== null) return v;
-  }
-  // Fallback: list endpoint — match common label variants
+  // ve.dolarapi.com/v1/euros returns an array of EUR rates
+  try {
+    const res = await fetch("https://ve.dolarapi.com/v1/euros", {
+      headers: { "User-Agent": "salary-intelligence/1.0" },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json() as Array<{ fuente?: string; promedio?: number; promedioVenta?: number }>;
+      if (Array.isArray(data)) {
+        const oficial = data.find((d) => d.fuente?.toLowerCase() === "oficial") ?? data[0];
+        if (oficial) {
+          const v = oficial.promedio ?? oficial.promedioVenta;
+          if (typeof v === "number" && v > 0) return v;
+        }
+      }
+    }
+  } catch { /* fall through */ }
+
+  // Fallback: search USD list for any EUR entry
   const all = await fetchAllDolarApi();
-  return (
-    all.get("euro") ??
-    all.get("eur") ??
-    all.get("euros") ??
-    all.get("eur oficial") ??
-    all.get("oficial eur") ??
-    all.get("bce") ??
-    null
-  );
+  return all.get("euro") ?? all.get("eur") ?? null;
 }
 
 export async function fetchBinanceFromApi(): Promise<number | null> {

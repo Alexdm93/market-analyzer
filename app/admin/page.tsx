@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, BookOpen, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, LoaderCircle, Plus, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, BookOpen, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, History, LoaderCircle, Plus, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
@@ -142,6 +143,9 @@ export default function AdminPage() {
   const [tcrLibreUpdatedAt, setTcrLibreUpdatedAt] = useState<string | null>(null);
   const [tcrLibreInput, setTcrLibreInput] = useState("");
   const [tcrSaveStatus, setTcrSaveStatus] = useState<"idle" | "saving" | "saved" | "error" | "resetting">("idle");
+  const [tcrHistoryOpen, setTcrHistoryOpen] = useState(false);
+  const [tcrHistory, setTcrHistory] = useState<TcrHistoryEntry[]>([]);
+  const [isLoadingTcrHistory, setIsLoadingTcrHistory] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -899,7 +903,31 @@ export default function AdminPage() {
 
         {/* TCR rate configuration */}
         <section className="surface-card overflow-hidden rounded-[1.75rem] p-5 md:p-6">
-          <div className="eyebrow mb-4">Tasas TCR</div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="eyebrow">Tasas TCR</div>
+            <button
+              type="button"
+              onClick={async () => {
+                setTcrHistoryOpen(true);
+                if (tcrHistory.length === 0) {
+                  setIsLoadingTcrHistory(true);
+                  try {
+                    const res = await fetch("/api/admin/tcr-history");
+                    if (res.ok) {
+                      const data = await res.json() as { entries: TcrHistoryEntry[] };
+                      setTcrHistory(data.entries);
+                    }
+                  } finally {
+                    setIsLoadingTcrHistory(false);
+                  }
+                }
+              }}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              <History size={13} aria-hidden />
+              Ver historial de tasas
+            </button>
+          </div>
           <div className="grid gap-3 grid-cols-3 mb-5">
             {[
               { label: "BCV USD",   value: tcrBcvUsd },
@@ -1868,6 +1896,85 @@ export default function AdminPage() {
           </div>
         </div>
       ) : null}
+
+      {/* TCR rate history modal */}
+      {tcrHistoryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="surface-card flex max-h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <div className="eyebrow mb-0.5">Control central</div>
+                <h2 className="font-display text-lg font-bold text-slate-900">Historial de tasas TCR</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Tasas usadas por las empresas participantes al momento de guardar sus datos.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTcrHistoryOpen(false)}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Cerrar"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto p-6">
+              {isLoadingTcrHistory ? (
+                <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+                  <LoaderCircle size={16} className="animate-spin" aria-hidden />
+                  Cargando historial…
+                </div>
+              ) : tcrHistory.length === 0 ? (
+                <p className="py-10 text-center text-sm text-slate-500">
+                  No hay historial disponible. Las tasas se registran cuando una empresa guarda sus datos.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <th className="pb-2 pr-4">Fecha</th>
+                        <th className="pb-2 pr-4">BCV USD</th>
+                        <th className="pb-2 pr-4">BCV EUR</th>
+                        <th className="pb-2 pr-4">Binance</th>
+                        <th className="pb-2 pr-4">Libre (auto)</th>
+                        <th className="pb-2">Empresas</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {tcrHistory.map((entry) => {
+                        const fmt = (v: number | null) =>
+                          v != null ? v.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+                        const [yyyy, mm, dd] = entry.date.split("-");
+                        const dateLabel = `${dd}/${mm}/${yyyy}`;
+                        return (
+                          <tr key={entry.date} className="group">
+                            <td className="py-2.5 pr-4 font-mono text-xs text-slate-500">{dateLabel}</td>
+                            <td className="py-2.5 pr-4 font-semibold text-slate-800">{fmt(entry.bcvUsd)}</td>
+                            <td className="py-2.5 pr-4 font-semibold text-slate-800">{fmt(entry.bcvEur)}</td>
+                            <td className="py-2.5 pr-4 text-slate-600">{fmt(entry.binance)}</td>
+                            <td className="py-2.5 pr-4 font-semibold text-amber-700">{fmt(entry.libreAuto)}</td>
+                            <td className="py-2.5 max-w-[20rem]">
+                              <div className="flex flex-wrap gap-1">
+                                {entry.companies.map((c) => (
+                                  <span key={c} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                                    {c}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
