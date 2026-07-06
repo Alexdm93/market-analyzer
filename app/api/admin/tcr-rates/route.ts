@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
+import { getBcvRate, getBcvEuroRate, getBinanceRate, refreshAllRates } from "@/lib/bcv";
 import { getLibreRate, setLibreRate, clearLibreRate } from "@/lib/tcr-config";
 
 function forbiddenResponse() {
@@ -62,4 +62,25 @@ export async function PATCH(request: Request) {
 
   await setLibreRate(rate);
   return Response.json({ message: `Tasa libre actualizada a ${rate}.`, libreRate: rate, updatedAt: new Date().toISOString() });
+}
+
+export async function POST() {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
+  const { bcvUsd, bcvEur, binance } = await refreshAllRates();
+  const [libreOverride] = await Promise.all([getLibreRate()]);
+  const isManual = libreOverride.rate !== null;
+  const libreRate = isManual ? libreOverride.rate : autoLibre(binance.rate, bcvEur.rate);
+
+  return Response.json({
+    bcvUsd,
+    bcvEur,
+    binance,
+    libre: {
+      rate:      libreRate,
+      updatedAt: isManual ? libreOverride.updatedAt : (binance.updatedAt ?? bcvEur.updatedAt),
+      isManual,
+    },
+  });
 }

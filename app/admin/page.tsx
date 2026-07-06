@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, BookOpen, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, History, LoaderCircle, Plus, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, BookOpen, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, History, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
@@ -146,6 +146,7 @@ export default function AdminPage() {
   const [tcrHistoryOpen, setTcrHistoryOpen] = useState(false);
   const [tcrHistory, setTcrHistory] = useState<TcrHistoryEntry[]>([]);
   const [isLoadingTcrHistory, setIsLoadingTcrHistory] = useState(false);
+  const [isRefreshingRates, setIsRefreshingRates] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -905,28 +906,62 @@ export default function AdminPage() {
         <section className="surface-card overflow-hidden rounded-[1.75rem] p-5 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="eyebrow">Tasas TCR</div>
-            <button
-              type="button"
-              onClick={async () => {
-                setTcrHistoryOpen(true);
-                if (tcrHistory.length === 0) {
-                  setIsLoadingTcrHistory(true);
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={isRefreshingRates}
+                onClick={async () => {
+                  setIsRefreshingRates(true);
                   try {
-                    const res = await fetch("/api/admin/tcr-history");
+                    const res = await fetch("/api/admin/tcr-rates", { method: "POST" });
                     if (res.ok) {
-                      const data = await res.json() as { entries: TcrHistoryEntry[] };
-                      setTcrHistory(data.entries);
+                      const data = await res.json() as {
+                        bcvUsd: { rate: number | null };
+                        bcvEur: { rate: number | null };
+                        binance: { rate: number | null };
+                        libre: { rate: number | null; isManual: boolean; updatedAt: string | null };
+                      };
+                      setTcrBcvUsd(data.bcvUsd.rate);
+                      setTcrBcvEur(data.bcvEur.rate);
+                      setTcrBinance(data.binance.rate);
+                      setTcrLibre(data.libre.rate);
+                      setTcrLibreIsManual(data.libre.isManual);
+                      setTcrLibreUpdatedAt(data.libre.updatedAt);
+                      // Reset history so next open reloads fresh data
+                      setTcrHistory([]);
                     }
                   } finally {
-                    setIsLoadingTcrHistory(false);
+                    setIsRefreshingRates(false);
                   }
-                }
-              }}
-              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-            >
-              <History size={13} aria-hidden />
-              Ver historial de tasas
-            </button>
+                }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw size={13} aria-hidden className={isRefreshingRates ? "animate-spin" : ""} />
+                {isRefreshingRates ? "Actualizando…" : "Actualizar tasas"}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setTcrHistoryOpen(true);
+                  if (tcrHistory.length === 0) {
+                    setIsLoadingTcrHistory(true);
+                    try {
+                      const res = await fetch("/api/admin/tcr-history");
+                      if (res.ok) {
+                        const data = await res.json() as { entries: TcrHistoryEntry[] };
+                        setTcrHistory(data.entries);
+                      }
+                    } finally {
+                      setIsLoadingTcrHistory(false);
+                    }
+                  }
+                }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+              >
+                <History size={13} aria-hidden />
+                Ver historial de tasas
+              </button>
+            </div>
           </div>
           <div className="grid gap-3 grid-cols-3 mb-5">
             {[

@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 const BCV_KEY      = "bcv_usd_rate";
 const BCV_EUR_KEY  = "bcv_eur_rate";
 const BINANCE_KEY  = "binance_rate";
-// Refresh if older than 23h (cron runs every 24h)
-const STALE_MS = 23 * 60 * 60 * 1000;
+// Refresh if older than 22h — keeps all rates on the same daily cycle
+const STALE_MS = 22 * 60 * 60 * 1000;
 
 export const BCV_TASA_ID     = "bcv-usd";
 export const BCV_EUR_TASA_ID = "bcv-eur";
@@ -132,6 +132,17 @@ async function getCachedRate(
 export function getBcvRate()     { return getCachedRate(BCV_KEY,     fetchBcvFromApi); }
 export function getBcvEuroRate() { return getCachedRate(BCV_EUR_KEY,  fetchBcvEurFromApi); }
 export function getBinanceRate() { return getCachedRate(BINANCE_KEY,  fetchBinanceFromApi); }
+
+/** Force-refreshes all three rates in parallel by deleting their cache entries. */
+export async function refreshAllRates() {
+  await prisma.globalConfig.deleteMany({
+    where: { key: { in: [BCV_KEY, BCV_EUR_KEY, BINANCE_KEY] } },
+  });
+  const [bcvUsd, bcvEur, binance] = await Promise.all([
+    getBcvRate(), getBcvEuroRate(), getBinanceRate(),
+  ]);
+  return { bcvUsd, bcvEur, binance };
+}
 
 // ─── System tasa builders ────────────────────────────────────────────────────
 
