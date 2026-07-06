@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, BookOpen, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, History, LoaderCircle, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ClipboardList, History, LoaderCircle, Pencil, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
@@ -118,6 +118,7 @@ export default function AdminPage() {
   const [newSectorName, setNewSectorName] = useState("");
   const [expandedSectors, setExpandedSectors] = useState<Record<string, boolean>>({});
   const [newClassification, setNewClassification] = useState<Record<string, string>>({});
+  const [editingSectorName, setEditingSectorName] = useState<Record<string, string>>({});
   const [masterCargos, setMasterCargos] = useState<CargoEntry[]>([]);
   const [isLoadingCargos, setIsLoadingCargos] = useState(true);
   const [isSavingCargos, setIsSavingCargos] = useState(false);
@@ -341,6 +342,44 @@ export default function AdminPage() {
         ? { ...s, classifications: s.classifications.filter((c) => c !== cls) }
         : s
     );
+    void saveSectors(next);
+  }
+
+  function startEditSector(name: string) {
+    setEditingSectorName((prev) => ({ ...prev, [name]: name }));
+  }
+
+  function cancelEditSector(name: string) {
+    setEditingSectorName((prev) => { const n = { ...prev }; delete n[name]; return n; });
+  }
+
+  function commitEditSector(oldName: string) {
+    const newName = (editingSectorName[oldName] ?? "").trim();
+    if (!newName || newName === oldName) { cancelEditSector(oldName); return; }
+    if (sectors.some((s) => s.name !== oldName && s.name.toLowerCase() === newName.toLowerCase())) {
+      setErrorMessage("Ya existe un sector con ese nombre.");
+      return;
+    }
+    const next = sectors.map((s) => s.name === oldName ? { ...s, name: newName } : s);
+    setExpandedSectors((prev) => {
+      const updated = { ...prev };
+      if (oldName in updated) { updated[newName] = updated[oldName]; delete updated[oldName]; }
+      return updated;
+    });
+    cancelEditSector(oldName);
+    void saveSectors(next);
+  }
+
+  function moveClassification(sectorName: string, cls: string, direction: -1 | 1) {
+    const next = sectors.map((s) => {
+      if (s.name !== sectorName) return s;
+      const arr = [...s.classifications];
+      const idx = arr.indexOf(cls);
+      const to = idx + direction;
+      if (to < 0 || to >= arr.length) return s;
+      [arr[idx], arr[to]] = [arr[to], arr[idx]];
+      return { ...s, classifications: arr };
+    });
     void saveSectors(next);
   }
 
@@ -1377,24 +1416,60 @@ export default function AdminPage() {
               </div>
             ) : sectors.map((sector) => {
               const isExpanded = expandedSectors[sector.name] ?? false;
+              const isEditing = sector.name in editingSectorName;
               return (
                 <div key={sector.name} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
                   {/* Sector header */}
                   <div className="flex items-center justify-between gap-2 px-4 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedSectors((s) => ({ ...s, [sector.name]: !isExpanded }))}
-                      className="flex flex-1 items-center gap-2 text-left"
-                    >
-                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
-                      <span className="text-sm font-semibold text-slate-900">{sector.name}</span>
-                      <span className="text-xs text-slate-400">{sector.classifications.length} clasificaciones</span>
-                    </button>
+                    {isEditing ? (
+                      <form
+                        className="flex flex-1 items-center gap-2"
+                        onSubmit={(e) => { e.preventDefault(); commitEditSector(sector.name); }}
+                      >
+                        <input
+                          autoFocus
+                          type="text"
+                          aria-label="Nombre del sector"
+                          value={editingSectorName[sector.name] ?? ""}
+                          onChange={(e) => setEditingSectorName((prev) => ({ ...prev, [sector.name]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Escape") cancelEditSector(sector.name); }}
+                          className="field flex-1 py-1 text-sm font-semibold"
+                          disabled={isSavingSectors}
+                        />
+                        <button type="submit" disabled={isSavingSectors} className="flex h-6 w-6 items-center justify-center rounded-full text-green-600 hover:bg-green-50" aria-label="Confirmar">
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button type="button" onClick={() => cancelEditSector(sector.name)} className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100" aria-label="Cancelar">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedSectors((s) => ({ ...s, [sector.name]: !isExpanded }))}
+                        className="flex flex-1 items-center gap-2 text-left"
+                      >
+                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                        <span className="text-sm font-semibold text-slate-900">{sector.name}</span>
+                        <span className="text-xs text-slate-400">{sector.classifications.length} clasificaciones</span>
+                      </button>
+                    )}
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => startEditSector(sector.name)}
+                        disabled={isSavingSectors}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label={`Editar nombre del sector ${sector.name}`}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeSector(sector.name)}
                       className="btn btn-danger btn-xs"
-                      disabled={isSavingSectors}
+                      disabled={isSavingSectors || isEditing}
                       aria-label={`Eliminar sector ${sector.name}`}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -1405,9 +1480,27 @@ export default function AdminPage() {
                   {isExpanded && (
                     <div className="border-t border-slate-200/60 px-4 py-3">
                       <div className="flex flex-wrap gap-2">
-                        {sector.classifications.map((cls) => (
-                          <div key={cls} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
-                            {cls}
+                        {sector.classifications.map((cls, clsIdx) => (
+                          <div key={cls} className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-1.5 py-1 text-xs font-medium text-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => moveClassification(sector.name, cls, -1)}
+                              disabled={isSavingSectors || clsIdx === 0}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 disabled:opacity-25"
+                              aria-label="Mover izquierda"
+                            >
+                              <ArrowLeft className="h-2.5 w-2.5" />
+                            </button>
+                            <span className="px-1.5">{cls}</span>
+                            <button
+                              type="button"
+                              onClick={() => moveClassification(sector.name, cls, 1)}
+                              disabled={isSavingSectors || clsIdx === sector.classifications.length - 1}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 disabled:opacity-25"
+                              aria-label="Mover derecha"
+                            >
+                              <ArrowRight className="h-2.5 w-2.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => removeClassification(sector.name, cls)}
