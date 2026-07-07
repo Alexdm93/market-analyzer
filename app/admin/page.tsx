@@ -125,6 +125,7 @@ export default function AdminPage() {
   const [newDeptName, setNewDeptName] = useState("");
   const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
   const [newCargoByDept, setNewCargoByDept] = useState<Record<string, string>>({});
+  const [editingDeptName, setEditingDeptName] = useState<Record<string, string>>({});
   const [snapshotCargosModal, setSnapshotCargosModal] = useState<{ snapshotId: string; label: string } | null>(null);
   const [snapshotCargosDraft, setSnapshotCargosDraft] = useState<Set<string> | null>(null);
   const [isLoadingSnapshotCargos, setIsLoadingSnapshotCargos] = useState(false);
@@ -436,6 +437,44 @@ export default function AdminPage() {
         ? { ...d, cargos: d.cargos.filter((c) => c !== cargo) }
         : d
     );
+    void saveCargos(next);
+  }
+
+  function startEditDept(name: string) {
+    setEditingDeptName((prev) => ({ ...prev, [name]: name }));
+  }
+
+  function cancelEditDept(name: string) {
+    setEditingDeptName((prev) => { const n = { ...prev }; delete n[name]; return n; });
+  }
+
+  function commitEditDept(oldName: string) {
+    const newName = (editingDeptName[oldName] ?? "").trim();
+    if (!newName || newName === oldName) { cancelEditDept(oldName); return; }
+    if (masterCargos.some((d) => d.departamento !== oldName && d.departamento.toLowerCase() === newName.toLowerCase())) {
+      setErrorMessage("Ya existe un departamento con ese nombre.");
+      return;
+    }
+    const next = masterCargos.map((d) => d.departamento === oldName ? { ...d, departamento: newName } : d);
+    setExpandedDepts((prev) => {
+      const updated = { ...prev };
+      if (oldName in updated) { updated[newName] = updated[oldName]; delete updated[oldName]; }
+      return updated;
+    });
+    cancelEditDept(oldName);
+    void saveCargos(next);
+  }
+
+  function moveCargo(dept: string, cargo: string, direction: -1 | 1) {
+    const next = masterCargos.map((d) => {
+      if (d.departamento !== dept) return d;
+      const arr = [...d.cargos];
+      const idx = arr.indexOf(cargo);
+      const to = idx + direction;
+      if (to < 0 || to >= arr.length) return d;
+      [arr[idx], arr[to]] = [arr[to], arr[idx]];
+      return { ...d, cargos: arr };
+    });
     void saveCargos(next);
   }
 
@@ -1152,23 +1191,59 @@ export default function AdminPage() {
               </div>
             ) : masterCargos.map((dept) => {
               const isExpanded = expandedDepts[dept.departamento] ?? false;
+              const isEditing = dept.departamento in editingDeptName;
               return (
                 <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
                   <div className="flex items-center justify-between gap-2 px-4 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedDepts((s) => ({ ...s, [dept.departamento]: !isExpanded }))}
-                      className="flex flex-1 items-center gap-2 text-left"
-                    >
-                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
-                      <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
-                      <span className="text-xs text-slate-400">{dept.cargos.length} cargos</span>
-                    </button>
+                    {isEditing ? (
+                      <form
+                        className="flex flex-1 items-center gap-2"
+                        onSubmit={(e) => { e.preventDefault(); commitEditDept(dept.departamento); }}
+                      >
+                        <input
+                          autoFocus
+                          type="text"
+                          aria-label="Nombre del departamento"
+                          value={editingDeptName[dept.departamento] ?? ""}
+                          onChange={(e) => setEditingDeptName((prev) => ({ ...prev, [dept.departamento]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Escape") cancelEditDept(dept.departamento); }}
+                          className="field flex-1 py-1 text-sm font-semibold"
+                          disabled={isSavingCargos}
+                        />
+                        <button type="submit" disabled={isSavingCargos} className="flex h-6 w-6 items-center justify-center rounded-full text-green-600 hover:bg-green-50" aria-label="Confirmar">
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button type="button" onClick={() => cancelEditDept(dept.departamento)} className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100" aria-label="Cancelar">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedDepts((s) => ({ ...s, [dept.departamento]: !isExpanded }))}
+                        className="flex flex-1 items-center gap-2 text-left"
+                      >
+                        {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                        <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
+                        <span className="text-xs text-slate-400">{dept.cargos.length} cargos</span>
+                      </button>
+                    )}
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => startEditDept(dept.departamento)}
+                        disabled={isSavingCargos}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label={`Editar nombre del departamento ${dept.departamento}`}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeDept(dept.departamento)}
                       className="btn btn-danger btn-xs"
-                      disabled={isSavingCargos}
+                      disabled={isSavingCargos || isEditing}
                       aria-label={`Eliminar departamento ${dept.departamento}`}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -1178,9 +1253,27 @@ export default function AdminPage() {
                   {isExpanded && (
                     <div className="border-t border-slate-200/60 px-4 py-3">
                       <div className="flex flex-wrap gap-2">
-                        {dept.cargos.map((cargo) => (
-                          <div key={cargo} className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-3 pr-1.5 py-1 text-xs font-medium text-slate-700">
-                            {cargo}
+                        {dept.cargos.map((cargo, cargoIdx) => (
+                          <div key={cargo} className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-1.5 py-1 text-xs font-medium text-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => moveCargo(dept.departamento, cargo, -1)}
+                              disabled={isSavingCargos || cargoIdx === 0}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 disabled:opacity-25"
+                              aria-label="Mover izquierda"
+                            >
+                              <ArrowLeft className="h-2.5 w-2.5" />
+                            </button>
+                            <span className="px-1.5">{cargo}</span>
+                            <button
+                              type="button"
+                              onClick={() => moveCargo(dept.departamento, cargo, 1)}
+                              disabled={isSavingCargos || cargoIdx === dept.cargos.length - 1}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 disabled:opacity-25"
+                              aria-label="Mover derecha"
+                            >
+                              <ArrowRight className="h-2.5 w-2.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => removeCargo(dept.departamento, cargo)}
