@@ -669,6 +669,7 @@ export default function DataPage() {
   }
 
   const [cargoPickerOpen, setCargoPickerOpen] = useState(false);
+  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
 
   function addRow(prefill?: { departamento: string; tituloCargo: string }) {
     if (!selectedSnapshotId) {
@@ -746,12 +747,82 @@ export default function DataPage() {
     }, 50);
   }
 
+  function addMultipleRows(prefills: { departamento: string; tituloCargo: string }[]) {
+    if (!selectedSnapshotId || prefills.length === 0) return;
+
+    const template = companyInfo.compensationTemplate;
+    const sueldoTpl = template?.fixed.find((c) => c.locked && c.id === "sys-sueldo-basico");
+    const bonoTpl = template?.fixed.find((c) => c.locked && c.id === "sys-bono-alimentacion");
+    const extraFixed = template?.fixed.filter((c) => !c.locked) ?? [];
+    const extraVariable = template?.variable ?? [];
+
+    const toAdd = prefills.filter(({ departamento, tituloCargo }) => {
+      const norm = tituloCargo.trim().toLowerCase();
+      const normDept = departamento.trim().toLowerCase();
+      return !rows.some((r) => {
+        if ((r.tituloCargo ?? "").trim().toLowerCase() !== norm) return false;
+        const rd = (r.departamento ?? "").trim();
+        return !rd || rd.toLowerCase() === normDept;
+      });
+    });
+
+    if (toAdd.length === 0) return;
+
+    const newRows = toAdd.map(({ departamento, tituloCargo }, i) => {
+      const row = empty(rows.length + i);
+      if (sueldoTpl) {
+        row.sueldoBasicoCuentaMoneda = sueldoTpl.accountCurrency ?? "USD";
+        row.sueldoBasicoMonedaPago = sueldoTpl.paymentCurrency ?? "USD";
+        if (sueldoTpl.tasaId) row.sueldoBasicoTasaId = sueldoTpl.tasaId;
+      }
+      if (bonoTpl) {
+        row.bonoAlimentacionCuentaMoneda = bonoTpl.accountCurrency ?? "USD";
+        row.bonoAlimentacionMonedaPago = bonoTpl.paymentCurrency ?? "USD";
+        if (bonoTpl.tasaId) row.bonoAlimentacionTasaId = bonoTpl.tasaId;
+      }
+      if (extraFixed.length > 0) {
+        row.additionalFixedPayments = extraFixed.map((c, j) => ({
+          id: `af-${Date.now()}-${i}-${j}`,
+          concept: c.concept,
+          amount: 0,
+          freq: (c.freq ?? "monthly") as PaymentFrequency,
+          accountCurrency: c.accountCurrency ?? "USD",
+          paymentCurrency: c.paymentCurrency ?? "USD",
+          impacto: c.impacto ?? false,
+          tasaId: c.tasaId ?? "",
+        }));
+      }
+      if (extraVariable.length > 0) {
+        row.additionalVariablePayments = extraVariable.map((c, j) => ({
+          id: `av-${Date.now()}-${i}-${j}`,
+          concept: c.concept,
+          amount: 0,
+          freq: (c.freq ?? "monthly") as PaymentFrequency,
+          accountCurrency: c.accountCurrency ?? "USD",
+          paymentCurrency: c.paymentCurrency ?? "USD",
+          impacto: c.impacto ?? false,
+          tasaId: c.tasaId ?? "",
+          variableType: c.variableType,
+          commissionType: c.commissionType as "simple" | "tiered" | "product" | "service" | "other" | undefined,
+          calculationDetail: c.calculationDetail as "sale_value" | "profit_margin" | "units_sold" | "other" | undefined,
+          goalsTarget: c.goalsTarget as "sales_quota" | "units_sold" | "new_clients" | "client_retention" | "profit_margin" | "mixed" | undefined,
+        }));
+      }
+      row.departamento = departamento;
+      row.tituloCargo = tituloCargo;
+      return row;
+    });
+
+    setRows((r) => [...newRows, ...r]);
+  }
+
   function openCargoPicker() {
     if (!selectedSnapshotId) {
       showNotification("Selecciona una actualización asignada por el admin antes de agregar cargos");
       return;
     }
     if (cargosConfigured) {
+      setPickerSelected(new Set());
       setCargoPickerOpen(true);
     } else {
       addRow();
@@ -1475,8 +1546,12 @@ export default function DataPage() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <div className="eyebrow mb-1">Corte seleccionado</div>
-                <h2 className="font-display text-xl font-bold text-slate-900">Seleccionar cargo</h2>
-                <p className="mt-1 text-sm text-slate-500">Elige el cargo que deseas agregar</p>
+                <h2 className="font-display text-xl font-bold text-slate-900">Agregar cargos</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {pickerSelected.size === 0
+                    ? "Selecciona uno o varios cargos para agregar"
+                    : `${pickerSelected.size} cargo${pickerSelected.size !== 1 ? "s" : ""} seleccionado${pickerSelected.size !== 1 ? "s" : ""}`}
+                </p>
               </div>
               <button type="button" aria-label="Cerrar" onClick={() => setCargoPickerOpen(false)} className="shrink-0 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1492,32 +1567,47 @@ export default function DataPage() {
                     <div className="mb-2 text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">{dept}</div>
                     <div className="space-y-1.5">
                       {cargosEnDept.map((titulo) => {
+                        const pickerKey = `${dept}::${titulo}`;
                         const normTituloPicker = titulo.trim().toLowerCase();
                         const yaAgregado = rows.some((r) => {
                           if ((r.tituloCargo ?? "").trim().toLowerCase() !== normTituloPicker) return false;
                           const rowDept = (r.departamento ?? "").trim();
                           return !rowDept || rowDept.toLowerCase() === normDeptPicker;
                         });
+                        const isSelected = pickerSelected.has(pickerKey);
                         return (
                           <button
                             key={titulo}
                             type="button"
                             disabled={yaAgregado}
                             onClick={() => {
-                              addRow({ departamento: dept, tituloCargo: titulo });
-                              setCargoPickerOpen(false);
+                              if (yaAgregado) return;
+                              setPickerSelected((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(pickerKey)) next.delete(pickerKey);
+                                else next.add(pickerKey);
+                                return next;
+                              });
                             }}
                             className={`flex w-full items-center justify-between rounded-[0.9rem] border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
                               yaAgregado
                                 ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
-                                : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"
+                                : isSelected
+                                  ? "border-teal-400 bg-teal-50 text-teal-800"
+                                  : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"
                             }`}
                           >
                             <span>{titulo}</span>
-                            {yaAgregado && (
+                            {yaAgregado ? (
                               <span className="ml-3 shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[0.65rem] font-bold text-slate-400">
                                 ya agregado
                               </span>
+                            ) : isSelected ? (
+                              <span className="ml-3 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-500 text-white">
+                                <Check className="h-3 w-3" />
+                              </span>
+                            ) : (
+                              <span className="ml-3 h-5 w-5 shrink-0 rounded-full border-2 border-slate-200" />
                             )}
                           </button>
                         );
@@ -1528,9 +1618,25 @@ export default function DataPage() {
               })}
             </div>
 
-            <div className="mt-4 border-t border-slate-100 pt-4">
-              <button type="button" onClick={() => setCargoPickerOpen(false)} className="btn btn-secondary w-full">
-                Cerrar
+            <div className="mt-4 flex gap-2 border-t border-slate-100 pt-4">
+              <button type="button" onClick={() => setCargoPickerOpen(false)} className="btn btn-secondary flex-1">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={pickerSelected.size === 0}
+                onClick={() => {
+                  const prefills = [...pickerSelected].map((key) => {
+                    const sep = key.indexOf("::");
+                    return { departamento: key.slice(0, sep), tituloCargo: key.slice(sep + 2) };
+                  });
+                  addMultipleRows(prefills);
+                  setCargoPickerOpen(false);
+                }}
+                className="btn btn-primary flex-1"
+              >
+                <Plus className="h-4 w-4" />
+                Agregar{pickerSelected.size > 0 ? ` ${pickerSelected.size}` : ""}
               </button>
             </div>
           </div>
