@@ -595,7 +595,9 @@ export default function EstudioPage() {
     if (appliedCompany.length > 0) params.set("companies", appliedCompany.join(","));
     void fetch(`/api/percentiles-tcr?${params.toString()}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((body: TcrPercentilesResponse | null) => { if (!ignore) setTcrPercentileData(body); })
+      .then((body: TcrPercentilesResponse | null) => {
+        if (!ignore) setTcrPercentileData(body && Array.isArray(body.cargos) ? body : null);
+      })
       .catch(() => {})
       .finally(() => { if (!ignore) setTcrLoading(false); });
     return () => { ignore = true; };
@@ -612,7 +614,9 @@ export default function EstudioPage() {
     const params = new URLSearchParams({ snapshotId: selectedSnapshotId, tcrType: adminTcrType });
     void fetch(`/api/percentiles-tcr?${params.toString()}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((body: TcrPercentilesResponse | null) => { if (!ignore) setAdminTcrPercentileData(body); })
+      .then((body: TcrPercentilesResponse | null) => {
+        if (!ignore) setAdminTcrPercentileData(body && Array.isArray(body.cargos) ? body : null);
+      })
       .catch(() => {})
       .finally(() => { if (!ignore) setAdminTcrLoading(false); });
     return () => { ignore = true; };
