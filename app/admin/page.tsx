@@ -2155,36 +2155,28 @@ export default function AdminPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <th className="pb-2 pr-4">Empresa</th>
                         <th className="pb-2 pr-4">Fecha</th>
                         <th className="pb-2 pr-4">BCV USD</th>
                         <th className="pb-2 pr-4">BCV EUR</th>
                         <th className="pb-2 pr-4">Binance</th>
-                        <th className="pb-2 pr-4">Libre (auto)</th>
-                        <th className="pb-2">Empresas</th>
+                        <th className="pb-2">Libre (auto)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {tcrHistory.map((entry) => {
+                      {tcrHistory.map((entry, i) => {
                         const fmt = (v: number | null) =>
                           v != null ? v.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
                         const [yyyy, mm, dd] = entry.date.split("-");
                         const dateLabel = `${dd}/${mm}/${yyyy}`;
                         return (
-                          <tr key={entry.date} className="group">
+                          <tr key={`${entry.company}-${i}`} className="group">
+                            <td className="py-2.5 pr-4 font-medium text-slate-800">{entry.company}</td>
                             <td className="py-2.5 pr-4 font-mono text-xs text-slate-500">{dateLabel}</td>
                             <td className="py-2.5 pr-4 font-semibold text-slate-800">{fmt(entry.bcvUsd)}</td>
                             <td className="py-2.5 pr-4 font-semibold text-slate-800">{fmt(entry.bcvEur)}</td>
                             <td className="py-2.5 pr-4 text-slate-600">{fmt(entry.binance)}</td>
-                            <td className="py-2.5 pr-4 font-semibold text-amber-700">{fmt(entry.libreAuto)}</td>
-                            <td className="py-2.5 max-w-[20rem]">
-                              <div className="flex flex-wrap gap-1">
-                                {entry.companies.map((c) => (
-                                  <span key={c} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                                    {c}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
+                            <td className="py-2.5 font-semibold text-amber-700">{fmt(entry.libreAuto)}</td>
                           </tr>
                         );
                       })}

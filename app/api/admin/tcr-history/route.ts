@@ -4,12 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { safeParseCompanyInfo } from "@/lib/workspace";
 
 export type TcrHistoryEntry = {
+  company: string;
   date: string;
   bcvUsd: number | null;
   bcvEur: number | null;
   binance: number | null;
   libreAuto: number | null;
-  companies: string[];
 };
 
 export async function GET() {
@@ -21,46 +21,30 @@ export async function GET() {
     select: { companyInfoJson: true },
   });
 
-  // Group by calendar date of savedAt
-  const byDate = new Map<string, { bcvUsd: number | null; bcvEur: number | null; binance: number | null; companies: Set<string> }>();
+  const entries: TcrHistoryEntry[] = [];
 
   for (const ws of workspaces) {
     const info = safeParseCompanyInfo(ws.companyInfoJson);
     if (!info.ratesAtSave?.savedAt) continue;
 
-    const date = info.ratesAtSave.savedAt.slice(0, 10); // "yyyy-mm-dd"
-    const companyName = info.companyName?.trim() || "(sin nombre)";
+    const { bcvUsd, bcvEur, binance, savedAt } = info.ratesAtSave;
+    const libreAuto =
+      binance && bcvEur
+        ? Math.round(((binance + bcvEur) / 2) * 100) / 100
+        : binance ?? bcvEur ?? null;
 
-    const existing = byDate.get(date);
-    if (existing) {
-      existing.companies.add(companyName);
-      // Keep the first rates recorded for this date (they represent the market on that day)
-    } else {
-      byDate.set(date, {
-        bcvUsd:    info.ratesAtSave.bcvUsd,
-        bcvEur:    info.ratesAtSave.bcvEur,
-        binance:   info.ratesAtSave.binance,
-        companies: new Set([companyName]),
-      });
-    }
+    entries.push({
+      company:   info.companyName?.trim() || "(sin nombre)",
+      date:      savedAt.slice(0, 10),
+      bcvUsd,
+      bcvEur,
+      binance,
+      libreAuto,
+    });
   }
 
-  const entries: TcrHistoryEntry[] = Array.from(byDate.entries())
-    .sort(([a], [b]) => b.localeCompare(a)) // newest first
-    .map(([date, { bcvUsd, bcvEur, binance, companies }]) => {
-      const libreAuto =
-        binance && bcvEur
-          ? Math.round(((binance + bcvEur) / 2) * 100) / 100
-          : binance ?? bcvEur ?? null;
-      return {
-        date,
-        bcvUsd,
-        bcvEur,
-        binance,
-        libreAuto,
-        companies: Array.from(companies).sort(),
-      };
-    });
+  // Newest save date first, then alphabetically by company
+  entries.sort((a, b) => b.date.localeCompare(a.date) || a.company.localeCompare(b.company));
 
   return Response.json({ entries });
 }
