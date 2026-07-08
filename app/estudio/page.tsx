@@ -253,7 +253,7 @@ export default function EstudioPage() {
   const [tcrPercentileData, setTcrPercentileData] = useState<TcrPercentilesResponse | null>(null);
   const [tcrLoading, setTcrLoading] = useState(false);
   // TCR libre rate (fetched from API; BCV USD/EUR come from tasas array)
-  const [tcrRates, setTcrRates] = useState<{ libre: number | null; libreUpdatedAt: string | null }>({ libre: null, libreUpdatedAt: null });
+  const [tcrRates, setTcrRates] = useState<{ libre: number | null; libreUpdatedAt: string | null; bcvEur: number | null; bcvUsd: number | null }>({ libre: null, libreUpdatedAt: null, bcvEur: null, bcvUsd: null });
   // TCR — admin study
   const [adminTcrEnabled, setAdminTcrEnabled] = useState(false);
   const [adminTcrType, setAdminTcrType] = useState<TcrType>("bcv");
@@ -523,11 +523,13 @@ export default function EstudioPage() {
     const url = isAdmin ? "/api/admin/tcr-rates" : "/api/tcr-rates";
     void fetch(url, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((body: { libre?: { rate: number | null; updatedAt: string | null } } | null) => {
+      .then((body: { libre?: { rate: number | null; updatedAt: string | null }; bcvEur?: { rate: number | null }; bcvUsd?: { rate: number | null } } | null) => {
         if (!body) return;
         setTcrRates({
-          libre:         body.libre?.rate  ?? null,
+          libre:          body.libre?.rate   ?? null,
           libreUpdatedAt: body.libre?.updatedAt ?? null,
+          bcvEur:         body.bcvEur?.rate  ?? null,
+          bcvUsd:         body.bcvUsd?.rate  ?? null,
         });
       })
       .catch(() => {});
@@ -1361,14 +1363,20 @@ export default function EstudioPage() {
                 {adminTcrEnabled && (
                   <>
                     <div className="flex gap-1 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
-                      {(["bcv", "euro", "libre"] as const).map((t) => (
-                        <button key={t} type="button" onClick={() => setAdminTcrType(t)}
-                          className={`rounded-[0.9rem] px-3 py-1.5 text-sm font-semibold transition-colors ${adminTcrType === t ? "bg-amber-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
-                          {t === "bcv" ? "BCV USD" : t === "euro" ? "BCV EUR" : "Libre"}
-                        </button>
-                      ))}
+                      {(["bcv", "euro", "libre"] as const).map((t) => {
+                        const unavailable = t === "euro" && !tcrRates.bcvEur;
+                        return (
+                          <button key={t} type="button" onClick={() => setAdminTcrType(t)}
+                            title={unavailable ? "Tasa BCV EUR no disponible — actualiza las tasas primero" : undefined}
+                            className={`rounded-[0.9rem] px-3 py-1.5 text-sm font-semibold transition-colors ${adminTcrType === t ? "bg-amber-600 text-white shadow-sm" : unavailable ? "text-slate-400 cursor-not-allowed" : "text-slate-600 hover:text-slate-900"}`}>
+                            {t === "bcv" ? "BCV USD" : t === "euro" ? "BCV EUR" : "Libre"}
+                            {unavailable && <span className="ml-1 text-[10px] font-normal opacity-70">ND</span>}
+                          </button>
+                        );
+                      })}
                     </div>
                     {adminTcrLoading && <span className="text-xs text-slate-400">Calculando TCR…</span>}
+                    {adminTcrType === "euro" && !tcrRates.bcvEur && <span className="text-xs text-amber-700">Tasa BCV EUR no disponible — usa &ldquo;Actualizar tasas&rdquo; en el panel admin</span>}
                     {!tcrRates.libre && <span className="text-xs text-amber-700">Configura la tasa libre antes de activar TCR</span>}
                   </>
                 )}
@@ -1573,46 +1581,76 @@ export default function EstudioPage() {
                     </div>
                   </div>
 
-                  {adminPositionsByGrado.length === 0 ? (
-                    <div className="px-6 py-8 text-sm text-slate-500">No hay posiciones con grado CAPRI asignado en el corte actual.</div>
-                  ) : (
-                    <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
-                      <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                        <thead>
-                          <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                            <th className="px-4 py-2">Grado CAPRI</th>
-                            <th className="px-4 py-2 text-center">Empresas</th>
-                            <th className="px-4 py-2 text-center">Obs.</th>
-                            <th className="px-4 py-2 text-right">Min</th>
-                            <th className="px-4 py-2 text-right">P25</th>
-                            <th className="px-4 py-2 text-right">P50</th>
-                            <th className="px-4 py-2 text-right">P75</th>
-                            <th className="px-4 py-2 text-right">P90</th>
-                            <th className="px-4 py-2 text-right">Max</th>
-                            <th className="px-4 py-2 text-right">Promedio</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {adminPositionsByGrado.map((g) => (
-                            <tr key={g.grade} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                              <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
-                                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{g.grade}</span>
-                              </td>
-                              <td className="px-4 py-4 text-center text-slate-600">{g.empresas}</td>
-                              <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.obs}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-600">{g.min}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{g.p25}</td>
-                              <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{g.p50}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{g.p75}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-700">{g.p90}</td>
-                              <td className="px-4 py-4 text-right font-display text-slate-600">{g.max}</td>
-                              <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{g.promedio}</td>
+                  {(() => {
+                    const useTcrGrades = adminTcrEnabled && (adminTcrPercentileData?.grades?.length ?? 0) > 0;
+                    const tcrGrades = adminTcrPercentileData?.grades ?? [];
+                    const fmt = (v: number | null) => v != null ? formatMoney(Math.round(v)) : "—";
+                    if (!useTcrGrades && adminPositionsByGrado.length === 0) {
+                      return <div className="px-6 py-8 text-sm text-slate-500">No hay posiciones con grado CAPRI asignado en el corte actual.</div>;
+                    }
+                    if (useTcrGrades && tcrGrades.length === 0) {
+                      return <div className="px-6 py-8 text-sm text-slate-500">No hay datos TCR por grado disponibles.</div>;
+                    }
+                    return (
+                      <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
+                        <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                          <thead>
+                            <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                              <th className="px-4 py-2">Grado CAPRI</th>
+                              <th className="px-4 py-2 text-center">Empresas</th>
+                              <th className="px-4 py-2 text-center">Obs.</th>
+                              <th className="px-4 py-2 text-right">Min</th>
+                              <th className="px-4 py-2 text-right">P25</th>
+                              <th className="px-4 py-2 text-right">P50</th>
+                              <th className="px-4 py-2 text-right">P75</th>
+                              <th className="px-4 py-2 text-right">P90</th>
+                              <th className="px-4 py-2 text-right">Max</th>
+                              <th className="px-4 py-2 text-right">Promedio</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          </thead>
+                          <tbody>
+                            {useTcrGrades
+                              ? tcrGrades.map((g) => {
+                                  const m = g.directoMensualizado;
+                                  return (
+                                    <tr key={g.grade} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                      <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
+                                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-amber-600 text-sm font-black text-white">{g.grade}</span>
+                                      </td>
+                                      <td className="px-4 py-4 text-center text-slate-600">{g.n}</td>
+                                      <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.n}</td>
+                                      <td className="px-4 py-4 text-right font-display text-slate-600">{fmt(m.min)}</td>
+                                      <td className="px-4 py-4 text-right font-display text-slate-700">{fmt(m.p25)}</td>
+                                      <td className="px-4 py-4 text-right font-display font-semibold text-amber-700">{fmt(m.p50)}</td>
+                                      <td className="px-4 py-4 text-right font-display text-slate-700">{fmt(m.p75)}</td>
+                                      <td className="px-4 py-4 text-right font-display text-slate-700">{fmt(m.p90)}</td>
+                                      <td className="px-4 py-4 text-right font-display text-slate-600">{fmt(m.max)}</td>
+                                      <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{fmt(m.promedio)}</td>
+                                    </tr>
+                                  );
+                                })
+                              : adminPositionsByGrado.map((g) => (
+                                  <tr key={g.grade} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
+                                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{g.grade}</span>
+                                    </td>
+                                    <td className="px-4 py-4 text-center text-slate-600">{g.empresas}</td>
+                                    <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.obs}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-600">{g.min}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{g.p25}</td>
+                                    <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{g.p50}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{g.p75}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{g.p90}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-600">{g.max}</td>
+                                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{g.promedio}</td>
+                                  </tr>
+                                ))
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </section>
               )}
             </>
@@ -1869,12 +1907,17 @@ export default function EstudioPage() {
           {tcrEnabled && (
             <>
               <div className="flex gap-1 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
-                {(["bcv", "euro", "libre"] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => setTcrType(t)}
-                    className={`rounded-[0.9rem] px-3 py-1.5 text-sm font-semibold transition-colors ${tcrType === t ? "bg-amber-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>
-                    {t === "bcv" ? "TCR-BCV USD" : t === "euro" ? "TCR-BCV EUR" : "TCR-Libre"}
-                  </button>
-                ))}
+                {(["bcv", "euro", "libre"] as const).map((t) => {
+                  const unavailable = t === "euro" && !tcrRates.bcvEur;
+                  return (
+                    <button key={t} type="button" onClick={() => setTcrType(t)}
+                      title={unavailable ? "Tasa BCV EUR no disponible" : undefined}
+                      className={`rounded-[0.9rem] px-3 py-1.5 text-sm font-semibold transition-colors ${tcrType === t ? "bg-amber-600 text-white shadow-sm" : unavailable ? "text-slate-400 cursor-not-allowed" : "text-slate-600 hover:text-slate-900"}`}>
+                      {t === "bcv" ? "TCR-BCV USD" : t === "euro" ? "TCR-BCV EUR" : "TCR-Libre"}
+                      {unavailable && <span className="ml-1 text-[10px] font-normal opacity-70">ND</span>}
+                    </button>
+                  );
+                })}
               </div>
               {tcrRates.libre && (
                 <span className="text-xs text-slate-400">
@@ -1883,6 +1926,7 @@ export default function EstudioPage() {
                 </span>
               )}
               {tcrLoading && <span className="text-xs text-slate-400">Calculando TCR…</span>}
+              {tcrType === "euro" && !tcrRates.bcvEur && <span className="text-xs text-amber-700">Tasa BCV EUR no disponible</span>}
               {!tcrRates.libre && <span className="text-xs text-amber-700">La tasa libre aún no ha sido configurada por el administrador</span>}
             </>
           )}

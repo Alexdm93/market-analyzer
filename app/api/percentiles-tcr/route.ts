@@ -96,13 +96,16 @@ export async function GET(request: Request) {
     return Response.json({ message: "No hay tasas de mercado disponibles para calcular TCR. Intenta más tarde." }, { status: 422 });
   }
 
-  // Verify the requesting user participated
-  const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
-  const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
-  const requestingSnapshot  = requestingSnapshots[snapshotId];
-  const userParticipated    = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
-  if (!userParticipated) {
-    return Response.json({ message: "No participaste en este corte." }, { status: 403 });
+  // Admins can view TCR for any snapshot without being a participant themselves
+  const isAdmin = session.user.role === "ADMIN";
+  if (!isAdmin) {
+    const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
+    const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
+    const requestingSnapshot  = requestingSnapshots[snapshotId];
+    const userParticipated    = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
+    if (!userParticipated) {
+      return Response.json({ message: "No participaste en este corte." }, { status: 403 });
+    }
   }
 
   const cargoGroups = new Map<string, CargoAccum>();
