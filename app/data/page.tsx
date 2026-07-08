@@ -484,9 +484,17 @@ export default function DataPage() {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
   }
 
+  // Use the BCV rate from when data was last saved — falls back to the current live rate.
+  // This keeps USD totals stable across days even as the daily BCV fluctuates.
+  const effectiveBcvRate = (() => {
+    const saved = companyInfo.ratesAtSave?.bcvUsd;
+    if (typeof saved === "number" && saved > 0) return saved;
+    const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  })();
+
   function stampRowTotals(row: ExtendedMarketPosition): ExtendedMarketPosition {
-    const _bcvRate = (() => { const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor); return Number.isFinite(v) && v > 0 ? v : null; })();
-    const cached = computeRowTotals(row, tasas, _bcvRate, Number(companyInfo.minVacationDays) || 0, Number(companyInfo.minUtilityDays) || 0);
+    const cached = computeRowTotals(row, tasas, effectiveBcvRate, Number(companyInfo.minVacationDays) || 0, Number(companyInfo.minUtilityDays) || 0);
     return { ...row, _cachedTotalSinPasivosMensual: cached.totalSinPasivosMensual, _cachedTotalConPasivosMensual: cached.totalConPasivosMensual, _cachedTotalConPasivosAnual: cached.totalConPasivosAnual, _cachedTotalDirectoMensualizado: cached.totalDirectoMensualizado };
   }
 
@@ -858,7 +866,6 @@ export default function DataPage() {
 
 
   async function exportJSON() {
-    const _bcvRate = (() => { const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor); return Number.isFinite(v) && v > 0 ? v : null; })();
     const diasVac = Number(companyInfo.minVacationDays) || 0;
     const diasUtil = Number(companyInfo.minUtilityDays) || 0;
     const snapshotLabel = selectedSnapshotId
@@ -873,7 +880,7 @@ export default function DataPage() {
         { header: "PCTA (USD)",    key: "pcta",   width: 14, align: "right"  },
       ],
       rows: rows.map((row) => {
-        const totals = resolveRowTotals(row, tasas, _bcvRate, diasVac, diasUtil);
+        const totals = resolveRowTotals(row, tasas, effectiveBcvRate, diasVac, diasUtil);
         return {
           cargo: row.tituloCargo ?? "",
           grado: row.hayGrade ?? null,
@@ -889,16 +896,11 @@ export default function DataPage() {
     ? rows.find((r) => r.id === modal.id) ?? null
     : null;
 
-  const bcvRate = (() => {
-    const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
-    return Number.isFinite(v) && v > 0 ? v : null;
-  })();
-
   const modalTotals = modalSaveRow
     ? computeRowTotals(
         modalSaveRow,
         tasas,
-        bcvRate,
+        effectiveBcvRate,
         Number(companyInfo.minVacationDays) || 0,
         Number(companyInfo.minUtilityDays) || 0,
       )
