@@ -356,17 +356,6 @@ export default function InicioPage() {
     <>
       <main className="page-wrap">
         <div className="flex w-full flex-col gap-5">
-          {/* Page header */}
-          <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-            <div className="eyebrow mb-3">Plataforma</div>
-            <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">
-              Bienvenido a Market Analyzer.
-            </h1>
-            <p className="dashboard-lead mt-3 max-w-3xl text-slate-600">
-              Noticias, fechas de cortes, avisos y anuncios del equipo.
-            </p>
-          </section>
-
           {/* Empty state */}
           {announcements.length === 0 && (
             <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
