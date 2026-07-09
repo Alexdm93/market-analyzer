@@ -271,12 +271,52 @@ function AdminDashboard() {
   );
 }
 
+// ─── CAPRI level classification ───────────────────────────────────────────────
+
+function getNivelFromCapri(grade: number | undefined, familia: string | undefined): Nivel | null {
+  if (!grade) return null;
+  if (familia === "IC") {
+    if (grade >= 8  && grade <= 12) return "Operativo";
+    if (grade >= 13 && grade <= 19) return "Profesional";
+  }
+  if (familia === "LO") {
+    if (grade >= 14 && grade <= 16) return "Supervisor";
+  }
+  if (familia === "GE") {
+    if (grade >= 17 && grade <= 19) return "Gerencia Media";
+    if (grade >= 20 && grade <= 23) return "Gerencia Alta";
+  }
+  if (familia === "EJ") {
+    if (grade >= 23 && grade <= 25) return "Ejecutivo";
+  }
+  // Fallback for positions with hayGrade but no capriFamily (unambiguous ranges only)
+  if (!familia) {
+    if (grade >= 8  && grade <= 12) return "Operativo";
+    if (grade === 13)               return "Profesional";
+    if (grade >= 20 && grade <= 22) return "Gerencia Alta";
+    if (grade >= 23 && grade <= 25) return "Ejecutivo";
+    // grades 14-19 are ambiguous without familia — skip
+  }
+  return null;
+}
+
+function getRowNivel(r: ExtendedMarketPosition): Nivel | null {
+  const fromCapri = getNivelFromCapri(r.hayGrade, r.capriFamily);
+  if (fromCapri) return fromCapri;
+  // Last resort: nivelOrganizacional free-text (legacy data)
+  const raw = r.nivelOrganizacional?.trim();
+  if (raw && (NIVELES as readonly string[]).includes(raw)) return raw as Nivel;
+  return null;
+}
+
 // ─── User Dashboard View ──────────────────────────────────────────────────────
 
 function UserDashboard() {
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
+  const [publishedIds, setPublishedIds] = useState<string[]>([]);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let ignore = false;
@@ -285,14 +325,18 @@ function UserDashboard() {
         const workspace = await fetchWorkspace();
         if (!ignore) {
           setSnapshots(workspace.snapshots);
-          const mostRecentId = Object.values(workspace.snapshots)
-            .sort((a, b) => b.date.localeCompare(a.date))
-            .at(0)?.id ?? "";
-          setSelectedSnapshotId(mostRecentId);
+          const published = workspace.publishedParticipatedSnapshotIds ?? [];
+          setPublishedIds(published);
+          // Default to latest published snapshot; fall back to most recent overall
+          const allSorted = Object.values(workspace.snapshots).sort((a, b) => b.date.localeCompare(a.date));
+          const latestPublished = allSorted.find((s) => published.includes(s.id));
+          setSelectedSnapshotId((latestPublished ?? allSorted[0])?.id ?? "");
           setCompanyInfo(workspace.companyInfo);
         }
       } catch {
         // ignore
+      } finally {
+        if (!ignore) setLoading(false);
       }
     }
     void loadWorkspace();
@@ -324,21 +368,43 @@ function UserDashboard() {
   }
 
   const medianasPorNivel = useMemo(() => {
-    const result = {} as Record<Nivel, string>;
+    const result = {} as Record<Nivel, { p50: string; count: number }>;
     for (const nivel of NIVELES) {
       const totals = rows
-        .filter((r) => r.nivelOrganizacional?.trim() === nivel)
+        .filter((r) => getRowNivel(r) === nivel)
         .map(rowMonthly)
         .filter((v) => v > 0 && Number.isFinite(v));
-      result[nivel] = formatMoney(totals.length ? Math.round(percentile(totals, 50)) : 0);
+      result[nivel] = {
+        p50: formatMoney(totals.length ? Math.round(percentile(totals, 50)) : 0),
+        count: totals.length,
+      };
     }
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, companyInfo]);
 
   const totalPositions = rows.length;
-  const nivelesConData = NIVELES.filter((n) => medianasPorNivel[n] !== "ND").length;
+  const nivelesConData = NIVELES.filter((n) => medianasPorNivel[n].count > 0).length;
   const companyName = companyInfo.companyName || "Sin nombre";
+
+  // Snapshots available for selector (published ones first, then any remaining)
+  const snapshotList = useMemo(() => {
+    return Object.values(snapshots)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map((s) => ({ ...s, isPublished: publishedIds.includes(s.id) }));
+  }, [snapshots, publishedIds]);
+
+  if (loading) {
+    return (
+      <main className="page-wrap">
+        <div className="flex w-full flex-col gap-5">
+          <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
+            <div className="h-32 animate-pulse rounded-[1rem] bg-slate-200/60" />
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="page-wrap">
@@ -350,7 +416,7 @@ function UserDashboard() {
               <h1 className="font-display text-[1.25rem] font-bold tracking-tight text-slate-900 md:text-[1.4rem]">
                 Resumen Empresa
               </h1>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap items-start gap-2">
                 <div className="metric-tile w-44 shrink-0 py-2.5">
                   <div className="metric-label">Total de posiciones</div>
                   <div className="metric-value mt-1">{totalPositions}</div>
@@ -359,6 +425,24 @@ function UserDashboard() {
                   <div className="metric-label">Niveles con data</div>
                   <div className="metric-value mt-1">{nivelesConData}</div>
                 </div>
+                {snapshotList.length > 1 && (
+                  <div className="flex items-center gap-2 self-center">
+                    <label className="field-label mb-0 whitespace-nowrap text-xs">Corte:</label>
+                    <select
+                      title="Seleccionar corte"
+                      aria-label="Seleccionar corte"
+                      value={selectedSnapshotId}
+                      onChange={(e) => setSelectedSnapshotId(e.target.value)}
+                      className="field-select text-xs"
+                    >
+                      {snapshotList.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}{s.isPublished ? "" : " (borrador)"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -367,20 +451,28 @@ function UserDashboard() {
                 <thead>
                   <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                     {NIVELES.map((nivel) => (
-                      <th key={nivel} className="px-4 py-1.5 text-center">{nivel}</th>
+                      <th key={nivel} className="px-3 py-1.5 text-center">{nivel}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="bg-white/60 rounded-[1.25rem]">
-                    {NIVELES.map((nivel, i) => (
-                      <td
-                        key={nivel}
-                        className={`px-4 py-3 text-center font-display font-semibold ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""} ${medianasPorNivel[nivel] === "ND" ? "text-slate-400" : "text-teal-700"}`}
-                      >
-                        {medianasPorNivel[nivel]}
-                      </td>
-                    ))}
+                    {NIVELES.map((nivel, i) => {
+                      const { p50, count } = medianasPorNivel[nivel];
+                      return (
+                        <td
+                          key={nivel}
+                          className={`px-3 py-2.5 text-center font-display ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""}`}
+                        >
+                          <div className="text-[0.6rem] font-normal text-slate-400">
+                            {count > 0 ? `P50 · ${count}` : "P50"}
+                          </div>
+                          <div className={`font-semibold ${p50 === "ND" ? "text-slate-400" : "text-teal-700"}`}>
+                            {p50}
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 </tbody>
               </table>

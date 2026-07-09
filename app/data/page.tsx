@@ -1684,8 +1684,9 @@ export default function DataPage() {
           companyInfo={companyInfo}
           cargoNombre={rows[capriModal.rowIndex]?.tituloCargo || "Cargo"}
           existingGrade={rows[capriModal.rowIndex]?.hayGrade}
-          onSave={(grade) => {
+          onSave={(grade, familia) => {
             update(capriModal.rowIndex, "hayGrade", grade);
+            update(capriModal.rowIndex, "capriFamily", familia);
           }}
           onClose={() => setCapriModal(null)}
         />

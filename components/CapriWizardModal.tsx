@@ -230,7 +230,7 @@ interface Props {
   companyInfo: CompanyInfo;
   cargoNombre: string;
   existingGrade?: number;
-  onSave: (grade: number) => void;
+  onSave: (grade: number, familia: Familia) => void;
   onClose: () => void;
 }
 
@@ -505,7 +505,7 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
           {step === "resultado" ? (
             <button
               type="button"
-              onClick={() => { if (grade !== null) { onSave(grade); onClose(); } }}
+              onClick={() => { if (grade !== null && familia) { onSave(grade, familia); onClose(); } }}
               className="btn btn-primary flex items-center gap-1.5"
               disabled={grade === null}
             >

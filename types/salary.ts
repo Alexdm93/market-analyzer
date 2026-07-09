@@ -46,6 +46,7 @@ export interface ExtendedMarketPosition {
   nivelOrganizacional?: string;
   clasificacion?: string;
   hayGrade?: number;
+  capriFamily?: "IC" | "LO" | "GE" | "EJ";
   descripcion?: string;
 
   // Compensación fija garantizada
