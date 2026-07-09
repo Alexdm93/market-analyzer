@@ -1,17 +1,55 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Calendar, Info, Megaphone, MonitorPlay, Newspaper, X } from "lucide-react";
+import { ArrowRight, Calendar, Info, Megaphone, MonitorPlay, Newspaper, X } from "lucide-react";
 import { type Announcement, useAnnouncements } from "@/contexts/AnnouncementContext";
 
-const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string; pill: string }> = {
-  noticia:      { label: "Noticia",        icon: Newspaper,   color: "text-teal-700",   pill: "bg-teal-50 text-teal-700 border-teal-200" },
-  fecha:        { label: "Fecha de corte", icon: Calendar,    color: "text-amber-700",  pill: "bg-amber-50 text-amber-700 border-amber-200" },
-  aviso:        { label: "Aviso",          icon: Info,        color: "text-slate-600",  pill: "bg-slate-100 text-slate-600 border-slate-200" },
-  presentacion: { label: "Presentación",   icon: MonitorPlay, color: "text-violet-700", pill: "bg-violet-50 text-violet-700 border-violet-200" },
+const TYPE_META: Record<string, {
+  label: string;
+  icon: React.ElementType;
+  color: string;
+  pill: string;
+  pillDark: string;
+  accent: string;
+  heroBg: string;
+}> = {
+  noticia:      {
+    label: "Noticia",        icon: Newspaper,   color: "text-teal-700",
+    pill: "bg-teal-50 text-teal-700 border-teal-200",
+    pillDark: "bg-teal-500/25 text-teal-100 border-teal-400/30 backdrop-blur-sm",
+    accent: "bg-teal-500",
+    heroBg: "bg-gradient-to-br from-teal-900 via-teal-800 to-teal-600",
+  },
+  fecha:        {
+    label: "Fecha de corte", icon: Calendar,    color: "text-amber-700",
+    pill: "bg-amber-50 text-amber-700 border-amber-200",
+    pillDark: "bg-amber-500/25 text-amber-100 border-amber-400/30 backdrop-blur-sm",
+    accent: "bg-amber-500",
+    heroBg: "bg-gradient-to-br from-amber-900 via-amber-800 to-orange-600",
+  },
+  aviso:        {
+    label: "Aviso",          icon: Info,        color: "text-slate-600",
+    pill: "bg-slate-100 text-slate-600 border-slate-200",
+    pillDark: "bg-slate-500/25 text-slate-100 border-slate-400/30 backdrop-blur-sm",
+    accent: "bg-slate-400",
+    heroBg: "bg-gradient-to-br from-slate-800 via-slate-700 to-slate-500",
+  },
+  presentacion: {
+    label: "Presentación",   icon: MonitorPlay, color: "text-violet-700",
+    pill: "bg-violet-50 text-violet-700 border-violet-200",
+    pillDark: "bg-violet-500/25 text-violet-100 border-violet-400/30 backdrop-blur-sm",
+    accent: "bg-violet-500",
+    heroBg: "bg-gradient-to-br from-violet-900 via-violet-800 to-violet-600",
+  },
 };
 
 function getTypeMeta(type: string) {
-  return TYPE_META[type] ?? { label: type, icon: Megaphone, color: "text-slate-600", pill: "bg-slate-100 text-slate-600 border-slate-200" };
+  return TYPE_META[type] ?? {
+    label: type, icon: Megaphone, color: "text-slate-600",
+    pill: "bg-slate-100 text-slate-600 border-slate-200",
+    pillDark: "bg-slate-500/25 text-slate-100 border-slate-400/30 backdrop-blur-sm",
+    accent: "bg-slate-400",
+    heroBg: "bg-gradient-to-br from-slate-800 to-slate-600",
+  };
 }
 
 function formatDate(raw: string | null) {
@@ -24,19 +62,12 @@ function getYouTubeId(url: string): string | null {
   return match?.[1] ?? null;
 }
 
-function TypePill({ type, inline = false }: { type: string; inline?: boolean }) {
+function TypePill({ type, dark = false }: { type: string; dark?: boolean }) {
   const meta = getTypeMeta(type);
   const Icon = meta.icon;
-  if (inline) {
-    return (
-      <span className={`text-xs font-semibold uppercase tracking-wide ${meta.color}`}>
-        {meta.label}
-      </span>
-    );
-  }
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
-      <Icon size={12} aria-hidden />
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${dark ? meta.pillDark : meta.pill}`}>
+      <Icon size={11} aria-hidden />
       {meta.label}
     </span>
   );
@@ -53,7 +84,11 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
-function MediaThumb({ mediaData, mediaUrl, title, className = "" }: { mediaData: string | null; mediaUrl: string | null; title: string; className?: string }) {
+function MediaThumb({
+  mediaData, mediaUrl, title, className = "",
+}: {
+  mediaData: string | null; mediaUrl: string | null; title: string; className?: string;
+}) {
   if (mediaData) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={mediaData} alt={title} className={`h-full w-full object-cover object-center ${className}`} />;
@@ -78,15 +113,9 @@ function MediaThumb({ mediaData, mediaUrl, title, className = "" }: { mediaData:
 function PlaceholderThumb({ type, className = "" }: { type: string; className?: string }) {
   const meta = getTypeMeta(type);
   const Icon = meta.icon;
-  const bg: Record<string, string> = {
-    noticia: "bg-teal-50",
-    fecha: "bg-amber-50",
-    aviso: "bg-slate-100",
-    presentacion: "bg-violet-50",
-  };
   return (
-    <div className={`flex h-full w-full items-center justify-center ${bg[type] ?? "bg-slate-100"} ${className}`}>
-      <Icon size={28} className={`${meta.color} opacity-40`} aria-hidden />
+    <div className={`flex h-full w-full items-center justify-center ${meta.heroBg} ${className}`}>
+      <Icon size={28} className="text-white opacity-20" aria-hidden />
     </div>
   );
 }
@@ -94,13 +123,13 @@ function PlaceholderThumb({ type, className = "" }: { type: string; className?: 
 function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; mediaUrl: string | null; title: string }) {
   if (mediaData) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={mediaData} alt={title} className="max-h-[28rem] w-full rounded-[1.25rem] object-cover object-center" />;
+    return <img src={mediaData} alt={title} className="max-h-[28rem] w-full rounded-t-[1.25rem] object-cover object-center" />;
   }
   if (mediaUrl) {
     const ytId = getYouTubeId(mediaUrl);
     if (ytId) {
       return (
-        <div className="aspect-video overflow-hidden rounded-[1.25rem]">
+        <div className="aspect-video overflow-hidden rounded-t-[1.25rem]">
           <iframe
             src={`https://www.youtube.com/embed/${ytId}`}
             title={title}
@@ -117,7 +146,12 @@ function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; 
 
 function AnnouncementModal({ announcement, onClose }: { announcement: Announcement; onClose: () => void }) {
   const meta = getTypeMeta(announcement.type);
-  const Icon = meta.icon;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -126,13 +160,16 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Announceme
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+      <div
+        className={`absolute inset-0 bg-slate-900/60 backdrop-blur transition-opacity duration-200 ${mounted ? "opacity-100" : "opacity-0"}`}
+        onClick={onClose}
+      />
+      <div className={`relative z-10 flex max-h-[95dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl transition-all duration-300 sm:rounded-[2rem] ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-500 shadow-md hover:bg-white hover:text-slate-900"
+          className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-500 shadow-md backdrop-blur-sm hover:bg-white hover:text-slate-900 transition-colors"
           aria-label="Cerrar"
         >
           <X size={18} />
@@ -141,17 +178,17 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Announceme
           {(announcement.mediaData || announcement.mediaUrl) && (
             <MediaBlock mediaData={announcement.mediaData} mediaUrl={announcement.mediaUrl} title={announcement.title} />
           )}
+          {!(announcement.mediaData || announcement.mediaUrl) && (
+            <div className={`h-24 w-full ${meta.heroBg}`} />
+          )}
           <div className="px-6 py-6 md:px-8 md:py-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${meta.pill}`}>
-                <Icon size={12} aria-hidden />
-                {meta.label}
-              </span>
+              <TypePill type={announcement.type} />
               {announcement.publishedAt && (
                 <time className="text-xs text-slate-400">{formatDate(announcement.publishedAt)}</time>
               )}
             </div>
-            <h2 className="mt-4 font-display text-2xl font-bold text-slate-900">{announcement.title}</h2>
+            <h2 className="mt-4 font-display text-2xl font-bold leading-snug text-slate-900">{announcement.title}</h2>
             <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-600">{announcement.content}</p>
           </div>
         </div>
@@ -161,31 +198,57 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Announceme
 }
 
 function HeroCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
+  const meta = getTypeMeta(a.type);
   const hasMedia = !!(a.mediaData || a.mediaUrl);
+
   return (
     <article
-      className={`grid cursor-pointer transition-colors hover:bg-slate-50 ${hasMedia ? "md:grid-cols-[55%_1fr]" : ""}`}
+      className="group relative min-h-[320px] cursor-pointer overflow-hidden md:min-h-[440px]"
       onClick={() => onOpen(a)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(a); }}
       aria-label={a.title}
     >
-      {hasMedia && (
-        <div className="relative min-h-[220px] overflow-hidden md:min-h-[280px]">
-          <MediaThumb mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
-        </div>
-      )}
-      <div className={`flex flex-col justify-center px-7 py-8 ${!hasMedia ? "col-span-full" : ""}`}>
-        <h2 className="font-display text-2xl font-bold leading-snug text-slate-900 md:text-3xl">
+      {/* Background */}
+      <div className="absolute inset-0">
+        {hasMedia ? (
+          <MediaThumb
+            mediaData={a.mediaData}
+            mediaUrl={a.mediaUrl}
+            title={a.title}
+            className="transition-transform duration-700 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className={`h-full w-full ${meta.heroBg} transition-transform duration-700 group-hover:scale-[1.03]`} />
+        )}
+      </div>
+
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/5" />
+
+      {/* Top badge */}
+      <div className="absolute left-5 top-5">
+        <TypePill type={a.type} dark />
+      </div>
+
+      {/* Content at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
+        <h2 className="font-display text-2xl font-bold leading-snug text-white md:text-3xl lg:text-4xl line-clamp-3 drop-shadow-sm">
           {a.title}
         </h2>
-        <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-500">{a.content}</p>
-        <div className="mt-5 flex items-center gap-3">
-          <TypeBadge type={a.type} />
+        {a.content && (
+          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-white/65 md:text-base">
+            {a.content}
+          </p>
+        )}
+        <div className="mt-5 flex items-center justify-between gap-3">
           {a.publishedAt && (
-            <time className="text-xs text-slate-400">{formatDate(a.publishedAt)}</time>
+            <time className="text-xs text-white/50">{formatDate(a.publishedAt)}</time>
           )}
+          <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-white/70 transition-colors group-hover:text-white">
+            Leer más <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+          </span>
         </div>
       </div>
     </article>
@@ -193,57 +256,78 @@ function HeroCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) =>
 }
 
 function StripCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
+  const meta = getTypeMeta(a.type);
   const hasMedia = !!(a.mediaData || a.mediaUrl);
+
   return (
     <article
-      className="cursor-pointer transition-colors hover:bg-slate-50"
+      className="group cursor-pointer overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
       onClick={() => onOpen(a)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(a); }}
       aria-label={a.title}
     >
-      <div className="relative h-[130px] w-full overflow-hidden">
-        {hasMedia
-          ? <MediaThumb mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
-          : <PlaceholderThumb type={a.type} />
-        }
+      <div className="relative h-[140px] overflow-hidden">
+        {hasMedia ? (
+          <MediaThumb
+            mediaData={a.mediaData}
+            mediaUrl={a.mediaUrl}
+            title={a.title}
+            className="transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <PlaceholderThumb type={a.type} />
+        )}
+        <div className={`absolute bottom-0 inset-x-0 h-[3px] ${meta.accent}`} />
       </div>
-      <div className="px-4 pb-4 pt-3">
-        <p className="line-clamp-3 text-[13px] font-semibold leading-[1.4] text-slate-800">{a.title}</p>
-        <div className="mt-2">
-          <TypeBadge type={a.type} />
-        </div>
+      <div className="p-3">
+        <TypeBadge type={a.type} />
+        <p className="mt-1 line-clamp-2 text-[13px] font-semibold leading-snug text-slate-800">{a.title}</p>
+        {a.publishedAt && (
+          <time className="mt-1.5 block text-[11px] text-slate-400">{formatDate(a.publishedAt)}</time>
+        )}
       </div>
     </article>
   );
 }
 
 function ListCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
+  const meta = getTypeMeta(a.type);
   const hasMedia = !!(a.mediaData || a.mediaUrl);
+
   return (
     <article
-      className="grid cursor-pointer grid-cols-[120px_1fr] gap-4 px-5 py-4 transition-colors hover:bg-slate-50 sm:grid-cols-[160px_1fr]"
+      className="group cursor-pointer transition-colors hover:bg-slate-50/80"
       onClick={() => onOpen(a)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(a); }}
       aria-label={a.title}
     >
-      <div className="relative h-[90px] overflow-hidden rounded-xl sm:h-[100px]">
-        {hasMedia
-          ? <MediaThumb mediaData={a.mediaData} mediaUrl={a.mediaUrl} title={a.title} />
-          : <PlaceholderThumb type={a.type} className="rounded-xl" />
-        }
+      <div className="grid grid-cols-[96px_1fr] gap-4 p-4 sm:grid-cols-[120px_1fr]">
+        <div className="relative h-[72px] overflow-hidden rounded-xl sm:h-[84px]">
+          {hasMedia ? (
+            <MediaThumb
+              mediaData={a.mediaData}
+              mediaUrl={a.mediaUrl}
+              title={a.title}
+              className="transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <PlaceholderThumb type={a.type} className="rounded-xl" />
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col justify-center">
+          <TypeBadge type={a.type} />
+          <h3 className="mt-0.5 line-clamp-2 text-[13px] font-bold leading-snug text-slate-900">{a.title}</h3>
+          <p className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-slate-500">{a.content}</p>
+          {a.publishedAt && (
+            <time className="mt-1 text-[11px] text-slate-400">{formatDate(a.publishedAt)}</time>
+          )}
+        </div>
       </div>
-      <div className="flex flex-col justify-center">
-        <TypePill type={a.type} inline />
-        <h3 className="mt-1 line-clamp-2 text-sm font-bold leading-snug text-slate-900">{a.title}</h3>
-        <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{a.content}</p>
-        {a.publishedAt && (
-          <time className="mt-1.5 text-[11px] text-slate-400">{formatDate(a.publishedAt)}</time>
-        )}
-      </div>
+      <div className={`h-[2px] w-0 ${meta.accent} transition-all duration-300 group-hover:w-full`} />
     </article>
   );
 }
@@ -261,10 +345,18 @@ export default function InicioPage() {
   const strip = announcements.slice(1, 6);
   const list  = announcements.slice(6);
 
+  const stripCols =
+    strip.length === 1 ? "grid-cols-1" :
+    strip.length === 2 ? "grid-cols-2" :
+    strip.length === 3 ? "grid-cols-3" :
+    strip.length === 4 ? "grid-cols-2 sm:grid-cols-4" :
+    "grid-cols-2 sm:grid-cols-3 md:grid-cols-5";
+
   return (
     <>
       <main className="page-wrap">
-        <div className="flex w-full flex-col gap-6">
+        <div className="flex w-full flex-col gap-5">
+          {/* Page header */}
           <section className="surface-panel rounded-[2rem] p-6 md:p-8">
             <div className="eyebrow mb-3">Plataforma</div>
             <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">
@@ -275,35 +367,29 @@ export default function InicioPage() {
             </p>
           </section>
 
+          {/* Empty state */}
           {announcements.length === 0 && (
             <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
               No hay anuncios publicados aún. Vuelve pronto.
             </section>
           )}
 
+          {/* Featured section: hero + strip */}
           {hero && (
             <div className="surface-card overflow-hidden rounded-[2rem]">
               <HeroCard a={hero} onOpen={openAnnouncement} />
 
               {strip.length > 0 && (
-                <>
-                  <div className="border-t border-slate-100" />
-                  <div className={`grid divide-x divide-slate-100 ${
-                    strip.length === 1 ? "grid-cols-1" :
-                    strip.length === 2 ? "grid-cols-2" :
-                    strip.length === 3 ? "grid-cols-3" :
-                    strip.length === 4 ? "grid-cols-2 sm:grid-cols-4" :
-                    "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"
-                  }`}>
-                    {strip.map((a) => (
-                      <StripCard key={a.id} a={a} onOpen={openAnnouncement} />
-                    ))}
-                  </div>
-                </>
+                <div className={`grid gap-3 p-4 ${stripCols}`}>
+                  {strip.map((a) => (
+                    <StripCard key={a.id} a={a} onOpen={openAnnouncement} />
+                  ))}
+                </div>
               )}
             </div>
           )}
 
+          {/* List section */}
           {list.length > 0 && (
             <div className="surface-card overflow-hidden rounded-[2rem] divide-y divide-slate-100">
               {list.map((a) => (
