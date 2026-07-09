@@ -273,39 +273,23 @@ function AdminDashboard() {
 
 // ─── CAPRI level classification ───────────────────────────────────────────────
 
-function getNivelFromCapri(grade: number | undefined, familia: string | undefined): Nivel | null {
-  if (!grade) return null;
-  if (familia === "IC") {
-    if (grade >= 8  && grade <= 12) return "Operativo";
-    if (grade >= 13 && grade <= 19) return "Profesional";
-  }
-  if (familia === "LO") {
-    if (grade >= 14 && grade <= 16) return "Supervisor";
-  }
-  if (familia === "GE") {
-    if (grade >= 17 && grade <= 19) return "Gerencia Media";
-    if (grade >= 20 && grade <= 23) return "Gerencia Alta";
-  }
-  if (familia === "EJ") {
-    if (grade >= 23 && grade <= 25) return "Ejecutivo";
-  }
-  // Fallback for positions with hayGrade but no capriFamily (unambiguous ranges only)
-  if (!familia) {
-    if (grade >= 8  && grade <= 12) return "Operativo";
-    if (grade === 13)               return "Profesional";
-    if (grade >= 20 && grade <= 22) return "Gerencia Alta";
-    if (grade >= 23 && grade <= 25) return "Ejecutivo";
-    // grades 14-19 are ambiguous without familia — skip
-  }
-  return null;
-}
-
 function getRowNivel(r: ExtendedMarketPosition): Nivel | null {
-  const fromCapri = getNivelFromCapri(r.hayGrade, r.capriFamily);
-  if (fromCapri) return fromCapri;
-  // Last resort: nivelOrganizacional free-text (legacy data)
-  const raw = r.nivelOrganizacional?.trim();
-  if (raw && (NIVELES as readonly string[]).includes(raw)) return raw as Nivel;
+  if (!r.hayGrade || !r.capriFamily) return null;
+  const g = r.hayGrade;
+  if (r.capriFamily === "IC") {
+    if (g >= 8  && g <= 12) return "Operativo";
+    if (g >= 13 && g <= 19) return "Profesional";
+  }
+  if (r.capriFamily === "LO") {
+    if (g >= 14 && g <= 16) return "Supervisor";
+  }
+  if (r.capriFamily === "GE") {
+    if (g >= 17 && g <= 19) return "Gerencia Media";
+    if (g >= 20 && g <= 23) return "Gerencia Alta";
+  }
+  if (r.capriFamily === "EJ") {
+    if (g >= 23 && g <= 25) return "Ejecutivo";
+  }
   return null;
 }
 
