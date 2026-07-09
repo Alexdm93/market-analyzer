@@ -24,111 +24,143 @@ type Question    = { id: string; title: string; options: QuestionOpt[] };
 const Q: Record<Familia, Question[]> = {
   IC: [
     {
-      id: "autonomia", title: "¿Cuánta supervisión recibe?",
+      id: "autonomia",
+      title: "¿Cuánta libertad tiene para decidir CÓMO hacer su trabajo?",
       options: [
-        { value: 8,    title: "Supervisión constante",   desc: "Revisión varias veces al día" },
-        { value: 9,    title: "Supervisión periódica",   desc: "Revisión diaria" },
-        { value: 10.5, title: "Por procedimientos",      desc: "Sigue protocolos definidos" },
-        { value: 13,   title: "Por resultados",          desc: "Revisión semanal" },
-        { value: 16,   title: "Supervisión general",     desc: "Revisión mensual" },
-        { value: 19,   title: "Total autonomía",         desc: "Define enfoques y métodos" },
+        { value: 8,  title: "Nivel Básico — Instrucciones estrictas y rutinarias",         desc: "El trabajo está detallado paso a paso. No hay margen para alterar el método." },
+        { value: 9,  title: "Nivel Operativo — Rutinas estandarizadas",                   desc: "Tareas repetitivas con ligeras variaciones. Sigue reglas claras y acude al supervisor solo ante lo inusual." },
+        { value: 11, title: "Nivel Técnico — Prácticas y procedimientos definidos",       desc: "El \"qué\" y el \"cómo\" están en manuales o normas del oficio. Puede organizar su día dentro de esos límites técnicos." },
+        { value: 14, title: "Nivel Profesional — Supervisión por objetivos a corto plazo", desc: "Recibe metas claras pero elige los métodos estándar para alcanzarlas. Se evalúa el resultado, no el paso a paso." },
+        { value: 17, title: "Nivel Especialista — Dirección general (políticas amplias)",  desc: "Trabaja bajo políticas generales del área. Define sus propios planes de acción y métodos para resolver problemas complejos." },
+        { value: 19, title: "Nivel Innovación — Orientación estratégica (autonomía total)", desc: "Solo sujeto a la estrategia del negocio. Crea nuevos enfoques, métodos o servicios donde no existen precedentes." },
       ],
     },
     {
-      id: "complejidad", title: "¿Qué tipo de problemas resuelve habitualmente?",
+      id: "complejidad",
+      title: "¿Qué tipo de esfuerzo mental exige resolver los problemas del cargo?",
       options: [
-        { value: 8.5,  title: "Problemas conocidos con solución estándar",      desc: "Situaciones con procedimiento documentado. Aplica lo que está escrito.",     example: "Ej: cajero detecta billete falso y aplica protocolo." },
-        { value: 10.5, title: "Problemas comunes con análisis básico",           desc: "Situaciones recurrentes con varias soluciones posibles.",                    example: "Ej: técnico identifica falla de máquina entre 3-4 causas típicas." },
-        { value: 13,   title: "Problemas técnicos especializados",               desc: "Requieren conocimiento profesional avanzado.",                               example: "Ej: ingeniero diseña solución a falla recurrente." },
-        { value: 16,   title: "Problemas complejos con interdependencias",       desc: "Solución impacta varias áreas. Requiere coordinación y trade-offs.",         example: "Ej: rediseño de proceso que toca operaciones, finanzas y calidad." },
-        { value: 19,   title: "Problemas estratégicos sin precedente",           desc: "Situaciones nuevas. No hay solución previa; se diseña algo original.",       example: "Ej: crear nuevo modelo de negocio digital." },
+        { value: 8.5, title: "Memoria y repetición",            desc: "Problemas con solución documentada. Solo hay que recordar o leer qué hacer.",                                                         example: "Ej: cajero detecta billete falso y aplica protocolo." },
+        { value: 10.5, title: "Análisis básico y elección",      desc: "Problemas recurrentes con varias causas posibles. Hay que investigar para elegir la mejor solución entre opciones conocidas.",          example: "Ej: técnico identifica falla de máquina entre 3-4 causas típicas." },
+        { value: 13,   title: "Análisis técnico especializado",  desc: "Requieren interpretar datos complejos usando teoría profesional o experiencia técnica profunda.",                                       example: "Ej: ingeniero diseña solución a falla recurrente en proceso." },
+        { value: 16,   title: "Pensamiento integrador",          desc: "Problemas complejos donde la solución afecta otras áreas. Requiere conectar variables distintas y diseñar soluciones que equilibran intereses.", example: "Ej: rediseño de proceso que toca operaciones, finanzas y calidad." },
+        { value: 19,   title: "Pensamiento creativo / Innovación", desc: "Problemas inéditos. No hay libros ni manuales que den la respuesta; hay que conceptualizar y crear algo que no existía.",             example: "Ej: crear nuevo modelo de negocio digital desde cero." },
       ],
     },
     {
-      id: "dominio", title: "¿Tiempo para dominar el puesto?",
+      id: "dominio",
+      title: "¿Tiempo necesario para dominar el puesto?",
       options: [
-        { value: 8,  title: "Menos de 6 meses" }, { value: 9,  title: "6 meses a 1 año" },
-        { value: 10, title: "1 a 2 años" },        { value: 12, title: "2 a 4 años" },
-        { value: 15, title: "4 a 7 años" },        { value: 19, title: "Más de 7 años" },
+        { value: 8,  title: "Menos de 6 meses" },
+        { value: 9,  title: "6 meses a 1 año" },
+        { value: 10, title: "1 a 2 años" },
+        { value: 12, title: "2 a 4 años" },
+        { value: 15, title: "4 a 7 años" },
+        { value: 19, title: "Más de 7 años" },
       ],
     },
     {
-      id: "formacion", title: "¿Formación mínima necesaria?",
+      id: "formacion",
+      title: "¿Cuál es el nivel académico mínimo indispensable que la empresa exige para el cargo?",
       options: [
-        { value: 8.5,  title: "Educación básica" },
-        { value: 11,   title: "Bachillerato técnico" },
-        { value: 13,   title: "Título universitario sin experiencia" },
-        { value: 14.5, title: "Título + 3-5 años experiencia" },
-        { value: 16.5, title: "Título + 5-10 años + especialización" },
-        { value: 19,   title: "Posgrado + experiencia experta" },
+        { value: 8.5, title: "Bachillerato" },
+        { value: 11,  title: "Técnico / TSU" },
+        { value: 13,  title: "Universitario / Licenciatura / Ingeniería" },
+        { value: 15,  title: "Universitario + Especialización / Diplomado" },
+        { value: 17,  title: "Maestría" },
+        { value: 19,  title: "Doctorado / Alta Especialidad" },
       ],
     },
   ],
   LO: [
     {
-      id: "tamanoEquipo", title: "¿Cuántas personas le reportan directamente?",
+      id: "tamanoEquipo",
+      title: "¿Cuántas personas le reportan directamente?",
       options: [
-        { value: 14, title: "1 a 5 personas" }, { value: 15, title: "6 a 15 personas" }, { value: 16, title: "Más de 15 personas" },
+        { value: 14, title: "1 a 5 personas" },
+        { value: 15, title: "6 a 15 personas" },
+        { value: 16, title: "Más de 15 personas" },
       ],
     },
     {
-      id: "foco", title: "¿Cuál es la actividad central del supervisor?",
+      id: "foco",
+      title: "¿Cuál es el enfoque principal de su gestión como supervisor?",
       options: [
-        { value: 14, title: "Asegurar la ejecución diaria",     desc: "Que las tareas operativas se cumplan según lo planeado.",        example: "Ej: supervisor de planta verifica turnos y controla metas diarias." },
-        { value: 15, title: "Optimizar procesos del equipo",    desc: "Identifica oportunidades de mejora y aplica cambios.",           example: "Ej: supervisor rediseña flujo de despacho reduciendo tiempos 20%." },
-        { value: 16, title: "Resolver problemas departamentales", desc: "Lidera equipos grandes, enfrenta problemas que afectan al departamento.", example: "Ej: coordinador gestiona plan de contingencia ante caída de producción." },
+        { value: 14, title: "Control de Ejecución (El Día a Día)",        desc: "Su prioridad es que el turno o grupo cumpla la meta de hoy. Asigna tareas, vigila la asistencia, asegura que se sigan las normas básicas y reporta las fallas.", example: "Ej: supervisor de planta verifica turnos y controla metas diarias." },
+        { value: 15, title: "Gestión Técnica y Eficiencia (El Proceso)",  desc: "Es el \"experto técnico\" del grupo. Resuelve fallas operativas, entrena al personal en cómo hacer mejor el trabajo y ajusta procesos para ganar eficiencia.", example: "Ej: supervisor rediseña flujo de despacho reduciendo tiempos un 20%." },
+        { value: 16, title: "Coordinación Táctica (El Área Completa)",    desc: "Su visión va más allá de un solo turno. Articula el trabajo de varios equipos, planifica recursos a mediano plazo y negocia soluciones con otros departamentos.", example: "Ej: coordinador gestiona plan de contingencia ante caída de producción." },
       ],
     },
   ],
   GE: [
     {
-      id: "tipo", title: "¿Cuál describe mejor el alcance gerencial?",
+      id: "tipo",
+      title: "¿Cuál describe mejor el alcance de la posición gerencial?",
       options: [
-        { value: 17, title: "Gerencia Media Inicial",     desc: "Lidera equipo y diseña soluciones para objetivos del área" },
-        { value: 18, title: "Gerencia Media Intermedia",  desc: "Implementa proyectos y cambios importantes" },
-        { value: 19, title: "Gerencia Media Avanzada",    desc: "Crea soluciones innovadoras" },
-        { value: 20, title: "Gerencia Alta Inicial",      desc: "Dirige empresa pequeña o unidad" },
-        { value: 21, title: "Gerencia Alta Intermedia",   desc: "Dirige empresa pequeña-mediana" },
-        { value: 22, title: "Gerencia Alta Avanzada",     desc: "Dirige empresa mediana" },
+        { value: 17,   title: "Liderazgo de Proceso o Sub-área",               desc: "Maneja una fracción específica dentro de un departamento más grande. Visión a corto y mediano plazo. Asegura que un proceso particular funcione adecuadamente." },
+        { value: 18,   title: "Liderazgo de un Área o Departamento",           desc: "Es el responsable total de un departamento estándar. Integra varios sub-procesos bajo su mando. Visión anual." },
+        { value: 19,   title: "Liderazgo de Área Compleja",                    desc: "Dirige un departamento de alto volumen, alta complejidad técnica o que es vital para la supervivencia y el giro principal del negocio." },
+        { value: 20,   title: "Liderazgo Funcional (Múltiples Áreas)",         desc: "Su paraguas de control abarca varios departamentos distintos que persiguen un fin común. Define las políticas y la táctica de toda una función." },
+        { value: 21,   title: "Liderazgo de Unidad de Negocio / División / Región", desc: "Dirige una división completa del negocio, una línea de productos independiente o una región geográfica." },
+        { value: 22.5, title: "Liderazgo Organizacional Integrado / Dirección General", desc: "Es el máximo nivel de integración operativa de la empresa. Su visión abarca la totalidad de la operación y materializa la estrategia global." },
       ],
     },
     {
-      id: "alcance", title: "Las decisiones afectan a:",
+      id: "alcance",
+      title: "¿Cuál es la magnitud del impacto de sus decisiones?",
       options: [
-        { value: 17,   title: "Solo su equipo / proyecto" },
-        { value: 18,   title: "Todo su departamento" },
-        { value: 19,   title: "Varios departamentos" },
-        { value: 20,   title: "Unidad de negocio o empresa pequeña" },
-        { value: 21.5, title: "Toda una empresa de tamaño medio" },
+        { value: 17,   title: "Impacto Operativo Interno",                 desc: "Sus decisiones afectan la velocidad, calidad o eficiencia de su propio equipo o proceso. Los errores se corrigen internamente." },
+        { value: 18,   title: "Impacto Interdepartamental",                desc: "Sus decisiones afectan el trabajo de otras áreas generando cuellos de botella o fricción interna, pero no impacta gravemente al cliente final." },
+        { value: 19,   title: "Impacto en el Producto / Servicio Final",   desc: "Sus decisiones mueven la aguja del día a día del negocio. Los errores se traducen en pérdida de clientes o ingresos inmediatos." },
+        { value: 20,   title: "Impacto en Ganancias y Pérdidas (G&P)",    desc: "Sus decisiones mueven la aguja de la rentabilidad. Afectan los márgenes de ganancia, los costos estructurales o el flujo de caja." },
+        { value: 21.5, title: "Impacto Estratégico, Legal o Reputacional", desc: "Sus decisiones comprometen la viabilidad de la empresa. Riesgo de demandas millonarias, pérdida de licencias o crisis de relaciones públicas." },
       ],
     },
     {
-      id: "pl", title: "¿Responsabilidad sobre resultados financieros (P&L)?",
+      id: "pl",
+      title: "¿Nivel de autonomía / libertad de acción?",
       options: [
-        { value: 17.5, title: "Sin responsabilidad financiera" },
-        { value: 19,   title: "Responsabilidad parcial",            desc: "Sobre componente específico" },
-        { value: 20,   title: "Total sobre resultados de unidad pequeña" },
-        { value: 21.5, title: "Total sobre resultados de empresa" },
+        { value: 17.5, title: "Autonomía Operativa",       desc: "Actúa dentro de políticas, manuales y procedimientos bien definidos. Cambios estructurales deben ser aprobados por un nivel superior." },
+        { value: 18.5, title: "Autonomía de Ejecución",    desc: "Tiene libertad para adaptar procesos dentro de su propia área para cumplir metas operativas específicas, sin alterar la política general del departamento." },
+        { value: 19.5, title: "Autonomía Táctica",         desc: "Actúa guiado por los objetivos anuales de su área. Tiene libertad para definir métodos, planes de trabajo y uso del presupuesto de su departamento." },
+        { value: 20.5, title: "Autonomía Estratégica",     desc: "Actúa bajo políticas generales del negocio. Tiene libertad para alterar procesos interdepartamentales y tomar decisiones a mediano plazo en múltiples áreas." },
+        { value: 21.5, title: "Autonomía Directiva Amplia", desc: "Sujeta únicamente a directrices estratégicas muy amplias. Tiene libertad para redefinir el rumbo y la estructura de una gran división o de la empresa." },
       ],
     },
   ],
   EJ: [
     {
-      id: "tipo", title: "¿Cuál describe mejor la naturaleza de la dirección?",
+      id: "tipo",
+      title: "¿Cuál describe mejor la naturaleza y complejidad de la dirección?",
       options: [
-        { value: 23, title: "Gerencia Ejecutiva Inicial",   desc: "Dirige gran segmento del negocio en empresa mediana-grande.",      example: "Ej: VP Operaciones, CFO, Director Comercial Nacional." },
-        { value: 24, title: "Gerencia Ejecutiva Intermedia", desc: "Dirige empresa grande nacional. Máximo responsable en un país.",   example: "Ej: CEO de empresa nacional, presidente de filial país." },
-        { value: 25, title: "Gerencia Ejecutiva Avanzada",  desc: "Dirige corporación o grupo multinacional.",                         example: "Ej: CEO grupo multinacional, presidente regional Latam." },
+        { value: 23, title: "Dirección Ejecutiva Funcional / Vertical",          desc: "Lidera la estrategia a largo plazo de una función crítica o vertical completa del negocio (ej. toda la cadena de suministro). Integra múltiples áreas complejas.", example: "Ej: VP Operaciones, CFO, Director Comercial Nacional." },
+        { value: 24, title: "Dirección Ejecutiva General (Unidad / Entidad)",    desc: "Máximo responsable de las Ganancias y Pérdidas (G&P) y viabilidad de una entidad de negocio completa y autosuficiente.", example: "Ej: CEO de empresa nacional, presidente de filial país." },
+        { value: 25, title: "Dirección Ejecutiva Corporativa / Portafolio",      desc: "Lidera un ecosistema de negocios. Su complejidad radica en manejar un portafolio de empresas, múltiples unidades de negocio o una matriz diversa.", example: "Ej: CEO grupo multinacional, presidente regional Latam." },
       ],
     },
     {
-      id: "horizonte", title: "¿Horizonte temporal de decisiones?",
+      id: "horizonte",
+      title: "¿Horizonte temporal de sus decisiones estratégicas?",
       options: [
-        { value: 22,   title: "1-2 años (operativo)", desc: "⚠️ Revisar si es realmente ejecutivo" },
-        { value: 23,   title: "3-5 años (estratégico)" },
-        { value: 24.5, title: "5-10 años (visión)" },
+        { value: 23, title: "3-4 años (Táctico-Estratégico)", desc: "Planificación a mediano plazo, enfocado en el ciclo de vida de productos o servicios actuales." },
+        { value: 24, title: "5-7 años (Estratégico)",          desc: "Diseño del futuro del negocio, apertura de nuevos mercados o transformación del modelo de operación." },
+        { value: 25, title: "Más de 7 años (Visión y Supervivencia)", desc: "Enfoque absoluto en la sostenibilidad corporativa, fusiones, adquisiciones y viabilidad generacional del grupo." },
       ],
     },
+  ],
+};
+
+const EQUIPO_OPTS: Partial<Record<Familia, { value: string; title: string }[]>> = {
+  LO: [
+    { value: "operativo", title: "Personal operativo / auxiliar" },
+    { value: "tecnico",   title: "Técnicos no profesionales" },
+  ],
+  GE: [
+    { value: "profesional", title: "Profesionales con título universitario" },
+    { value: "gerentes",    title: "Otros gerentes / supervisores" },
+  ],
+  EJ: [
+    { value: "gerentes", title: "Otros gerentes / directores" },
+    { value: "mixto",    title: "Equipo mixto de directores y profesionales senior" },
   ],
 };
 
@@ -180,7 +212,7 @@ function calcGrade(
     if (tot <= 2) aj = -1; else if (tot <= 5) aj = 0; else if (tot <= 8) aj = 1; else if (tot <= 11) aj = 2; else aj = 3;
   }
 
-  let g = Math.round(base + aj);
+  let g = Math.floor(base + aj + 0.5);
   if (familia === "IC") g = Math.max(8,  Math.min(19, g));
   if (familia === "LO") g = Math.max(14, Math.min(16, g));
   if (familia === "GE") g = Math.max(17, Math.min(22, g));
@@ -210,12 +242,15 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
 
   const [step,        setStep]        = useState<Step>("familia");
   const [familia,     setFamilia]     = useState<Familia | null>(null);
+  const [equipoTipo,  setEquipoTipo]  = useState<string | null>(null);
   const [calibracion, setCalibracion] = useState<Record<string, number>>({});
   const [magnitud,    setMagnitud]    = useState<{ m1: number; m2: number }>({ m1: 0, m2: 0 });
 
-  const hasMagnitud = familia === "GE" || familia === "EJ";
-  const questions   = familia ? Q[familia] : [];
-  const allAnswered = familia ? questions.every((q) => calibracion[q.id] !== undefined) : false;
+  const hasMagnitud  = familia === "GE" || familia === "EJ";
+  const needsEquipo  = familia === "LO" || familia === "GE" || familia === "EJ";
+  const questions    = familia ? Q[familia] : [];
+  const allAnswered  = familia ? questions.every((q) => calibracion[q.id] !== undefined) : false;
+  const familiaReady = !!familia && (!needsEquipo || !!equipoTipo);
 
   const grade = familia && allAnswered
     ? calcGrade(familia, calibracion, magnitud, factIdx)
@@ -225,6 +260,7 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
   function selectFamilia(f: Familia) {
     if (f === "EJ" && !factRule.ej) return;
     setFamilia(f);
+    setEquipoTipo(null);
     setCalibracion({});
     setMagnitud({ m1: 0, m2: 0 });
   }
@@ -234,7 +270,7 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
   }
 
   function goNext() {
-    if (step === "familia" && familia) setStep("calibracion");
+    if (step === "familia" && familiaReady) setStep("calibracion");
     else if (step === "calibracion" && allAnswered) setStep(hasMagnitud ? "magnitud" : "resultado");
     else if (step === "magnitud") setStep("resultado");
   }
@@ -246,10 +282,10 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
   }
 
   const FAMILIA_OPTS: { value: Familia; label: string; sub: string; color: string }[] = [
-    { value: "IC", label: "A · Ruta Individual",            sub: "Ejecuta tareas. No tiene personas a su cargo.",                           color: "bg-blue-500" },
-    { value: "LO", label: "B · Liderazgo Operativo",        sub: "Lidera equipo operativo o técnico no profesional.",                       color: "bg-amber-500" },
-    { value: "GE", label: "C · Ruta Gerencial",             sub: "Lidera equipo de profesionales y/o gestiona área de negocio.",            color: "bg-orange-500" },
-    { value: "EJ", label: "D · Ruta Ejecutiva",             sub: "Dirige unidad de negocio, empresa o corporación.",                        color: "bg-red-500" },
+    { value: "IC", label: "A · Ruta Individual",                    sub: "Contribuidor individual. Sin personal bajo su cargo.",                           color: "bg-blue-500" },
+    { value: "LO", label: "B · Ruta Liderazgo Operativo",           sub: "Lidera equipo operativo o técnico no profesional.",                             color: "bg-amber-500" },
+    { value: "GE", label: "C · Ruta Liderazgo Táctico y Estratégico", sub: "Lidera equipo de profesionales y/o gestiona área de negocio.",               color: "bg-orange-500" },
+    { value: "EJ", label: "D · Ruta Ejecutiva / Alta Dirección",    sub: "Dirige unidad de negocio, empresa o corporación.",                              color: "bg-red-500" },
   ];
 
   const presupOptions = [
@@ -278,14 +314,18 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
             <div>
               <p className="text-[0.7rem] font-bold uppercase tracking-widest text-teal-200">CAPRI 2.0 · Clasificación de cargo</p>
               <h2 className="mt-0.5 text-lg font-bold text-white">{cargoNombre}</h2>
-              <p className="text-xs text-teal-300">{stepLabel[step]} · {factRule.label} · {companyInfo.headcount ? `${companyInfo.headcount} colaboradores` : ""}</p>
+              <p className="text-xs text-teal-300">{stepLabel[step]} · {factRule.label}{companyInfo.headcount ? ` · ${companyInfo.headcount} colaboradores` : ""}</p>
             </div>
-            <button onClick={onClose} className="rounded-lg p-1.5 text-teal-200 hover:bg-teal-800" aria-label="Cerrar">
+            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-teal-200 hover:bg-teal-800" aria-label="Cerrar">
               <X className="h-5 w-5" />
             </button>
           </div>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-teal-800">
-            <div className="h-full rounded-full bg-teal-300 transition-all duration-300" style={{ width: `${progress}%` }} />
+            <div
+              className="h-full rounded-full bg-teal-300 transition-all duration-300"
+              // eslint-disable-next-line react/forbid-dom-props
+              style={{ width: `${progress}%` }}
+            />
           </div>
         </div>
 
@@ -294,33 +334,62 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
 
           {/* STEP: familia */}
           {step === "familia" && (
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-slate-700">¿Cuál afirmación describe MEJOR el cargo?</p>
-              {FAMILIA_OPTS.map((opt) => {
-                const disabled = opt.value === "EJ" && !factRule.ej;
-                const selected = familia === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => selectFamilia(opt.value)}
-                    className={`w-full rounded-xl border-2 px-4 py-3 text-left transition-all ${
-                      disabled ? "cursor-not-allowed opacity-40" :
-                      selected ? "border-teal-600 bg-teal-50 shadow-sm" : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`h-3 w-3 flex-none rounded-full ${opt.color}`} />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
-                        <p className="text-xs text-slate-500">{disabled ? `🚫 Bloqueada para facturación menor a 15MM USD.` : opt.sub}</p>
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-700">¿Cuál afirmación describe MEJOR el cargo?</p>
+                {FAMILIA_OPTS.map((opt) => {
+                  const disabled = opt.value === "EJ" && !factRule.ej;
+                  const selected = familia === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => selectFamilia(opt.value)}
+                      className={`w-full rounded-xl border-2 px-4 py-3 text-left transition-all ${
+                        disabled ? "cursor-not-allowed opacity-40" :
+                        selected ? "border-teal-600 bg-teal-50 shadow-sm" : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`h-3 w-3 flex-none rounded-full ${opt.color}`} />
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
+                          <p className="text-xs text-slate-500">{disabled ? "🚫 Bloqueada para facturación menor a 15MM USD." : opt.sub}</p>
+                        </div>
+                        {selected && <Check className="ml-auto h-4 w-4 flex-none text-teal-600" />}
                       </div>
-                      {selected && <Check className="ml-auto h-4 w-4 flex-none text-teal-600" />}
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Sub-pregunta: tipo de equipo */}
+              {familia && needsEquipo && EQUIPO_OPTS[familia] && (
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-700">Tu equipo está compuesto principalmente por:</p>
+                  <div className="space-y-2">
+                    {EQUIPO_OPTS[familia]!.map((opt) => {
+                      const sel = equipoTipo === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setEquipoTipo(opt.value)}
+                          className={`w-full rounded-xl border-2 px-4 py-3 text-left transition-all ${
+                            sel ? "border-teal-600 bg-teal-50 shadow-sm" : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50/50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-slate-800">{opt.title}</p>
+                            {sel && <Check className="h-4 w-4 flex-none text-teal-600" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -343,7 +412,7 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
                           }`}
                         >
                           <p className="text-sm font-semibold text-slate-800">{opt.title}</p>
-                          {opt.desc && <p className="mt-0.5 text-xs text-slate-500">{opt.desc}</p>}
+                          {opt.desc    && <p className="mt-0.5 text-xs text-slate-500">{opt.desc}</p>}
                           {opt.example && <p className="mt-1 border-t border-dashed border-slate-200 pt-1 text-[0.7rem] italic text-slate-400">{opt.example}</p>}
                         </button>
                       );
@@ -448,7 +517,7 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
               type="button"
               onClick={goNext}
               disabled={
-                (step === "familia" && !familia) ||
+                (step === "familia" && !familiaReady) ||
                 (step === "calibracion" && !allAnswered) ||
                 (step === "magnitud" && magnitud.m2 === 0 && (familia === "GE" || familia === "EJ"))
               }
