@@ -13,9 +13,9 @@ import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContex
 const menuItems = [
   { name: "Inicio", href: "/inicio", icon: Newspaper, hint: "Noticias y anuncios" },
   { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
+  { name: "Empresa", href: "/informacion", icon: Info, hint: "Contexto y contacto" },
   { name: "Data", href: "/data", icon: Database, hint: "Captura por cargo" },
   { name: "Resultados", href: "/resultados", icon: TrendingUp, hint: "Resumen de mercado" },
-  { name: "Empresa", href: "/informacion", icon: Info, hint: "Contexto y contacto" },
 ];
 
 const menuItemsAdmin = [
