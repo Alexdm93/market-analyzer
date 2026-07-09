@@ -678,6 +678,7 @@ export default function DataPage() {
 
   const [cargoPickerOpen, setCargoPickerOpen] = useState(false);
   const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
+  const [pickerExpandedDepts, setPickerExpandedDepts] = useState<Set<string>>(new Set());
 
   function addRow(prefill?: { departamento: string; tituloCargo: string }) {
     if (!selectedSnapshotId) {
@@ -831,6 +832,7 @@ export default function DataPage() {
     }
     if (cargosConfigured) {
       setPickerSelected(new Set());
+      setPickerExpandedDepts(new Set());
       setCargoPickerOpen(true);
     } else {
       addRow();
@@ -1560,61 +1562,92 @@ export default function DataPage() {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-1 pr-1">
               {availableDepts.map((dept) => {
                 const normDeptPicker = dept.trim().toLowerCase();
                 const cargosEnDept = availableCargosByDept[dept] ?? [];
+                const isExpanded = pickerExpandedDepts.has(dept);
+                const selectedInDept = cargosEnDept.filter((t) => pickerSelected.has(`${dept}::${t}`)).length;
                 return (
                   <div key={dept}>
-                    <div className="mb-2 text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">{dept}</div>
-                    <div className="space-y-1.5">
-                      {cargosEnDept.map((titulo) => {
-                        const pickerKey = `${dept}::${titulo}`;
-                        const normTituloPicker = titulo.trim().toLowerCase();
-                        const yaAgregado = rows.some((r) => {
-                          if ((r.tituloCargo ?? "").trim().toLowerCase() !== normTituloPicker) return false;
-                          const rowDept = (r.departamento ?? "").trim();
-                          return !rowDept || rowDept.toLowerCase() === normDeptPicker;
-                        });
-                        const isSelected = pickerSelected.has(pickerKey);
-                        return (
-                          <button
-                            key={titulo}
-                            type="button"
-                            disabled={yaAgregado}
-                            onClick={() => {
-                              if (yaAgregado) return;
-                              setPickerSelected((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(pickerKey)) next.delete(pickerKey);
-                                else next.add(pickerKey);
-                                return next;
-                              });
-                            }}
-                            className={`flex w-full items-center justify-between rounded-[0.9rem] border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
-                              yaAgregado
-                                ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
-                                : isSelected
-                                  ? "border-teal-400 bg-teal-50 text-teal-800"
-                                  : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"
-                            }`}
-                          >
-                            <span>{titulo}</span>
-                            {yaAgregado ? (
-                              <span className="ml-3 shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[0.65rem] font-bold text-slate-400">
-                                ya agregado
-                              </span>
-                            ) : isSelected ? (
-                              <span className="ml-3 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-500 text-white">
-                                <Check className="h-3 w-3" />
-                              </span>
-                            ) : (
-                              <span className="ml-3 h-5 w-5 shrink-0 rounded-full border-2 border-slate-200" />
-                            )}
-                          </button>
-                        );
+                    <button
+                      type="button"
+                      onClick={() => setPickerExpandedDepts((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(dept)) next.delete(dept);
+                        else next.add(dept);
+                        return next;
                       })}
-                    </div>
+                      className="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-50"
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg
+                          width="12" height="12" viewBox="0 0 12 12" fill="none"
+                          className={`shrink-0 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                        >
+                          <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        <span className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">{dept}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {selectedInDept > 0 && (
+                          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[0.65rem] font-bold text-teal-700">
+                            {selectedInDept}
+                          </span>
+                        )}
+                        <span className="text-[0.65rem] text-slate-300">{cargosEnDept.length}</span>
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="mt-1 mb-2 space-y-1.5 pl-2">
+                        {cargosEnDept.map((titulo) => {
+                          const pickerKey = `${dept}::${titulo}`;
+                          const normTituloPicker = titulo.trim().toLowerCase();
+                          const yaAgregado = rows.some((r) => {
+                            if ((r.tituloCargo ?? "").trim().toLowerCase() !== normTituloPicker) return false;
+                            const rowDept = (r.departamento ?? "").trim();
+                            return !rowDept || rowDept.toLowerCase() === normDeptPicker;
+                          });
+                          const isSelected = pickerSelected.has(pickerKey);
+                          return (
+                            <button
+                              key={titulo}
+                              type="button"
+                              disabled={yaAgregado}
+                              onClick={() => {
+                                if (yaAgregado) return;
+                                setPickerSelected((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(pickerKey)) next.delete(pickerKey);
+                                  else next.add(pickerKey);
+                                  return next;
+                                });
+                              }}
+                              className={`flex w-full items-center justify-between rounded-[0.9rem] border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
+                                yaAgregado
+                                  ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
+                                  : isSelected
+                                    ? "border-teal-400 bg-teal-50 text-teal-800"
+                                    : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"
+                              }`}
+                            >
+                              <span>{titulo}</span>
+                              {yaAgregado ? (
+                                <span className="ml-3 shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[0.65rem] font-bold text-slate-400">
+                                  ya agregado
+                                </span>
+                              ) : isSelected ? (
+                                <span className="ml-3 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-500 text-white">
+                                  <Check className="h-3 w-3" />
+                                </span>
+                              ) : (
+                                <span className="ml-3 h-5 w-5 shrink-0 rounded-full border-2 border-slate-200" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
