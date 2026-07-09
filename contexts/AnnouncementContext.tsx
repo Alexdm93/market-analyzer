@@ -17,12 +17,14 @@ export type Announcement = {
 type AnnouncementCtx = {
   announcements: Announcement[];
   hasUnread: boolean;
+  isLoading: boolean;
   markSeen: (id: string) => void;
 };
 
 const AnnouncementContext = createContext<AnnouncementCtx>({
   announcements: [],
   hasUnread: false,
+  isLoading: true,
   markSeen: () => {},
 });
 
@@ -30,6 +32,7 @@ export function AnnouncementProvider({ children }: { children: React.ReactNode }
   const { status } = useSession();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     try {
@@ -39,11 +42,13 @@ export function AnnouncementProvider({ children }: { children: React.ReactNode }
   }, []);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status === "loading") return;
+    if (status !== "authenticated") { setIsLoading(false); return; }
     fetch("/api/announcements", { cache: "no-store" })
       .then((r) => r.json())
       .then((d: { announcements?: Announcement[] }) => setAnnouncements(d.announcements ?? []))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
   }, [status]);
 
   const hasUnread = announcements.some((a) => !seenIds.has(a.id));
@@ -59,7 +64,7 @@ export function AnnouncementProvider({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <AnnouncementContext.Provider value={{ announcements, hasUnread, markSeen }}>
+    <AnnouncementContext.Provider value={{ announcements, hasUnread, isLoading, markSeen }}>
       {children}
     </AnnouncementContext.Provider>
   );

@@ -332,8 +332,28 @@ function ListCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) =>
   );
 }
 
+function FeedSkeleton() {
+  return (
+    <div className="surface-card overflow-hidden rounded-[2rem] animate-pulse">
+      <div className="h-[320px] bg-slate-200 md:h-[440px]" />
+      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="overflow-hidden rounded-2xl border border-slate-100">
+            <div className="h-[140px] bg-slate-200" />
+            <div className="space-y-2 p-3">
+              <div className="h-2 w-14 rounded bg-slate-200" />
+              <div className="h-3 rounded bg-slate-200" />
+              <div className="h-3 w-3/4 rounded bg-slate-200" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function InicioPage() {
-  const { announcements, markSeen } = useAnnouncements();
+  const { announcements, isLoading, markSeen } = useAnnouncements();
   const [selected, setSelected] = useState<Announcement | null>(null);
 
   function openAnnouncement(a: Announcement) {
@@ -356,15 +376,18 @@ export default function InicioPage() {
     <>
       <main className="page-wrap">
         <div className="flex w-full flex-col gap-5">
-          {/* Empty state */}
-          {announcements.length === 0 && (
+          {/* Loading skeleton */}
+          {isLoading && <FeedSkeleton />}
+
+          {/* Empty state — solo cuando terminó de cargar */}
+          {!isLoading && announcements.length === 0 && (
             <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
               No hay anuncios publicados aún. Vuelve pronto.
             </section>
           )}
 
           {/* Featured section: hero + strip */}
-          {hero && (
+          {!isLoading && hero && (
             <div className="surface-card overflow-hidden rounded-[2rem]">
               <HeroCard a={hero} onOpen={openAnnouncement} />
 
@@ -379,7 +402,7 @@ export default function InicioPage() {
           )}
 
           {/* List section */}
-          {list.length > 0 && (
+          {!isLoading && list.length > 0 && (
             <div className="surface-card overflow-hidden rounded-[2rem] divide-y divide-slate-100">
               {list.map((a) => (
                 <ListCard key={a.id} a={a} onOpen={openAnnouncement} />
