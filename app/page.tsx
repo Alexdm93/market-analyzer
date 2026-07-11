@@ -346,11 +346,9 @@ function UserDashboard() {
   const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
 
   function rowMonthly(r: ExtendedMarketPosition): number {
-    if (r._cachedTotalSinPasivosMensual !== undefined) return r._cachedTotalSinPasivosMensual;
     return computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalSinPasivosMensual;
   }
   function rowAnnual(r: ExtendedMarketPosition): number {
-    if (r._cachedTotalConPasivosAnual !== undefined) return r._cachedTotalConPasivosAnual;
     return computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalConPasivosAnual;
   }
 

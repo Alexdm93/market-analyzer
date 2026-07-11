@@ -1,6 +1,9 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { computeRowTotals } from "@/lib/compensation";
+import { safeParseCompanyInfo } from "@/lib/workspace";
+import type { ExtendedMarketPosition } from "@/types/salary";
 
 function percentile(values: number[], p: number): number {
   if (!values.length) return 0;
@@ -12,16 +15,6 @@ function percentile(values: number[], p: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
 }
 
-function computeRowTotal(row: Record<string, unknown>): number {
-  const n = (k: string) => Number(row[k] ?? 0);
-  let sum = n("sueldoBasico") + n("bonoAlimentacion") + n("bonoMovilizacion")
-    + n("bonoDesempeno") + n("comisiones") + n("pagoVariableOtros");
-  if (Array.isArray(row.additionalFixedPayments))
-    sum += (row.additionalFixedPayments as { amount?: number }[]).reduce((a, b) => a + Number(b.amount ?? 0), 0);
-  if (Array.isArray(row.additionalVariablePayments))
-    sum += (row.additionalVariablePayments as { amount?: number }[]).reduce((a, b) => a + Number(b.amount ?? 0), 0);
-  return sum;
-}
 
 const NIVELES = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
 
@@ -103,17 +96,37 @@ export async function GET(request: Request) {
   const percentilesByNivel: Record<string, { p25: number; p50: number; p75: number; count: number }> = {};
 
   if (latestSnapshotId) {
-    const positions = await prisma.userPosition.findMany({
-      where: { snapshotId: latestSnapshotId },
-      select: { dataJson: true },
-    });
+    const [positions, workspaces] = await Promise.all([
+      prisma.userPosition.findMany({
+        where: { snapshotId: latestSnapshotId },
+        select: { userId: true, dataJson: true },
+      }),
+      prisma.userWorkspace.findMany({
+        select: { userId: true, companyInfoJson: true },
+      }),
+    ]);
+
+    const companyInfoByUserId = new Map(
+      workspaces.map((w) => [w.userId, safeParseCompanyInfo(w.companyInfoJson)])
+    );
+
+    const getBcvRate = (userId: string): number | null => {
+      const info = companyInfoByUserId.get(userId);
+      const rate = info?.ratesAtSave?.bcvUsd;
+      return typeof rate === "number" && rate > 0 ? rate : null;
+    };
 
     const totalsByNivel = new Map<string, number[]>();
     for (const pos of positions) {
       try {
-        const data = JSON.parse(pos.dataJson) as Record<string, unknown>;
+        const data = JSON.parse(pos.dataJson) as ExtendedMarketPosition;
         const nivel = String(data.nivelOrganizacional ?? "").trim();
-        const total = computeRowTotal(data);
+        const companyInfo = companyInfoByUserId.get(pos.userId);
+        const tasas = companyInfo?.tasas ?? [];
+        const diasVac = Number(companyInfo?.minVacationDays) || 0;
+        const diasUtil = Number(companyInfo?.minUtilityDays) || 0;
+        const totals = computeRowTotals(data, tasas, getBcvRate(pos.userId), diasVac, diasUtil);
+        const total = totals.totalSinPasivosMensual;
         if (total > 0 && Number.isFinite(total)) {
           const key = NIVELES.find((n) => nivel.toLowerCase().includes(n.toLowerCase())) ?? nivel;
           if (key) {
