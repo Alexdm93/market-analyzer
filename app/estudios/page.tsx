@@ -193,7 +193,8 @@ export default function EstudiosPage() {
           <>
             {/* Chart + summary cards */}
             <section className="grid gap-4 md:grid-cols-[auto_1fr]">
-              <div className="surface-card flex flex-col items-center justify-center rounded-[1.5rem] p-6">
+              {/* Donut */}
+              <div className="surface-card flex flex-col items-center justify-center rounded-[1.5rem] p-6 md:min-w-[200px]">
                 {isLoadingDetail ? (
                   <div className="flex h-40 items-center justify-center">
                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-teal-600" />
@@ -203,24 +204,64 @@ export default function EstudiosPage() {
                 )}
               </div>
 
+              {/* Metric cards */}
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="metric-tile surface-card rounded-[1.5rem] p-4">
-                  <div className="metric-label">Total empresas</div>
-                  <div className="metric-value mt-3 font-display text-2xl">{isLoadingDetail ? "—" : companies.length}</div>
-                </div>
-                <div className="metric-tile surface-card rounded-[1.5rem] p-4">
-                  <div className="metric-label flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-teal-500" />
-                    Data enviada
+                {/* Total */}
+                <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200/70 bg-white p-5 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-[0.13em] text-slate-400">Total empresas</div>
+                  <div className="mt-3 font-display text-4xl font-bold text-slate-900">
+                    {isLoadingDetail ? <span className="inline-block h-9 w-10 animate-pulse rounded-lg bg-slate-100" /> : companies.length}
                   </div>
-                  <div className="metric-value mt-3 font-display text-2xl text-teal-700">{isLoadingDetail ? "—" : submitted.length}</div>
-                </div>
-                <div className="metric-tile surface-card rounded-[1.5rem] p-4">
-                  <div className="metric-label flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-slate-300" />
-                    Pendientes
+                  <div className="mt-1 text-xs text-slate-400">en este corte</div>
+                  <div className="absolute right-4 top-4 rounded-full bg-slate-100 p-2.5 text-slate-400">
+                    <Users size={14} aria-hidden />
                   </div>
-                  <div className="metric-value mt-3 font-display text-2xl text-slate-500">{isLoadingDetail ? "—" : pending.length}</div>
+                </div>
+
+                {/* Enviadas */}
+                <div className="relative overflow-hidden rounded-[1.5rem] border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-[0.13em] text-teal-500">Data enviada</div>
+                  <div className="mt-3 font-display text-4xl font-bold text-teal-700">
+                    {isLoadingDetail ? <span className="inline-block h-9 w-10 animate-pulse rounded-lg bg-teal-100" /> : submitted.length}
+                  </div>
+                  <div className="mt-1 text-xs text-teal-400">
+                    {isLoadingDetail || companies.length === 0 ? "—" : `${Math.round((submitted.length / companies.length) * 100)}% del total`}
+                  </div>
+                  <div className="absolute right-4 top-4 rounded-full bg-teal-100 p-2.5 text-teal-500">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  {/* progress bar */}
+                  {!isLoadingDetail && companies.length > 0 && (
+                    <div className="absolute bottom-0 left-0 h-1 bg-teal-100 w-full">
+                      <div
+                        className="h-1 bg-teal-500 transition-all duration-700"
+                        style={{ width: `${Math.round((submitted.length / companies.length) * 100)}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Pendientes */}
+                <div className="relative overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-[0.13em] text-amber-500">Pendientes</div>
+                  <div className="mt-3 font-display text-4xl font-bold text-amber-700">
+                    {isLoadingDetail ? <span className="inline-block h-9 w-10 animate-pulse rounded-lg bg-amber-100" /> : pending.length}
+                  </div>
+                  <div className="mt-1 text-xs text-amber-400">
+                    {isLoadingDetail || companies.length === 0 ? "—" : pending.length === 0 ? "¡Todas enviaron!" : `faltan por enviar`}
+                  </div>
+                  <div className="absolute right-4 top-4 rounded-full bg-amber-100 p-2.5 text-amber-500">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  {/* progress bar */}
+                  {!isLoadingDetail && companies.length > 0 && (
+                    <div className="absolute bottom-0 left-0 h-1 bg-amber-100 w-full">
+                      <div
+                        className="h-1 bg-amber-400 transition-all duration-700"
+                        style={{ width: `${Math.round((pending.length / companies.length) * 100)}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </section>

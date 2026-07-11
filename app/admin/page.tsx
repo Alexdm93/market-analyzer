@@ -52,6 +52,18 @@ type PendingUserEdit = {
   companyId: string;
 };
 
+function generatePassword() {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const special = "!@#$%&*";
+  const all = upper + lower + digits + special;
+  const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
+  const core = [pick(upper), pick(lower), pick(digits), pick(special)];
+  for (let i = 0; i < 8; i++) core.push(pick(all));
+  return core.sort(() => Math.random() - 0.5).join("");
+}
+
 function getRoleBadgeClasses(role: AppUserRole) {
   if (role === "ADMIN") {
     return "bg-teal-50 text-teal-800";
@@ -107,6 +119,7 @@ export default function AdminPage() {
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
   const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
   const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
+  const [userCompanyFilter, setUserCompanyFilter] = useState("");
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [openCortes, setOpenCortes] = useState(false);
   const [openSectors, setOpenSectors] = useState(false);
@@ -1659,8 +1672,21 @@ export default function AdminPage() {
 
           {openUsers && (
           <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-          <div className="flex justify-end">
-            <button type="button" onClick={() => void handleSaveUserChanges()} className="btn btn-primary" disabled={isSavingUserChanges || Object.keys(pendingUserEdits).length === 0}>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-[200px] flex-1 max-w-xs">
+              <label className="field-label">Filtrar por empresa</label>
+              <select
+                value={userCompanyFilter}
+                onChange={(e) => setUserCompanyFilter(e.target.value)}
+                className="field-select w-full"
+              >
+                <option value="">Todas las empresas</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <button type="button" onClick={() => void handleSaveUserChanges()} className="btn btn-primary shrink-0" disabled={isSavingUserChanges || Object.keys(pendingUserEdits).length === 0}>
               {isSavingUserChanges ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
               {isSavingUserChanges ? "Guardando..." : "Guardar todo"}
             </button>
@@ -1674,7 +1700,7 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="mt-3 space-y-2">
-              {users.map((user) => {
+              {users.filter((u) => !userCompanyFilter || u.company.id === userCompanyFilter).map((user) => {
                 const draft = pendingUserEdits[user.id] ?? { role: user.role, password: "", companyId: user.company.id };
                 const hasRoleChange = draft.role !== user.role;
                 const hasPasswordChange = draft.password.trim().length > 0;
@@ -1708,7 +1734,7 @@ export default function AdminPage() {
                     </div>
 
                     {/* Controls */}
-                    <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+                    <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                       <div>
                         <label className="field-label text-[0.7rem]">Empresa</label>
                         <select
@@ -1740,16 +1766,37 @@ export default function AdminPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="field-label text-[0.7rem]">Nueva contraseña</label>
+                        <label className="field-label text-[0.7rem]">Contraseña actual</label>
                         <input
                           type="password"
-                          value={draft.password}
-                          onChange={(e) => updatePendingUserEdit(user, { password: e.target.value })}
-                          className="field w-full"
-                          placeholder="Dejar vacío para no cambiar"
-                          autoComplete="new-password"
-                          disabled={isSavingUserChanges}
+                          value="placeholder"
+                          readOnly
+                          className="field w-full cursor-not-allowed bg-slate-50 text-slate-400 select-none"
+                          tabIndex={-1}
                         />
+                      </div>
+                      <div>
+                        <label className="field-label text-[0.7rem]">Nueva contraseña</label>
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={draft.password}
+                            onChange={(e) => updatePendingUserEdit(user, { password: e.target.value })}
+                            className="field min-w-0 flex-1"
+                            placeholder="Dejar vacío para no cambiar"
+                            autoComplete="new-password"
+                            disabled={isSavingUserChanges}
+                          />
+                          <button
+                            type="button"
+                            title="Generar contraseña segura"
+                            onClick={() => updatePendingUserEdit(user, { password: generatePassword() })}
+                            className="btn btn-secondary shrink-0 px-2.5"
+                            disabled={isSavingUserChanges}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
 
