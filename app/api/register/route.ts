@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ANALYST_ROLE, type AppUserRole, isAppUserRole } from "@/lib/roles";
+import { COORDINATOR_ROLE, type AppUserRole, isAppUserRole } from "@/lib/roles";
 import { DEFAULT_WORKSPACE } from "@/lib/workspace";
 
 type RegisterBody = {
@@ -28,8 +28,8 @@ function resolveRequestedRole(role: string | undefined) {
     return UserRole.ADMIN;
   }
 
-  if (role === ANALYST_ROLE) {
-    return UserRole.ANALYST;
+  if (role === COORDINATOR_ROLE) {
+    return UserRole.COORDINATOR;
   }
 
   return UserRole.USER;

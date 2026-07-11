@@ -57,8 +57,8 @@ function getRoleBadgeClasses(role: AppUserRole) {
     return "bg-teal-50 text-teal-800";
   }
 
-  if (role === "ANALYST") {
-    return "bg-amber-50 text-amber-800";
+  if (role === "COORDINATOR") {
+    return "bg-blue-50 text-blue-800";
   }
 
   return "bg-slate-200/70 text-slate-700";

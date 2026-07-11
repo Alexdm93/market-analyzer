@@ -1,7 +1,7 @@
 "use client";
 import { exportStyledExcel } from "@/lib/excel-export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BriefcaseBusiness, CalendarDays, Check, Edit, Layers, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, Check, Edit, Layers, Lock, LockOpen, Plus, RefreshCw, Save, Send, Sparkles, Trash2 } from "lucide-react";
 import { CapriWizardModal } from "@/components/CapriWizardModal";
 import { useSession } from "next-auth/react";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
@@ -133,6 +133,7 @@ function findDuplicateCargoTitles(rows: ExtendedMarketPosition[]) {
 export default function DataPage() {
   const { data: session, status } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
+  const isRegularUser = !isAdmin;
   const { markRouteSeen } = useWorkspaceNotification();
 
   useEffect(() => { markRouteSeen("data"); }, [markRouteSeen]);
@@ -145,9 +146,13 @@ export default function DataPage() {
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const isReadOnlyDataView = isAdmin && !selectedCompanyId;
   const isAdminCompanyView = isAdmin && Boolean(selectedCompanyId);
+  // Editing is locked for regular users when the snapshot is submitted
+  const isLockedBySubmission = isRegularUser && isSubmitted;
 
   function getDisplayLabel(snapshot: Snapshot) {
     const formattedDate = new Date(snapshot.date).toLocaleDateString();
@@ -212,6 +217,7 @@ export default function DataPage() {
       setLastSavedAt(null);
       setTasas(workspace.companyInfo?.tasas ?? []);
       setCompanyInfo(workspace.companyInfo ?? EMPTY_COMPANY_INFO);
+      setIsSubmitted(selectedId ? Boolean(filtered[selectedId]?.submittedAt) : false);
 
       if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
         setRows(filtered[selectedId].rows);
@@ -504,6 +510,60 @@ export default function DataPage() {
     showNotification(wasPersisted ? 'Guardado correctamente' : 'No se pudo guardar en la base de datos');
   }
 
+  async function handleSubmitData() {
+    if (!selectedSnapshotId || isSubmitting) return;
+    // Save first to ensure latest data is persisted
+    if (saveState === "dirty") await saveCurrentToSnapshot(selectedSnapshotId);
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/workspace/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId: selectedSnapshotId }),
+      });
+      if (res.ok) {
+        setIsSubmitted(true);
+        setSnapshots((prev) => ({
+          ...prev,
+          [selectedSnapshotId]: { ...prev[selectedSnapshotId], submittedAt: new Date().toISOString() },
+        }));
+        showNotification("Data enviada correctamente. El coordinador puede verla.");
+      } else {
+        showNotification("No se pudo enviar la data.");
+      }
+    } catch {
+      showNotification("Error al enviar la data.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleUnsubmitData() {
+    if (!selectedSnapshotId || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/workspace/submit", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId: selectedSnapshotId }),
+      });
+      if (res.ok) {
+        setIsSubmitted(false);
+        setSnapshots((prev) => ({
+          ...prev,
+          [selectedSnapshotId]: { ...prev[selectedSnapshotId], submittedAt: null },
+        }));
+        showNotification("Puedes continuar editando tu data.");
+      } else {
+        showNotification("No se pudo reabrir la edición.");
+      }
+    } catch {
+      showNotification("Error al reabrir la edición.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   // simple transient notification
   const [notification, setNotification] = useState<string>("");
   const notificationTimer = useRef<number | null>(null);
@@ -542,6 +602,7 @@ export default function DataPage() {
     setSelectedSnapshotId(id);
     setSaveState("saved");
     setLastSavedAt(null);
+    setIsSubmitted(Boolean(snap.submittedAt));
     if (!isReadOnlyDataView && !isAdminCompanyView) {
       void updateWorkspace({ selectedSnapshotId: id }).catch(() => {
         // ignore
@@ -1036,6 +1097,12 @@ export default function DataPage() {
                         : "Guardado en la base de datos"}
                 </div>
               ) : null}
+              {isLockedBySubmission && (
+                <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+                  <Lock size={14} aria-hidden />
+                  Data enviada — en espera del coordinador
+                </div>
+              )}
 
             </div>
 
@@ -1101,7 +1168,7 @@ export default function DataPage() {
                     <Check className="h-3.5 w-3.5" />
                     Exportar a Excel
                   </button>
-                  {!isReadOnlyDataView ? (
+                  {!isReadOnlyDataView && !isLockedBySubmission ? (
                     <>
                       <button
                         onClick={() => {
@@ -1122,6 +1189,26 @@ export default function DataPage() {
                       </button>
                     </>
                   ) : null}
+                  {isRegularUser && selectedSnapshotId && !isSubmitted && (
+                    <button
+                      onClick={() => void handleSubmitData()}
+                      className="btn btn-primary sm:col-span-2"
+                      disabled={isSubmitting || rows.length === 0}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {isSubmitting ? "Enviando..." : "Enviar data"}
+                    </button>
+                  )}
+                  {isRegularUser && isSubmitted && (
+                    <button
+                      onClick={() => void handleUnsubmitData()}
+                      className="btn btn-secondary sm:col-span-2"
+                      disabled={isSubmitting}
+                    >
+                      <LockOpen className="h-3.5 w-3.5" />
+                      {isSubmitting ? "Procesando..." : "Editar data"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1193,7 +1280,7 @@ export default function DataPage() {
                       <Edit className="h-3 w-3" />
                       {expanded[r.id] ? "Cerrar cargo" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
                     </button>
-                    {!isReadOnlyDataView ? (
+                    {!isReadOnlyDataView && !isLockedBySubmission ? (
                       <button type="button" onClick={() => setModal({ type: "confirm-delete", id: r.id })} className="btn btn-danger btn-xs">
                         <Trash2 className="h-3 w-3" />
                         Eliminar
@@ -1222,7 +1309,7 @@ export default function DataPage() {
                       })}
                     </div>
 
-                    <fieldset disabled={isReadOnlyDataView} className="disabled:opacity-90">
+                    <fieldset disabled={isReadOnlyDataView || isLockedBySubmission} className="disabled:opacity-90">
                       <div className="p-4 md:p-5">
 
                         {/* Tab: Identidad */}

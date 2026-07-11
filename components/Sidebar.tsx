@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, Database, Info, LayoutDashboard, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, ChartBar, Database, Info, LayoutDashboard, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 
-import { canAccessEmpresas, getRoleLabel, isAdminRole } from "@/lib/roles";
+import { getRoleLabel, isAdminRole, isCoordinatorRole } from "@/lib/roles";
 import { useNavigationTrigger } from "./NavigationProgress";
 import { useAnnouncements } from "@/contexts/AnnouncementContext";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
@@ -28,6 +28,7 @@ const menuItemsAdmin = [
 ];
 
 const estudioItem = { name: "Estudio", href: "/estudio", icon: BookOpen, hint: "Estudio especializado" };
+const estudiosItem = { name: "Estudios", href: "/estudios", icon: ChartBar, hint: "Participación por corte" };
 
 const adminMenuItems = [
   { name: "Admin", href: "/admin", icon: Shield, hint: "Vista administrativa" },
@@ -35,16 +36,13 @@ const adminMenuItems = [
   { name: "Anuncios", href: "/admin/anuncios", icon: Newspaper, hint: "Publicar noticias" },
 ];
 
-const analystMenuItems = [
-  { name: "Empresas", href: "/empresas", icon: Building2, hint: "Empresas por corte" },
-];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const role = session?.user?.role;
   const isAdmin = isAdminRole(role);
-  const canSeeEmpresas = canAccessEmpresas(role);
+  const isCoordinator = isCoordinatorRole(role);
   const canSeeEstudio = isAdmin || session?.user?.estudioEnabled === true;
   const triggerNavigation = useNavigationTrigger();
   const [signingOut, setSigningOut] = useState(false);
@@ -71,7 +69,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="grid min-w-0 grid-cols-1 gap-2 pb-1 sm:grid-cols-2 md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto md:pr-1">
-          {[...(isAdmin ? menuItemsAdmin : [...menuItems, ...(canSeeEstudio ? [estudioItem] : [])]), ...(isAdmin ? adminMenuItems : canSeeEmpresas ? analystMenuItems : [])].map((item) => {
+          {[...(isAdmin ? menuItemsAdmin : [...menuItems, ...(canSeeEstudio ? [estudioItem] : []), ...(isCoordinator ? [estudiosItem] : [])]), ...(isAdmin ? adminMenuItems : [])].map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (

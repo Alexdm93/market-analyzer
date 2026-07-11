@@ -449,6 +449,7 @@ async function buildUserPayload(userId: string, userCompanyId: string, workspace
         snapshotId: true,
         label: true,
         date: true,
+        submittedAt: true,
       },
       orderBy: [
         { date: "desc" },
@@ -483,6 +484,7 @@ async function buildUserPayload(userId: string, userCompanyId: string, workspace
         label: snapshot.label,
         date: snapshot.date.toISOString().split("T")[0],
         rows: [],
+        submittedAt: snapshot.submittedAt?.toISOString() ?? null,
       },
     ])
   ) as Record<string, Snapshot>;

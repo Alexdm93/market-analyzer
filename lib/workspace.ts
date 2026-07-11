@@ -21,6 +21,7 @@ export type Snapshot = {
   date: string;
   rows: ExtendedMarketPosition[];
   requiredPositions?: RequiredPosition[];
+  submittedAt?: string | null;
 };
 
 export type CompensationTemplateConcept = {

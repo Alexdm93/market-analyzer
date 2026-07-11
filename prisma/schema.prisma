@@ -10,7 +10,7 @@ datasource db {
 
 enum UserRole {
   USER
-  ANALYST
+  COORDINATOR
   ADMIN
 }
 
@@ -86,6 +86,7 @@ model UserSnapshot {
   date       DateTime
   status     SnapshotProcessingStatus @default(IN_REVIEW)
   processedAt DateTime?
+  submittedAt DateTime?
   positions  UserPosition[]
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
