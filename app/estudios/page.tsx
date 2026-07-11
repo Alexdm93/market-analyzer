@@ -207,28 +207,28 @@ export default function EstudiosPage() {
               {/* Metric cards */}
               <div className="grid gap-3 sm:grid-cols-3">
                 {/* Total */}
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200/70 bg-white p-4 shadow-sm">
-                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-slate-400">Total empresas</div>
-                  <div className="mt-2 font-display text-3xl font-bold text-slate-900">
-                    {isLoadingDetail ? <span className="inline-block h-8 w-8 animate-pulse rounded-lg bg-slate-100" /> : companies.length}
-                  </div>
-                  <div className="mt-0.5 text-[0.7rem] text-slate-400">en este corte</div>
+                <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-[1.5rem] border border-slate-200/70 bg-white p-5 shadow-sm text-center">
                   <div className="absolute right-3 top-3 rounded-full bg-slate-100 p-2 text-slate-400">
                     <Users size={13} aria-hidden />
                   </div>
+                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-slate-400">Total empresas</div>
+                  <div className="mt-2 font-display text-6xl font-bold text-slate-900 leading-none">
+                    {isLoadingDetail ? <span className="inline-block h-14 w-12 animate-pulse rounded-lg bg-slate-100" /> : companies.length}
+                  </div>
+                  <div className="mt-2 text-[0.72rem] text-slate-400">en este corte</div>
                 </div>
 
                 {/* Enviadas */}
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm">
-                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-teal-500">Data enviada</div>
-                  <div className="mt-2 font-display text-3xl font-bold text-teal-700">
-                    {isLoadingDetail ? <span className="inline-block h-8 w-8 animate-pulse rounded-lg bg-teal-100" /> : submitted.length}
-                  </div>
-                  <div className="mt-0.5 text-[0.7rem] text-teal-400">
-                    {isLoadingDetail || companies.length === 0 ? "—" : `${Math.round((submitted.length / companies.length) * 100)}% del total`}
-                  </div>
+                <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-[1.5rem] border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm text-center">
                   <div className="absolute right-3 top-3 rounded-full bg-teal-100 p-2 text-teal-500">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-teal-500">Data enviada</div>
+                  <div className="mt-2 font-display text-6xl font-bold text-teal-700 leading-none">
+                    {isLoadingDetail ? <span className="inline-block h-14 w-12 animate-pulse rounded-lg bg-teal-100" /> : submitted.length}
+                  </div>
+                  <div className="mt-2 text-[0.72rem] text-teal-400">
+                    {isLoadingDetail || companies.length === 0 ? "—" : `${Math.round((submitted.length / companies.length) * 100)}% del total`}
                   </div>
                   {!isLoadingDetail && companies.length > 0 && (
                     <div className="absolute bottom-0 left-0 h-1 bg-teal-100 w-full">
@@ -241,16 +241,16 @@ export default function EstudiosPage() {
                 </div>
 
                 {/* Pendientes */}
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
-                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-amber-500">Pendientes</div>
-                  <div className="mt-2 font-display text-3xl font-bold text-amber-700">
-                    {isLoadingDetail ? <span className="inline-block h-8 w-8 animate-pulse rounded-lg bg-amber-100" /> : pending.length}
-                  </div>
-                  <div className="mt-0.5 text-[0.7rem] text-amber-400">
-                    {isLoadingDetail || companies.length === 0 ? "—" : pending.length === 0 ? "¡Todas enviaron!" : `faltan por enviar`}
-                  </div>
+                <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm text-center">
                   <div className="absolute right-3 top-3 rounded-full bg-amber-100 p-2 text-amber-500">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-amber-500">Pendientes</div>
+                  <div className="mt-2 font-display text-6xl font-bold text-amber-700 leading-none">
+                    {isLoadingDetail ? <span className="inline-block h-14 w-12 animate-pulse rounded-lg bg-amber-100" /> : pending.length}
+                  </div>
+                  <div className="mt-2 text-[0.72rem] text-amber-400">
+                    {isLoadingDetail || companies.length === 0 ? "—" : pending.length === 0 ? "¡Todas enviaron!" : "faltan por enviar"}
                   </div>
                   {!isLoadingDetail && companies.length > 0 && (
                     <div className="absolute bottom-0 left-0 h-1 bg-amber-100 w-full">
