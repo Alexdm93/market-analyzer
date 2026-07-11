@@ -335,7 +335,10 @@ function UserDashboard() {
   }, [snapshots, selectedSnapshotId]);
 
   const tasas = companyInfo.tasas ?? [];
+  // For fallback recomputation use the rate captured at save time, not the current live rate.
   const bcvRate = (() => {
+    const saved = companyInfo.ratesAtSave?.bcvUsd;
+    if (typeof saved === "number" && saved > 0) return saved;
     const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
     return Number.isFinite(v) && v > 0 ? v : null;
   })();

@@ -137,7 +137,7 @@ export async function GET(request: Request) {
     return Response.json({ snapshots: snapshotDtos, positions: [] });
   }
 
-  const [positions, { rate: bcvRate }] = await Promise.all([
+  const [positions, { rate: bcvRateFallback }] = await Promise.all([
     prisma.userPosition.findMany({
       where: { snapshotId },
       select: {
@@ -179,7 +179,22 @@ export async function GET(request: Request) {
       const tasas = companyInfo?.tasas ?? [];
       const diasVacaciones = Number(companyInfo?.minVacationDays) || 0;
       const diasUtilidades = Number(companyInfo?.minUtilityDays) || 0;
-      const rowTotals: RowTotals = computeRowTotals(parsed, tasas, bcvRate, diasVacaciones, diasUtilidades);
+
+      // Prefer cached totals stamped at save time (correct rate preserved).
+      // Fall back to ratesAtSave.bcvUsd (per-company save-time rate),
+      // then current live rate only for legacy rows with no cached data.
+      let rowTotals: RowTotals;
+      if (parsed._cachedTotalSinPasivosMensual !== undefined) {
+        rowTotals = {
+          totalSinPasivosMensual:   parsed._cachedTotalSinPasivosMensual,
+          totalConPasivosMensual:   parsed._cachedTotalConPasivosMensual   ?? 0,
+          totalConPasivosAnual:     parsed._cachedTotalConPasivosAnual      ?? 0,
+          totalDirectoMensualizado: parsed._cachedTotalDirectoMensualizado  ?? 0,
+        };
+      } else {
+        const effectiveBcvRate = companyInfo?.ratesAtSave?.bcvUsd ?? bcvRateFallback;
+        rowTotals = computeRowTotals(parsed, tasas, effectiveBcvRate, diasVacaciones, diasUtilidades);
+      }
 
       const conceptValues = collectConceptValues(parsed);
       conceptValues["Sin pasivos — mensual"] = rowTotals.totalSinPasivosMensual;
