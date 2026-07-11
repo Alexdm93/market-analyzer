@@ -44,7 +44,7 @@ export function AnnouncementProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (status === "loading") return;
     if (status !== "authenticated") { setIsLoading(false); return; }
-    fetch("/api/announcements", { cache: "no-store" })
+    fetch("/api/announcements", { cache: "default" })
       .then((r) => r.json())
       .then((d: { announcements?: Announcement[] }) => setAnnouncements(d.announcements ?? []))
       .catch(() => {})

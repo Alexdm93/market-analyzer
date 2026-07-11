@@ -163,5 +163,5 @@ export async function GET(request: Request) {
     sectorDistribution,
     percentilesByNivel,
     warnings,
-  });
+  }, { headers: { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' } });
 }

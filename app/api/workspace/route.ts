@@ -295,35 +295,49 @@ async function syncRelationalWorkspace(
     where: { userId },
   });
 
+  const snapshotInserts: {
+    id: string; userId: string; companyId: string; snapshotId: string;
+    label: string; date: Date; status: SnapshotProcessingStatus; processedAt: Date | null;
+  }[] = [];
+  const positionInserts: {
+    userId: string; companyId: string; userSnapshotId: string; snapshotId: string;
+    snapshotLabel: string; snapshotDate: Date; positionId: string;
+    title: string | null; dataJson: string;
+  }[] = [];
+
   for (const snapshot of Object.values(snapshots)) {
-    const createdSnapshot = await tx.userSnapshot.create({
-      data: {
-        userId,
-        companyId,
-        snapshotId: snapshot.id,
-        label: snapshot.label,
-        date: resolveSnapshotDate(snapshot.date),
-        status: statusBySnapshotId.get(snapshot.id)?.status ?? SnapshotProcessingStatus.IN_REVIEW,
-        processedAt: statusBySnapshotId.get(snapshot.id)?.processedAt ?? null,
-      },
-      select: { id: true },
+    const snapshotPk = crypto.randomUUID();
+    snapshotInserts.push({
+      id: snapshotPk,
+      userId,
+      companyId,
+      snapshotId: snapshot.id,
+      label: snapshot.label,
+      date: resolveSnapshotDate(snapshot.date),
+      status: statusBySnapshotId.get(snapshot.id)?.status ?? SnapshotProcessingStatus.IN_REVIEW,
+      processedAt: statusBySnapshotId.get(snapshot.id)?.processedAt ?? null,
     });
 
-    if ((snapshot.rows ?? []).length > 0) {
-      await tx.userPosition.createMany({
-        data: (snapshot.rows ?? []).map((row) => ({
-          userId,
-          companyId,
-          userSnapshotId: createdSnapshot.id,
-          snapshotId: snapshot.id,
-          snapshotLabel: snapshot.label,
-          snapshotDate: resolveSnapshotDate(snapshot.date),
-          positionId: row.id,
-          title: row.tituloCargo || null,
-          dataJson: JSON.stringify(row),
-        })),
+    for (const row of snapshot.rows ?? []) {
+      positionInserts.push({
+        userId,
+        companyId,
+        userSnapshotId: snapshotPk,
+        snapshotId: snapshot.id,
+        snapshotLabel: snapshot.label,
+        snapshotDate: resolveSnapshotDate(snapshot.date),
+        positionId: row.id,
+        title: row.tituloCargo || null,
+        dataJson: JSON.stringify(row),
       });
     }
+  }
+
+  if (snapshotInserts.length > 0) {
+    await tx.userSnapshot.createMany({ data: snapshotInserts });
+  }
+  if (positionInserts.length > 0) {
+    await tx.userPosition.createMany({ data: positionInserts });
   }
 }
 
@@ -442,7 +456,7 @@ async function buildUserPayload(userId: string, userCompanyId: string, workspace
   conversionRate: string;
   locality: string;
 } | null) {
-  const [allSnapshots, positions] = await Promise.all([
+  const [allSnapshots, positions, companyFilterRecords] = await Promise.all([
     prisma.userSnapshot.findMany({
       where: { userId },
       select: {
@@ -468,9 +482,22 @@ async function buildUserPayload(userId: string, userCompanyId: string, workspace
         { updatedAt: "desc" },
       ],
     }),
+    prisma.globalConfig.findMany({
+      where: { key: { startsWith: 'snapshot-companies-' } },
+      select: { key: true, value: true },
+    }),
   ]);
 
-  const companyFilter = await getSnapshotCompanyFilter(allSnapshots.map((s) => s.snapshotId));
+  const companyFilter = new Map<string, string[]>();
+  for (const record of companyFilterRecords) {
+    const snapshotId = record.key.replace('snapshot-companies-', '');
+    try {
+      const parsed = JSON.parse(record.value) as { companyIds?: string[] };
+      if (Array.isArray(parsed.companyIds)) {
+        companyFilter.set(snapshotId, parsed.companyIds);
+      }
+    } catch {}
+  }
   const snapshots = allSnapshots.filter((s) => {
     const allowed = companyFilter.get(s.snapshotId);
     return !allowed || allowed.includes(userCompanyId);
@@ -553,7 +580,7 @@ async function buildCompanyPayload(companyId: string) {
     return null;
   }
 
-  const [workspace, snapshots, positions] = await Promise.all([
+  const [workspace, snapshots, positions, companyFilterRecords] = await Promise.all([
     prisma.userWorkspace.findFirst({
       where: {
         user: {
@@ -594,9 +621,22 @@ async function buildCompanyPayload(companyId: string) {
         { updatedAt: "desc" },
       ],
     }),
+    prisma.globalConfig.findMany({
+      where: { key: { startsWith: 'snapshot-companies-' } },
+      select: { key: true, value: true },
+    }),
   ]);
 
-  const companyFilter = await getSnapshotCompanyFilter(snapshots.map((s) => s.snapshotId));
+  const companyFilter = new Map<string, string[]>();
+  for (const record of companyFilterRecords) {
+    const snapshotId = record.key.replace('snapshot-companies-', '');
+    try {
+      const parsed = JSON.parse(record.value) as { companyIds?: string[] };
+      if (Array.isArray(parsed.companyIds)) {
+        companyFilter.set(snapshotId, parsed.companyIds);
+      }
+    } catch {}
+  }
   const allowedSnapshots = snapshots.filter((s) => {
     const allowed = companyFilter.get(s.snapshotId);
     return !allowed || allowed.includes(companyId);
@@ -713,7 +753,10 @@ export async function GET(request: Request) {
   }
 
   const workspace = await getOrCreateWorkspace(userId);
-  await backfillRelationalWorkspace(userId, workspace.companyInfoJson, workspace.snapshotsJson);
+  const alreadyHasRelationalData = (await prisma.userSnapshot.count({ where: { userId } })) > 0;
+  if (!alreadyHasRelationalData) {
+    await backfillRelationalWorkspace(userId, workspace.companyInfoJson, workspace.snapshotsJson);
+  }
   const [company, userRecord] = await Promise.all([
     getCompanyIdentity(userId),
     prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } }),

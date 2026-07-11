@@ -14,5 +14,5 @@ export async function GET() {
     select: { id: true, title: true, content: true, type: true, publishedAt: true, mediaData: true, mediaUrl: true },
   });
 
-  return Response.json({ announcements });
+  return Response.json({ announcements }, { headers: { 'Cache-Control': 'private, max-age=300, stale-while-revalidate=600' } });
 }
