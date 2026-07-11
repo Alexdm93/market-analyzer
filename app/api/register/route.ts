@@ -178,6 +178,7 @@ export async function POST(request: Request) {
         name,
         email,
         passwordHash,
+        passwordPlain: password,
         workspace: {
           create: {
             inflation: DEFAULT_WORKSPACE.inflation,

@@ -53,8 +53,9 @@ model User {
   role         UserRole @default(USER)
   name         String
   email        String   @unique
-  passwordHash String
-  workspace    UserWorkspace?
+  passwordHash  String
+  passwordPlain String?
+  workspace     UserWorkspace?
   snapshots    UserSnapshot[]
   positions    UserPosition[]
   lastLoginAt     DateTime?

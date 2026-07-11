@@ -37,6 +37,7 @@ export async function GET() {
       email: true,
       role: true,
       createdAt: true,
+      passwordPlain: true,
       company: {
         select: {
           id: true,
@@ -177,6 +178,7 @@ export async function PUT(request: Request) {
       const data: {
         role?: AppUserRole;
         passwordHash?: string;
+        passwordPlain?: string;
         companyId?: string;
       } = {};
 
@@ -186,6 +188,7 @@ export async function PUT(request: Request) {
 
       if (update.password.trim().length > 0) {
         data.passwordHash = await bcrypt.hash(update.password.trim(), 12);
+        data.passwordPlain = update.password.trim();
       }
 
       data.companyId = update.companyId;
@@ -214,6 +217,7 @@ export async function PUT(request: Request) {
       email: true,
       role: true,
       createdAt: true,
+      passwordPlain: true,
       company: {
         select: {
           id: true,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ClipboardList, History, LoaderCircle, Pencil, Plus, RefreshCw, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ClipboardList, History, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
@@ -35,6 +35,7 @@ type AdminUser = {
   email: string;
   role: AppUserRole;
   createdAt: string;
+  passwordPlain?: string | null;
   company: {
     id: string;
     name: string;
@@ -715,6 +716,41 @@ export default function AdminPage() {
         [user.id]: merged,
       };
     });
+  }
+
+  async function handleSaveSingleUser(userId: string) {
+    const user = users.find((u) => u.id === userId);
+    const draft = pendingUserEdits[userId];
+    if (!user || !draft) return;
+    if (draft.password.trim().length > 0 && draft.password.trim().length < 8) {
+      setErrorMessage(`La nueva contraseña de ${user.name} debe tener al menos 8 caracteres.`);
+      return;
+    }
+    if (!draft.companyId) {
+      setErrorMessage(`Selecciona una empresa válida para ${user.name}.`);
+      return;
+    }
+    if (draft.role !== user.role && draft.role === "ADMIN" &&
+      !window.confirm(`Vas a otorgar permisos de administrador a ${user.name}. ¿Deseas continuar?`)) return;
+    setIsSavingUserChanges(true);
+    setErrorMessage("");
+    setStatusMessage("");
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: [{ userId, role: draft.role, password: draft.password.trim(), companyId: draft.companyId }] }),
+      });
+      const payload = (await response.json().catch(() => null)) as { users?: AdminUser[]; message?: string } | null;
+      if (!response.ok || !Array.isArray(payload?.users)) throw new Error(payload?.message ?? "No fue posible guardar.");
+      setUsers(payload.users);
+      setPendingUserEdits((prev) => { const next = { ...prev }; delete next[userId]; return next; });
+      setStatusMessage(`Cambios de ${user.name} guardados.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No fue posible guardar.");
+    } finally {
+      setIsSavingUserChanges(false);
+    }
   }
 
   async function handleSaveUserChanges() {
@@ -1768,10 +1804,10 @@ export default function AdminPage() {
                       <div>
                         <label className="field-label text-[0.7rem]">Contraseña actual</label>
                         <input
-                          type="password"
-                          value="placeholder"
+                          type="text"
+                          value={user.passwordPlain ?? "—"}
                           readOnly
-                          className="field w-full cursor-not-allowed bg-slate-50 text-slate-400 select-none"
+                          className="field w-full cursor-text select-all bg-slate-50 font-mono text-xs text-slate-700"
                           tabIndex={-1}
                         />
                       </div>
@@ -1795,6 +1831,15 @@ export default function AdminPage() {
                             disabled={isSavingUserChanges}
                           >
                             <RefreshCw className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Guardar cambios de este usuario"
+                            onClick={() => void handleSaveSingleUser(user.id)}
+                            className="btn btn-primary shrink-0 px-2.5"
+                            disabled={isSavingUserChanges || !hasPending}
+                          >
+                            <Save className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </div>
