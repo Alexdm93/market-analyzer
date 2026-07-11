@@ -40,31 +40,31 @@ type ContactModal = {
 
 function DonutChart({ submitted, total }: { submitted: number; total: number }) {
   const pct = total > 0 ? Math.round((submitted / total) * 100) : 0;
-  const r = 54;
+  const r = 76;
   const circumference = 2 * Math.PI * r;
   const dashOffset = circumference - (circumference * pct) / 100;
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-4">
       <div className="relative">
-        <svg width="140" height="140" viewBox="0 0 140 140" aria-hidden>
-          <circle cx="70" cy="70" r={r} fill="none" stroke="#e2e8f0" strokeWidth="12" />
+        <svg width="196" height="196" viewBox="0 0 196 196" aria-hidden>
+          <circle cx="98" cy="98" r={r} fill="none" stroke="#e2e8f0" strokeWidth="14" />
           <circle
-            cx="70"
-            cy="70"
+            cx="98"
+            cy="98"
             r={r}
             fill="none"
             stroke="#0f766e"
-            strokeWidth="12"
+            strokeWidth="14"
             strokeDasharray={circumference}
             strokeDashoffset={dashOffset}
             strokeLinecap="round"
-            transform="rotate(-90 70 70)"
+            transform="rotate(-90 98 98)"
             style={{ transition: "stroke-dashoffset 0.6s ease" }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-display text-3xl font-bold text-slate-900">{pct}%</span>
+          <span className="font-display text-4xl font-bold text-slate-900">{pct}%</span>
           <span className="text-xs text-slate-500">enviado</span>
         </div>
       </div>
@@ -194,10 +194,10 @@ export default function EstudiosPage() {
             {/* Chart + summary cards */}
             <section className="grid gap-4 md:grid-cols-[auto_1fr]">
               {/* Donut */}
-              <div className="surface-card flex flex-col items-center justify-center rounded-[1.5rem] p-6 md:min-w-[200px]">
+              <div className="surface-card flex flex-col items-center justify-center rounded-[1.5rem] p-8 md:min-w-[240px]">
                 {isLoadingDetail ? (
-                  <div className="flex h-40 items-center justify-center">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-teal-600" />
+                  <div className="flex h-[196px] w-[196px] items-center justify-center">
+                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-teal-600" />
                   </div>
                 ) : (
                   <DonutChart submitted={submitted.length} total={companies.length} />
@@ -207,30 +207,29 @@ export default function EstudiosPage() {
               {/* Metric cards */}
               <div className="grid gap-3 sm:grid-cols-3">
                 {/* Total */}
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200/70 bg-white p-5 shadow-sm">
-                  <div className="text-xs font-semibold uppercase tracking-[0.13em] text-slate-400">Total empresas</div>
-                  <div className="mt-3 font-display text-4xl font-bold text-slate-900">
-                    {isLoadingDetail ? <span className="inline-block h-9 w-10 animate-pulse rounded-lg bg-slate-100" /> : companies.length}
+                <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200/70 bg-white p-4 shadow-sm">
+                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-slate-400">Total empresas</div>
+                  <div className="mt-2 font-display text-3xl font-bold text-slate-900">
+                    {isLoadingDetail ? <span className="inline-block h-8 w-8 animate-pulse rounded-lg bg-slate-100" /> : companies.length}
                   </div>
-                  <div className="mt-1 text-xs text-slate-400">en este corte</div>
-                  <div className="absolute right-4 top-4 rounded-full bg-slate-100 p-2.5 text-slate-400">
-                    <Users size={14} aria-hidden />
+                  <div className="mt-0.5 text-[0.7rem] text-slate-400">en este corte</div>
+                  <div className="absolute right-3 top-3 rounded-full bg-slate-100 p-2 text-slate-400">
+                    <Users size={13} aria-hidden />
                   </div>
                 </div>
 
                 {/* Enviadas */}
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm">
-                  <div className="text-xs font-semibold uppercase tracking-[0.13em] text-teal-500">Data enviada</div>
-                  <div className="mt-3 font-display text-4xl font-bold text-teal-700">
-                    {isLoadingDetail ? <span className="inline-block h-9 w-10 animate-pulse rounded-lg bg-teal-100" /> : submitted.length}
+                <div className="relative overflow-hidden rounded-[1.5rem] border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm">
+                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-teal-500">Data enviada</div>
+                  <div className="mt-2 font-display text-3xl font-bold text-teal-700">
+                    {isLoadingDetail ? <span className="inline-block h-8 w-8 animate-pulse rounded-lg bg-teal-100" /> : submitted.length}
                   </div>
-                  <div className="mt-1 text-xs text-teal-400">
+                  <div className="mt-0.5 text-[0.7rem] text-teal-400">
                     {isLoadingDetail || companies.length === 0 ? "—" : `${Math.round((submitted.length / companies.length) * 100)}% del total`}
                   </div>
-                  <div className="absolute right-4 top-4 rounded-full bg-teal-100 p-2.5 text-teal-500">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="20 6 9 17 4 12"/></svg>
+                  <div className="absolute right-3 top-3 rounded-full bg-teal-100 p-2 text-teal-500">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="20 6 9 17 4 12"/></svg>
                   </div>
-                  {/* progress bar */}
                   {!isLoadingDetail && companies.length > 0 && (
                     <div className="absolute bottom-0 left-0 h-1 bg-teal-100 w-full">
                       <div
@@ -242,18 +241,17 @@ export default function EstudiosPage() {
                 </div>
 
                 {/* Pendientes */}
-                <div className="relative overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
-                  <div className="text-xs font-semibold uppercase tracking-[0.13em] text-amber-500">Pendientes</div>
-                  <div className="mt-3 font-display text-4xl font-bold text-amber-700">
-                    {isLoadingDetail ? <span className="inline-block h-9 w-10 animate-pulse rounded-lg bg-amber-100" /> : pending.length}
+                <div className="relative overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
+                  <div className="text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-amber-500">Pendientes</div>
+                  <div className="mt-2 font-display text-3xl font-bold text-amber-700">
+                    {isLoadingDetail ? <span className="inline-block h-8 w-8 animate-pulse rounded-lg bg-amber-100" /> : pending.length}
                   </div>
-                  <div className="mt-1 text-xs text-amber-400">
+                  <div className="mt-0.5 text-[0.7rem] text-amber-400">
                     {isLoadingDetail || companies.length === 0 ? "—" : pending.length === 0 ? "¡Todas enviaron!" : `faltan por enviar`}
                   </div>
-                  <div className="absolute right-4 top-4 rounded-full bg-amber-100 p-2.5 text-amber-500">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <div className="absolute right-3 top-3 rounded-full bg-amber-100 p-2 text-amber-500">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                   </div>
-                  {/* progress bar */}
                   {!isLoadingDetail && companies.length > 0 && (
                     <div className="absolute bottom-0 left-0 h-1 bg-amber-100 w-full">
                       <div

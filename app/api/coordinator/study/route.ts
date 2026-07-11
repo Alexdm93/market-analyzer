@@ -35,33 +35,38 @@ export async function GET(request: Request) {
   });
 
   if (!snapshotId) {
-    // Return summary: for each snapshot, count companies and submitted count
+    // Return summary: for each snapshot, count unique companies and how many submitted
     const snapshotIds = allSnapshots.map((s) => s.snapshotId);
 
-    const submissionStats = await prisma.userSnapshot.groupBy({
-      by: ["snapshotId"],
+    // Fetch all rows grouped by snapshot+company to count unique companies
+    const allRows = await prisma.userSnapshot.findMany({
       where: { snapshotId: { in: snapshotIds } },
-      _count: { snapshotId: true },
+      select: { snapshotId: true, companyId: true, submittedAt: true },
     });
 
-    const submittedStats = await prisma.userSnapshot.groupBy({
-      by: ["snapshotId"],
-      where: { snapshotId: { in: snapshotIds }, submittedAt: { not: null } },
-      _count: { snapshotId: true },
-    });
-
-    const totalBySnapshot = new Map(submissionStats.map((s) => [s.snapshotId, s._count.snapshotId]));
-    const submittedBySnapshot = new Map(submittedStats.map((s) => [s.snapshotId, s._count.snapshotId]));
+    // Per snapshot: count unique companies, and unique companies where any user submitted
+    const statsMap = new Map<string, { companies: Set<string>; submittedCompanies: Set<string> }>();
+    for (const row of allRows) {
+      if (!statsMap.has(row.snapshotId)) {
+        statsMap.set(row.snapshotId, { companies: new Set(), submittedCompanies: new Set() });
+      }
+      const stat = statsMap.get(row.snapshotId)!;
+      stat.companies.add(row.companyId);
+      if (row.submittedAt !== null) stat.submittedCompanies.add(row.companyId);
+    }
 
     return Response.json({
-      snapshots: allSnapshots.map((s) => ({
-        id: s.snapshotId,
-        label: s.label,
-        date: s.date.toISOString().split("T")[0],
-        status: s.status,
-        totalCompanies: totalBySnapshot.get(s.snapshotId) ?? 0,
-        submittedCount: submittedBySnapshot.get(s.snapshotId) ?? 0,
-      })),
+      snapshots: allSnapshots.map((s) => {
+        const stat = statsMap.get(s.snapshotId);
+        return {
+          id: s.snapshotId,
+          label: s.label,
+          date: s.date.toISOString().split("T")[0],
+          status: s.status,
+          totalCompanies: stat?.companies.size ?? 0,
+          submittedCount: stat?.submittedCompanies.size ?? 0,
+        };
+      }),
     });
   }
 
@@ -87,24 +92,53 @@ export async function GET(request: Request) {
     orderBy: [{ submittedAt: "asc" }],
   });
 
+  // Deduplicate by company: one entry per company, submitted if any user submitted
+  const byCompany = new Map<string, {
+    companyId: string;
+    name: string;
+    economicSector: string | null;
+    headcount: string | null;
+    submitted: boolean;
+    submittedAt: string | null;
+    hrName: string | null;
+    hrPosition: string | null;
+    hrEmail: string | null;
+    hrPhone: string | null;
+    hrCell: string | null;
+  }>();
+
+  for (const r of rows) {
+    const existing = byCompany.get(r.company.id);
+    const isSubmitted = r.submittedAt !== null;
+    const submittedAt = r.submittedAt?.toISOString() ?? null;
+
+    if (!existing) {
+      byCompany.set(r.company.id, {
+        companyId: r.company.id,
+        name: r.company.name,
+        economicSector: r.company.economicSector,
+        headcount: r.company.headcount,
+        submitted: isSubmitted,
+        submittedAt,
+        hrName: r.company.hrName,
+        hrPosition: r.company.hrPosition,
+        hrEmail: r.company.hrEmail,
+        hrPhone: r.company.hrPhone,
+        hrCell: r.company.hrCell,
+      });
+    } else if (isSubmitted && !existing.submitted) {
+      // Mark as submitted if any user from this company submitted
+      existing.submitted = true;
+      existing.submittedAt = submittedAt;
+    }
+  }
+
   const snapshot = allSnapshots.find((s) => s.snapshotId === snapshotId);
 
   return Response.json({
     snapshot: snapshot
       ? { id: snapshot.snapshotId, label: snapshot.label, date: snapshot.date.toISOString().split("T")[0], status: snapshot.status }
       : null,
-    companies: rows.map((r) => ({
-      companyId: r.company.id,
-      name: r.company.name,
-      economicSector: r.company.economicSector,
-      headcount: r.company.headcount,
-      submitted: r.submittedAt !== null,
-      submittedAt: r.submittedAt?.toISOString() ?? null,
-      hrName: r.company.hrName,
-      hrPosition: r.company.hrPosition,
-      hrEmail: r.company.hrEmail,
-      hrPhone: r.company.hrPhone,
-      hrCell: r.company.hrCell,
-    })),
+    companies: Array.from(byCompany.values()),
   });
 }
