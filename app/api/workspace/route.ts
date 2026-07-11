@@ -14,6 +14,7 @@ import {
   safeParseSnapshots,
 } from "@/lib/workspace";
 import { getBcvRate, getBcvEuroRate, getBinanceRate, buildBcvTasa, buildBcvEurTasa } from "@/lib/bcv";
+import { computeRowTotals } from "@/lib/compensation";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 
 type TransactionClient = Prisma.TransactionClient;
@@ -819,12 +820,33 @@ export async function PUT(request: Request) {
     const [currentBcv, currentBcvEur, currentBinance] = await Promise.all([
       getBcvRate(), getBcvEuroRate(), getBinanceRate(),
     ]);
+    const liveBcvUsd = currentBcv.rate;
     requestedCompanyInfo.ratesAtSave = {
-      bcvUsd:  currentBcv.rate,
+      bcvUsd:  liveBcvUsd,
       bcvEur:  currentBcvEur.rate,
       binance: currentBinance.rate,
       savedAt: new Date().toISOString(),
     };
+
+    // Reseal _cachedTotal* with the live rate captured right now so that
+    // the cache always reflects the rate at the exact moment of this save.
+    if (liveBcvUsd) {
+      const tasas = requestedCompanyInfo.tasas ?? [];
+      const diasVac = Number(requestedCompanyInfo.minVacationDays) || 0;
+      const diasUtil = Number(requestedCompanyInfo.minUtilityDays) || 0;
+      for (const snapshot of Object.values(nextSnapshots)) {
+        snapshot.rows = (snapshot.rows ?? []).map((row) => {
+          const totals = computeRowTotals(row, tasas, liveBcvUsd, diasVac, diasUtil);
+          return {
+            ...row,
+            _cachedTotalSinPasivosMensual:   totals.totalSinPasivosMensual,
+            _cachedTotalConPasivosMensual:    totals.totalConPasivosMensual,
+            _cachedTotalConPasivosAnual:      totals.totalConPasivosAnual,
+            _cachedTotalDirectoMensualizado:  totals.totalDirectoMensualizado,
+          };
+        });
+      }
+    }
   }
   const duplicateCargoTitles = getDuplicateCargoTitles(nextSnapshots);
 

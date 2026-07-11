@@ -484,11 +484,9 @@ export default function DataPage() {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
   }
 
-  // Use the BCV rate from when data was last saved — falls back to the current live rate.
-  // This keeps USD totals stable across days even as the daily BCV fluctuates.
+  // Always use the current live BCV rate for previews. The server reseals
+  // _cachedTotal* with the live rate at the moment of save, keeping everything in sync.
   const effectiveBcvRate = (() => {
-    const saved = companyInfo.ratesAtSave?.bcvUsd;
-    if (typeof saved === "number" && saved > 0) return saved;
     const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
     return Number.isFinite(v) && v > 0 ? v : null;
   })();
