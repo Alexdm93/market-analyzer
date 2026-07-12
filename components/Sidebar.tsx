@@ -57,25 +57,17 @@ export default function Sidebar() {
   return (
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
-        <div className="mb-4 lg:mb-6" style={{ containerType: "inline-size" }}>
-          <div className="mb-1 flex items-center gap-2">
+        <div className="mb-4 lg:mb-6">
+          <div className="mb-2 flex items-center gap-2">
             <span className="eyebrow">Salary Intelligence</span>
             <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[0.62rem] font-bold text-amber-700">v2.0</span>
           </div>
-          <Link href="/inicio" className="flex items-center gap-2" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
-            <h1
-              className="font-display min-w-0 shrink font-bold text-slate-900 leading-tight whitespace-nowrap"
-              style={{ fontSize: "clamp(0.9rem, 11cqw, 1.7rem)" }}
-            >
-              Market Analyzer
-            </h1>
-            <span className="shrink-0 select-none text-slate-300 leading-none">|</span>
+          <Link href="/inicio" className="flex items-center gap-2.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/ac-consulting-logo.svg"
-              alt="AC Consulting"
-              className="shrink-0 h-auto w-[44px] md:w-[40px] lg:w-[46px]"
-            />
+            <img src="/market-analyzer-logo.svg" alt="Market Analyzer" className="min-w-0 flex-1 h-auto" />
+            <span className="shrink-0 select-none text-slate-300 text-lg">|</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0 h-auto w-[42px] md:w-[38px] lg:w-[44px]" />
           </Link>
         </div>
 
