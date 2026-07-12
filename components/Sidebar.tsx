@@ -57,22 +57,26 @@ export default function Sidebar() {
   return (
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
-        <div className="mb-4 lg:mb-6">
-          <div className="flex items-start justify-between gap-2">
-            <Link href="/inicio" className="min-w-0 block" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
-              <div className="mb-1 flex items-center gap-2">
-                <span className="eyebrow">Salary Intelligence</span>
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[0.62rem] font-bold text-amber-700">v2.0</span>
-              </div>
-              <h1 className="font-display text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
-            </Link>
+        <div className="mb-4 lg:mb-6" style={{ containerType: "inline-size" }}>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="eyebrow">Salary Intelligence</span>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[0.62rem] font-bold text-amber-700">v2.0</span>
+          </div>
+          <Link href="/inicio" className="flex items-center gap-2" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
+            <h1
+              className="font-display min-w-0 shrink font-bold text-slate-900 leading-tight whitespace-nowrap"
+              style={{ fontSize: "clamp(0.9rem, 11cqw, 1.7rem)" }}
+            >
+              Market Analyzer
+            </h1>
+            <span className="shrink-0 select-none text-slate-300 leading-none">|</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/ac-consulting-logo.svg"
               alt="AC Consulting"
-              className="shrink-0 h-auto w-[52px] md:w-[48px] lg:w-[56px]"
+              className="shrink-0 h-auto w-[44px] md:w-[40px] lg:w-[46px]"
             />
-          </div>
+          </Link>
         </div>
 
         <nav className="flex min-w-0 min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-1 pr-0.5">
@@ -84,7 +88,7 @@ export default function Sidebar() {
                 key={item.href}
                 href={item.href}
                 onClick={isActive ? undefined : triggerNavigation}
-                className={`group flex min-w-0 items-start gap-2.5 overflow-hidden rounded-[1.1rem] border px-2.5 py-2.5 ${
+                className={`group flex shrink-0 min-w-0 items-start gap-2.5 overflow-hidden rounded-[1.1rem] border px-2.5 py-2.5 ${
                   isActive
                     ? "border-teal-700/10 bg-[linear-gradient(135deg,rgba(15,118,110,0.14),rgba(17,94,89,0.06))] text-slate-900 shadow-[0_16px_36px_rgba(15,118,110,0.16)]"
                     : "border-transparent bg-white/55 text-slate-600 hover:border-slate-200 hover:bg-white/80"
