@@ -246,8 +246,8 @@ export default function SignInPage() {
       </div>
 
       <footer className="relative mt-6 pb-6 text-center text-xs leading-6 text-slate-400">
-        <p>© 2026 Desarrollado por AC Consulting en alianza con AVGH. Todos los derechos reservados.</p>
-        <p>Tus datos están protegidos bajo estrictos acuerdos de confidencialidad.</p>
+        <p>© 2026 AC Consulting. Todos los derechos reservados.</p>
+        <p>Plataforma tecnológica exclusiva, operando en alianza estratégica con la Asociación Venezolana de Gestión Humana (AVGH).</p>
       </footer>
     </main>
   );
