@@ -58,7 +58,7 @@ export default function Sidebar() {
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
         <div className="mb-4 lg:mb-6">
-          <div className="mb-1.5 flex justify-center">
+          <div className="mb-1.5 flex justify-end">
             <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.55rem] font-bold text-amber-700">v2.0</span>
           </div>
           <Link href="/inicio" className="flex items-center justify-center gap-1.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
@@ -83,7 +83,7 @@ export default function Sidebar() {
                 onClick={isActive ? undefined : triggerNavigation}
                 className={`group flex shrink-0 min-w-0 items-start gap-2.5 overflow-hidden rounded-[1.1rem] border px-2.5 py-2.5 ${
                   isActive
-                    ? "border-teal-700/10 bg-[linear-gradient(135deg,rgba(15,118,110,0.14),rgba(17,94,89,0.06))] text-slate-900 shadow-[0_16px_36px_rgba(15,118,110,0.16)]"
+                    ? "border-teal-700/10 bg-[linear-gradient(135deg,rgba(15,118,110,0.14),rgba(17,94,89,0.06))] text-slate-900 shadow-[0_2px_10px_rgba(15,118,110,0.18)]"
                     : "border-transparent bg-white/55 text-slate-600 hover:border-slate-200 hover:bg-white/80"
                 }`}
                 aria-current={isActive ? "page" : undefined}
