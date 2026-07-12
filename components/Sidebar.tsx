@@ -58,9 +58,8 @@ export default function Sidebar() {
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
         <div className="mb-4 lg:mb-6">
-          <div className="mb-1.5 flex items-center">
-            <span className="eyebrow eyebrow-xs">Salary<br />Intelligence</span>
-            <span className="ml-auto rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.55rem] font-bold text-amber-700">v2.0</span>
+          <div className="mb-1.5 flex justify-center">
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.55rem] font-bold text-amber-700">v2.0</span>
           </div>
           <Link href="/inicio" className="flex items-center justify-center gap-1.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
             <div className="flex-none shrink-0 leading-none">
