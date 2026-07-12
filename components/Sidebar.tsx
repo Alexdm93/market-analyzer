@@ -62,14 +62,14 @@ export default function Sidebar() {
             <span className="eyebrow eyebrow-xs">Salary<br />Intelligence</span>
             <span className="ml-auto rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.55rem] font-bold text-amber-700">v2.0</span>
           </div>
-          <Link href="/inicio" className="flex items-center gap-1.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
+          <Link href="/inicio" className="flex items-center justify-center gap-1.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
             <div className="flex-none shrink-0 leading-none">
-              <div className="font-display text-[15px] font-black tracking-tight text-slate-900 leading-[1.2]">Market</div>
-              <div className="font-display text-[15px] font-black tracking-tight text-slate-900 leading-[1.2]">Analyzer</div>
+              <div className="font-display text-[20px] font-black tracking-tight text-slate-900 leading-[1.2]">Market</div>
+              <div className="font-display text-[20px] font-black tracking-tight text-slate-900 leading-[1.2]">Analyzer</div>
             </div>
             <span className="shrink-0 select-none text-slate-300 text-sm leading-none">|</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0 flex-none" style={{width: 38, height: 38}} />
+            <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0 flex-none" style={{width: 50, height: 50}} />
           </Link>
         </div>
 
