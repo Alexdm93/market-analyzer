@@ -273,7 +273,7 @@ export default function AdminPage() {
         const response = await fetch("/api/admin/config", { cache: "no-store" });
         const payload = (await response.json().catch(() => null)) as { sectors?: SectorEntry[]; cargos?: CargoEntry[] } | null;
         if (!ignore) {
-          if (Array.isArray(payload?.sectors)) setSectors(payload.sectors);
+          if (Array.isArray(payload?.sectors)) setSectors([...payload.sectors].sort((a, b) => a.name.localeCompare(b.name, "es")));
           if (Array.isArray(payload?.cargos)) setMasterCargos(payload.cargos);
         }
       } catch {
@@ -333,16 +333,17 @@ export default function AdminPage() {
   }
 
   async function saveSectors(next: SectorEntry[]) {
+    const sorted = [...next].sort((a, b) => a.name.localeCompare(b.name, "es"));
     setIsSavingSectors(true);
     try {
       const response = await fetch("/api/admin/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectors: next }),
+        body: JSON.stringify({ sectors: sorted }),
       });
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
       if (!response.ok) throw new Error(payload?.message ?? "No se pudo guardar.");
-      setSectors(next);
+      setSectors(sorted);
       setStatusMessage(payload?.message ?? "Sectores guardados.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar los sectores.");
