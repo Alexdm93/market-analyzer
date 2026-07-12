@@ -32,9 +32,9 @@ const estudiosItem = { name: "Estudios", href: "/estudios", icon: ChartBar, hint
 
 const adminMenuItems = [
   { name: "Admin", href: "/admin", icon: Shield, hint: "Vista administrativa" },
-  { name: "Valoración", href: "/valoracion", icon: Layers, hint: "CAPRI por cargo" },
   { name: "Empresas", href: "/empresas", icon: Building2, hint: "Catálogo disponible" },
   { name: "Anuncios", href: "/admin/anuncios", icon: Newspaper, hint: "Publicar noticias" },
+  { name: "Valoración", href: "/valoracion", icon: Layers, hint: "CAPRI por cargo" },
 ];
 
 
