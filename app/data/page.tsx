@@ -1654,7 +1654,7 @@ export default function DataPage() {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto space-y-1 pr-1">
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-2 pr-1">
               {availableDepts.map((dept) => {
                 const normDeptPicker = dept.trim().toLowerCase();
                 const cargosEnDept = availableCargosByDept[dept] ?? [];
@@ -1670,16 +1670,16 @@ export default function DataPage() {
                         else next.add(dept);
                         return next;
                       })}
-                      className="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-50"
+                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-colors ${isExpanded ? "bg-slate-100" : "hover:bg-slate-50"}`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         <svg
-                          width="12" height="12" viewBox="0 0 12 12" fill="none"
-                          className={`shrink-0 text-slate-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                          width="13" height="13" viewBox="0 0 12 12" fill="none"
+                          className={`shrink-0 text-slate-500 transition-transform ${isExpanded ? "rotate-90" : ""}`}
                         >
-                          <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
-                        <span className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-slate-400">{dept}</span>
+                        <span className="text-sm font-bold text-slate-800">{dept}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         {selectedInDept > 0 && (
@@ -1687,11 +1687,11 @@ export default function DataPage() {
                             {selectedInDept}
                           </span>
                         )}
-                        <span className="text-[0.65rem] text-slate-300">{cargosEnDept.length}</span>
+                        <span className="text-xs text-slate-400">{cargosEnDept.length}</span>
                       </div>
                     </button>
                     {isExpanded && (
-                      <div className="mt-1 mb-2 space-y-1.5 pl-2">
+                      <div className="mt-1 mb-1 space-y-1 pl-5">
                         {cargosEnDept.map((titulo) => {
                           const pickerKey = `${dept}::${titulo}`;
                           const normTituloPicker = titulo.trim().toLowerCase();
@@ -1715,7 +1715,7 @@ export default function DataPage() {
                                   return next;
                                 });
                               }}
-                              className={`flex w-full items-center justify-between rounded-[0.9rem] border px-4 py-2.5 text-left text-sm font-medium transition-colors ${
+                              className={`flex w-full items-center justify-between rounded-[0.9rem] border px-4 py-2 text-left transition-colors ${
                                 yaAgregado
                                   ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400"
                                   : isSelected
@@ -1723,7 +1723,7 @@ export default function DataPage() {
                                     : "border-slate-200 bg-white hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"
                               }`}
                             >
-                              <span>{titulo}</span>
+                              <span className="text-sm text-slate-700">{titulo}</span>
                               {yaAgregado ? (
                                 <span className="ml-3 shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[0.65rem] font-bold text-slate-400">
                                   ya agregado

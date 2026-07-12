@@ -57,19 +57,23 @@ export default function Sidebar() {
   return (
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
-        <div className="mb-4 flex items-start justify-between gap-3 lg:mb-6">
-          <Link href="/inicio" className="min-w-0 block" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/ac-consulting-logo.svg"
-              alt="AC Consulting"
-              className="mb-3 h-auto w-[90px] md:w-[80px] lg:w-[96px]"
-            />
-            <div className="eyebrow mb-1">Salary Intelligence</div>
-            <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
-          </Link>
-          <div className="hidden rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[0.68rem] font-bold text-amber-700 lg:inline-flex shrink-0">
-            v2.0
+        <div className="mb-4 lg:mb-6">
+          <div className="flex items-start justify-between gap-2">
+            <Link href="/inicio" className="min-w-0 block" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
+              <div className="eyebrow mb-1">Salary Intelligence</div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/ac-consulting-logo.svg"
+                  alt="AC Consulting"
+                  className="h-auto w-[52px] shrink-0 md:w-[48px] lg:w-[56px]"
+                />
+              </div>
+            </Link>
+            <div className="hidden rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[0.68rem] font-bold text-amber-700 lg:inline-flex shrink-0 mt-0.5">
+              v2.0
+            </div>
           </div>
         </div>
 
