@@ -2,7 +2,7 @@
 import { exportStyledExcel } from "@/lib/excel-export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BriefcaseBusiness, CalendarDays, Check, Edit, Layers, Lock, LockOpen, Plus, RefreshCw, Save, Send, Sparkles, Trash2 } from "lucide-react";
-import { CapriWizardModal } from "@/components/CapriWizardModal";
+import { CapriWizardModal, ROLES as CAPRI_ROLES } from "@/components/CapriWizardModal";
 import { useSession } from "next-auth/react";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
@@ -1268,9 +1268,9 @@ export default function DataPage() {
 
                     <div className="mt-2 flex flex-wrap gap-2">
                       {r.hayGrade ? (
-                        <div className="pill bg-teal-50 font-semibold text-teal-700">Grado {r.hayGrade}</div>
+                        <div className="pill bg-teal-50 font-semibold text-teal-700">{CAPRI_ROLES[r.hayGrade]?.rol ?? `Grado ${r.hayGrade}`}</div>
                       ) : (
-                        <div className="pill text-slate-400">Sin grado CAPRI</div>
+                        <div className="pill text-slate-400">Sin clasificar</div>
                       )}
                       <div className="pill">{(r.additionalFixedPayments || []).length} conceptos fijos</div>
                       <div className="pill">{(r.additionalVariablePayments || []).length} conceptos variables</div>
@@ -1330,10 +1330,10 @@ export default function DataPage() {
                               <div className={`field flex items-center gap-2 bg-slate-50 text-sm select-none leading-none ${r.hayGrade ? "text-teal-700 font-semibold" : "text-slate-400"}`}>
                                 {r.hayGrade ? (
                                   <>
-                                    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-teal-600 text-[0.6rem] font-black text-white">{r.hayGrade}</span>
-                                    Grado {r.hayGrade}
+                                    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-teal-600 text-[0.6rem] font-black text-white">N</span>
+                                    {CAPRI_ROLES[r.hayGrade]?.rol ?? `Nivel ${r.hayGrade}`}
                                   </>
-                                ) : "Sin grado"}
+                                ) : "Sin clasificar"}
                               </div>
                             </div>
                             {!isReadOnlyDataView && (
@@ -1577,7 +1577,7 @@ export default function DataPage() {
                   {modalSaveRow?.tituloCargo || "Cargo sin nombre"}
                 </h3>
                 {modalSaveRow?.hayGrade && (
-                  <p className="mt-1 text-sm font-semibold text-teal-600">Grado CAPRI {modalSaveRow.hayGrade}</p>
+                  <p className="mt-1 text-sm font-semibold text-teal-600">{CAPRI_ROLES[modalSaveRow.hayGrade]?.rol ?? `Nivel ${modalSaveRow.hayGrade}`}</p>
                 )}
 
                 <div className="mt-5 grid grid-cols-2 gap-3">
@@ -1773,6 +1773,7 @@ export default function DataPage() {
       {/* CAPRI Wizard Modal */}
       {capriModal !== null && (
         <CapriWizardModal
+          mode="simplified"
           companyInfo={companyInfo}
           cargoNombre={rows[capriModal.rowIndex]?.tituloCargo || "Cargo"}
           existingGrade={rows[capriModal.rowIndex]?.hayGrade}

@@ -484,7 +484,6 @@ function UserDashboard() {
                     <span className="inline-flex items-center justify-end gap-1.5">
                       Total Efectivo Mensual (TEM)
                       <HelpTip
-                        side="left"
                         title="Total Efectivo Mensual (TEM)"
                         description="Refleja la liquidez real y directa que percibe el colaborador en un mes ordinario. Representa la suma de todas las remuneraciones y conceptos de pago (fijos y variables) que se cobran con una frecuencia estrictamente mensual. No incluye provisiones ni alícuotas de pasivos laborales (utilidades, bono vacacional, prestaciones sociales)."
                       />
@@ -494,7 +493,6 @@ function UserDashboard() {
                     <span className="inline-flex items-center justify-end gap-1.5">
                       Paquete de Compensación Total Anual (PCTA)
                       <HelpTip
-                        side="left"
                         title="Paquete de Compensación Total Anual (PCTA)"
                         description="Representa el valor macroeconómico global del paquete del trabajador proyectado a un ejercicio fiscal completo (12 meses). Es la sumatoria anualizada de todos los ingresos regulares, pagos de frecuencia variable y el costo total de los pasivos laborales (utilidades, bono vacacional y prestaciones sociales). El indicador definitivo para comparar competitividad del puesto contra el mercado laboral."
                       />

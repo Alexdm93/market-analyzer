@@ -164,7 +164,7 @@ const EQUIPO_OPTS: Partial<Record<Familia, { value: string; title: string }[]>> 
   ],
 };
 
-const ROLES: Record<number, { rol: string; mirrors: string[] }> = {
+export const ROLES: Record<number, { rol: string; mirrors: string[] }> = {
   8:  { rol: "Trabajo Simple y Rutinario",             mirrors: ["Operario de Limpieza", "Empacador", "Mensajero"] },
   9:  { rol: "Trabajo Semi-Complejo",                  mirrors: ["Operador de Maquinaria", "Recepcionista", "Cajero"] },
   10: { rol: "Trabajo Técnico Variado",                mirrors: ["Técnico Junior", "Asistente Sr"] },
@@ -232,11 +232,14 @@ interface Props {
   existingGrade?: number;
   onSave: (grade: number, familia: Familia) => void;
   onClose: () => void;
+  /** "simplified" oculta el número de grado y muestra solo el nivel organizacional */
+  mode?: "full" | "simplified";
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSave, onClose }: Props) {
+export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSave, onClose, mode = "full" }: Props) {
+  const simplified = mode === "simplified";
   const factIdx  = revenueToIndex(companyInfo.revenueUSD ?? "");
   const factRule = FACT_RULES[factIdx] ?? FACT_RULES[7];
 
@@ -467,11 +470,18 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
           {/* STEP: resultado */}
           {step === "resultado" && grade !== null && roleInfo && (
             <div className="space-y-4">
-              <div className="rounded-2xl bg-gradient-to-br from-teal-700 to-teal-900 p-6 text-center text-white">
-                <p className="text-[0.7rem] font-bold uppercase tracking-widest text-teal-300">Grado HAY</p>
-                <p className="mt-1 font-display text-7xl font-black">{grade}</p>
-                <p className="mt-1 text-base font-medium">{roleInfo.rol}</p>
-              </div>
+              {simplified ? (
+                <div className="rounded-2xl bg-gradient-to-br from-teal-700 to-teal-900 p-6 text-center text-white">
+                  <p className="text-[0.7rem] font-bold uppercase tracking-widest text-teal-300">Nivel organizacional</p>
+                  <p className="mt-3 text-xl font-bold leading-snug">{roleInfo.rol}</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-gradient-to-br from-teal-700 to-teal-900 p-6 text-center text-white">
+                  <p className="text-[0.7rem] font-bold uppercase tracking-widest text-teal-300">Grado HAY</p>
+                  <p className="mt-1 font-display text-7xl font-black">{grade}</p>
+                  <p className="mt-1 text-base font-medium">{roleInfo.rol}</p>
+                </div>
+              )}
               {roleInfo.mirrors.length > 0 && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <p className="mb-2 text-xs font-bold uppercase tracking-wide text-amber-700">Cargos espejo</p>
@@ -482,7 +492,7 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
                   </ul>
                 </div>
               )}
-              {existingGrade && existingGrade !== grade && (
+              {!simplified && existingGrade && existingGrade !== grade && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-sm text-slate-500">
                   Grado actual: <span className="font-bold text-slate-700">{existingGrade}</span> → nuevo: <span className="font-bold text-teal-700">{grade}</span>
                 </div>
@@ -510,7 +520,7 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
               disabled={grade === null}
             >
               <Check className="h-4 w-4" />
-              Guardar grado {grade}
+              {simplified ? "Guardar clasificación" : `Guardar grado ${grade}`}
             </button>
           ) : (
             <button
@@ -523,7 +533,7 @@ export function CapriWizardModal({ companyInfo, cargoNombre, existingGrade, onSa
               }
               className="btn btn-primary flex items-center gap-1.5 disabled:opacity-50"
             >
-              {step === "calibracion" && !hasMagnitud ? "Calcular grado" : "Siguiente"}
+              {step === "calibracion" && !hasMagnitud ? (simplified ? "Clasificar" : "Calcular grado") : "Siguiente"}
               <ChevronRight className="h-4 w-4" />
             </button>
           )}
