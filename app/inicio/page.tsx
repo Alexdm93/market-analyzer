@@ -353,7 +353,7 @@ function FeedSkeleton() {
 }
 
 export default function InicioPage() {
-  const { announcements, isLoading, markSeen } = useAnnouncements();
+  const { announcements, isLoading, hasError, retry, markSeen } = useAnnouncements();
   const [selected, setSelected] = useState<Announcement | null>(null);
 
   function openAnnouncement(a: Announcement) {
@@ -379,8 +379,18 @@ export default function InicioPage() {
           {/* Loading skeleton */}
           {isLoading && <FeedSkeleton />}
 
-          {/* Empty state — solo cuando terminó de cargar */}
-          {!isLoading && announcements.length === 0 && (
+          {/* Error state */}
+          {!isLoading && hasError && (
+            <section className="surface-card rounded-[2rem] p-8 text-center">
+              <p className="text-sm text-slate-500">No se pudieron cargar los anuncios.</p>
+              <button onClick={retry} className="btn btn-secondary mt-4">
+                Reintentar
+              </button>
+            </section>
+          )}
+
+          {/* Empty state — solo cuando terminó de cargar sin error */}
+          {!isLoading && !hasError && announcements.length === 0 && (
             <section className="surface-card rounded-[2rem] p-8 text-sm leading-7 text-slate-600">
               No hay anuncios publicados aún. Vuelve pronto.
             </section>

@@ -18,6 +18,8 @@ type AnnouncementCtx = {
   announcements: Announcement[];
   hasUnread: boolean;
   isLoading: boolean;
+  hasError: boolean;
+  retry: () => void;
   markSeen: (id: string) => void;
 };
 
@@ -25,6 +27,8 @@ const AnnouncementContext = createContext<AnnouncementCtx>({
   announcements: [],
   hasUnread: false,
   isLoading: true,
+  hasError: false,
+  retry: () => {},
   markSeen: () => {},
 });
 
@@ -33,6 +37,8 @@ export function AnnouncementProvider({ children }: { children: React.ReactNode }
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     try {
@@ -44,14 +50,39 @@ export function AnnouncementProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (status === "loading") return;
     if (status !== "authenticated") { setIsLoading(false); return; }
-    fetch("/api/announcements", { cache: "default" })
-      .then((r) => r.json())
-      .then((d: { announcements?: Announcement[] }) => setAnnouncements(d.announcements ?? []))
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
-  }, [status]);
+    setIsLoading(true);
+    setHasError(false);
+
+    let cancelled = false;
+
+    async function load(attemptsLeft: number) {
+      try {
+        const r = await fetch("/api/announcements", { cache: "default" });
+        if (!r.ok) throw new Error(`${r.status}`);
+        const d = (await r.json()) as { announcements?: Announcement[] };
+        if (!cancelled) {
+          setAnnouncements(d.announcements ?? []);
+          setIsLoading(false);
+        }
+      } catch {
+        if (cancelled) return;
+        if (attemptsLeft > 0) {
+          await new Promise((res) => setTimeout(res, 2000));
+          if (!cancelled) void load(attemptsLeft - 1);
+        } else {
+          setHasError(true);
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void load(2);
+    return () => { cancelled = true; };
+  }, [status, retryCount]);
 
   const hasUnread = announcements.some((a) => !seenIds.has(a.id));
+
+  const retry = useCallback(() => setRetryCount((n) => n + 1), []);
 
   const markSeen = useCallback((id: string) => {
     setSeenIds((prev) => {
@@ -64,7 +95,7 @@ export function AnnouncementProvider({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <AnnouncementContext.Provider value={{ announcements, hasUnread, isLoading, markSeen }}>
+    <AnnouncementContext.Provider value={{ announcements, hasUnread, isLoading, hasError, retry, markSeen }}>
       {children}
     </AnnouncementContext.Provider>
   );

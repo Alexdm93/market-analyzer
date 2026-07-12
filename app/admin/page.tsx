@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, History, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
@@ -144,9 +144,11 @@ export default function AdminPage() {
   const [addCargoDesc, setAddCargoDesc] = useState("");
   const [snapshotCargosModal, setSnapshotCargosModal] = useState<{ snapshotId: string; label: string } | null>(null);
   const [snapshotCargosDraft, setSnapshotCargosDraft] = useState<Set<string> | null>(null);
-  const [deptDraftOrder, setDeptDraftOrder] = useState<string[]>([]);
   const [isLoadingSnapshotCargos, setIsLoadingSnapshotCargos] = useState(false);
   const [isSavingSnapshotCargos, setIsSavingSnapshotCargos] = useState(false);
+  const [snapshotUnidadesModal, setSnapshotUnidadesModal] = useState<{ snapshotId: string; label: string } | null>(null);
+  const [unidadesDraftOrder, setUnidadesDraftOrder] = useState<string[]>([]);
+  const [isSavingUnidades, setIsSavingUnidades] = useState(false);
   const [snapshotCompaniesModal, setSnapshotCompaniesModal] = useState<{ snapshotId: string; label: string } | null>(null);
   const [snapshotCompaniesDraft, setSnapshotCompaniesDraft] = useState<Set<string> | null>(null);
   const [isLoadingSnapshotCompanies, setIsLoadingSnapshotCompanies] = useState(false);
@@ -532,7 +534,6 @@ export default function AdminPage() {
     setSnapshotCargosModal({ snapshotId, label });
     setIsLoadingSnapshotCargos(true);
     setSnapshotCargosDraft(null);
-    setDeptDraftOrder(masterCargos.map((d) => d.departamento));
     try {
       const response = await fetch(`/api/admin/config/snapshot-cargos?snapshotId=${encodeURIComponent(snapshotId)}`, { cache: "no-store" });
       const payload = (await response.json().catch(() => null)) as { cargos?: SnapshotCargoItem[] } | null;
@@ -545,8 +546,13 @@ export default function AdminPage() {
     }
   }
 
-  function moveDeptUp(dept: string) {
-    setDeptDraftOrder((prev) => {
+  function openSnapshotUnidadesModal(snapshotId: string, label: string) {
+    setSnapshotUnidadesModal({ snapshotId, label });
+    setUnidadesDraftOrder(masterCargos.map((d) => d.departamento));
+  }
+
+  function moveUnidadUp(dept: string) {
+    setUnidadesDraftOrder((prev) => {
       const idx = prev.indexOf(dept);
       if (idx <= 0) return prev;
       const next = [...prev];
@@ -555,14 +561,36 @@ export default function AdminPage() {
     });
   }
 
-  function moveDeptDown(dept: string) {
-    setDeptDraftOrder((prev) => {
+  function moveUnidadDown(dept: string) {
+    setUnidadesDraftOrder((prev) => {
       const idx = prev.indexOf(dept);
       if (idx >= prev.length - 1) return prev;
       const next = [...prev];
       [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
       return next;
     });
+  }
+
+  async function saveSnapshotUnidades() {
+    if (!snapshotUnidadesModal) return;
+    setIsSavingUnidades(true);
+    try {
+      const reordered = unidadesDraftOrder
+        .map((name) => masterCargos.find((d) => d.departamento === name))
+        .filter(Boolean) as CargoEntry[];
+      await fetch("/api/admin/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cargos: reordered }),
+      });
+      setMasterCargos(reordered);
+      setStatusMessage("Orden de unidades guardado.");
+      setSnapshotUnidadesModal(null);
+    } catch {
+      setErrorMessage("No se pudo guardar el orden.");
+    } finally {
+      setIsSavingUnidades(false);
+    }
   }
 
   function closeSnapshotCargosModal() {
@@ -598,31 +626,12 @@ export default function AdminPage() {
     if (!snapshotCargosModal || !snapshotCargosDraft) return;
     setIsSavingSnapshotCargos(true);
     try {
-      // Save new dept order if it changed
-      const currentOrder = masterCargos.map((d) => d.departamento);
-      const orderChanged = deptDraftOrder.length === currentOrder.length &&
-        deptDraftOrder.some((d, i) => d !== currentOrder[i]);
-      if (orderChanged) {
-        const reordered = deptDraftOrder
-          .map((name) => masterCargos.find((d) => d.departamento === name))
-          .filter(Boolean) as CargoEntry[];
-        await fetch("/api/admin/config", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cargos: reordered }),
-        });
-        setMasterCargos(reordered);
-      }
-
-      // Build cargos array in deptDraftOrder so users see departments in that order
-      const orderedMaster = deptDraftOrder.length > 0 ? deptDraftOrder : masterCargos.map((d) => d.departamento);
-      const cargos: SnapshotCargoItem[] = orderedMaster.flatMap((dept) => {
-        const entry = masterCargos.find((d) => d.departamento === dept);
-        if (!entry) return [];
-        return entry.cargos
-          .filter((c) => snapshotCargosDraft.has(`${dept}::${c}`))
-          .map((c) => ({ departamento: dept, tituloCargo: c }));
-      });
+      // Build cargos in masterCargos order (order managed separately via Unidades modal)
+      const cargos: SnapshotCargoItem[] = masterCargos.flatMap((entry) =>
+        entry.cargos
+          .filter((c) => snapshotCargosDraft.has(`${entry.departamento}::${c}`))
+          .map((c) => ({ departamento: entry.departamento, tituloCargo: c }))
+      );
       const response = await fetch("/api/admin/config/snapshot-cargos", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1604,6 +1613,10 @@ export default function AdminPage() {
                           <ClipboardList className="h-4 w-4" />
                           Cargos
                         </button>
+                        <button type="button" onClick={() => openSnapshotUnidadesModal(snapshot.id, snapshot.label)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
+                          <LayoutList className="h-4 w-4" />
+                          Unidades
+                        </button>
                         <button type="button" onClick={() => void openSnapshotCompaniesModal(snapshot.id, snapshot.label)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
                           <Building2 className="h-4 w-4" />
                           Empresas
@@ -2215,17 +2228,13 @@ export default function AdminPage() {
                       No hay cargos en la lista maestra. Agrégalos en la sección &quot;Cargos&quot;.
                     </div>
                   ) : (() => {
-                    const orderedDepts = deptDraftOrder.length > 0
-                      ? deptDraftOrder.map((name) => masterCargos.find((d) => d.departamento === name)).filter(Boolean) as CargoEntry[]
-                      : masterCargos;
                     return (
                       <div>
-                        <div className="mb-2 flex items-center justify-between">
+                        <div className="mb-2">
                           <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Lista maestra</div>
-                          <div className="text-[0.65rem] text-slate-400">Usa las flechas para ordenar unidades funcionales</div>
                         </div>
                         <div className="space-y-2">
-                          {orderedDepts.map((dept, deptIdx) => {
+                          {masterCargos.map((dept) => {
                             const modalKey = `modal-${dept.departamento}`;
                             const isExpanded = expandedDepts[modalKey] ?? false;
                             const allSelected = dept.cargos.length > 0 && dept.cargos.every((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`));
@@ -2233,28 +2242,6 @@ export default function AdminPage() {
                             return (
                               <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
                                 <div className="flex items-center gap-2 px-3 py-2.5">
-                                  {/* Reorder arrows */}
-                                  <div className="flex shrink-0 flex-col gap-0.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => moveDeptUp(dept.departamento)}
-                                      disabled={deptIdx === 0}
-                                      className="flex h-4 w-4 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
-                                      aria-label="Mover arriba"
-                                    >
-                                      <ChevronUp className="h-3 w-3" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => moveDeptDown(dept.departamento)}
-                                      disabled={deptIdx === orderedDepts.length - 1}
-                                      className="flex h-4 w-4 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
-                                      aria-label="Mover abajo"
-                                    >
-                                      <ChevronDown className="h-3 w-3" />
-                                    </button>
-                                  </div>
-
                                   <button
                                     type="button"
                                     onClick={() => setExpandedDepts((s) => ({ ...s, [modalKey]: !isExpanded }))}
@@ -2321,6 +2308,64 @@ export default function AdminPage() {
                   {isSavingSnapshotCargos ? "Guardando..." : "Guardar"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {snapshotUnidadesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setSnapshotUnidadesModal(null)} />
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 flex w-full max-w-md flex-col rounded-[1.6rem] p-5 md:p-6">
+            <div className="mb-4 flex items-start justify-between gap-4 shrink-0">
+              <div>
+                <p className="eyebrow mb-0.5">{snapshotUnidadesModal.label}</p>
+                <h2 className="font-display text-lg font-bold text-slate-900">Orden de unidades funcionales</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Este es el orden que verán los usuarios al llenar sus cargos.</p>
+              </div>
+              <button type="button" onClick={() => setSnapshotUnidadesModal(null)} className="btn btn-secondary px-3 shrink-0" aria-label="Cerrar">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-1.5">
+              {unidadesDraftOrder.map((dept, idx) => (
+                <div key={dept} className="flex items-center gap-2 rounded-[0.9rem] border border-slate-200/80 bg-white/80 px-3 py-2.5">
+                  <div className="flex shrink-0 flex-col gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => moveUnidadUp(dept)}
+                      disabled={idx === 0}
+                      className="flex h-5 w-5 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                      aria-label="Mover arriba"
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveUnidadDown(dept)}
+                      disabled={idx === unidadesDraftOrder.length - 1}
+                      className="flex h-5 w-5 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                      aria-label="Mover abajo"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{dept}</span>
+                  <span className="shrink-0 text-xs text-slate-400">#{idx + 1}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-end gap-3 shrink-0 border-t border-slate-200/60 pt-4">
+              <button type="button" onClick={() => setSnapshotUnidadesModal(null)} className="btn btn-secondary">Cancelar</button>
+              <button
+                type="button"
+                onClick={() => void saveSnapshotUnidades()}
+                disabled={isSavingUnidades}
+                className="btn btn-primary"
+              >
+                {isSavingUnidades ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                {isSavingUnidades ? "Guardando..." : "Guardar orden"}
+              </button>
             </div>
           </div>
         </div>
