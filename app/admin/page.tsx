@@ -138,8 +138,10 @@ export default function AdminPage() {
   const [isSavingCargos, setIsSavingCargos] = useState(false);
   const [newDeptName, setNewDeptName] = useState("");
   const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
-  const [newCargoByDept, setNewCargoByDept] = useState<Record<string, string>>({});
   const [editingDeptName, setEditingDeptName] = useState<Record<string, string>>({});
+  const [addCargoModal, setAddCargoModal] = useState<{ dept: string } | null>(null);
+  const [addCargoName, setAddCargoName] = useState("");
+  const [addCargoDesc, setAddCargoDesc] = useState("");
   const [snapshotCargosModal, setSnapshotCargosModal] = useState<{ snapshotId: string; label: string } | null>(null);
   const [snapshotCargosDraft, setSnapshotCargosDraft] = useState<Set<string> | null>(null);
   const [isLoadingSnapshotCargos, setIsLoadingSnapshotCargos] = useState(false);
@@ -166,7 +168,6 @@ export default function AdminPage() {
   const [descDraft, setDescDraft] = useState<Record<string, string>>({});
   const [isSavingDescriptions, setIsSavingDescriptions] = useState(false);
   const [editingDescCargo, setEditingDescCargo] = useState<string | null>(null);
-  const [newCargoDescByDept, setNewCargoDescByDept] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let ignore = false;
@@ -461,19 +462,21 @@ export default function AdminPage() {
     void saveCargos(masterCargos.filter((d) => d.departamento !== dept));
   }
 
-  function addCargo(dept: string) {
-    const value = (newCargoByDept[dept] ?? "").trim();
-    if (!value) return;
+  function submitAddCargoModal() {
+    const dept = addCargoModal?.dept;
+    if (!dept) return;
+    const name = addCargoName.trim();
+    if (!name) return;
     const next = masterCargos.map((d) =>
-      d.departamento === dept && !d.cargos.includes(value)
-        ? { ...d, cargos: [...d.cargos, value] }
+      d.departamento === dept && !d.cargos.includes(name)
+        ? { ...d, cargos: [...d.cargos, name] }
         : d
     );
-    const desc = (newCargoDescByDept[dept] ?? "").trim();
-    if (desc) setDescDraft((prev) => ({ ...prev, [value]: desc }));
-    setNewCargoByDept((c) => ({ ...c, [dept]: "" }));
-    setNewCargoDescByDept((c) => ({ ...c, [dept]: "" }));
+    if (addCargoDesc.trim()) setDescDraft((prev) => ({ ...prev, [name]: addCargoDesc.trim() }));
     void saveCargos(next);
+    setAddCargoModal(null);
+    setAddCargoName("");
+    setAddCargoDesc("");
   }
 
   function removeCargo(dept: string, cargo: string) {
@@ -1395,40 +1398,31 @@ export default function AdminPage() {
                             placeholder={`Describe el alcance, foco funcional y responsabilidades de ${editingDescCargo}`}
                             className="field-textarea resize-none text-xs"
                           />
+                          <div className="mt-2 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={async () => { await savePositionDescriptions(); setEditingDescCargo(null); }}
+                              disabled={isSavingDescriptions}
+                              className="btn btn-primary btn-xs flex items-center gap-1"
+                            >
+                              {isSavingDescriptions ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                              Guardar
+                            </button>
+                          </div>
                         </div>
                       )}
 
                       {/* Add new cargo */}
-                      <div className="mt-2.5 space-y-1.5">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={newCargoByDept[dept.departamento] ?? ""}
-                            onChange={(e) => setNewCargoByDept((c) => ({ ...c, [dept.departamento]: e.target.value }))}
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCargo(dept.departamento); } }}
-                            className="field flex-1 py-1 text-xs"
-                            placeholder="Nuevo cargo"
-                            disabled={isSavingCargos}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => addCargo(dept.departamento)}
-                            className="btn btn-secondary btn-xs"
-                            disabled={!(newCargoByDept[dept.departamento] ?? "").trim() || isSavingCargos}
-                          >
-                            <Plus className="h-3 w-3" />
-                            Agregar
-                          </button>
-                        </div>
-                        {(newCargoByDept[dept.departamento] ?? "").trim() && (
-                          <textarea
-                            rows={2}
-                            value={newCargoDescByDept[dept.departamento] ?? ""}
-                            onChange={(e) => setNewCargoDescByDept((c) => ({ ...c, [dept.departamento]: e.target.value }))}
-                            placeholder="Descripción del nuevo cargo (opcional)"
-                            className="field-textarea resize-none text-xs"
-                          />
-                        )}
+                      <div className="mt-2.5 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => { setAddCargoModal({ dept: dept.departamento }); setAddCargoName(""); setAddCargoDesc(""); }}
+                          className="btn btn-secondary btn-xs"
+                          disabled={isSavingCargos}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Agregar cargo
+                        </button>
                       </div>
                     </div>
                   )}
@@ -2254,6 +2248,59 @@ export default function AdminPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {addCargoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setAddCargoModal(null)} />
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-md rounded-[1.6rem] p-5 md:p-6">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{addCargoModal.dept}</p>
+                <h2 className="font-display text-lg font-bold text-slate-900">Nuevo cargo</h2>
+              </div>
+              <button type="button" onClick={() => setAddCargoModal(null)} className="btn btn-secondary px-3" aria-label="Cerrar">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => { e.preventDefault(); submitAddCargoModal(); }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="field-label">Nombre del cargo</label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={addCargoName}
+                  onChange={(e) => setAddCargoName(e.target.value)}
+                  placeholder="Ej. Analista de Operaciones"
+                  className="field w-full"
+                  required
+                />
+              </div>
+              <div>
+                <label className="field-label">Descripción <span className="font-normal text-slate-400">(opcional)</span></label>
+                <textarea
+                  rows={4}
+                  value={addCargoDesc}
+                  onChange={(e) => setAddCargoDesc(e.target.value)}
+                  placeholder="Describe el alcance, foco funcional y responsabilidades principales del cargo"
+                  className="field-textarea resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setAddCargoModal(null)} className="btn btn-secondary">
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={!addCargoName.trim() || isSavingCargos}>
+                  <Plus className="h-4 w-4" />
+                  Agregar cargo
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -52,7 +52,7 @@ model User {
   company      Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   role         UserRole @default(USER)
   name         String
-  email        String   @unique
+  email        String
   passwordHash  String
   passwordPlain String?
   workspace     UserWorkspace?
@@ -62,6 +62,8 @@ model User {
   sessionVersion  Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@unique([email, companyId])
 }
 
 model UserWorkspace {

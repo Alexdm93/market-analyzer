@@ -63,12 +63,13 @@ export async function POST(request: Request) {
     return Response.json({ message: "La contrasena debe tener al menos 8 caracteres." }, { status: 400 });
   }
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
-  });
+  const resolvedCompanyId = companyId || null;
+  const existingUser = resolvedCompanyId
+    ? await prisma.user.findFirst({ where: { email, companyId: resolvedCompanyId } })
+    : await prisma.user.findFirst({ where: { email } });
 
   if (existingUser) {
-    return Response.json({ message: "Ya existe una cuenta con ese correo." }, { status: 409 });
+    return Response.json({ message: "Ya existe una cuenta con ese correo en esta empresa." }, { status: 409 });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
