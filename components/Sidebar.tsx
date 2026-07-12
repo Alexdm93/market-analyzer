@@ -60,16 +60,13 @@ export default function Sidebar() {
         <div className="mb-4 lg:mb-6">
           <div className="flex items-start justify-between gap-2">
             <Link href="/inicio" className="min-w-0 block" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
-              <div className="eyebrow mb-1">Salary Intelligence</div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/ac-consulting-logo.svg"
-                  alt="AC Consulting"
-                  className="h-auto w-[52px] shrink-0 md:w-[48px] lg:w-[56px]"
-                />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/ac-consulting-logo.svg"
+                alt="AC Consulting"
+                className="mb-2 h-auto w-[80px] md:w-[72px] lg:w-[86px]"
+              />
+              <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
             </Link>
             <div className="hidden rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[0.68rem] font-bold text-amber-700 lg:inline-flex shrink-0 mt-0.5">
               v2.0

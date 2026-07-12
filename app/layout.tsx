@@ -16,7 +16,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Salary Intelligence",
+  title: "Market Analyzer",
   description: "Plataforma para captura y análisis de mercado salarial",
   icons: {
     icon: [
