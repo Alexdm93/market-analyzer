@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ClipboardList, History, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, History, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
@@ -144,6 +144,7 @@ export default function AdminPage() {
   const [addCargoDesc, setAddCargoDesc] = useState("");
   const [snapshotCargosModal, setSnapshotCargosModal] = useState<{ snapshotId: string; label: string } | null>(null);
   const [snapshotCargosDraft, setSnapshotCargosDraft] = useState<Set<string> | null>(null);
+  const [deptDraftOrder, setDeptDraftOrder] = useState<string[]>([]);
   const [isLoadingSnapshotCargos, setIsLoadingSnapshotCargos] = useState(false);
   const [isSavingSnapshotCargos, setIsSavingSnapshotCargos] = useState(false);
   const [snapshotCompaniesModal, setSnapshotCompaniesModal] = useState<{ snapshotId: string; label: string } | null>(null);
@@ -531,6 +532,7 @@ export default function AdminPage() {
     setSnapshotCargosModal({ snapshotId, label });
     setIsLoadingSnapshotCargos(true);
     setSnapshotCargosDraft(null);
+    setDeptDraftOrder(masterCargos.map((d) => d.departamento));
     try {
       const response = await fetch(`/api/admin/config/snapshot-cargos?snapshotId=${encodeURIComponent(snapshotId)}`, { cache: "no-store" });
       const payload = (await response.json().catch(() => null)) as { cargos?: SnapshotCargoItem[] } | null;
@@ -541,6 +543,26 @@ export default function AdminPage() {
     } finally {
       setIsLoadingSnapshotCargos(false);
     }
+  }
+
+  function moveDeptUp(dept: string) {
+    setDeptDraftOrder((prev) => {
+      const idx = prev.indexOf(dept);
+      if (idx <= 0) return prev;
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      return next;
+    });
+  }
+
+  function moveDeptDown(dept: string) {
+    setDeptDraftOrder((prev) => {
+      const idx = prev.indexOf(dept);
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return next;
+    });
   }
 
   function closeSnapshotCargosModal() {
@@ -576,6 +598,22 @@ export default function AdminPage() {
     if (!snapshotCargosModal || !snapshotCargosDraft) return;
     setIsSavingSnapshotCargos(true);
     try {
+      // Save new dept order if it changed
+      const currentOrder = masterCargos.map((d) => d.departamento);
+      const orderChanged = deptDraftOrder.length === currentOrder.length &&
+        deptDraftOrder.some((d, i) => d !== currentOrder[i]);
+      if (orderChanged) {
+        const reordered = deptDraftOrder
+          .map((name) => masterCargos.find((d) => d.departamento === name))
+          .filter(Boolean) as CargoEntry[];
+        await fetch("/api/admin/config", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cargos: reordered }),
+        });
+        setMasterCargos(reordered);
+      }
+
       const cargos: SnapshotCargoItem[] = [...snapshotCargosDraft].map((key) => {
         const idx = key.indexOf("::");
         return { departamento: key.slice(0, idx), tituloCargo: key.slice(idx + 2) };
@@ -2093,7 +2131,7 @@ export default function AdminPage() {
           onClick={closeSnapshotCargosModal}
         >
           <div
-            className="surface-card relative z-10 w-full max-w-2xl rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] flex flex-col"
+            className="surface-card relative z-10 w-full max-w-4xl rounded-[1.75rem] p-6 max-h-[calc(100vh-3rem)] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 shrink-0">
@@ -2171,63 +2209,93 @@ export default function AdminPage() {
                     <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-white/70 px-4 py-6 text-sm text-slate-500">
                       No hay cargos en la lista maestra. Agrégalos en la sección &quot;Cargos&quot;.
                     </div>
-                  ) : (
-                    <div>
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Lista maestra</div>
-                      <div className="space-y-2">
-                        {masterCargos.map((dept) => {
-                          const modalKey = `modal-${dept.departamento}`;
-                          const isExpanded = expandedDepts[modalKey] ?? false;
-                          const allSelected = dept.cargos.length > 0 && dept.cargos.every((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`));
-                          const selectedCount = dept.cargos.filter((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`)).length;
-                          return (
-                            <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
-                              <div className="flex items-center gap-2 px-4 py-2.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedDepts((s) => ({ ...s, [modalKey]: !isExpanded }))}
-                                  className="flex flex-1 items-center gap-2 text-left"
-                                >
-                                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
-                                  <span className="text-sm font-semibold text-slate-900">{dept.departamento}</span>
-                                  <span className="text-xs text-slate-400">{selectedCount}/{dept.cargos.length}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleAllDeptCargos(dept.departamento, dept.cargos)}
-                                  className="shrink-0 text-xs text-violet-600 hover:text-violet-800"
-                                >
-                                  {allSelected ? "Quitar todos" : "Seleccionar todos"}
-                                </button>
-                              </div>
-
-                              {isExpanded && (
-                                <div className="border-t border-slate-200/60 px-4 py-3">
-                                  <div className="space-y-1.5">
-                                    {dept.cargos.map((cargo) => {
-                                      const key = `${dept.departamento}::${cargo}`;
-                                      const checked = snapshotCargosDraft?.has(key) ?? false;
-                                      return (
-                                        <label key={cargo} className="flex items-center gap-2.5 cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            checked={checked}
-                                            onChange={() => toggleSnapshotCargo(dept.departamento, cargo)}
-                                            className="h-4 w-4 rounded border-slate-300 accent-violet-600"
-                                          />
-                                          <span className="text-sm text-slate-700">{cargo}</span>
-                                        </label>
-                                      );
-                                    })}
+                  ) : (() => {
+                    const orderedDepts = deptDraftOrder.length > 0
+                      ? deptDraftOrder.map((name) => masterCargos.find((d) => d.departamento === name)).filter(Boolean) as CargoEntry[]
+                      : masterCargos;
+                    return (
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Lista maestra</div>
+                          <div className="text-[0.65rem] text-slate-400">Usa las flechas para ordenar unidades funcionales</div>
+                        </div>
+                        <div className="space-y-2">
+                          {orderedDepts.map((dept, deptIdx) => {
+                            const modalKey = `modal-${dept.departamento}`;
+                            const isExpanded = expandedDepts[modalKey] ?? false;
+                            const allSelected = dept.cargos.length > 0 && dept.cargos.every((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`));
+                            const selectedCount = dept.cargos.filter((c) => snapshotCargosDraft?.has(`${dept.departamento}::${c}`)).length;
+                            return (
+                              <div key={dept.departamento} className="rounded-[1.1rem] border border-slate-200/80 bg-white/80">
+                                <div className="flex items-center gap-2 px-3 py-2.5">
+                                  {/* Reorder arrows */}
+                                  <div className="flex shrink-0 flex-col gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => moveDeptUp(dept.departamento)}
+                                      disabled={deptIdx === 0}
+                                      className="flex h-4 w-4 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                                      aria-label="Mover arriba"
+                                    >
+                                      <ChevronUp className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => moveDeptDown(dept.departamento)}
+                                      disabled={deptIdx === orderedDepts.length - 1}
+                                      className="flex h-4 w-4 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
+                                      aria-label="Mover abajo"
+                                    >
+                                      <ChevronDown className="h-3 w-3" />
+                                    </button>
                                   </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedDepts((s) => ({ ...s, [modalKey]: !isExpanded }))}
+                                    className="flex flex-1 items-center gap-2 text-left min-w-0"
+                                  >
+                                    {isExpanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                                    <span className="truncate text-sm font-semibold text-slate-900">{dept.departamento}</span>
+                                    <span className="shrink-0 text-xs text-slate-400">{selectedCount}/{dept.cargos.length}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAllDeptCargos(dept.departamento, dept.cargos)}
+                                    className="shrink-0 text-xs text-violet-600 hover:text-violet-800"
+                                  >
+                                    {allSelected ? "Quitar todos" : "Seleccionar todos"}
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
+
+                                {isExpanded && (
+                                  <div className="border-t border-slate-200/60 px-4 py-3">
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                                      {dept.cargos.map((cargo) => {
+                                        const key = `${dept.departamento}::${cargo}`;
+                                        const checked = snapshotCargosDraft?.has(key) ?? false;
+                                        return (
+                                          <label key={cargo} className="flex items-center gap-2.5 cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={checked}
+                                              onChange={() => toggleSnapshotCargo(dept.departamento, cargo)}
+                                              className="h-4 w-4 rounded border-slate-300 accent-violet-600"
+                                            />
+                                            <span className="text-sm text-slate-700 leading-snug">{cargo}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </>
               )}
             </div>
