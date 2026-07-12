@@ -59,19 +59,16 @@ export default function Sidebar() {
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
         <div className="mb-4 lg:mb-6">
           <div className="flex items-start justify-between gap-2">
-            <Link href="/inicio" className="flex min-w-0 flex-1 items-start gap-2" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
-              <h1 className="font-display min-w-0 flex-1 break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
-              <span className="shrink-0 select-none pt-1 text-slate-300">|</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/ac-consulting-logo.svg"
-                alt="AC Consulting"
-                className="shrink-0 h-auto w-[36px] md:w-[32px] lg:w-[38px]"
-              />
+            <Link href="/inicio" className="min-w-0 block" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
+              <div className="eyebrow mb-1">Salary Intelligence</div>
+              <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
             </Link>
-            <div className="hidden rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[0.68rem] font-bold text-amber-700 lg:inline-flex shrink-0 mt-0.5">
-              v2.0
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/ac-consulting-logo.svg"
+              alt="AC Consulting"
+              className="shrink-0 h-auto w-[52px] md:w-[48px] lg:w-[56px]"
+            />
           </div>
         </div>
 
