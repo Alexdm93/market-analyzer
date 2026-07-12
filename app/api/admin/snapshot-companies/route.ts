@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_WORKSPACE, safeParseSnapshots, type Snapshot } from "@/lib/workspace";
 
 function companiesKey(snapshotId: string) {
   return `snapshot-companies-${snapshotId}`;
@@ -37,6 +38,76 @@ export async function GET(request: Request) {
   }
 }
 
+async function pushSnapshotToNewCompanies(snapshotId: string, newCompanyIds: string[]) {
+  if (newCompanyIds.length === 0) return;
+
+  const snapshotRow = await prisma.userSnapshot.findFirst({
+    where: { snapshotId },
+    select: { label: true, date: true },
+  });
+  if (!snapshotRow) return;
+
+  const snapshot: Snapshot = {
+    id: snapshotId,
+    label: snapshotRow.label,
+    date: snapshotRow.date.toISOString().split("T")[0],
+    rows: [],
+  };
+
+  const users = await prisma.user.findMany({
+    where: { companyId: { in: newCompanyIds } },
+    select: { id: true, companyId: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    for (const user of users) {
+      // Skip if user already has this snapshot
+      const existing = await tx.userSnapshot.findFirst({
+        where: { userId: user.id, snapshotId },
+        select: { id: true },
+      });
+      if (existing) continue;
+
+      const workspace = await tx.userWorkspace.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: {
+          userId: user.id,
+          inflation: DEFAULT_WORKSPACE.inflation,
+          snapshotsJson: JSON.stringify(DEFAULT_WORKSPACE.snapshots),
+          selectedSnapshotId: DEFAULT_WORKSPACE.selectedSnapshotId,
+          companyInfoJson: JSON.stringify(DEFAULT_WORKSPACE.companyInfo),
+        },
+      });
+
+      const nextSnapshots = safeParseSnapshots(workspace.snapshotsJson);
+      const latestSnapshot = Object.values(nextSnapshots)
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      const clonedRows = (latestSnapshot?.rows ?? []).map((r) => ({ ...r, _carried: true as const }));
+
+      nextSnapshots[snapshot.id] = { ...snapshot, rows: clonedRows };
+
+      await tx.userWorkspace.update({
+        where: { userId: user.id },
+        data: {
+          snapshotsJson: JSON.stringify(nextSnapshots),
+          selectedSnapshotId: workspace.selectedSnapshotId || snapshot.id,
+        },
+      });
+
+      await tx.userSnapshot.create({
+        data: {
+          userId: user.id,
+          companyId: user.companyId,
+          snapshotId: snapshot.id,
+          label: snapshot.label,
+          date: snapshotRow.date,
+        },
+      });
+    }
+  });
+}
+
 export async function PUT(request: Request) {
   const auth = await requireAdminSession();
   if (!auth.ok) return auth.response;
@@ -51,15 +122,30 @@ export async function PUT(request: Request) {
     return Response.json({ message: "Indica el corte." }, { status: 400 });
   }
 
-  const companyIds = Array.isArray(body?.companyIds) ? body.companyIds.filter((id) => typeof id === "string" && id.trim()) : [];
+  const newCompanyIds = Array.isArray(body?.companyIds) ? body.companyIds.filter((id) => typeof id === "string" && id.trim()) : [];
+
+  // Read old list before updating so we can compute the diff
+  const oldRecord = await prisma.globalConfig.findUnique({ where: { key: companiesKey(snapshotId) }, select: { value: true } });
+  let oldCompanyIds: string[] | null = null;
+  try {
+    if (oldRecord?.value) oldCompanyIds = (JSON.parse(oldRecord.value) as { companyIds?: string[] }).companyIds ?? null;
+  } catch {}
 
   await prisma.globalConfig.upsert({
     where: { key: companiesKey(snapshotId) },
-    update: { value: JSON.stringify({ companyIds }) },
-    create: { key: companiesKey(snapshotId), value: JSON.stringify({ companyIds }) },
+    update: { value: JSON.stringify({ companyIds: newCompanyIds }) },
+    create: { key: companiesKey(snapshotId), value: JSON.stringify({ companyIds: newCompanyIds }) },
   });
 
-  return Response.json({ snapshotId, companyIds });
+  // Push snapshot to companies that were newly added (not in the old list)
+  // If oldCompanyIds === null it meant "all companies already had it" — no new ones to push
+  if (oldCompanyIds !== null) {
+    const oldSet = new Set(oldCompanyIds);
+    const newlyAdded = newCompanyIds.filter((id) => !oldSet.has(id));
+    await pushSnapshotToNewCompanies(snapshotId, newlyAdded);
+  }
+
+  return Response.json({ snapshotId, companyIds: newCompanyIds });
 }
 
 export async function DELETE(request: Request) {
