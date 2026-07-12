@@ -64,10 +64,10 @@ export default function Sidebar() {
           </div>
           <Link href="/inicio" className="flex items-center gap-1" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/market-analyzer-logo.svg" alt="Market Analyzer" className="h-auto w-[95px] md:w-[88px] lg:w-[100px]" />
-            <span className="shrink-0 select-none text-slate-300 text-lg">|</span>
+            <img src="/market-analyzer-logo.svg" alt="Market Analyzer" className="h-[42px] w-auto" />
+            <span className="shrink-0 select-none text-slate-300 text-sm leading-none">|</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0 h-auto w-[42px] md:w-[38px] lg:w-[44px]" />
+            <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0 h-[37px] w-auto" />
           </Link>
         </div>
 
