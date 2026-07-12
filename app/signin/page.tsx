@@ -245,10 +245,6 @@ export default function SignInPage() {
         </section>
       </div>
 
-      <footer className="relative mt-6 pb-6 text-center text-xs leading-6 text-slate-400">
-        <p>© 2026 AC Consulting. Todos los derechos reservados.</p>
-        <p>Plataforma tecnológica exclusiva, operando en alianza estratégica con la Asociación Venezolana de Gestión Humana (AVGH).</p>
-      </footer>
     </main>
   );
 }
