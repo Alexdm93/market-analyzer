@@ -58,18 +58,16 @@ export default function Sidebar() {
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
         <div className="mb-4 lg:mb-6">
-          <div className="flex items-start justify-between gap-2">
-            <Link href="/inicio" className="min-w-0 block" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
-              <div className="eyebrow mb-1">Salary Intelligence</div>
-              <h1 className="font-display break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
-            </Link>
+          <Link href="/inicio" className="flex items-center gap-2.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
+            <h1 className="font-display min-w-0 flex-1 break-words text-xl font-bold text-slate-900 md:text-[1.55rem] md:leading-[1.1]">Market Analyzer</h1>
+            <span className="shrink-0 select-none text-lg text-slate-300">|</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/ac-consulting-logo.svg"
               alt="AC Consulting"
-              className="shrink-0 h-auto w-[80px] md:w-[72px] lg:w-[86px]"
+              className="shrink-0 h-auto w-[44px] md:w-[40px] lg:w-[48px]"
             />
-          </div>
+          </Link>
         </div>
 
         <nav className="grid min-w-0 grid-cols-1 gap-2 pb-1 sm:grid-cols-2 md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto md:pr-1">
