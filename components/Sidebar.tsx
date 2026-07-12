@@ -58,8 +58,12 @@ export default function Sidebar() {
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
         <div className="mb-4 lg:mb-6">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="eyebrow">Salary Intelligence</span>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[0.62rem] font-bold text-amber-700">v2.0</span>
+          </div>
           <Link href="/inicio" className="flex items-center gap-2.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
-            <h1 className="font-display min-w-0 flex-1 break-words text-xl font-bold text-slate-900 md:text-[1.55rem] md:leading-[1.1]">Market Analyzer</h1>
+            <h1 className="font-display min-w-0 flex-1 break-words text-xl font-bold text-slate-900 md:text-[1.7rem] md:leading-[1.02]">Market Analyzer</h1>
             <span className="shrink-0 select-none text-lg text-slate-300">|</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
