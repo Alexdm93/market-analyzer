@@ -1126,7 +1126,12 @@ export default function DataPage() {
                     <select
                       id="companyFilter"
                       value={selectedCompanyId}
-                      onChange={(event) => setSelectedCompanyId(event.target.value)}
+                      onChange={(event) => {
+                        setSelectedCompanyId(event.target.value);
+                        setSelectedSnapshotId("");
+                        setSnapshots({});
+                        setRows([]);
+                      }}
                       className="field-select"
                       disabled={isLoadingCompanies}
                     >
@@ -1139,9 +1144,15 @@ export default function DataPage() {
                 )}
                 <div>
                   <label htmlFor="snapshotSelect" className="field-label">Seleccionar actualización</label>
-                  <select id="snapshotSelect" value={selectedSnapshotId} onChange={(e) => loadSnapshot(e.target.value)} className="field-select">
-                    <option value="">-- seleccionar --</option>
-                    {Object.values(snapshots)
+                  <select
+                    id="snapshotSelect"
+                    value={selectedSnapshotId}
+                    onChange={(e) => loadSnapshot(e.target.value)}
+                    className="field-select"
+                    disabled={isAdmin && !selectedCompanyId}
+                  >
+                    <option value="">{isAdmin && !selectedCompanyId ? "Selecciona una empresa primero" : "-- seleccionar --"}</option>
+                    {(!isAdmin || selectedCompanyId) && Object.values(snapshots)
                       .sort((a, b) => b.date.localeCompare(a.date))
                       .map((s) => (
                         <option key={s.id} value={s.id}>{getDisplayLabel(s)}</option>
