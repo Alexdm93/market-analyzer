@@ -62,7 +62,7 @@ export default function Sidebar() {
             <span className="eyebrow">Salary Intelligence</span>
             <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[0.62rem] font-bold text-amber-700">v2.0</span>
           </div>
-          <Link href="/inicio" className="flex items-center gap-2.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
+          <Link href="/inicio" className="flex items-center gap-1.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/market-analyzer-logo.svg" alt="Market Analyzer" className="min-w-0 flex-1 h-auto" />
             <span className="shrink-0 select-none text-slate-300 text-lg">|</span>
