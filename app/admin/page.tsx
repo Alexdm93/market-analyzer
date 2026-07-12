@@ -163,6 +163,11 @@ export default function AdminPage() {
   const [tcrHistory, setTcrHistory] = useState<TcrHistoryEntry[]>([]);
   const [isLoadingTcrHistory, setIsLoadingTcrHistory] = useState(false);
   const [isRefreshingRates, setIsRefreshingRates] = useState(false);
+  const [openDescriptions, setOpenDescriptions] = useState(false);
+  const [descTitles, setDescTitles] = useState<string[]>([]);
+  const [descDraft, setDescDraft] = useState<Record<string, string>>({});
+  const [isLoadingDescriptions, setIsLoadingDescriptions] = useState(true);
+  const [isSavingDescriptions, setIsSavingDescriptions] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -302,6 +307,32 @@ export default function AdminPage() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    fetch("/api/admin/position-descriptions", { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((body: { titles?: string[]; descriptions?: Record<string, string> } | null) => {
+        if (ignore || !body) return;
+        setDescTitles(body.titles ?? []);
+        setDescDraft(body.descriptions ?? {});
+      })
+      .catch(() => {})
+      .finally(() => { if (!ignore) setIsLoadingDescriptions(false); });
+    return () => { ignore = true; };
+  }, []);
+
+  async function savePositionDescriptions() {
+    setIsSavingDescriptions(true);
+    try {
+      await fetch("/api/admin/position-descriptions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descriptions: descDraft }),
+      });
+    } catch {}
+    finally { setIsSavingDescriptions(false); }
+  }
 
   async function saveSectors(next: SectorEntry[]) {
     setIsSavingSectors(true);
@@ -1365,6 +1396,70 @@ export default function AdminPage() {
             })}
           </div>
           </div>
+          )}
+        </section>
+
+        <section className="surface-card overflow-hidden rounded-[1.75rem]">
+          <button
+            type="button"
+            onClick={() => setOpenDescriptions((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-full bg-sky-50 p-2.5 text-sky-700">
+                <BookOpen size={16} aria-hidden />
+              </div>
+              <h2 className="font-display text-base font-bold text-slate-900">Descripciones de cargos</h2>
+              {descTitles.length > 0 && (
+                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[0.65rem] font-bold text-sky-800">
+                  {descTitles.length}
+                </span>
+              )}
+            </div>
+            {openDescriptions ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+          </button>
+
+          {openDescriptions && (
+            <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+              <p className="text-xs leading-5 text-slate-500">
+                Define la descripción de cada cargo. Los usuarios verán este texto en modo lectura al editar sus cargos.
+              </p>
+
+              {isLoadingDescriptions ? (
+                <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Cargando...
+                </div>
+              ) : descTitles.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-400">No hay cargos registrados en el sistema todavía.</p>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {descTitles.map((title) => (
+                    <div key={title}>
+                      <label className="field-label">{title}</label>
+                      <textarea
+                        rows={3}
+                        value={descDraft[title] ?? ""}
+                        onChange={(e) => setDescDraft((prev) => ({ ...prev, [title]: e.target.value }))}
+                        placeholder={`Describe el alcance, foco funcional y responsabilidades de ${title}`}
+                        className="field-textarea resize-none text-sm"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => void savePositionDescriptions()}
+                      disabled={isSavingDescriptions}
+                      className="btn btn-primary flex items-center gap-1.5"
+                    >
+                      {isSavingDescriptions ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Guardar descripciones
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </section>
 

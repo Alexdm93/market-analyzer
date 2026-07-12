@@ -763,12 +763,16 @@ export async function GET(request: Request) {
   ]);
   const userCompanyId = userRecord?.companyId ?? "";
 
-  const [payload, bcv, bcvEur, publishedIds] = await Promise.all([
+  const [payload, bcv, bcvEur, publishedIds, posDescConfig] = await Promise.all([
     buildUserPayload(userId, userCompanyId, workspace, company),
     getBcvRate(),
     getBcvEuroRate(),
     getPublishedSnapshotIds(),
+    prisma.globalConfig.findUnique({ where: { key: 'position-descriptions' }, select: { value: true } }),
   ]);
+
+  let positionDescriptions: Record<string, string> = {};
+  try { if (posDescConfig?.value) positionDescriptions = JSON.parse(posDescConfig.value) as Record<string, string>; } catch {}
 
   const publishedSet = new Set(publishedIds);
   const userSnapshots = safeParseSnapshots(workspace.snapshotsJson);
@@ -779,6 +783,7 @@ export async function GET(request: Request) {
   return Response.json({
     ...injectSystemTasas(payload, bcv, bcvEur),
     publishedParticipatedSnapshotIds,
+    positionDescriptions,
   });
 }
 

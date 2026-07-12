@@ -173,6 +173,7 @@ export default function DataPage() {
 
   // If no snapshot selected, show nothing (user requested empty view when "-- seleccionar --")
   const [rows, setRows] = useState<ExtendedMarketPosition[]>([]);
+  const [positionDescriptions, setPositionDescriptions] = useState<Record<string, string>>({});
 
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
   const rowsRef = useRef<ExtendedMarketPosition[]>([]);
@@ -218,6 +219,7 @@ export default function DataPage() {
       setTasas(workspace.companyInfo?.tasas ?? []);
       setCompanyInfo(workspace.companyInfo ?? EMPTY_COMPANY_INFO);
       setIsSubmitted(selectedId ? Boolean(filtered[selectedId]?.submittedAt) : false);
+      setPositionDescriptions((workspace as Record<string, unknown>).positionDescriptions as Record<string, string> ?? {});
 
       if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
         setRows(filtered[selectedId].rows);
@@ -1347,7 +1349,12 @@ export default function DataPage() {
                             )}
                             <div className="md:col-span-4">
                               <label className="field-label">Descripción</label>
-                              <textarea placeholder="Resume alcance, foco funcional y responsabilidades principales" value={r.descripcion} onChange={(e) => update(i, "descripcion", e.target.value)} className="field-textarea" />
+                              <textarea
+                                readOnly
+                                value={positionDescriptions[r.tituloCargo ?? ""] ?? ""}
+                                placeholder="Sin descripción asignada para este cargo"
+                                className="field-textarea bg-slate-50 cursor-default resize-none text-slate-600"
+                              />
                             </div>
                           </div>
                         )}
