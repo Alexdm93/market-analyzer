@@ -614,9 +614,14 @@ export default function AdminPage() {
         setMasterCargos(reordered);
       }
 
-      const cargos: SnapshotCargoItem[] = [...snapshotCargosDraft].map((key) => {
-        const idx = key.indexOf("::");
-        return { departamento: key.slice(0, idx), tituloCargo: key.slice(idx + 2) };
+      // Build cargos array in deptDraftOrder so users see departments in that order
+      const orderedMaster = deptDraftOrder.length > 0 ? deptDraftOrder : masterCargos.map((d) => d.departamento);
+      const cargos: SnapshotCargoItem[] = orderedMaster.flatMap((dept) => {
+        const entry = masterCargos.find((d) => d.departamento === dept);
+        if (!entry) return [];
+        return entry.cargos
+          .filter((c) => snapshotCargosDraft.has(`${dept}::${c}`))
+          .map((c) => ({ departamento: dept, tituloCargo: c }));
       });
       const response = await fetch("/api/admin/config/snapshot-cargos", {
         method: "PUT",
