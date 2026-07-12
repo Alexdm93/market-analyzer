@@ -67,7 +67,7 @@ export default function Sidebar() {
             <img
               src="/ac-consulting-logo.svg"
               alt="AC Consulting"
-              className="shrink-0 h-auto w-[52px] md:w-[48px] lg:w-[56px]"
+              className="shrink-0 h-auto w-[80px] md:w-[72px] lg:w-[86px]"
             />
           </div>
         </div>
