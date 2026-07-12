@@ -59,7 +59,7 @@ export default function Sidebar() {
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
         <div className="mb-4 lg:mb-6">
           <div className="mb-1.5 flex items-center gap-1.5">
-            <span className="eyebrow eyebrow-xs">Salary Intelligence</span>
+            <span className="eyebrow eyebrow-xs">Salary<br />Intelligence</span>
             <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.55rem] font-bold text-amber-700">v2.0</span>
           </div>
           <Link href="/inicio" className="flex items-center gap-1" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
