@@ -16,23 +16,14 @@ export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return Response.json({ message: auth.message }, { status: auth.status });
 
-  const [titlesRaw, configRecord] = await Promise.all([
-    prisma.userPosition.findMany({
-      select: { title: true },
-      distinct: ["title"],
-      orderBy: { title: "asc" },
-    }),
-    prisma.globalConfig.findUnique({ where: { key: CONFIG_KEY }, select: { value: true } }),
-  ]);
-
-  const titles = titlesRaw.map((r) => r.title).filter((t): t is string => Boolean(t));
+  const configRecord = await prisma.globalConfig.findUnique({ where: { key: CONFIG_KEY }, select: { value: true } });
 
   let descriptions: Record<string, string> = {};
   try {
     if (configRecord?.value) descriptions = JSON.parse(configRecord.value) as Record<string, string>;
   } catch {}
 
-  return Response.json({ titles, descriptions });
+  return Response.json({ descriptions });
 }
 
 export async function PUT(request: Request) {

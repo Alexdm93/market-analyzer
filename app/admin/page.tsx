@@ -163,11 +163,10 @@ export default function AdminPage() {
   const [tcrHistory, setTcrHistory] = useState<TcrHistoryEntry[]>([]);
   const [isLoadingTcrHistory, setIsLoadingTcrHistory] = useState(false);
   const [isRefreshingRates, setIsRefreshingRates] = useState(false);
-  const [openDescriptions, setOpenDescriptions] = useState(false);
-  const [descTitles, setDescTitles] = useState<string[]>([]);
   const [descDraft, setDescDraft] = useState<Record<string, string>>({});
-  const [isLoadingDescriptions, setIsLoadingDescriptions] = useState(true);
   const [isSavingDescriptions, setIsSavingDescriptions] = useState(false);
+  const [editingDescCargo, setEditingDescCargo] = useState<string | null>(null);
+  const [newCargoDescByDept, setNewCargoDescByDept] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let ignore = false;
@@ -312,13 +311,11 @@ export default function AdminPage() {
     let ignore = false;
     fetch("/api/admin/position-descriptions", { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((body: { titles?: string[]; descriptions?: Record<string, string> } | null) => {
+      .then((body: { descriptions?: Record<string, string> } | null) => {
         if (ignore || !body) return;
-        setDescTitles(body.titles ?? []);
         setDescDraft(body.descriptions ?? {});
       })
-      .catch(() => {})
-      .finally(() => { if (!ignore) setIsLoadingDescriptions(false); });
+      .catch(() => {});
     return () => { ignore = true; };
   }, []);
 
@@ -472,7 +469,10 @@ export default function AdminPage() {
         ? { ...d, cargos: [...d.cargos, value] }
         : d
     );
+    const desc = (newCargoDescByDept[dept] ?? "").trim();
+    if (desc) setDescDraft((prev) => ({ ...prev, [value]: desc }));
     setNewCargoByDept((c) => ({ ...c, [dept]: "" }));
+    setNewCargoDescByDept((c) => ({ ...c, [dept]: "" }));
     void saveCargos(next);
   }
 
@@ -1334,7 +1334,7 @@ export default function AdminPage() {
                     <div className="border-t border-slate-200/60 px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         {dept.cargos.map((cargo, cargoIdx) => (
-                          <div key={cargo} className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-1.5 py-1 text-xs font-medium text-slate-700">
+                          <div key={cargo} className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-1 text-xs font-medium ${editingDescCargo === cargo ? "bg-sky-100 text-sky-800 ring-1 ring-sky-300" : "bg-slate-100 text-slate-700"}`}>
                             <button
                               type="button"
                               onClick={() => moveCargo(dept.departamento, cargo, -1)}
@@ -1356,6 +1356,15 @@ export default function AdminPage() {
                             </button>
                             <button
                               type="button"
+                              onClick={() => setEditingDescCargo((prev) => prev === cargo ? null : cargo)}
+                              className={`flex h-4 w-4 items-center justify-center rounded-full hover:bg-sky-100 hover:text-sky-600 ${descDraft[cargo] ? "text-sky-500" : "text-slate-300"}`}
+                              aria-label={`Descripción de ${cargo}`}
+                              title="Editar descripción"
+                            >
+                              <Pencil className="h-2.5 w-2.5" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => removeCargo(dept.departamento, cargo)}
                               className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600"
                               aria-label={`Eliminar cargo ${cargo}`}
@@ -1369,25 +1378,57 @@ export default function AdminPage() {
                           <span className="text-xs text-slate-400">Sin cargos aún.</span>
                         )}
                       </div>
-                      <div className="mt-2.5 flex gap-2">
-                        <input
-                          type="text"
-                          value={newCargoByDept[dept.departamento] ?? ""}
-                          onChange={(e) => setNewCargoByDept((c) => ({ ...c, [dept.departamento]: e.target.value }))}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCargo(dept.departamento); } }}
-                          className="field flex-1 py-1 text-xs"
-                          placeholder="Nuevo cargo"
-                          disabled={isSavingCargos}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => addCargo(dept.departamento)}
-                          className="btn btn-secondary btn-xs"
-                          disabled={!(newCargoByDept[dept.departamento] ?? "").trim() || isSavingCargos}
-                        >
-                          <Plus className="h-3 w-3" />
-                          Agregar
-                        </button>
+
+                      {/* Description editor for selected cargo */}
+                      {editingDescCargo && dept.cargos.includes(editingDescCargo) && (
+                        <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50/50 p-3">
+                          <div className="mb-1.5 flex items-center justify-between">
+                            <span className="text-xs font-semibold text-sky-800">{editingDescCargo}</span>
+                            <button type="button" onClick={() => setEditingDescCargo(null)} className="text-slate-400 hover:text-slate-600">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={descDraft[editingDescCargo] ?? ""}
+                            onChange={(e) => setDescDraft((prev) => ({ ...prev, [editingDescCargo]: e.target.value }))}
+                            placeholder={`Describe el alcance, foco funcional y responsabilidades de ${editingDescCargo}`}
+                            className="field-textarea resize-none text-xs"
+                          />
+                        </div>
+                      )}
+
+                      {/* Add new cargo */}
+                      <div className="mt-2.5 space-y-1.5">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newCargoByDept[dept.departamento] ?? ""}
+                            onChange={(e) => setNewCargoByDept((c) => ({ ...c, [dept.departamento]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCargo(dept.departamento); } }}
+                            className="field flex-1 py-1 text-xs"
+                            placeholder="Nuevo cargo"
+                            disabled={isSavingCargos}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addCargo(dept.departamento)}
+                            className="btn btn-secondary btn-xs"
+                            disabled={!(newCargoByDept[dept.departamento] ?? "").trim() || isSavingCargos}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Agregar
+                          </button>
+                        </div>
+                        {(newCargoByDept[dept.departamento] ?? "").trim() && (
+                          <textarea
+                            rows={2}
+                            value={newCargoDescByDept[dept.departamento] ?? ""}
+                            onChange={(e) => setNewCargoDescByDept((c) => ({ ...c, [dept.departamento]: e.target.value }))}
+                            placeholder="Descripción del nuevo cargo (opcional)"
+                            className="field-textarea resize-none text-xs"
+                          />
+                        )}
                       </div>
                     </div>
                   )}
@@ -1395,71 +1436,18 @@ export default function AdminPage() {
               );
             })}
           </div>
+          <div className="flex justify-end mt-1">
+            <button
+              type="button"
+              onClick={() => void savePositionDescriptions()}
+              disabled={isSavingDescriptions}
+              className="btn btn-secondary btn-xs flex items-center gap-1.5"
+            >
+              {isSavingDescriptions ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              Guardar descripciones
+            </button>
           </div>
-          )}
-        </section>
-
-        <section className="surface-card overflow-hidden rounded-[1.75rem]">
-          <button
-            type="button"
-            onClick={() => setOpenDescriptions((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="rounded-full bg-sky-50 p-2.5 text-sky-700">
-                <BookOpen size={16} aria-hidden />
-              </div>
-              <h2 className="font-display text-base font-bold text-slate-900">Descripciones de cargos</h2>
-              {descTitles.length > 0 && (
-                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[0.65rem] font-bold text-sky-800">
-                  {descTitles.length}
-                </span>
-              )}
-            </div>
-            {openDescriptions ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
-          </button>
-
-          {openDescriptions && (
-            <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-              <p className="text-xs leading-5 text-slate-500">
-                Define la descripción de cada cargo. Los usuarios verán este texto en modo lectura al editar sus cargos.
-              </p>
-
-              {isLoadingDescriptions ? (
-                <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                  Cargando...
-                </div>
-              ) : descTitles.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-400">No hay cargos registrados en el sistema todavía.</p>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {descTitles.map((title) => (
-                    <div key={title}>
-                      <label className="field-label">{title}</label>
-                      <textarea
-                        rows={3}
-                        value={descDraft[title] ?? ""}
-                        onChange={(e) => setDescDraft((prev) => ({ ...prev, [title]: e.target.value }))}
-                        placeholder={`Describe el alcance, foco funcional y responsabilidades de ${title}`}
-                        className="field-textarea resize-none text-sm"
-                      />
-                    </div>
-                  ))}
-                  <div className="flex justify-end pt-1">
-                    <button
-                      type="button"
-                      onClick={() => void savePositionDescriptions()}
-                      disabled={isSavingDescriptions}
-                      className="btn btn-primary flex items-center gap-1.5"
-                    >
-                      {isSavingDescriptions ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Guardar descripciones
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+          </div>
           )}
         </section>
 
