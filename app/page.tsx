@@ -422,7 +422,7 @@ function UserDashboard() {
                     >
                       {snapshotList.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.label}{s.isPublished ? "" : " (borrador)"}
+                          {s.label}
                         </option>
                       ))}
                     </select>
