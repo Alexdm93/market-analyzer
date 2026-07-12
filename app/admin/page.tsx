@@ -148,6 +148,8 @@ export default function AdminPage() {
   const [isSavingSnapshotCargos, setIsSavingSnapshotCargos] = useState(false);
   const [snapshotUnidadesModal, setSnapshotUnidadesModal] = useState<{ snapshotId: string; label: string } | null>(null);
   const [unidadesDraftOrder, setUnidadesDraftOrder] = useState<string[]>([]);
+  const [unidadesFullCargos, setUnidadesFullCargos] = useState<SnapshotCargoItem[]>([]);
+  const [isLoadingUnidades, setIsLoadingUnidades] = useState(false);
   const [isSavingUnidades, setIsSavingUnidades] = useState(false);
   const [snapshotCompaniesModal, setSnapshotCompaniesModal] = useState<{ snapshotId: string; label: string } | null>(null);
   const [snapshotCompaniesDraft, setSnapshotCompaniesDraft] = useState<Set<string> | null>(null);
@@ -546,9 +548,23 @@ export default function AdminPage() {
     }
   }
 
-  function openSnapshotUnidadesModal(snapshotId: string, label: string) {
+  async function openSnapshotUnidadesModal(snapshotId: string, label: string) {
     setSnapshotUnidadesModal({ snapshotId, label });
-    setUnidadesDraftOrder(masterCargos.map((d) => d.departamento));
+    setIsLoadingUnidades(true);
+    setUnidadesDraftOrder([]);
+    setUnidadesFullCargos([]);
+    try {
+      const r = await fetch(`/api/admin/config/snapshot-cargos?snapshotId=${encodeURIComponent(snapshotId)}`, { cache: "no-store" });
+      const payload = (await r.json()) as { cargos?: SnapshotCargoItem[] | null };
+      const cargos = Array.isArray(payload?.cargos) ? payload.cargos : [];
+      const depts = [...new Set(cargos.map((c) => c.departamento))];
+      setUnidadesFullCargos(cargos);
+      setUnidadesDraftOrder(depts);
+    } catch {
+      setUnidadesDraftOrder([]);
+    } finally {
+      setIsLoadingUnidades(false);
+    }
   }
 
   function moveUnidadUp(dept: string) {
@@ -575,15 +591,18 @@ export default function AdminPage() {
     if (!snapshotUnidadesModal) return;
     setIsSavingUnidades(true);
     try {
-      const reordered = unidadesDraftOrder
-        .map((name) => masterCargos.find((d) => d.departamento === name))
-        .filter(Boolean) as CargoEntry[];
-      await fetch("/api/admin/config", {
+      // Rebuild snapshot cargos preserving individual cargos but in new dept order
+      const orderedSet = new Set(unidadesDraftOrder);
+      const reordered: SnapshotCargoItem[] = [
+        ...unidadesDraftOrder.flatMap((dept) => unidadesFullCargos.filter((c) => c.departamento === dept)),
+        ...unidadesFullCargos.filter((c) => !orderedSet.has(c.departamento)),
+      ];
+      const r = await fetch("/api/admin/config/snapshot-cargos", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cargos: reordered }),
+        body: JSON.stringify({ snapshotId: snapshotUnidadesModal.snapshotId, cargos: reordered }),
       });
-      setMasterCargos(reordered);
+      if (!r.ok) throw new Error();
       setStatusMessage("Orden de unidades guardado.");
       setSnapshotUnidadesModal(null);
     } catch {
@@ -1613,7 +1632,7 @@ export default function AdminPage() {
                           <ClipboardList className="h-4 w-4" />
                           Cargos
                         </button>
-                        <button type="button" onClick={() => openSnapshotUnidadesModal(snapshot.id, snapshot.label)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
+                        <button type="button" onClick={() => void openSnapshotUnidadesModal(snapshot.id, snapshot.label)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
                           <LayoutList className="h-4 w-4" />
                           Unidades
                         </button>
@@ -2316,51 +2335,63 @@ export default function AdminPage() {
       {snapshotUnidadesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setSnapshotUnidadesModal(null)} />
-          <div role="dialog" aria-modal="true" className="surface-card relative z-10 flex w-full max-w-md flex-col rounded-[1.6rem] p-5 md:p-6">
-            <div className="mb-4 flex items-start justify-between gap-4 shrink-0">
+          <div role="dialog" aria-modal="true" className="surface-card relative z-10 flex w-full max-w-sm flex-col rounded-[1.6rem] p-5 md:p-6" style={{ maxHeight: "80vh" }}>
+            <div className="mb-5 flex items-start justify-between gap-4 shrink-0">
               <div>
                 <p className="eyebrow mb-0.5">{snapshotUnidadesModal.label}</p>
-                <h2 className="font-display text-lg font-bold text-slate-900">Orden de unidades funcionales</h2>
-                <p className="mt-0.5 text-xs text-slate-500">Este es el orden que verán los usuarios al llenar sus cargos.</p>
+                <h2 className="font-display text-lg font-bold text-slate-900">Orden de unidades</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Arrastra o usa las flechas para definir el orden que verán los usuarios.</p>
               </div>
               <button type="button" onClick={() => setSnapshotUnidadesModal(null)} className="btn btn-secondary px-3 shrink-0" aria-label="Cerrar">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto space-y-1.5">
-              {unidadesDraftOrder.map((dept, idx) => (
-                <div key={dept} className="flex items-center gap-2 rounded-[0.9rem] border border-slate-200/80 bg-white/80 px-3 py-2.5">
-                  <div className="flex shrink-0 flex-col gap-0.5">
-                    <button
-                      type="button"
-                      onClick={() => moveUnidadUp(dept)}
-                      disabled={idx === 0}
-                      className="flex h-5 w-5 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
-                      aria-label="Mover arriba"
-                    >
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveUnidadDown(dept)}
-                      disabled={idx === unidadesDraftOrder.length - 1}
-                      className="flex h-5 w-5 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-20 disabled:cursor-not-allowed"
-                      aria-label="Mover abajo"
-                    >
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{dept}</span>
-                  <span className="shrink-0 text-xs text-slate-400">#{idx + 1}</span>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {isLoadingUnidades ? (
+                <div className="flex items-center justify-center py-10 text-sm text-slate-400">
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Cargando...
                 </div>
-              ))}
+              ) : unidadesDraftOrder.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">Este corte no tiene unidades configuradas aún.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {unidadesDraftOrder.map((dept, idx) => (
+                    <div key={dept} className="flex items-center gap-3 rounded-[0.9rem] border border-slate-200 bg-white px-3 py-3">
+                      <span className="w-5 shrink-0 text-center text-xs font-bold text-slate-300">{idx + 1}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{dept}</span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveUnidadUp(dept)}
+                          disabled={idx === 0}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
+                          aria-label="Mover arriba"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveUnidadDown(dept)}
+                          disabled={idx === unidadesDraftOrder.length - 1}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
+                          aria-label="Mover abajo"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+
             <div className="mt-4 flex justify-end gap-3 shrink-0 border-t border-slate-200/60 pt-4">
               <button type="button" onClick={() => setSnapshotUnidadesModal(null)} className="btn btn-secondary">Cancelar</button>
               <button
                 type="button"
                 onClick={() => void saveSnapshotUnidades()}
-                disabled={isSavingUnidades}
+                disabled={isSavingUnidades || isLoadingUnidades || unidadesDraftOrder.length === 0}
                 className="btn btn-primary"
               >
                 {isSavingUnidades ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
