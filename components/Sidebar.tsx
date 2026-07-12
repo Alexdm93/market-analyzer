@@ -109,19 +109,19 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="mt-4 min-w-0 rounded-[1.3rem] border border-slate-200/70 bg-white/70 p-3.5 md:mt-auto">
+        <div className="mt-3 min-w-0 rounded-[1.3rem] border border-slate-200/70 bg-white/70 p-3 md:mt-auto">
           {session?.user ? (
             <>
-              <div className="eyebrow mb-2">Sesion activa</div>
-              <div className="break-words font-display text-base font-bold text-slate-900 md:text-[1rem]">{session.user.name}</div>
+              <div className="eyebrow mb-1.5">Sesion activa</div>
+              <div className="break-words font-display text-[0.9rem] font-bold text-slate-900">{session.user.name}</div>
               {session.user.companyName && (
-                <div className="mt-0.5 break-words text-[0.75rem] leading-5 text-slate-600">{session.user.companyName}</div>
+                <div className="mt-0.5 break-words text-[0.72rem] leading-4 text-slate-600">{session.user.companyName}</div>
               )}
-              <div className="mt-1.5 break-words text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
-              
+              <div className="mt-1 break-words text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
+
               <button
                 onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/signin" }); }}
-                className="btn btn-secondary mt-4 w-full"
+                className="btn btn-secondary mt-3 w-full"
                 type="button"
                 disabled={signingOut}
               >
