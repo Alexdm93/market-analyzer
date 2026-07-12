@@ -72,7 +72,7 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        <nav className="flex min-w-0 min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pb-1 pr-0.5">
+        <nav className="flex min-w-0 min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-1 pr-0.5">
           {[...(isAdmin ? menuItemsAdmin : [...menuItems, ...(canSeeEstudio ? [estudioItem] : []), ...(isCoordinator ? [estudiosItem] : [])]), ...(isAdmin ? adminMenuItems : [])].map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -109,19 +109,19 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="mt-3 min-w-0 rounded-[1.3rem] border border-slate-200/70 bg-white/70 p-3 md:mt-auto">
+        <div className="mt-2 min-w-0 rounded-[1.1rem] border border-slate-200/70 bg-white/70 p-2.5 md:mt-auto">
           {session?.user ? (
             <>
-              <div className="eyebrow mb-1.5">Sesion activa</div>
-              <div className="break-words font-display text-[0.9rem] font-bold text-slate-900">{session.user.name}</div>
+              <div className="eyebrow mb-1" style={{fontSize: '0.58rem'}}>Sesion activa</div>
+              <div className="break-words font-display text-[0.8rem] font-bold text-slate-900">{session.user.name}</div>
               {session.user.companyName && (
-                <div className="mt-0.5 break-words text-[0.72rem] leading-4 text-slate-600">{session.user.companyName}</div>
+                <div className="mt-0.5 break-words text-[0.67rem] leading-4 text-slate-600">{session.user.companyName}</div>
               )}
-              <div className="mt-1 break-words text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
+              <div className="mt-0.5 break-words text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
 
               <button
                 onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/signin" }); }}
-                className="btn btn-secondary mt-3 w-full"
+                className="btn btn-secondary mt-2 w-full"
                 type="button"
                 disabled={signingOut}
               >
