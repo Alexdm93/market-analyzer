@@ -57,18 +57,18 @@ export default function Sidebar() {
   return (
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
-        <div className="mb-4 lg:mb-6">
-          <div className="mb-1.5 flex justify-end">
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[0.55rem] font-bold text-amber-700">v2.0</span>
+        <div className="mb-4 lg:mb-4 rounded-[1.2rem] bg-teal-700 px-3 py-3">
+          <div className="mb-2 flex justify-end">
+            <span className="rounded-full border border-white/30 bg-white/20 px-1.5 py-0.5 text-[0.55rem] font-bold text-white">v2.0</span>
           </div>
           <Link href="/inicio" className="flex items-center justify-center gap-1.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
             <div className="flex-none shrink-0 leading-none">
-              <div className="font-display text-[20px] font-black tracking-tight text-slate-900 leading-[1.2]">Market</div>
-              <div className="font-display text-[20px] font-black tracking-tight text-slate-900 leading-[1.2]">Analyzer</div>
+              <div className="font-display text-[20px] font-black tracking-tight text-white leading-[1.2]">Market</div>
+              <div className="font-display text-[20px] font-black tracking-tight text-white leading-[1.2]">Analyzer</div>
             </div>
-            <span className="shrink-0 select-none text-slate-300 text-sm leading-none">|</span>
+            <span className="shrink-0 select-none text-white/40 text-sm leading-none">|</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0 flex-none" style={{width: 50, height: 50}} />
+            <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0 flex-none" style={{width: 50, height: 50, filter: "brightness(0) invert(1)"}} />
           </Link>
         </div>
 
