@@ -110,7 +110,10 @@ export default function Sidebar() {
             <>
               <div className="eyebrow mb-2">Sesion activa</div>
               <div className="break-words font-display text-base font-bold text-slate-900 md:text-[1rem]">{session.user.name}</div>
-              <div className="mt-2 break-words text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
+              {session.user.companyName && (
+                <div className="mt-0.5 break-words text-[0.75rem] leading-5 text-slate-600">{session.user.companyName}</div>
+              )}
+              <div className="mt-1.5 break-words text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
               
               <button
                 onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/signin" }); }}

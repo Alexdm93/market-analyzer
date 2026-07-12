@@ -128,9 +128,10 @@ export const authOptions: NextAuthOptions = {
         try {
           const company = await prisma.company.findUnique({
             where: { id: existingUser.companyId },
-            select: { estudioEnabled: true },
+            select: { estudioEnabled: true, name: true },
           });
           token.estudioEnabled = company?.estudioEnabled ?? false;
+          token.companyName = company?.name ?? undefined;
         } catch {
           token.estudioEnabled = false;
         }
@@ -145,6 +146,7 @@ export const authOptions: NextAuthOptions = {
         session.user.email = typeof token.email === "string" ? token.email : session.user.email;
         session.user.role = typeof token.role === "string" ? token.role : DEFAULT_USER_ROLE;
         session.user.companyId = typeof token.companyId === "string" ? token.companyId : undefined;
+        session.user.companyName = typeof token.companyName === "string" ? token.companyName : undefined;
         session.user.estudioEnabled = typeof token.estudioEnabled === "boolean" ? token.estudioEnabled : false;
       }
 
