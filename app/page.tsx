@@ -242,16 +242,25 @@ export default function LandingPage() {
             )}
 
             {/* Auth section */}
-            {status === "loading" ? null : session?.user ? (
+            {sessionsLoading ? null : (session?.user || nexoUser) ? (
               <div className="hidden md:flex items-center gap-2">
                 <div className="flex items-center gap-2 rounded-xl border border-[#ECF0F1] bg-[#ECF0F1]/60 px-3 py-2">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1B4965] text-[10px] font-black text-white uppercase">
-                    {session.user.name?.charAt(0) ?? "?"}
+                    {(session?.user?.name ?? nexoUser?.name)?.charAt(0) ?? "?"}
                   </span>
-                  <span className="max-w-[120px] truncate text-xs font-semibold text-[#2C3E50]">{session.user.name}</span>
+                  <span className="max-w-[120px] truncate text-xs font-semibold text-[#2C3E50]">
+                    {session?.user?.name ?? nexoUser?.name}
+                  </span>
                 </div>
                 <button
-                  onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
+                  onClick={() => {
+                    if (session?.user) {
+                      setSigningOut(true);
+                      void signOut({ callbackUrl: "/" });
+                    } else {
+                      window.location.href = `https://nexohub.acconsult.net/api/signout?callbackUrl=${encodeURIComponent(window.location.origin)}`;
+                    }
+                  }}
                   className="inline-flex items-center rounded-xl border border-[#ECF0F1] px-2.5 py-2 text-[#95A5A6] transition hover:border-red-200 hover:text-red-500">
                   <LogOut size={14} />
                 </button>
@@ -297,8 +306,16 @@ export default function LandingPage() {
                 Talentium <span className="text-[0.55rem] font-bold uppercase tracking-wide bg-[#ECF0F1] px-1.5 py-0.5 rounded-full">Próximamente</span>
               </div>
             )}
-            {session?.user && (
-              <button onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
+            {(session?.user || nexoUser) && (
+              <button
+                onClick={() => {
+                  if (session?.user) {
+                    setSigningOut(true);
+                    void signOut({ callbackUrl: "/" });
+                  } else {
+                    window.location.href = `https://nexohub.acconsult.net/api/signout?callbackUrl=${encodeURIComponent(window.location.origin)}`;
+                  }
+                }}
                 className="mt-1 flex items-center justify-center gap-2 rounded-xl border border-[#ECF0F1] px-4 py-2.5 text-sm font-semibold text-[#95A5A6]">
                 <LogOut size={14} /> Cerrar sesión
               </button>
