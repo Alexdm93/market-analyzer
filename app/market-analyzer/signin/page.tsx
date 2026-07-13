@@ -229,7 +229,7 @@ export default function SignInPage() {
                 {isSubmitting || isPending
                   ? <LoaderCircle className="h-4 w-4 animate-spin" />
                   : <LogIn className="h-4 w-4" />}
-                {isSubmitting || isPending ? "Iniciando sesión..." : "Entrar a Market Analyzer →"}
+                {isSubmitting || isPending ? "Iniciando sesión..." : "Entrar a AC Consulting →"}
               </button>
             )}
           </form>
