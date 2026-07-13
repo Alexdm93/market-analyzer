@@ -79,28 +79,28 @@ function SlideCard({ slide, active }: { slide: typeof SLIDES[0]; active: boolean
   const Icon = slide.icon;
   return (
     <div
-      className="w-72 shrink-0 rounded-[1.75rem] border border-white bg-white p-6 transition-all duration-500"
+      className="w-80 shrink-0 rounded-[2rem] border border-white bg-white p-8 transition-all duration-500 md:w-[26rem]"
       style={{
-        transform: active ? "scale(1) translateY(0px)" : "scale(0.88) translateY(12px)",
-        opacity: active ? 1 : 0.45,
-        boxShadow: active ? "0 24px 60px rgba(27,73,101,0.18)" : "0 4px 16px rgba(27,73,101,0.06)",
+        transform: active ? "scale(1) translateY(0px)" : "scale(0.85) translateY(16px)",
+        opacity: active ? 1 : 0.4,
+        boxShadow: active ? "0 32px 72px rgba(27,73,101,0.18)" : "0 4px 16px rgba(27,73,101,0.05)",
       }}
     >
-      <div className="mb-4 flex items-center justify-between">
-        <span className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold ${slide.badgeColor}`}>
+      <div className="mb-5 flex items-center justify-between">
+        <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold ${slide.badgeColor}`}>
           {slide.badge}
         </span>
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl text-white" style={{ background: slide.iconBg }}>
-          <Icon size={15} />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl text-white" style={{ background: slide.iconBg }}>
+          <Icon size={18} />
         </div>
       </div>
-      <h3 className="font-display text-sm font-black leading-snug text-[#2C3E50]">{slide.title}</h3>
-      <p className="mt-2 text-xs leading-5 text-[#95A5A6]">{slide.body}</p>
+      <h3 className="font-display text-lg font-black leading-snug text-[#2C3E50]">{slide.title}</h3>
+      <p className="mt-3 text-sm leading-6 text-[#95A5A6]">{slide.body}</p>
       {active && (
         <Link href={slide.href}
-          className="mt-4 inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition hover:opacity-90"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
           style={{ background: slide.iconBg }}>
-          {slide.cta} <ChevronRight size={12} />
+          {slide.cta} <ChevronRight size={14} />
         </Link>
       )}
     </div>
@@ -124,7 +124,7 @@ function HeroCarousel() {
 
   return (
     <div
-      className="relative flex items-center justify-center gap-3 md:gap-4"
+      className="relative flex items-center justify-center gap-4 md:gap-6"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -145,12 +145,12 @@ function HeroCarousel() {
 
       {/* Arrows */}
       <button onClick={prev}
-        className="absolute left-0 md:-left-6 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md text-[#2C3E50] transition hover:shadow-lg hover:text-[#1B4965]">
-        <ChevronLeft size={18} />
+        className="absolute -left-5 md:-left-10 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg text-[#2C3E50] transition hover:shadow-xl hover:text-[#1B4965]">
+        <ChevronLeft size={20} />
       </button>
       <button onClick={next}
-        className="absolute right-0 md:-right-6 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md text-[#2C3E50] transition hover:shadow-lg hover:text-[#1B4965]">
-        <ChevronRight size={18} />
+        className="absolute -right-5 md:-right-10 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg text-[#2C3E50] transition hover:shadow-xl hover:text-[#1B4965]">
+        <ChevronRight size={20} />
       </button>
 
       {/* Dots */}
@@ -196,27 +196,33 @@ export default function LandingPage() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* Market Analyzer shortcut — always visible */}
+            {/* Market Analyzer — always visible */}
             <Link
               href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
               className="hidden md:inline-flex items-center gap-1.5 rounded-xl border border-[#1B4965]/20 bg-[#EEF7FF] px-4 py-2 text-sm font-bold text-[#1B4965] transition hover:bg-[#CAE9FF]">
               Market Analyzer <ChevronRight size={14} />
             </Link>
 
-            {/* Auth: logout when logged in */}
-            {status !== "loading" && session?.user && (
+            {/* Auth section */}
+            {status === "loading" ? null : session?.user ? (
               <div className="hidden md:flex items-center gap-2">
-                <div className="flex items-center gap-1.5 rounded-xl border border-[#ECF0F1] px-3 py-2 text-xs text-[#95A5A6]">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1B4965] text-[10px] font-black text-white uppercase">
+                <div className="flex items-center gap-2 rounded-xl border border-[#ECF0F1] bg-[#ECF0F1]/60 px-3 py-1.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1B4965] text-[10px] font-black text-white uppercase">
                     {session.user.name?.charAt(0) ?? "?"}
                   </span>
-                  <span className="max-w-[100px] truncate font-semibold text-[#2C3E50]">{session.user.name}</span>
+                  <span className="max-w-[120px] truncate text-xs font-semibold text-[#2C3E50]">{session.user.name}</span>
                 </div>
-                <button onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#ECF0F1] px-3 py-2 text-sm text-[#95A5A6] transition hover:border-red-200 hover:text-red-500">
+                <button
+                  onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
+                  className="inline-flex items-center rounded-xl border border-[#ECF0F1] px-2.5 py-2 text-[#95A5A6] transition hover:border-red-200 hover:text-red-500">
                   <LogOut size={14} />
                 </button>
               </div>
+            ) : (
+              <Link href="/market-analyzer/signin"
+                className="hidden md:inline-flex items-center gap-2 rounded-xl bg-[#1B4965] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#153a52]">
+                <LogIn size={14} /> Iniciar sesión
+              </Link>
             )}
             <button className="md:hidden rounded-xl p-2.5 text-[#2C3E50] hover:bg-[#ECF0F1]"
               onClick={() => setMobileOpen((v) => !v)} aria-label="Menú">
