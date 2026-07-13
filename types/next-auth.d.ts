@@ -8,7 +8,6 @@ declare module "next-auth" {
       companyId?: string;
       companyName?: string;
       estudioEnabled?: boolean;
-      nexohubEnabled?: boolean;
     };
     error?: string;
   }
@@ -19,7 +18,6 @@ declare module "next-auth" {
     companyId?: string;
     companyName?: string;
     estudioEnabled?: boolean;
-    nexohubEnabled?: boolean;
     sessionVersion?: number;
   }
 }
@@ -31,7 +29,6 @@ declare module "next-auth/jwt" {
     companyId?: string;
     companyName?: string;
     estudioEnabled?: boolean;
-    nexohubEnabled?: boolean;
     sessionVersion?: number;
     error?: string;
   }
