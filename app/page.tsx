@@ -5,7 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import {
   ChevronRight, ChevronLeft, Menu, X,
   Target, Eye, Star, Users, ExternalLink,
-  Rocket, BarChart2, Globe, Bell, LogOut, LogIn,
+  Rocket, BarChart2, Globe, Bell, LogOut,
 } from "lucide-react";
 // signingOut state kept for navbar logout button
 
@@ -228,12 +228,7 @@ export default function LandingPage() {
                   <LogOut size={14} />
                 </button>
               </div>
-            ) : (
-              <Link href="/market-analyzer/signin"
-                className="hidden md:inline-flex items-center gap-2 rounded-xl bg-[#1B4965] px-5 py-2 text-sm font-bold text-white transition hover:bg-[#153a52] whitespace-nowrap">
-                <LogIn size={14} className="shrink-0" /> Iniciar sesión
-              </Link>
-            )}
+            ) : null}
             <button className="md:hidden rounded-xl p-2.5 text-[#2C3E50] hover:bg-[#ECF0F1]"
               onClick={() => setMobileOpen((v) => !v)} aria-label="Menú">
               {mobileOpen ? <X size={22} /> : <Menu size={22} />}
