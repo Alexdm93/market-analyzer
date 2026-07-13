@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, Building2, TrendingUp } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, Clock, TrendingUp } from "lucide-react";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { Snapshot, CompanyInfo } from "@/lib/workspace";
 import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
@@ -44,10 +44,20 @@ type AdminDashboardData = {
 
 // ─── Admin Dashboard View ─────────────────────────────────────────────────────
 
+type ParticipationCompany = {
+  companyId: string;
+  name: string;
+  economicSector: string | null;
+  submitted: boolean;
+  submittedAt: string | null;
+  dataChanged: boolean | null;
+};
+
 function AdminDashboard() {
   const [data, setData] = useState<AdminDashboardData | null>(null);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [companies, setCompanies] = useState<ParticipationCompany[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -55,11 +65,18 @@ function AdminDashboard() {
       setLoading(true);
       try {
         const url = snapshotId ? `/api/admin/dashboard?snapshotId=${snapshotId}` : "/api/admin/dashboard";
-        const res = await fetch(url);
+        const [res, studyRes] = await Promise.all([
+          fetch(url),
+          snapshotId ? fetch(`/api/coordinator/study?snapshotId=${snapshotId}`) : Promise.resolve(null),
+        ]);
         if (!ignore && res.ok) {
           const json = (await res.json()) as AdminDashboardData;
           setData(json);
           if (!snapshotId) setSelectedSnapshotId(json.latestSnapshotId);
+        }
+        if (!ignore && studyRes?.ok) {
+          const studyJson = (await studyRes.json()) as { companies: ParticipationCompany[] };
+          setCompanies(studyJson.companies ?? []);
         }
       } catch {
         // ignore
@@ -220,6 +237,62 @@ function AdminDashboard() {
             )}
           </section>
         </div>
+
+        {/* Participación por corte */}
+        {companies.length > 0 && (() => {
+          const submitted = companies.filter(c => c.submitted);
+          const pending = companies.filter(c => !c.submitted);
+          const sinCambios = submitted.filter(c => c.dataChanged === false).length;
+          const modificadas = submitted.filter(c => c.dataChanged === true).length;
+          return (
+            <section className="surface-card overflow-hidden rounded-[2rem]">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full bg-teal-50 p-2 text-teal-700">
+                    <CheckCircle2 size={14} aria-hidden />
+                  </div>
+                  <div>
+                    <div className="eyebrow mb-0.5">Participación</div>
+                    <h2 className="font-display text-base font-bold text-slate-900">Empresas por corte</h2>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-teal-50 px-3 py-1 text-teal-700">{submitted.length} enviadas</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">{pending.length} pendientes</span>
+                  {sinCambios > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">{sinCambios} sin cambios</span>}
+                  {modificadas > 0 && <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{modificadas} modificadas</span>}
+                </div>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {companies.map((c) => (
+                  <div key={c.companyId} className="flex items-center justify-between gap-3 px-6 py-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-900">{c.name}</div>
+                      {c.economicSector && <div className="truncate text-xs text-slate-400">{c.economicSector}</div>}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {c.submitted && c.dataChanged === false && (
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[0.68rem] font-semibold text-amber-700">Sin cambios</span>
+                      )}
+                      {c.submitted && c.dataChanged === true && (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.68rem] font-semibold text-emerald-700">Modificada</span>
+                      )}
+                      {c.submitted ? (
+                        <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[0.68rem] font-semibold text-teal-700">
+                          Enviado {c.submittedAt ? new Date(c.submittedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short" }) : ""}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[0.68rem] font-semibold text-slate-500">
+                          <Clock size={10} /> Pendiente
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })()}
 
         {/* Percentiles por nivel organizacional */}
         <section className="surface-card overflow-hidden rounded-[2rem]">
