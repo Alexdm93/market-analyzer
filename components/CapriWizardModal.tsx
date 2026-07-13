@@ -234,11 +234,12 @@ interface Props {
   onClose: () => void;
   /** "simplified" oculta el número de grado y muestra solo el nivel organizacional */
   mode?: "full" | "simplified";
+  showMirrors?: boolean;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function CapriWizardModal({ companyInfo, cargoNombre, onSave, onClose, mode = "full" }: Props) {
+export function CapriWizardModal({ companyInfo, cargoNombre, onSave, onClose, mode = "full", showMirrors = false }: Props) {
   const simplified = mode === "simplified";
   const factIdx  = revenueToIndex(companyInfo.revenueUSD ?? "");
   const factRule = FACT_RULES[factIdx] ?? FACT_RULES[7];
@@ -480,6 +481,16 @@ export function CapriWizardModal({ companyInfo, cargoNombre, onSave, onClose, mo
                   <p className="text-[0.7rem] font-bold uppercase tracking-widest text-teal-300">Grado HAY</p>
                   <p className="mt-1 font-display text-7xl font-black">{grade}</p>
                   <p className="mt-1 text-base font-medium">{roleInfo.rol}</p>
+                </div>
+              )}
+              {showMirrors && roleInfo.mirrors.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-amber-700">Cargos espejo</p>
+                  <ul className="space-y-1">
+                    {roleInfo.mirrors.map((m) => (
+                      <li key={m} className="text-sm text-amber-800">⸰ {m}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>

@@ -440,6 +440,7 @@ export default function ValoracionPage() {
       {wizard && (
         <CapriWizardModal
           mode="full"
+          showMirrors
           companyInfo={companyInfo}
           cargoNombre={wizard.cargo}
           existingGrade={wizard.grade}
