@@ -72,8 +72,6 @@ export default function Sidebar() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0 flex-none" style={{width: 50, height: 50, filter: "brightness(0) invert(1)"}} />
             </Link>
-          </div>
-
         </div>
 
         <nav className="flex min-w-0 min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-1 pr-0.5">
