@@ -7,6 +7,7 @@ import {
   Target, Eye, Star, Users, ExternalLink,
   Rocket, BarChart2, Globe, Bell, LogOut, LogIn,
 } from "lucide-react";
+// signingOut state kept for navbar logout button
 
 const NAV_LINKS = [
   { label: "Inicio",        href: "#inicio" },
@@ -195,27 +196,27 @@ export default function LandingPage() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            {status !== "loading" && (
-              session?.user ? (
-                <div className="hidden md:flex items-center gap-2">
-                  <Link href="/market-analyzer/inicio"
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#1B4965] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#153a52]">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-black uppercase">
-                      {session.user.name?.charAt(0) ?? "?"}
-                    </span>
-                    Dashboard <ChevronRight size={14} />
-                  </Link>
-                  <button onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#ECF0F1] px-3 py-2 text-sm font-semibold text-[#95A5A6] transition hover:border-red-200 hover:text-red-500">
-                    <LogOut size={14} />
-                  </button>
+            {/* Market Analyzer shortcut — always visible */}
+            <Link
+              href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
+              className="hidden md:inline-flex items-center gap-1.5 rounded-xl border border-[#1B4965]/20 bg-[#EEF7FF] px-4 py-2 text-sm font-bold text-[#1B4965] transition hover:bg-[#CAE9FF]">
+              Market Analyzer <ChevronRight size={14} />
+            </Link>
+
+            {/* Auth: logout when logged in */}
+            {status !== "loading" && session?.user && (
+              <div className="hidden md:flex items-center gap-2">
+                <div className="flex items-center gap-1.5 rounded-xl border border-[#ECF0F1] px-3 py-2 text-xs text-[#95A5A6]">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1B4965] text-[10px] font-black text-white uppercase">
+                    {session.user.name?.charAt(0) ?? "?"}
+                  </span>
+                  <span className="max-w-[100px] truncate font-semibold text-[#2C3E50]">{session.user.name}</span>
                 </div>
-              ) : (
-                <Link href="/market-analyzer/signin"
-                  className="hidden md:inline-flex items-center gap-2 rounded-xl bg-[#1B4965] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#153a52]">
-                  <LogIn size={14} /> Iniciar sesión
-                </Link>
-              )
+                <button onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#ECF0F1] px-3 py-2 text-sm text-[#95A5A6] transition hover:border-red-200 hover:text-red-500">
+                  <LogOut size={14} />
+                </button>
+              </div>
             )}
             <button className="md:hidden rounded-xl p-2.5 text-[#2C3E50] hover:bg-[#ECF0F1]"
               onClick={() => setMobileOpen((v) => !v)} aria-label="Menú">
@@ -230,24 +231,17 @@ export default function LandingPage() {
               <a key={l.href} href={l.href} onClick={() => setMobileOpen(false)}
                 className="block border-b border-[#ECF0F1] py-3 text-base font-semibold text-[#2C3E50] last:border-0">{l.label}</a>
             ))}
-            {session?.user ? (
-              <div className="mt-4 flex flex-col gap-2">
-                <Link href="/market-analyzer/inicio"
-                  className="flex items-center justify-center gap-2 rounded-xl bg-[#1B4965] px-4 py-3 text-sm font-bold text-white"
-                  onClick={() => setMobileOpen(false)}>
-                  Ir al Dashboard <ChevronRight size={14} />
-                </Link>
-                <button onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-[#ECF0F1] px-4 py-2.5 text-sm font-semibold text-[#95A5A6]">
-                  <LogOut size={14} /> Cerrar sesión
-                </button>
-              </div>
-            ) : (
-              <Link href="/market-analyzer/signin"
-                className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#1B4965] px-4 py-3 text-sm font-bold text-white"
-                onClick={() => setMobileOpen(false)}>
-                <LogIn size={14} /> Iniciar sesión
-              </Link>
+            <Link
+              href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
+              className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#1B4965] px-4 py-3 text-sm font-bold text-white"
+              onClick={() => setMobileOpen(false)}>
+              Market Analyzer <ChevronRight size={14} />
+            </Link>
+            {session?.user && (
+              <button onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
+                className="mt-1 flex items-center justify-center gap-2 rounded-xl border border-[#ECF0F1] px-4 py-2.5 text-sm font-semibold text-[#95A5A6]">
+                <LogOut size={14} /> Cerrar sesión
+              </button>
             )}
           </div>
         )}
@@ -259,12 +253,6 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(27,73,101,0.08),transparent)]" />
 
         <div className="relative flex w-full max-w-5xl flex-col items-center text-center">
-          {/* Badge */}
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#CAE9FF] bg-[#EEF7FF] px-4 py-1.5 text-sm font-semibold text-[#1B4965]">
-            <span className="h-2 w-2 rounded-full bg-[#5FA5E3] shrink-0" />
-            Asesoría y Consultoría en Gestión Humana
-          </div>
-
           {/* Heading */}
           <h1 className="font-display text-5xl font-black tracking-tight text-[#2C3E50] md:text-6xl lg:text-7xl" style={{ textWrap: "balance" }}>
             Bienvenido a{" "}
@@ -281,46 +269,9 @@ export default function LandingPage() {
             <HeroCarousel />
           </div>
 
-          {/* ── AUTH ROW ─── */}
-          <div className="mt-16 flex flex-col items-center gap-3">
-            {status === "loading" ? (
-              <div className="h-10 w-48 animate-pulse rounded-xl bg-[#ECF0F1]" />
-            ) : session?.user ? (
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex items-center gap-3 rounded-2xl border border-[#ECF0F1] bg-[#ECF0F1]/60 px-5 py-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1B4965] font-display text-sm font-black text-white uppercase">
-                    {session.user.name?.charAt(0) ?? "?"}
-                  </div>
-                  <div className="text-left">
-                    <div className="text-sm font-bold text-[#2C3E50]">{session.user.name}</div>
-                    {session.user.companyName && (
-                      <div className="text-xs text-[#95A5A6]">{session.user.companyName}</div>
-                    )}
-                  </div>
-                  <Link href="/market-analyzer/inicio"
-                    className="ml-3 inline-flex items-center gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#153a52]">
-                    Ir al Dashboard <ChevronRight size={14} />
-                  </Link>
-                </div>
-                <button
-                  onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
-                  disabled={signingOut}
-                  className="text-xs text-[#95A5A6] transition hover:text-red-500 flex items-center gap-1">
-                  <LogOut size={12} /> {signingOut ? "Cerrando sesión..." : "Cerrar sesión"}
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3">
-                <Link href="/market-analyzer/signin"
-                  className="inline-flex items-center gap-2 rounded-2xl bg-[#1B4965] px-8 py-3.5 text-base font-bold text-white transition hover:bg-[#153a52]">
-                  <LogIn size={16} /> Iniciar sesión en Market Analyzer
-                </Link>
-                <p className="text-xs text-[#95A5A6]">
-                  Venezuela · Costa Rica · Colombia · Curazao · Ecuador
-                </p>
-              </div>
-            )}
-          </div>
+          <p className="mt-16 text-xs text-[#95A5A6]">
+            Venezuela · Costa Rica · Colombia · Curazao · Ecuador
+          </p>
         </div>
       </section>
 
