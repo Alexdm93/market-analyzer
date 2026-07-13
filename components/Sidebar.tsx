@@ -13,7 +13,7 @@ import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContex
 const BASE = "/market-analyzer";
 
 const menuItems = [
-  { name: "Inicio", href: `${BASE}/inicio`, icon: Newspaper, hint: "Noticias y anuncios" },
+  { name: "Inicio ", href: `${BASE}/inicio`, icon: Newspaper, hint: "Noticias y anuncios" },
   { name: "Dashboard", href: `${BASE}/dashboard`, icon: LayoutDashboard, hint: "Indicadores base" },
   { name: "Empresa", href: `${BASE}/informacion`, icon: Info, hint: "Contexto y contacto" },
   { name: "Data", href: `${BASE}/data`, icon: Database, hint: "Captura por cargo" },
