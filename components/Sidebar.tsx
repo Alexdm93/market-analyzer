@@ -59,9 +59,7 @@ export default function Sidebar() {
   return (
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
-        <div className="mb-3 flex flex-col gap-2">
-          {/* Market Analyzer — active */}
-          <div className="rounded-[1.2rem] bg-[#1B4965] px-3 py-3">
+        <div className="mb-4 lg:mb-4 rounded-[1.2rem] bg-[#1B4965] px-3 py-3">
             <div className="mb-2 flex justify-end">
               <span className="rounded-full border border-white/30 bg-white/20 px-1.5 py-0.5 text-[0.55rem] font-bold text-white">v2.0</span>
             </div>
@@ -76,23 +74,6 @@ export default function Sidebar() {
             </Link>
           </div>
 
-          {/* NexoHub — próximamente */}
-          <div className="rounded-[1.1rem] border border-slate-200/60 bg-white/30 px-3 py-2.5 opacity-60 cursor-not-allowed select-none">
-            <div className="flex items-center justify-between">
-              <div className="font-display text-[0.8rem] font-black tracking-tight text-slate-600 leading-tight">NexoHub</div>
-              <span className="rounded-full bg-slate-200/80 px-1.5 py-0.5 text-[0.52rem] font-bold uppercase tracking-wide text-slate-500">Próximamente</span>
-            </div>
-            <div className="mt-0.5 text-[0.65rem] text-slate-400">Red profesional</div>
-          </div>
-
-          {/* Talentium — próximamente */}
-          <div className="rounded-[1.1rem] border border-slate-200/60 bg-white/30 px-3 py-2.5 opacity-60 cursor-not-allowed select-none">
-            <div className="flex items-center justify-between">
-              <div className="font-display text-[0.8rem] font-black tracking-tight text-slate-600 leading-tight">Talentium</div>
-              <span className="rounded-full bg-slate-200/80 px-1.5 py-0.5 text-[0.52rem] font-bold uppercase tracking-wide text-slate-500">Próximamente</span>
-            </div>
-            <div className="mt-0.5 text-[0.65rem] text-slate-400">Gestión de talento</div>
-          </div>
         </div>
 
         <nav className="flex min-w-0 min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-1 pr-0.5">
