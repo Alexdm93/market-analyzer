@@ -7,7 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 import { AnnouncementProvider } from "@/contexts/AnnouncementContext";
 import { WorkspaceNotificationProvider } from "@/contexts/WorkspaceNotificationContext";
 
-const PUBLIC_PATHS = new Set(["/signin", "/register"]);
+const PUBLIC_PATHS = new Set(["/", "/signin", "/register", "/market-analyzer/signin", "/market-analyzer/register"]);
 
 function SessionGuard() {
   const { data: session, status } = useSession();
@@ -16,7 +16,7 @@ function SessionGuard() {
 
   useEffect(() => {
     if (status === "authenticated" && session?.error === "UserDeleted") {
-      void signOut({ callbackUrl: "/signin" });
+      void signOut({ callbackUrl: "/market-analyzer/signin" });
     }
   }, [session?.error, status]);
 
@@ -26,7 +26,7 @@ function SessionGuard() {
     }
   }, [status, pathname, router]);
 
-  if (status === "loading" && !PUBLIC_PATHS.has(pathname)) {
+  if (status === "loading" && !PUBLIC_PATHS.has(pathname) && !pathname.startsWith("/market-analyzer/signin") && !pathname.startsWith("/market-analyzer/register")) {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-[var(--shell-background)] backdrop-blur-sm">
         <div className="surface-panel flex flex-col items-center gap-5 rounded-[2rem] px-10 py-8 shadow-2xl">
