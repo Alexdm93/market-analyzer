@@ -110,7 +110,7 @@ export default function SignInPage() {
         <section className="surface-panel min-w-0 rounded-[2rem] p-6 md:p-8 lg:p-10">
           <div className="eyebrow mb-3">Acceso privado</div>
           <h1 className="font-display max-w-2xl text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
-            Bienvenido a Market Analyzer.
+            Bienvenido a AC Consulting.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
             La plataforma definitiva de benchmarking salarial. Ingresa con tus credenciales corporativas para consultar tabuladores, comparar curvas de mercado y medir la competitividad de tu organización.
