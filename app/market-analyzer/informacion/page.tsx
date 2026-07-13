@@ -372,7 +372,7 @@ export default function Informacion() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div>
-              <label className="field-label">Bono vacacional mínimo</label>
+              <label className="field-label">Días de Bono Vacacional</label>
               <input title="Bono vacacional" aria-label="Bono vacacional" type="number" placeholder="0" value={companyInfo.minVacationDays} onChange={(e) => updateCompany("minVacationDays", e.target.value)} className="field" />
             </div>
             <div>

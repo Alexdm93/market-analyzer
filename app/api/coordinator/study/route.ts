@@ -15,6 +15,18 @@ async function requireCoordinatorSession() {
   return { ok: true as const, session };
 }
 
+function normalizePositionJson(raw: string): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const obj = JSON.parse(raw) as Record<string, any>;
+    delete obj.id;
+    delete obj._carried;
+    return JSON.stringify(obj, Object.keys(obj).sort());
+  } catch {
+    return raw;
+  }
+}
+
 export async function GET(request: Request) {
   const auth = await requireCoordinatorSession();
   if (!auth.ok) return auth.response;
@@ -38,13 +50,11 @@ export async function GET(request: Request) {
     // Return summary: for each snapshot, count unique companies and how many submitted
     const snapshotIds = allSnapshots.map((s) => s.snapshotId);
 
-    // Fetch all rows grouped by snapshot+company to count unique companies
     const allRows = await prisma.userSnapshot.findMany({
       where: { snapshotId: { in: snapshotIds } },
       select: { snapshotId: true, companyId: true, submittedAt: true },
     });
 
-    // Per snapshot: count unique companies, and unique companies where any user submitted
     const statsMap = new Map<string, { companies: Set<string>; submittedCompanies: Set<string> }>();
     for (const row of allRows) {
       if (!statsMap.has(row.snapshotId)) {
@@ -92,7 +102,52 @@ export async function GET(request: Request) {
     orderBy: [{ submittedAt: "asc" }],
   });
 
-  // Deduplicate by company: one entry per company, submitted if any user submitted
+  // Find the previous snapshot for comparison
+  const currentSnap = allSnapshots.find((s) => s.snapshotId === snapshotId);
+  const prevSnap = currentSnap
+    ? allSnapshots
+        .filter((s) => s.snapshotId !== snapshotId && s.date < currentSnap.date)
+        .sort((a, b) => b.date.toISOString().localeCompare(a.date.toISOString()))[0]
+    : undefined;
+
+  // Fetch positions for current and previous cuts to detect changes
+  const [currentPositions, prevPositions] = await Promise.all([
+    prisma.userPosition.findMany({
+      where: { snapshotId },
+      select: { companyId: true, dataJson: true },
+    }),
+    prevSnap
+      ? prisma.userPosition.findMany({
+          where: { snapshotId: prevSnap.snapshotId },
+          select: { companyId: true, dataJson: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // Index current positions by company → set of normalized JSON strings
+  const currentByCompany = new Map<string, string[]>();
+  for (const p of currentPositions) {
+    if (!currentByCompany.has(p.companyId)) currentByCompany.set(p.companyId, []);
+    currentByCompany.get(p.companyId)!.push(normalizePositionJson(p.dataJson));
+  }
+
+  // Index previous positions by company → set of normalized JSON strings
+  const prevByCompany = new Map<string, Set<string>>();
+  for (const p of prevPositions) {
+    if (!prevByCompany.has(p.companyId)) prevByCompany.set(p.companyId, new Set());
+    prevByCompany.get(p.companyId)!.add(normalizePositionJson(p.dataJson));
+  }
+
+  function didDataChange(companyId: string): boolean | null {
+    if (!prevSnap) return null;
+    const curr = currentByCompany.get(companyId);
+    const prev = prevByCompany.get(companyId);
+    if (!curr || curr.length === 0 || !prev || prev.size === 0) return null;
+    // Changed if any current position is not found verbatim in the previous cut
+    return !curr.every((json) => prev.has(json));
+  }
+
+  // Deduplicate by company
   const byCompany = new Map<string, {
     companyId: string;
     name: string;
@@ -100,6 +155,7 @@ export async function GET(request: Request) {
     headcount: string | null;
     submitted: boolean;
     submittedAt: string | null;
+    dataChanged: boolean | null;
     hrName: string | null;
     hrPosition: string | null;
     hrEmail: string | null;
@@ -120,6 +176,7 @@ export async function GET(request: Request) {
         headcount: r.company.headcount,
         submitted: isSubmitted,
         submittedAt,
+        dataChanged: didDataChange(r.company.id),
         hrName: r.company.hrName,
         hrPosition: r.company.hrPosition,
         hrEmail: r.company.hrEmail,
@@ -127,7 +184,6 @@ export async function GET(request: Request) {
         hrCell: r.company.hrCell,
       });
     } else if (isSubmitted && !existing.submitted) {
-      // Mark as submitted if any user from this company submitted
       existing.submitted = true;
       existing.submittedAt = submittedAt;
     }

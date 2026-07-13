@@ -41,6 +41,7 @@ export interface LegacyMarketPosition {
 export interface ExtendedMarketPosition {
   id: string;
   _carried?: boolean;
+  _lastModified?: string;
   departamento?: string;
   tituloCargo: string;
   nivelOrganizacional?: string;
