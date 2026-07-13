@@ -595,14 +595,14 @@ function UserDashboard() {
                   <div className="metric-value mt-1">{nivelesConData}</div>
                 </div>
                 {snapshotList.length > 1 && (
-                  <div className="flex items-center gap-2 self-center">
+                  <div className="flex flex-1 items-center gap-2 self-center">
                     <label className="field-label mb-0 whitespace-nowrap text-xs">Corte:</label>
                     <select
                       title="Seleccionar corte"
                       aria-label="Seleccionar corte"
                       value={selectedSnapshotId}
                       onChange={(e) => setSelectedSnapshotId(e.target.value)}
-                      className="field-select flex-1 text-xs"
+                      className="field-select min-w-0 flex-1 text-xs"
                     >
                       {snapshotList.map((s) => (
                         <option key={s.id} value={s.id}>
