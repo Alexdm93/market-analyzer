@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { Menu, X, ChevronRight, Users, Target, Eye, Star, Instagram, Linkedin, Twitter } from "lucide-react";
+import { Menu, X, ChevronRight, Users, Target, Eye, Star, ExternalLink } from "lucide-react";
 
 const NAV_LINKS = [
   { label: "Inicio", href: "#inicio" },
@@ -257,7 +257,7 @@ export default function LandingPage() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
                 >
-                  <Instagram size={16} /> Instagram
+                  <ExternalLink size={16} /> Instagram
                 </a>
                 <a
                   href="https://www.linkedin.com/company/corporacion-ac-consulting"
@@ -265,7 +265,7 @@ export default function LandingPage() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
                 >
-                  <Linkedin size={16} /> LinkedIn
+                  <ExternalLink size={16} /> LinkedIn
                 </a>
                 <a
                   href="https://twitter.com/ACConsulting_"
@@ -273,7 +273,7 @@ export default function LandingPage() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
                 >
-                  <Twitter size={16} /> Twitter
+                  <ExternalLink size={16} /> Twitter / X
                 </a>
               </div>
             </div>

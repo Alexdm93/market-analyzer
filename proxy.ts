@@ -4,10 +4,21 @@ import { getToken } from "next-auth/jwt";
 
 import { ADMIN_ROLE, canAccessEmpresas } from "./lib/roles";
 
-const authPages = new Set(["/signin", "/register"]);
-const protectedPages = new Set(["/", "/inicio", "/data", "/estudio", "/informacion", "/empresas", "/admin", "/admin/anuncios"]);
-const adminPages = new Set(["/admin", "/admin/anuncios", "/register"]);
-const empresasPages = new Set(["/empresas"]);
+const BASE = "/market-analyzer";
+
+const authPages = new Set([`${BASE}/signin`, `${BASE}/register`]);
+const protectedPages = new Set([
+  `${BASE}/inicio`, `${BASE}/dashboard`, `${BASE}/data`, `${BASE}/estudio`,
+  `${BASE}/estudios`, `${BASE}/informacion`, `${BASE}/empresas`, `${BASE}/resultados`,
+  `${BASE}/valoracion`, `${BASE}/admin`, `${BASE}/admin/anuncios`,
+  `${BASE}/admin/estudio-especializado`, `${BASE}/admin/telemetry`,
+]);
+const adminPages = new Set([
+  `${BASE}/admin`, `${BASE}/admin/anuncios`,
+  `${BASE}/admin/estudio-especializado`, `${BASE}/admin/telemetry`,
+  `${BASE}/register`,
+]);
+const empresasPages = new Set([`${BASE}/empresas`]);
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -16,31 +27,28 @@ export async function proxy(request: NextRequest) {
   const sessionInvalid = !token || (typeof token.error === "string" && token.error !== "");
 
   if (sessionInvalid && protectedPages.has(pathname)) {
-    const signInUrl = new URL("/signin", request.url);
-    const callbackUrl = `${pathname}${search}`;
-
-    if (callbackUrl !== "/") {
-      signInUrl.searchParams.set("callbackUrl", callbackUrl);
-    }
-
+    const signInUrl = new URL(`${BASE}/signin`, request.url);
+    signInUrl.searchParams.set("callbackUrl", `${pathname}${search}`);
     return NextResponse.redirect(signInUrl);
   }
 
   if (token && adminPages.has(pathname) && token.role !== ADMIN_ROLE) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(`${BASE}/inicio`, request.url));
   }
 
   if (token && empresasPages.has(pathname) && !canAccessEmpresas(typeof token.role === "string" ? token.role : undefined)) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(`${BASE}/inicio`, request.url));
   }
 
   if (token && !sessionInvalid && authPages.has(pathname)) {
-    return NextResponse.redirect(new URL("/inicio", request.url));
+    return NextResponse.redirect(new URL(`${BASE}/inicio`, request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/inicio", "/data", "/estudio", "/informacion", "/empresas", "/admin", "/admin/anuncios", "/signin", "/register"],
+  matcher: [
+    "/market-analyzer/:path*",
+  ],
 };
