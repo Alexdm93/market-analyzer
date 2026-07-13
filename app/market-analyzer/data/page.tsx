@@ -33,15 +33,6 @@ const GRADE_RANGES: Record<string, [number, number]> = {
   "Ejecutivo":      [23, 25],
 };
 
-function computeRowTotalAdmin(r: ExtendedMarketPosition): number {
-  let s = Number(r.sueldoBasico ?? 0) + Number(r.bonoAlimentacion ?? 0) + Number(r.bonoMovilizacion ?? 0)
-    + Number(r.bonoDesempeno ?? 0) + Number(r.comisiones ?? 0) + Number(r.pagoVariableOtros ?? 0);
-  if (Array.isArray(r.additionalFixedPayments))
-    s += r.additionalFixedPayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
-  if (Array.isArray(r.additionalVariablePayments))
-    s += r.additionalVariablePayments.reduce((a, b) => a + Number(b.amount ?? 0), 0);
-  return s;
-}
 
 function pct(values: number[], p: number): number {
   if (!values.length) return 0;
@@ -980,17 +971,19 @@ export default function DataPage() {
 
   // Admin: medians per grade group from current rows
   const medianasPorNivelAdmin = useMemo(() => {
+    const diasVac = Number(companyInfo.minVacationDays) || 0;
+    const diasUtil = Number(companyInfo.minUtilityDays) || 0;
     const result: Record<string, number> = {};
     for (const nivel of NIVELES_ADMIN) {
       const [lo, hi] = GRADE_RANGES[nivel] ?? [0, 0];
       const totals = rows
         .filter((r) => { const g = r.hayGrade; return g !== undefined && g >= lo && g <= hi; })
-        .map(computeRowTotalAdmin)
+        .map((r) => resolveRowTotals(r, tasas, effectiveBcvRate, diasVac, diasUtil).totalSinPasivosMensual)
         .filter((v) => v > 0 && Number.isFinite(v));
       result[nivel] = totals.length ? Math.round(pct(totals, 50)) : 0;
     }
     return result;
-  }, [rows]);
+  }, [rows, tasas, effectiveBcvRate, companyInfo.minVacationDays, companyInfo.minUtilityDays]);
 
 
   return (
