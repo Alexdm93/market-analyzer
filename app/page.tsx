@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Menu, X, ChevronRight, Users, Target, Eye, Star, ExternalLink } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 const NAV_LINKS = [
   { label: "Inicio", href: "#inicio" },
@@ -22,6 +23,7 @@ const DIFFERENTIATORS = [
 
 export default function LandingPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { data: session } = useSession();
 
   return (
     <div className="min-h-screen bg-[#f8f7f4] text-slate-800">
@@ -53,13 +55,28 @@ export default function LandingPage() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <Link
-              href="/market-analyzer/signin"
-              className="hidden md:inline-flex items-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2 text-[13px] font-bold text-white transition hover:bg-teal-800"
-            >
-              Market Analyzer
-              <ChevronRight size={14} />
-            </Link>
+            {session?.user ? (
+              <Link
+                href="/market-analyzer/inicio"
+                className="hidden md:inline-flex items-center gap-2 rounded-xl bg-teal-700 px-3 py-1.5 text-[13px] font-bold text-white transition hover:bg-teal-800"
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-[10px] font-black uppercase">
+                  {session.user.name?.charAt(0) ?? "?"}
+                </span>
+                <span className="hidden lg:block max-w-[120px] truncate leading-tight">
+                  {session.user.name}
+                </span>
+                <ChevronRight size={14} />
+              </Link>
+            ) : (
+              <Link
+                href="/market-analyzer/signin"
+                className="hidden md:inline-flex items-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2 text-[13px] font-bold text-white transition hover:bg-teal-800"
+              >
+                Market Analyzer
+                <ChevronRight size={14} />
+              </Link>
+            )}
             <button
               className="md:hidden rounded-xl p-2 text-slate-600 hover:bg-slate-100"
               onClick={() => setMobileOpen((v) => !v)}
@@ -84,11 +101,11 @@ export default function LandingPage() {
               </a>
             ))}
             <Link
-              href="/market-analyzer/signin"
+              href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
               className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white"
               onClick={() => setMobileOpen(false)}
             >
-              Market Analyzer <ChevronRight size={14} />
+              {session?.user ? `Ir al Dashboard` : "Market Analyzer"} <ChevronRight size={14} />
             </Link>
           </div>
         )}

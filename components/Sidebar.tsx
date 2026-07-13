@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChartBar, Database, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, ChartBar, Database, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 
@@ -110,6 +110,14 @@ export default function Sidebar() {
             );
           })}
         </nav>
+
+        <Link
+          href="/"
+          className="mt-1 flex shrink-0 items-center justify-center gap-1.5 rounded-[1rem] border border-slate-200/60 bg-white/40 px-3 py-2 text-[0.72rem] font-semibold text-slate-500 transition hover:bg-white/70 hover:text-slate-800"
+        >
+          <Home size={13} />
+          Ir al inicio
+        </Link>
 
         <div className="mt-2 min-w-0 rounded-[1.1rem] border border-slate-200/70 bg-white/70 p-2.5 md:mt-auto">
           {session?.user ? (
