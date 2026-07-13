@@ -116,8 +116,9 @@ export async function GET(request: Request) {
       const saved = info?.ratesAtSave?.bcvUsd;
       if (typeof saved === "number" && saved > 0) return saved;
       // Fallback: extract from the company's tasas array (same source user view uses)
-      const tasas: Array<{ id: string; valor: number }> = info?.tasas ?? [];
-      const fromTasas = tasas.find((t) => t.id === "bcv-usd")?.valor;
+      const tasas = (info?.tasas ?? []) as Array<{ id: string; valor: string | number }>;
+      const rawTasas = tasas.find((t) => t.id === "bcv-usd")?.valor;
+      const fromTasas = typeof rawTasas === "string" ? parseFloat(rawTasas) : rawTasas;
       return typeof fromTasas === "number" && fromTasas > 0 ? fromTasas : null;
     };
 
