@@ -1,6 +1,6 @@
 "use client";
 import { exportStyledExcel } from "@/lib/excel-export";
-import { Database, FileSpreadsheet, Loader2, TrendingUp } from "lucide-react";
+import { Database, FileSpreadsheet, Info, Loader2, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ExtendedMarketPosition } from "@/types/salary";
@@ -308,6 +308,28 @@ export default function ResultadosPage() {
               <div>
                 <div className="eyebrow mb-2">Tabla comparativa — CIM y PCTA</div>
                 <h2 className="font-display text-2xl font-bold text-slate-900">Métricas por cargo</h2>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {/* CIM tooltip */}
+                  <div className="group relative inline-flex cursor-help items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                    CIM
+                    <Info size={11} className="opacity-60" />
+                    <div className="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-80 rounded-2xl bg-slate-900 p-4 text-left font-normal normal-case tracking-normal text-slate-300 shadow-2xl group-hover:block">
+                      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-blue-400">Compensación Integral Mensualizada</p>
+                      <p className="text-xs leading-5">Es el indicador del valor económico total del paquete retributivo expresado en fracciones mensuales. Integra el Total Efectivo Mensualizado y le suma el peso financiero de los pasivos laborales garantizados: utilidades, bono vacacional y prestaciones sociales. Permite visualizar el impacto económico integral de la posición mes a mes.</p>
+                    </div>
+                  </div>
+                  {/* PCTA tooltip */}
+                  <div className="group relative inline-flex cursor-help items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-teal-600" />
+                    PCTA
+                    <Info size={11} className="opacity-60" />
+                    <div className="pointer-events-none absolute left-0 top-full z-50 mt-2 hidden w-80 rounded-2xl bg-slate-900 p-4 text-left font-normal normal-case tracking-normal text-slate-300 shadow-2xl group-hover:block">
+                      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-teal-400">Paquete de Compensación Total Anual</p>
+                      <p className="text-xs leading-5">Representa el valor macroeconómico global del paquete del trabajador proyectado a un ejercicio fiscal completo (12 meses). Es la sumatoria anualizada de todos los ingresos regulares, pagos de frecuencia variable y el costo total de los pasivos laborales. El indicador definitivo para comparar la competitividad del puesto contra las curvas del mercado.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                 <TrendingUp size={14} />

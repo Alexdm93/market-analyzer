@@ -271,29 +271,53 @@ async function cleanupUnusedCompany(tx: TransactionClient, companyId: string | n
   }
 }
 
+// Fields that change automatically on every save and should not trigger a _lastModified update
+const VOLATILE_FIELDS = new Set([
+  "_carried", "_lastModified",
+  "_cachedTotalSinPasivosMensual", "_cachedTotalConPasivosMensual",
+  "_cachedTotalConPasivosAnual", "_cachedTotalDirectoMensualizado",
+]);
+
+function stripVolatile(obj: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(obj).filter(([k]) => !VOLATILE_FIELDS.has(k)));
+}
+
 async function syncRelationalWorkspace(
   tx: TransactionClient,
   userId: string,
   companyId: string,
   snapshots: Record<string, Snapshot>
 ) {
-  const existingStatuses = await tx.userSnapshot.findMany({
-    where: { userId },
-    select: {
-      snapshotId: true,
-      status: true,
-      processedAt: true,
-    },
-  });
-  const statusBySnapshotId = new Map(existingStatuses.map((snapshot) => [snapshot.snapshotId, { status: snapshot.status, processedAt: snapshot.processedAt }]));
+  const [existingStatuses, existingPositions] = await Promise.all([
+    tx.userSnapshot.findMany({
+      where: { userId },
+      select: { snapshotId: true, status: true, processedAt: true },
+    }),
+    tx.userPosition.findMany({
+      where: { userId },
+      select: { snapshotId: true, positionId: true, dataJson: true },
+    }),
+  ]);
 
-  await tx.userPosition.deleteMany({
-    where: { userId },
-  });
+  const statusBySnapshotId = new Map(existingStatuses.map((s) => [s.snapshotId, { status: s.status, processedAt: s.processedAt }]));
 
-  await tx.userSnapshot.deleteMany({
-    where: { userId },
-  });
+  // Build lookup: snapshotId:positionId → existing normalized data + _lastModified
+  type ExistingEntry = { normalized: string; lastModified: string | undefined };
+  const existingMap = new Map<string, ExistingEntry>();
+  for (const p of existingPositions) {
+    try {
+      const parsed = JSON.parse(p.dataJson) as Record<string, unknown>;
+      existingMap.set(`${p.snapshotId}:${p.positionId}`, {
+        normalized: JSON.stringify(stripVolatile(parsed), Object.keys(stripVolatile(parsed)).sort()),
+        lastModified: typeof parsed._lastModified === "string" ? parsed._lastModified : undefined,
+      });
+    } catch { /* skip malformed */ }
+  }
+
+  await tx.userPosition.deleteMany({ where: { userId } });
+  await tx.userSnapshot.deleteMany({ where: { userId } });
+
+  const now = new Date().toISOString();
 
   const snapshotInserts: {
     id: string; userId: string; companyId: string; snapshotId: string;
@@ -319,6 +343,21 @@ async function syncRelationalWorkspace(
     });
 
     for (const row of snapshot.rows ?? []) {
+      const key = `${snapshot.id}:${row.id}`;
+      const existing = existingMap.get(key);
+      const rowStripped = stripVolatile(row as unknown as Record<string, unknown>);
+      const rowNormalized = JSON.stringify(rowStripped, Object.keys(rowStripped).sort());
+
+      // Preserve _lastModified if data didn't change; set to now if modified.
+      // If new to this snapshot (cloned from previous cut), preserve whatever
+      // _lastModified the row already carries — only fall back to now if it has none.
+      const rowExistingLastModified = typeof (row as Record<string, unknown>)._lastModified === "string"
+        ? (row as Record<string, unknown>)._lastModified as string
+        : undefined;
+      const lastModified = existing
+        ? (existing.normalized === rowNormalized ? (existing.lastModified ?? now) : now)
+        : (rowExistingLastModified ?? now);
+
       positionInserts.push({
         userId,
         companyId,
@@ -328,7 +367,7 @@ async function syncRelationalWorkspace(
         snapshotDate: resolveSnapshotDate(snapshot.date),
         positionId: row.id,
         title: row.tituloCargo || null,
-        dataJson: JSON.stringify(row),
+        dataJson: JSON.stringify({ ...row, _lastModified: lastModified }),
       });
     }
   }
@@ -464,6 +503,7 @@ async function buildUserPayload(userId: string, userCompanyId: string, workspace
         label: true,
         date: true,
         submittedAt: true,
+        updatedAt: true,
       },
       orderBy: [
         { date: "desc" },
@@ -512,6 +552,7 @@ async function buildUserPayload(userId: string, userCompanyId: string, workspace
         date: snapshot.date.toISOString().split("T")[0],
         rows: [],
         submittedAt: snapshot.submittedAt?.toISOString() ?? null,
+        updatedAt: snapshot.updatedAt?.toISOString() ?? null,
       },
     ])
   ) as Record<string, Snapshot>;

@@ -20,6 +20,7 @@ type CompanyDetail = {
   headcount: string;
   submitted: boolean;
   submittedAt: string | null;
+  dataChanged: boolean | null;
   hrName: string;
   hrPosition: string;
   hrEmail: string;
@@ -349,6 +350,16 @@ function CompanyList({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {c.submitted && c.dataChanged === false && (
+              <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700" title="Envió data idéntica al corte anterior">
+                Sin cambios
+              </span>
+            )}
+            {c.submitted && c.dataChanged === true && (
+              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                Modificada
+              </span>
+            )}
             {c.submitted ? (
               <span className="inline-flex items-center rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-700">
                 Enviado
