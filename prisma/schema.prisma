@@ -58,6 +58,7 @@ model User {
   workspace     UserWorkspace?
   snapshots    UserSnapshot[]
   positions    UserPosition[]
+  nexohubEnabled  Boolean  @default(false)
   lastLoginAt     DateTime?
   sessionVersion  Int      @default(0)
   createdAt       DateTime @default(now())

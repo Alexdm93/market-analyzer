@@ -13,6 +13,12 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 8 * 60 * 60, // 8 horas
   },
+  cookies: process.env.NODE_ENV === "production" ? {
+    sessionToken: {
+      name: "next-auth.session-token",
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: true, domain: ".acconsult.net" },
+    },
+  } : undefined,
   pages: {
     signIn: "/market-analyzer/signin",
   },
@@ -88,7 +94,7 @@ export const authOptions: NextAuthOptions = {
       if (typeof token.id === "string") {
         const existingUser = await prisma.user.findUnique({
           where: { id: token.id },
-          select: { id: true, name: true, email: true, role: true, companyId: true, sessionVersion: true },
+          select: { id: true, name: true, email: true, role: true, companyId: true, sessionVersion: true, nexohubEnabled: true },
         });
 
         if (!existingUser) {
@@ -122,6 +128,7 @@ export const authOptions: NextAuthOptions = {
         token.email = existingUser.email;
         token.role = existingUser.role;
         token.companyId = existingUser.companyId;
+        token.nexohubEnabled = existingUser.nexohubEnabled ?? false;
         token.error = undefined;
 
         // Fetch estudioEnabled separately — resilient if column not yet migrated
@@ -148,6 +155,7 @@ export const authOptions: NextAuthOptions = {
         session.user.companyId = typeof token.companyId === "string" ? token.companyId : undefined;
         session.user.companyName = typeof token.companyName === "string" ? token.companyName : undefined;
         session.user.estudioEnabled = typeof token.estudioEnabled === "boolean" ? token.estudioEnabled : false;
+        session.user.nexohubEnabled = typeof token.nexohubEnabled === "boolean" ? token.nexohubEnabled : false;
       }
 
       session.error = typeof token.error === "string" ? token.error : undefined;

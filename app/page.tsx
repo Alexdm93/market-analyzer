@@ -170,6 +170,14 @@ export default function LandingPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: session, status } = useSession();
   const [signingOut, setSigningOut] = useState(false);
+  const [nexoUser, setNexoUser] = useState<{ name: string; email?: string } | null>(null);
+
+  useEffect(() => {
+    fetch("https://nexohub.acconsult.net/api/auth/session", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.user?.name) setNexoUser(data.user); })
+      .catch(() => null);
+  }, []);
 
   return (
     <div className="min-h-screen bg-white text-[#2C3E50]">
@@ -203,10 +211,19 @@ export default function LandingPage() {
                 className="inline-flex w-36 items-center justify-between gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
                 Market Analyzer <ChevronRight size={12} className="shrink-0" />
               </Link>
-              <div className="inline-flex w-36 cursor-not-allowed items-center justify-between gap-1.5 rounded-xl px-4 py-2 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
-                NexoHub
-                <span className="shrink-0 rounded-full bg-[#2C3E50]/10 px-1.5 py-0.5 text-[0.48rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
-              </div>
+              {nexoUser ? (
+                <Link
+                  href="https://nexohub.acconsult.net"
+                  className="inline-flex w-36 items-center justify-between gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
+                  NexoHub <ChevronRight size={12} className="shrink-0" />
+                </Link>
+              ) : (
+                <Link
+                  href="https://nexohub.acconsult.net/signin"
+                  className="inline-flex w-36 items-center justify-between gap-1.5 rounded-xl px-4 py-2 text-[0.75rem] font-bold text-[#95A5A6] hover:bg-[#ECF0F1] transition">
+                  NexoHub <ChevronRight size={12} className="shrink-0 opacity-50" />
+                </Link>
+              )}
               <div className="inline-flex w-36 cursor-not-allowed items-center justify-between gap-1.5 rounded-xl px-4 py-2 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
                 Talentium
                 <span className="shrink-0 rounded-full bg-[#2C3E50]/10 px-1.5 py-0.5 text-[0.48rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
@@ -254,9 +271,21 @@ export default function LandingPage() {
               onClick={() => setMobileOpen(false)}>
               Market Analyzer <ChevronRight size={14} />
             </Link>
-            <div className="mt-1 flex items-center justify-between rounded-xl border border-[#ECF0F1] bg-[#F5F7F8] px-4 py-2.5 text-sm font-bold text-[#95A5A6] cursor-not-allowed">
-              NexoHub <span className="text-[0.55rem] font-bold uppercase tracking-wide bg-[#ECF0F1] px-1.5 py-0.5 rounded-full">Próximamente</span>
-            </div>
+            {nexoUser ? (
+              <Link
+                href="https://nexohub.acconsult.net"
+                className="mt-1 flex items-center justify-between gap-2 rounded-xl bg-[#1B4965] px-4 py-2.5 text-sm font-bold text-white"
+                onClick={() => setMobileOpen(false)}>
+                NexoHub <ChevronRight size={14} />
+              </Link>
+            ) : (
+              <Link
+                href="https://nexohub.acconsult.net/signin"
+                className="mt-1 flex items-center justify-between rounded-xl border border-[#ECF0F1] bg-[#F5F7F8] px-4 py-2.5 text-sm font-bold text-[#95A5A6]"
+                onClick={() => setMobileOpen(false)}>
+                NexoHub <ChevronRight size={14} className="opacity-40" />
+              </Link>
+            )}
             <div className="mt-1 flex items-center justify-between rounded-xl border border-[#ECF0F1] bg-[#F5F7F8] px-4 py-2.5 text-sm font-bold text-[#95A5A6] cursor-not-allowed">
               Talentium <span className="text-[0.55rem] font-bold uppercase tracking-wide bg-[#ECF0F1] px-1.5 py-0.5 rounded-full">Próximamente</span>
             </div>
