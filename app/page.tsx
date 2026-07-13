@@ -196,12 +196,22 @@ export default function LandingPage() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* Market Analyzer — always visible */}
-            <Link
-              href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
-              className="hidden md:inline-flex items-center gap-1.5 rounded-xl border border-[#1B4965]/20 bg-[#EEF7FF] px-4 py-2 text-sm font-bold text-[#1B4965] transition hover:bg-[#CAE9FF]">
-              Market Analyzer <ChevronRight size={14} />
-            </Link>
+            {/* Platform group */}
+            <div className="hidden md:flex items-center gap-1 rounded-2xl border border-[#1B4965]/12 bg-[#ECF0F1]/70 p-1">
+              <Link
+                href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#1B4965] px-3 py-1.5 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
+                Market Analyzer <ChevronRight size={12} />
+              </Link>
+              <div className="relative inline-flex cursor-not-allowed items-center gap-1 rounded-xl px-3 py-1.5 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
+                NexoHub
+                <span className="rounded-full bg-[#2C3E50]/10 px-1 py-px text-[0.5rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
+              </div>
+              <div className="relative inline-flex cursor-not-allowed items-center gap-1 rounded-xl px-3 py-1.5 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
+                Talentium
+                <span className="rounded-full bg-[#2C3E50]/10 px-1 py-px text-[0.5rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
+              </div>
+            </div>
 
             {/* Auth section */}
             {status === "loading" ? null : session?.user ? (
@@ -237,12 +247,19 @@ export default function LandingPage() {
               <a key={l.href} href={l.href} onClick={() => setMobileOpen(false)}
                 className="block border-b border-[#ECF0F1] py-3 text-base font-semibold text-[#2C3E50] last:border-0">{l.label}</a>
             ))}
+            <div className="mt-4 text-[0.6rem] font-bold uppercase tracking-widest text-[#95A5A6] mb-1">Plataformas</div>
             <Link
               href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
-              className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#1B4965] px-4 py-3 text-sm font-bold text-white"
+              className="flex items-center justify-between gap-2 rounded-xl bg-[#1B4965] px-4 py-2.5 text-sm font-bold text-white"
               onClick={() => setMobileOpen(false)}>
               Market Analyzer <ChevronRight size={14} />
             </Link>
+            <div className="mt-1 flex items-center justify-between rounded-xl border border-[#ECF0F1] bg-[#F5F7F8] px-4 py-2.5 text-sm font-bold text-[#95A5A6] cursor-not-allowed">
+              NexoHub <span className="text-[0.55rem] font-bold uppercase tracking-wide bg-[#ECF0F1] px-1.5 py-0.5 rounded-full">Próximamente</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between rounded-xl border border-[#ECF0F1] bg-[#F5F7F8] px-4 py-2.5 text-sm font-bold text-[#95A5A6] cursor-not-allowed">
+              Talentium <span className="text-[0.55rem] font-bold uppercase tracking-wide bg-[#ECF0F1] px-1.5 py-0.5 rounded-full">Próximamente</span>
+            </div>
             {session?.user && (
               <button onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
                 className="mt-1 flex items-center justify-center gap-2 rounded-xl border border-[#ECF0F1] px-4 py-2.5 text-sm font-semibold text-[#95A5A6]">
