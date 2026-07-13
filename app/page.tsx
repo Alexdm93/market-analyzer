@@ -22,7 +22,7 @@ const DIFFERENTIATORS = [
 ];
 
 const MVV = [
-  { icon: Target, label: "Misión",  color: "bg-teal-50 text-teal-700",    text: "Brindar asesoría técnica especializada de Gestión Humana para el sector público y privado, aplicando mejores prácticas del mercado e innovación en nuestros procesos." },
+  { icon: Target, label: "Misión",  color: "bg-[#EEF7FF] text-[#1B4965]",    text: "Brindar asesoría técnica especializada de Gestión Humana para el sector público y privado, aplicando mejores prácticas del mercado e innovación en nuestros procesos." },
   { icon: Eye,    label: "Visión",  color: "bg-amber-50 text-amber-700",  text: "Ser reconocidos como una compañía responsable dentro de los primeros lugares del mercado nacional y expandirnos a nivel internacional." },
   { icon: Star,   label: "Valores", color: "bg-indigo-50 text-indigo-700", text: "Responsabilidad, honestidad y humildad ontológica guían cada una de nuestras actuaciones y relaciones con clientes y aliados." },
 ];
@@ -31,8 +31,8 @@ const SLIDES = [
   {
     icon: Rocket,
     badge: "Nuevo",
-    badgeColor: "bg-teal-100 text-teal-700",
-    iconColor: "bg-teal-700 text-white",
+    badgeColor: "bg-[#CAE9FF] text-[#1B4965]",
+    iconColor: "bg-[#1B4965] text-white",
     title: "Market Analyzer v2.0 ya está disponible",
     body: "La plataforma de benchmarking salarial de AC Consulting ya está en línea. Accede, compara curvas de mercado y mide la competitividad de tu organización.",
     cta: "Únete ahora",
@@ -112,7 +112,7 @@ function HeroCarousel({ session }: { session: { user?: { name?: string | null; c
 
         <Link
           href={slide.href}
-          className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-teal-800"
+          className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#153a52]"
         >
           {slide.cta} <ChevronRight size={13} />
         </Link>
@@ -126,7 +126,7 @@ function HeroCarousel({ session }: { session: { user?: { name?: string | null; c
               key={i}
               onClick={() => setCurrent(i)}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === current ? "w-5 bg-teal-700" : "w-1.5 bg-slate-300"
+                i === current ? "w-5 bg-[#1B4965]" : "w-1.5 bg-slate-300"
               }`}
               aria-label={`Ir a slide ${i + 1}`}
             />
@@ -147,7 +147,7 @@ function HeroCarousel({ session }: { session: { user?: { name?: string | null; c
         <div className="border-t border-slate-100 px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-700 text-[11px] font-black text-white uppercase">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1B4965] text-[11px] font-black text-white uppercase">
                 {session.user.name?.charAt(0) ?? "?"}
               </div>
               <div className="min-w-0">
@@ -158,7 +158,7 @@ function HeroCarousel({ session }: { session: { user?: { name?: string | null; c
               </div>
             </div>
             <Link href="/market-analyzer/inicio"
-              className="shrink-0 ml-3 flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-teal-800">
+              className="shrink-0 ml-3 flex items-center gap-1 rounded-lg bg-[#1B4965] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#153a52]">
               Dashboard <ChevronRight size={11} />
             </Link>
           </div>
@@ -183,7 +183,7 @@ export default function LandingPage() {
   const { data: session } = useSession();
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4] text-slate-800">
+    <div className="min-h-screen bg-[#ECF0F1] text-[#2C3E50]">
 
       {/* ── NAVBAR ─────────────────────────────────────────── */}
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/60 bg-white/85 backdrop-blur-xl">
@@ -209,7 +209,7 @@ export default function LandingPage() {
           <div className="ml-auto flex items-center gap-3">
             {session?.user ? (
               <Link href="/market-analyzer/inicio"
-                className="hidden md:inline-flex items-center gap-2.5 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800">
+                className="hidden md:inline-flex items-center gap-2.5 rounded-xl bg-[#1B4965] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#153a52]">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-black uppercase">
                   {session.user.name?.charAt(0) ?? "?"}
                 </span>
@@ -218,7 +218,7 @@ export default function LandingPage() {
               </Link>
             ) : (
               <Link href="/market-analyzer/signin"
-                className="hidden md:inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800">
+                className="hidden md:inline-flex items-center gap-2 rounded-xl bg-[#1B4965] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#153a52]">
                 Market Analyzer <ChevronRight size={15} />
               </Link>
             )}
@@ -236,7 +236,7 @@ export default function LandingPage() {
                 className="block border-b border-slate-100 py-3 text-base font-semibold text-slate-700 last:border-0">{l.label}</a>
             ))}
             <Link href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
-              className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-bold text-white"
+              className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#1B4965] px-4 py-3 text-sm font-bold text-white"
               onClick={() => setMobileOpen(false)}>
               {session?.user ? "Ir al Dashboard" : "Market Analyzer"} <ChevronRight size={15} />
             </Link>
@@ -246,20 +246,20 @@ export default function LandingPage() {
 
       {/* ── HERO ───────────────────────────────────────────── */}
       <section id="inicio" className="relative flex min-h-screen items-center overflow-hidden pt-[72px]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_10%_30%,rgba(15,118,110,0.13),transparent),radial-gradient(ellipse_60%_50%_at_90%_70%,rgba(217,119,6,0.09),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_10%_30%,rgba(27,73,101,0.13),transparent),radial-gradient(ellipse_60%_50%_at_90%_70%,rgba(95,165,227,0.10),transparent)]" />
 
         <div className="relative mx-auto w-full max-w-6xl px-6 py-20 md:px-10 md:py-28">
           <div className="grid items-center gap-12 lg:grid-cols-[1fr_360px] lg:gap-16">
 
             <div>
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-1.5 text-sm font-semibold text-teal-700">
-                <span className="h-2 w-2 rounded-full bg-teal-500 shrink-0" />
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#5FA5E3/30] bg-[#EEF7FF] px-4 py-1.5 text-sm font-semibold text-[#1B4965]">
+                <span className="h-2 w-2 rounded-full bg-[#EEF7FF]0 shrink-0" />
                 Asesoría y Consultoría en Gestión Humana
               </div>
 
               <h1 className="font-display text-6xl font-black tracking-tight text-slate-900 leading-[1.05] md:text-7xl lg:text-[5rem]">
                 Bienvenido a<br />
-                <span className="text-teal-700">AC Consulting</span>
+                <span className="text-[#1B4965]">AC Consulting</span>
               </h1>
 
               <p className="mt-6 max-w-lg text-lg leading-8 text-slate-600">
@@ -273,7 +273,7 @@ export default function LandingPage() {
                   Conocer más
                 </a>
                 <Link href="/market-analyzer/signin"
-                  className="inline-flex items-center gap-2 rounded-2xl border border-teal-200 bg-teal-50 px-7 py-3.5 text-base font-bold text-teal-800 transition hover:bg-teal-100">
+                  className="inline-flex items-center gap-2 rounded-2xl border border-[#5FA5E3/30] bg-[#EEF7FF] px-7 py-3.5 text-base font-bold text-[#1B4965] transition hover:bg-[#b8dff7]">
                   Market Analyzer <ChevronRight size={16} />
                 </Link>
               </div>
@@ -291,7 +291,7 @@ export default function LandingPage() {
       {/* ── QUIÉNES SOMOS ──────────────────────────────────── */}
       <section id="nosotros" className="bg-white py-20">
         <div className="mx-auto max-w-6xl px-6 md:px-10">
-          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-teal-700">Quiénes somos</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-[#1B4965]">Quiénes somos</div>
           <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
             <div>
               <h2 className="font-display text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
@@ -315,7 +315,7 @@ export default function LandingPage() {
 
             <div className="flex flex-col gap-4">
               {MVV.map(({ icon: Icon, label, text, color }) => (
-                <div key={label} className="rounded-2xl border border-slate-100 bg-[#f8f7f4] p-5">
+                <div key={label} className="rounded-2xl border border-slate-100 bg-[#ECF0F1] p-5">
                   <div className="flex items-start gap-4">
                     <div className={`rounded-xl p-2.5 shrink-0 ${color}`}>
                       <Icon size={18} aria-hidden />
@@ -335,14 +335,14 @@ export default function LandingPage() {
       {/* ── DIFERENCIADORES ────────────────────────────────── */}
       <section id="portafolio" className="py-20">
         <div className="mx-auto max-w-6xl px-6 md:px-10">
-          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-teal-700">Por qué elegirnos</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-[#1B4965]">Por qué elegirnos</div>
           <h2 className="font-display text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
             ¿Qué nos diferencia?
           </h2>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {DIFFERENTIATORS.map((d, i) => (
               <div key={i} className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
-                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-700 text-xs font-black text-white">
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#1B4965] text-xs font-black text-white">
                   {String(i + 1).padStart(2, "0")}
                 </div>
                 <p className="text-sm font-semibold leading-6 text-slate-700">{d}</p>
@@ -353,21 +353,21 @@ export default function LandingPage() {
       </section>
 
       {/* ── MARKET ANALYZER CTA ────────────────────────────── */}
-      <section className="bg-teal-700 py-20">
+      <section className="bg-[#1B4965] py-20">
         <div className="mx-auto max-w-6xl px-6 md:px-10">
           <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-center">
             <div>
-              <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-teal-200">Herramienta exclusiva</div>
+              <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-[#CAE9FF]">Herramienta exclusiva</div>
               <h2 className="font-display text-4xl font-black tracking-tight text-white md:text-5xl">
                 Market Analyzer
               </h2>
-              <p className="mt-4 max-w-lg text-base leading-7 text-teal-100">
+              <p className="mt-4 max-w-lg text-base leading-7 text-[#a8d5f5]">
                 La plataforma definitiva de benchmarking salarial. Consulta tabuladores,
                 compara curvas de mercado y mide la competitividad de tu organización.
               </p>
             </div>
             <Link href="/market-analyzer/signin"
-              className="shrink-0 inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-4 text-base font-black text-teal-800 transition hover:bg-teal-50">
+              className="shrink-0 inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-4 text-base font-black text-[#1B4965] transition hover:bg-[#EEF7FF]">
               Ingresar <ChevronRight size={18} />
             </Link>
           </div>
@@ -377,7 +377,7 @@ export default function LandingPage() {
       {/* ── CONTACTO ───────────────────────────────────────── */}
       <section id="contacto" className="bg-white py-20">
         <div className="mx-auto max-w-6xl px-6 md:px-10">
-          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-teal-700">Contacto</div>
+          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-[#1B4965]">Contacto</div>
           <div className="grid gap-10 md:grid-cols-2 md:items-start">
             <div>
               <h2 className="font-display text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
@@ -393,23 +393,23 @@ export default function LandingPage() {
                   { label: "Twitter / X", href: "https://twitter.com/ACConsulting_" },
                 ].map(({ label, href }) => (
                   <a key={label} href={href} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-200 hover:text-teal-700">
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#5FA5E3/30] hover:text-[#1B4965]">
                     <ExternalLink size={14} /> {label}
                   </a>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-teal-100 bg-teal-50 p-8">
+            <div className="rounded-2xl border border-[#CAE9FF] bg-[#EEF7FF] p-8">
               <div className="mb-3 flex items-center gap-3">
-                <Users size={20} className="text-teal-700 shrink-0" />
+                <Users size={20} className="text-[#1B4965] shrink-0" />
                 <span className="font-display text-base font-bold text-slate-900">¿Necesitas consultoría?</span>
               </div>
               <p className="text-sm leading-6 text-slate-600">
                 Escríbenos y con gusto evaluamos cómo podemos apoyar a tu organización.
               </p>
               <a href="mailto:marketanalyzer@acconsult.net"
-                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-800">
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#1B4965] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#153a52]">
                 marketanalyzer@acconsult.net
               </a>
             </div>

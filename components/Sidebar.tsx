@@ -59,7 +59,7 @@ export default function Sidebar() {
   return (
     <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
-        <div className="mb-4 lg:mb-4 rounded-[1.2rem] bg-teal-700 px-3 py-3">
+        <div className="mb-4 lg:mb-4 rounded-[1.2rem] bg-[#1B4965] px-3 py-3">
           <div className="mb-2 flex justify-end">
             <span className="rounded-full border border-white/30 bg-white/20 px-1.5 py-0.5 text-[0.55rem] font-bold text-white">v2.0</span>
           </div>
@@ -85,12 +85,12 @@ export default function Sidebar() {
                 onClick={isActive ? undefined : triggerNavigation}
                 className={`group flex shrink-0 min-w-0 items-start gap-2.5 overflow-hidden rounded-[1.1rem] border px-2.5 py-2.5 ${
                   isActive
-                    ? "border-teal-700/10 bg-[linear-gradient(135deg,rgba(15,118,110,0.14),rgba(17,94,89,0.06))] text-slate-900 shadow-[0_2px_10px_rgba(15,118,110,0.18)]"
+                    ? "border-[#1B4965]/10 bg-[linear-gradient(135deg,rgba(27,73,101,0.14),rgba(21,58,82,0.06))] text-slate-900 shadow-[0_2px_10px_rgba(27,73,101,0.18)]"
                     : "border-transparent bg-white/55 text-slate-600 hover:border-slate-200 hover:bg-white/80"
                 }`}
                 aria-current={isActive ? "page" : undefined}
               >
-                <div className={`relative inline-flex shrink-0 rounded-xl p-2 ${isActive ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-slate-900 group-hover:text-white"}`}>
+                <div className={`relative inline-flex shrink-0 rounded-xl p-2 ${isActive ? "bg-[#1B4965] text-white" : "bg-slate-100 text-slate-600 group-hover:bg-[#1B4965] group-hover:text-white"}`}>
                   <Icon size={16} aria-hidden />
                   {item.href === `${BASE}/inicio` && hasUnread && (
                     <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
@@ -150,7 +150,7 @@ export default function Sidebar() {
                   : "Entra con tus credenciales."}
               </p>
               <div className="mt-4 flex flex-col gap-2">
-                <Link href="/market-analyzer/signin" className="btn btn-primary w-full">
+                <Link href="/market-analyzer/signin" className="btn btn-primary w-full" style={{background:"#1B4965"}}>
                   <LogIn className="h-4 w-4" />
                   Iniciar sesion
                 </Link>
