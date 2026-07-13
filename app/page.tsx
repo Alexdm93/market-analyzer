@@ -173,7 +173,7 @@ export default function LandingPage() {
   const [nexoUser, setNexoUser] = useState<{ name: string; email?: string } | null>(null);
 
   useEffect(() => {
-    fetch("https://nexohub.acconsult.net/api/auth/session", { credentials: "include" })
+    fetch("https://nexohub.acconsult.net/api/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (data?.user?.name) setNexoUser(data.user); })
       .catch(() => null);
