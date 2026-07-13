@@ -434,6 +434,23 @@ export default function Informacion() {
                 <Plus className="h-4 w-4" />
                 Agregar tasa
               </button>
+              {userTasas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void saveCompanyInfo()}
+                  disabled={saveState === "saving"}
+                  className={`btn ${saveState === "saved" ? "btn-secondary text-emerald-700" : "btn-primary"}`}
+                >
+                  {saveState === "saving" ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : saveState === "saved" ? (
+                    <span className="h-3.5 w-3.5">✓</span>
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  {saveState === "saving" ? "Guardando…" : saveState === "saved" ? "Guardado" : "Guardar"}
+                </button>
+              )}
             </div>
           </div>
 
