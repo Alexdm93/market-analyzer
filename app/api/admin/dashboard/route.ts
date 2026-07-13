@@ -112,8 +112,13 @@ export async function GET(request: Request) {
 
     const getBcvRate = (userId: string): number | null => {
       const info = companyInfoByUserId.get(userId);
-      const rate = info?.ratesAtSave?.bcvUsd;
-      return typeof rate === "number" && rate > 0 ? rate : null;
+      // Primary: rate saved at the time of capture
+      const saved = info?.ratesAtSave?.bcvUsd;
+      if (typeof saved === "number" && saved > 0) return saved;
+      // Fallback: extract from the company's tasas array (same source user view uses)
+      const tasas: Array<{ id: string; valor: number }> = info?.tasas ?? [];
+      const fromTasas = tasas.find((t) => t.id === "bcv-usd")?.valor;
+      return typeof fromTasas === "number" && fromTasas > 0 ? fromTasas : null;
     };
 
     const totalsByNivel = new Map<string, number[]>();
