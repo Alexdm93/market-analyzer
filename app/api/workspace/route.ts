@@ -351,9 +351,7 @@ async function syncRelationalWorkspace(
       // Preserve _lastModified if data didn't change; set to now if modified.
       // If new to this snapshot (cloned from previous cut), preserve whatever
       // _lastModified the row already carries — only fall back to now if it has none.
-      const rowExistingLastModified = typeof (row as Record<string, unknown>)._lastModified === "string"
-        ? (row as Record<string, unknown>)._lastModified as string
-        : undefined;
+      const rowExistingLastModified = row._lastModified;
       const lastModified = existing
         ? (existing.normalized === rowNormalized ? (existing.lastModified ?? now) : now)
         : (rowExistingLastModified ?? now);
