@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { ChevronRight, Menu, X, Target, Eye, Star, Users, ExternalLink, Sparkles } from "lucide-react";
+import { ChevronRight, ChevronLeft, Menu, X, Target, Eye, Star, Users, ExternalLink, Rocket, BarChart2, Globe, Bell } from "lucide-react";
 
 const NAV_LINKS = [
   { label: "Inicio",        href: "#inicio" },
@@ -22,10 +22,161 @@ const DIFFERENTIATORS = [
 ];
 
 const MVV = [
-  { icon: Target, label: "Misión",  color: "bg-teal-50 text-teal-700",   text: "Brindar asesoría técnica especializada de Gestión Humana para el sector público y privado, aplicando mejores prácticas del mercado e innovación en nuestros procesos." },
-  { icon: Eye,    label: "Visión",  color: "bg-amber-50 text-amber-700", text: "Ser reconocidos como una compañía responsable dentro de los primeros lugares del mercado nacional y expandirnos a nivel internacional." },
+  { icon: Target, label: "Misión",  color: "bg-teal-50 text-teal-700",    text: "Brindar asesoría técnica especializada de Gestión Humana para el sector público y privado, aplicando mejores prácticas del mercado e innovación en nuestros procesos." },
+  { icon: Eye,    label: "Visión",  color: "bg-amber-50 text-amber-700",  text: "Ser reconocidos como una compañía responsable dentro de los primeros lugares del mercado nacional y expandirnos a nivel internacional." },
   { icon: Star,   label: "Valores", color: "bg-indigo-50 text-indigo-700", text: "Responsabilidad, honestidad y humildad ontológica guían cada una de nuestras actuaciones y relaciones con clientes y aliados." },
 ];
+
+const SLIDES = [
+  {
+    icon: Rocket,
+    badge: "Nuevo",
+    badgeColor: "bg-teal-100 text-teal-700",
+    iconColor: "bg-teal-700 text-white",
+    title: "Market Analyzer v2.0 ya está disponible",
+    body: "La plataforma de benchmarking salarial de AC Consulting ya está en línea. Accede, compara curvas de mercado y mide la competitividad de tu organización.",
+    cta: "Únete ahora",
+    href: "/market-analyzer/signin",
+  },
+  {
+    icon: BarChart2,
+    badge: "Próximamente",
+    badgeColor: "bg-amber-100 text-amber-700",
+    iconColor: "bg-amber-600 text-white",
+    title: "Se viene el próximo estudio de mercado",
+    body: "El corte Q3 2026 está por abrirse. Participa con los datos de tu organización y obtén acceso exclusivo a los resultados del mercado.",
+    cta: "Más información",
+    href: "/market-analyzer/signin",
+  },
+  {
+    icon: Bell,
+    badge: "Invitación",
+    badgeColor: "bg-indigo-100 text-indigo-700",
+    iconColor: "bg-indigo-600 text-white",
+    title: "Únete a la comunidad de empresas",
+    body: "Forma parte de la red de organizaciones que confían en AC Consulting para tomar decisiones de compensación basadas en datos reales del mercado.",
+    cta: "Solicitar acceso",
+    href: "/market-analyzer/signin",
+  },
+  {
+    icon: Globe,
+    badge: "Presencia regional",
+    badgeColor: "bg-slate-100 text-slate-600",
+    iconColor: "bg-slate-700 text-white",
+    title: "Operamos en 5 países",
+    body: "Venezuela, Costa Rica, Colombia, Curazao y Ecuador. AC Consulting lleva más de una década apoyando organizaciones en toda la región con proyectos de Capital Humano.",
+    cta: "Conocer más",
+    href: "#nosotros",
+  },
+];
+
+function HeroCarousel({ session }: { session: { user?: { name?: string | null; companyName?: string } } | null }) {
+  const [current, setCurrent] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  const next = useCallback(() => setCurrent((c) => (c + 1) % SLIDES.length), []);
+  const prev = useCallback(() => setCurrent((c) => (c - 1 + SLIDES.length) % SLIDES.length), []);
+
+  useEffect(() => {
+    if (paused) return;
+    const id = setInterval(next, 4500);
+    return () => clearInterval(id);
+  }, [paused, next]);
+
+  const slide = SLIDES[current];
+  const Icon = slide.icon;
+
+  return (
+    <div
+      className="hidden lg:flex flex-col rounded-[2rem] border border-white/80 bg-white/75 shadow-2xl backdrop-blur-xl ring-1 ring-slate-900/5 overflow-hidden"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      {/* Slide content */}
+      <div className="flex-1 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <span className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold ${slide.badgeColor}`}>
+            {slide.badge}
+          </span>
+          <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${slide.iconColor}`}>
+            <Icon size={15} />
+          </div>
+        </div>
+
+        <h3 className="font-display text-base font-black leading-snug text-slate-900">
+          {slide.title}
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          {slide.body}
+        </p>
+
+        <Link
+          href={slide.href}
+          className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-teal-800"
+        >
+          {slide.cta} <ChevronRight size={13} />
+        </Link>
+      </div>
+
+      {/* Controls + dots */}
+      <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/80 px-4 py-3">
+        <div className="flex gap-1.5">
+          {SLIDES.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i === current ? "w-5 bg-teal-700" : "w-1.5 bg-slate-300"
+              }`}
+              aria-label={`Ir a slide ${i + 1}`}
+            />
+          ))}
+        </div>
+        <div className="flex gap-1">
+          <button onClick={prev} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200 hover:text-slate-700">
+            <ChevronLeft size={15} />
+          </button>
+          <button onClick={next} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200 hover:text-slate-700">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* Session mini-card at bottom */}
+      {session?.user ? (
+        <div className="border-t border-slate-100 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-700 text-[11px] font-black text-white uppercase">
+                {session.user.name?.charAt(0) ?? "?"}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-xs font-bold text-slate-900">{session.user.name}</div>
+                {session.user.companyName && (
+                  <div className="truncate text-[10px] text-slate-400">{session.user.companyName}</div>
+                )}
+              </div>
+            </div>
+            <Link href="/market-analyzer/inicio"
+              className="shrink-0 ml-3 flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-teal-800">
+              Dashboard <ChevronRight size={11} />
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="border-t border-slate-100 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] text-slate-400">¿Ya tienes cuenta?</span>
+            <Link href="/market-analyzer/signin"
+              className="shrink-0 flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-slate-700">
+              Ingresar <ChevronRight size={11} />
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function LandingPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -82,7 +233,7 @@ export default function LandingPage() {
           <div className="border-t border-slate-100 bg-white px-6 pb-5 md:hidden">
             {NAV_LINKS.map((l) => (
               <a key={l.href} href={l.href} onClick={() => setMobileOpen(false)}
-                className="block py-3 text-base font-semibold text-slate-700 border-b border-slate-100 last:border-0">{l.label}</a>
+                className="block border-b border-slate-100 py-3 text-base font-semibold text-slate-700 last:border-0">{l.label}</a>
             ))}
             <Link href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
               className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-bold text-white"
@@ -95,13 +246,11 @@ export default function LandingPage() {
 
       {/* ── HERO ───────────────────────────────────────────── */}
       <section id="inicio" className="relative flex min-h-screen items-center overflow-hidden pt-[72px]">
-        {/* Background */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_10%_30%,rgba(15,118,110,0.13),transparent),radial-gradient(ellipse_60%_50%_at_90%_70%,rgba(217,119,6,0.09),transparent)]" />
 
         <div className="relative mx-auto w-full max-w-6xl px-6 py-20 md:px-10 md:py-28">
           <div className="grid items-center gap-12 lg:grid-cols-[1fr_360px] lg:gap-16">
 
-            {/* Left: Text */}
             <div>
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-1.5 text-sm font-semibold text-teal-700">
                 <span className="h-2 w-2 rounded-full bg-teal-500 shrink-0" />
@@ -134,54 +283,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Right: Session card */}
-            <div className="hidden lg:block">
-              <div className="rounded-[2rem] border border-white/80 bg-white/75 p-6 shadow-2xl backdrop-blur-xl ring-1 ring-slate-900/5">
-                <div className="mb-1 text-[11px] font-bold uppercase tracking-widest text-teal-700">
-                  {session?.user ? "Sesión activa" : "Acceso a la plataforma"}
-                </div>
-
-                {session?.user ? (
-                  <>
-                    <div className="mt-3 flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-700 font-display text-base font-black text-white uppercase">
-                        {session.user.name?.charAt(0) ?? "?"}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate font-display text-sm font-bold text-slate-900">{session.user.name}</div>
-                        {session.user.companyName && (
-                          <div className="truncate text-xs text-slate-500">{session.user.companyName}</div>
-                        )}
-                      </div>
-                    </div>
-                    <Link href="/market-analyzer/inicio"
-                      className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800">
-                      Ir al Dashboard <ChevronRight size={14} />
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      Accede a la plataforma de benchmarking salarial de AC Consulting.
-                    </p>
-                    <Link href="/market-analyzer/signin"
-                      className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-teal-800">
-                      Ingresar a Market Analyzer <ChevronRight size={14} />
-                    </Link>
-                  </>
-                )}
-
-                <div className="mt-4 rounded-xl border border-slate-100 bg-[#f8f7f4] px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={14} className="text-teal-600" />
-                    <span className="text-xs font-semibold text-slate-700">Market Analyzer v2.0</span>
-                  </div>
-                  <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                    Benchmarking salarial · Tabuladores · Curvas de mercado
-                  </p>
-                </div>
-              </div>
-            </div>
+            <HeroCarousel session={session} />
           </div>
         </div>
       </section>
@@ -286,8 +388,8 @@ export default function LandingPage() {
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 {[
-                  { label: "Instagram",  href: "https://www.instagram.com/ac_consulting/" },
-                  { label: "LinkedIn",   href: "https://www.linkedin.com/company/corporacion-ac-consulting" },
+                  { label: "Instagram",   href: "https://www.instagram.com/ac_consulting/" },
+                  { label: "LinkedIn",    href: "https://www.linkedin.com/company/corporacion-ac-consulting" },
                   { label: "Twitter / X", href: "https://twitter.com/ACConsulting_" },
                 ].map(({ label, href }) => (
                   <a key={label} href={href} target="_blank" rel="noopener noreferrer"

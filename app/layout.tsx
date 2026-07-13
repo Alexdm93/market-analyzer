@@ -17,11 +17,11 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Market Analyzer",
-  description: "Plataforma para captura y análisis de mercado salarial",
+  title: "AC Consulting",
+  description: "Asesoría y consultoría en Gestión Humana — Market Analyzer",
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/ac-favicon.svg", type: "image/svg+xml" },
     ],
   },
 };
