@@ -91,7 +91,7 @@ export default function EstudiosPage() {
   useEffect(() => {
     if (status === "loading") return;
     if (role !== "COORDINATOR" && role !== "ADMIN") {
-      router.replace("/");
+      router.replace("/market-analyzer/inicio");
     }
   }, [role, status, router]);
 

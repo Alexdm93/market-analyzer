@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, Building2, CheckCircle2, Clock, TrendingUp } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, Clock, Mail, Phone, TrendingUp, Users, X } from "lucide-react";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { Snapshot, CompanyInfo } from "@/lib/workspace";
 import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
@@ -48,9 +48,15 @@ type ParticipationCompany = {
   companyId: string;
   name: string;
   economicSector: string | null;
+  headcount?: string;
   submitted: boolean;
   submittedAt: string | null;
   dataChanged: boolean | null;
+  hrName?: string;
+  hrPosition?: string;
+  hrEmail?: string;
+  hrPhone?: string;
+  hrCell?: string;
 };
 
 function AdminDashboard() {
@@ -58,6 +64,8 @@ function AdminDashboard() {
   const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
   const [loading, setLoading] = useState(true);
   const [companies, setCompanies] = useState<ParticipationCompany[]>([]);
+  const [participationTab, setParticipationTab] = useState<"enviadas" | "pendientes">("pendientes");
+  const [contactModal, setContactModal] = useState<ParticipationCompany | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -105,6 +113,7 @@ function AdminDashboard() {
   const snapshots = d.availableSnapshots;
 
   return (
+    <>
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-5">
 
@@ -181,6 +190,106 @@ function AdminDashboard() {
           </div>
         </section>
 
+        {/* Participación por corte */}
+        {companies.length > 0 && (() => {
+          const submitted = companies.filter(c => c.submitted);
+          const pending = companies.filter(c => !c.submitted);
+          const sinCambios = submitted.filter(c => c.dataChanged === false).length;
+          const modificadas = submitted.filter(c => c.dataChanged === true).length;
+          const displayed = participationTab === "enviadas" ? submitted : pending;
+          return (
+            <section className="surface-card overflow-hidden rounded-[2rem]">
+              {/* Header */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-full bg-teal-50 p-2 text-teal-700">
+                    <CheckCircle2 size={14} aria-hidden />
+                  </div>
+                  <div>
+                    <div className="eyebrow mb-0.5">Participación</div>
+                    <h2 className="font-display text-base font-bold text-slate-900">Empresas por corte</h2>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-teal-50 px-3 py-1 text-teal-700">{submitted.length} enviadas</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">{pending.length} pendientes</span>
+                  {sinCambios > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">{sinCambios} sin cambios</span>}
+                  {modificadas > 0 && <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{modificadas} modificadas</span>}
+                </div>
+              </div>
+              {/* Tabs */}
+              <div className="flex border-b border-slate-200 bg-slate-50/80 px-4">
+                {(["pendientes", "enviadas"] as const).map((tab) => {
+                  const label = tab === "enviadas" ? `Enviadas (${submitted.length})` : `Pendientes (${pending.length})`;
+                  const isActive = participationTab === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setParticipationTab(tab)}
+                      className={`whitespace-nowrap border-b-2 px-5 py-3.5 text-sm font-semibold transition-colors ${isActive ? "border-teal-600 bg-white text-teal-700" : "border-transparent bg-transparent text-slate-500 hover:text-slate-800"}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Fixed-height scrollable list */}
+              <div className="h-80 overflow-y-auto p-4">
+                {displayed.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-slate-400">
+                    <Users size={20} aria-hidden />
+                    <span>No hay empresas en esta categoría.</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {displayed.map((c) => (
+                      <div key={c.companyId} className="flex items-center justify-between gap-3 rounded-[1rem] border border-slate-200/70 bg-white px-4 py-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-slate-900">{c.name}</div>
+                          <div className="truncate text-xs text-slate-400">
+                            {c.economicSector || "—"}{c.headcount ? ` · ${c.headcount}` : ""}
+                            {c.submitted && c.submittedAt && (
+                              <span className="ml-2 text-teal-600">
+                                Enviado {new Date(c.submittedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short" })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {c.submitted && c.dataChanged === false && (
+                            <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[0.68rem] font-semibold text-amber-700">Sin cambios</span>
+                          )}
+                          {c.submitted && c.dataChanged === true && (
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[0.68rem] font-semibold text-emerald-700">Modificada</span>
+                          )}
+                          {c.submitted ? (
+                            <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-[0.68rem] font-semibold text-teal-700">Enviado</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[0.68rem] font-semibold text-slate-500">
+                              <Clock size={10} aria-hidden /> Pendiente
+                            </span>
+                          )}
+                          {!c.submitted && (c.hrEmail || c.hrPhone || c.hrCell) && (
+                            <button
+                              type="button"
+                              onClick={() => setContactModal(c)}
+                              className="btn btn-secondary btn-xs"
+                            >
+                              <Mail className="h-3 w-3" aria-hidden />
+                              Contactar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          );
+        })()}
+
         {/* Sectores + Advertencias */}
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <section className="surface-card rounded-[2rem] p-5">
@@ -238,62 +347,6 @@ function AdminDashboard() {
           </section>
         </div>
 
-        {/* Participación por corte */}
-        {companies.length > 0 && (() => {
-          const submitted = companies.filter(c => c.submitted);
-          const pending = companies.filter(c => !c.submitted);
-          const sinCambios = submitted.filter(c => c.dataChanged === false).length;
-          const modificadas = submitted.filter(c => c.dataChanged === true).length;
-          return (
-            <section className="surface-card overflow-hidden rounded-[2rem]">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-6 py-4">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-full bg-teal-50 p-2 text-teal-700">
-                    <CheckCircle2 size={14} aria-hidden />
-                  </div>
-                  <div>
-                    <div className="eyebrow mb-0.5">Participación</div>
-                    <h2 className="font-display text-base font-bold text-slate-900">Empresas por corte</h2>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                  <span className="rounded-full bg-teal-50 px-3 py-1 text-teal-700">{submitted.length} enviadas</span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">{pending.length} pendientes</span>
-                  {sinCambios > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">{sinCambios} sin cambios</span>}
-                  {modificadas > 0 && <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{modificadas} modificadas</span>}
-                </div>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {companies.map((c) => (
-                  <div key={c.companyId} className="flex items-center justify-between gap-3 px-6 py-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-900">{c.name}</div>
-                      {c.economicSector && <div className="truncate text-xs text-slate-400">{c.economicSector}</div>}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      {c.submitted && c.dataChanged === false && (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[0.68rem] font-semibold text-amber-700">Sin cambios</span>
-                      )}
-                      {c.submitted && c.dataChanged === true && (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[0.68rem] font-semibold text-emerald-700">Modificada</span>
-                      )}
-                      {c.submitted ? (
-                        <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[0.68rem] font-semibold text-teal-700">
-                          Enviado {c.submittedAt ? new Date(c.submittedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short" }) : ""}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[0.68rem] font-semibold text-slate-500">
-                          <Clock size={10} /> Pendiente
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          );
-        })()}
-
         {/* Percentiles por nivel organizacional */}
         <section className="surface-card overflow-hidden rounded-[2rem]">
           <div className="flex items-center gap-2 border-b border-slate-200/70 px-6 py-4">
@@ -342,6 +395,63 @@ function AdminDashboard() {
 
       </div>
     </main>
+
+    {/* Contact modal */}
+    {contactModal && (
+      <DashboardContactModal company={contactModal} onClose={() => setContactModal(null)} />
+    )}
+    </>
+  );
+}
+
+function DashboardContactModal({ company, onClose }: { company: ParticipationCompany; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-sm rounded-[1.75rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between p-5 pb-4">
+          <div>
+            <div className="eyebrow mb-1">Contacto RRHH</div>
+            <h2 className="font-display text-lg font-bold text-slate-900">{company.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="btn btn-secondary btn-xs">
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+        <div className="space-y-3 px-5 pb-6">
+          {company.hrName && (
+            <div>
+              <div className="field-label">Nombre</div>
+              <div className="text-sm font-semibold text-slate-900">{company.hrName}</div>
+              {company.hrPosition && <div className="text-xs text-slate-500">{company.hrPosition}</div>}
+            </div>
+          )}
+          {company.hrEmail && (
+            <a href={`mailto:${company.hrEmail}`} className="flex items-center gap-2.5 rounded-[1rem] border border-slate-200 px-4 py-3 text-sm font-semibold text-teal-700 hover:bg-teal-50 transition-colors">
+              <Mail className="h-4 w-4 shrink-0" aria-hidden />
+              {company.hrEmail}
+            </a>
+          )}
+          {company.hrPhone && (
+            <a href={`tel:${company.hrPhone}`} className="flex items-center gap-2.5 rounded-[1rem] border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+              <Phone className="h-4 w-4 shrink-0" aria-hidden />
+              {company.hrPhone} (fijo)
+            </a>
+          )}
+          {company.hrCell && (
+            <a href={`tel:${company.hrCell}`} className="flex items-center gap-2.5 rounded-[1rem] border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+              <Phone className="h-4 w-4 shrink-0" aria-hidden />
+              {company.hrCell} (celular)
+            </a>
+          )}
+          {!company.hrEmail && !company.hrPhone && !company.hrCell && (
+            <p className="text-sm text-slate-400">No hay información de contacto disponible.</p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
