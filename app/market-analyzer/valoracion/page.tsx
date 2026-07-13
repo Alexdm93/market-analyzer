@@ -132,7 +132,7 @@ export default function ValoracionPage() {
   const [notification, setNotification] = useState("");
 
   useEffect(() => {
-    if (status === "unauthenticated") { router.replace("/signin"); return; }
+    if (status === "unauthenticated") { router.replace("/market-analyzer/signin"); return; }
     if (status === "authenticated" && session.user.role !== "ADMIN") { router.replace("/"); return; }
   }, [status, session, router]);
 

@@ -3,6 +3,7 @@ import { Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import Sidebar from "../components/Sidebar";
+import ClientFooter from "../components/ClientFooter";
 import NavigationProgress from "@/components/NavigationProgress";
 
 const manrope = Manrope({
@@ -38,10 +39,7 @@ export default function RootLayout({
             <Sidebar />
             <div className="app-main min-h-screen min-w-0 flex-1 w-full flex flex-col">
               <div className="flex-1">{children}</div>
-              <footer className="px-6 py-10 text-center text-xs leading-6 text-slate-400 md:px-10">
-                <p>© 2026 AC Consulting. Todos los derechos reservados.</p>
-                <p>Plataforma tecnológica exclusiva, operando en alianza estratégica con la Asociación Venezolana de Gestión Humana (AVGH).</p>
-              </footer>
+              <ClientFooter />
             </div>
           </NavigationProgress>
         </Providers>

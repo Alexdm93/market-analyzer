@@ -223,7 +223,7 @@ export default function EstudioPage() {
 
   useEffect(() => {
     if (status === "authenticated" && !isAdmin && !session?.user?.estudioEnabled) {
-      router.replace("/resultados");
+      router.replace("/market-analyzer/resultados");
     }
   }, [status, isAdmin, session, router]);
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
@@ -1937,7 +1937,7 @@ export default function EstudioPage() {
             No hay posiciones cargadas en este corte. Ve a{" "}
             <button
               type="button"
-              onClick={() => router.push("/data")}
+              onClick={() => router.push("/market-analyzer/data")}
               className="font-semibold text-teal-700 underline underline-offset-2"
             >
               Suministro de Data

@@ -42,7 +42,7 @@ export default function RegisterPage() {
         }
 
         if (!ignore && !payload?.bootstrapRequired) {
-          router.replace("/signin");
+          router.replace("/market-analyzer/signin");
           return;
         }
       } catch (availabilityError) {
@@ -147,7 +147,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="mt-5 text-sm text-slate-600">
-            <Link href="/signin" className="font-semibold text-teal-700 hover:text-teal-800">
+            <Link href="/market-analyzer/signin" className="font-semibold text-teal-700 hover:text-teal-800">
               Volver a iniciar sesión
             </Link>
           </div>

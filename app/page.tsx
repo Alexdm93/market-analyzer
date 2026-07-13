@@ -1,560 +1,313 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
-import { AlertTriangle, Building2, TrendingUp } from "lucide-react";
-import { fetchWorkspace } from "@/lib/workspace-client";
-import type { Snapshot, CompanyInfo } from "@/lib/workspace";
-import { EMPTY_COMPANY_INFO } from "@/lib/workspace";
-import { type ExtendedMarketPosition } from "@/types/salary";
-import { FmtMoney } from "@/components/FmtMoney";
-import { HelpTip } from "@/components/HelpTip";
-import { computeRowTotals } from "@/lib/compensation";
+import Link from "next/link";
+import { useState } from "react";
+import { Menu, X, ChevronRight, Users, Target, Eye, Star, Instagram, Linkedin, Twitter } from "lucide-react";
 
-const NIVELES = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
-type Nivel = (typeof NIVELES)[number];
+const NAV_LINKS = [
+  { label: "Inicio", href: "#inicio" },
+  { label: "Quiénes somos", href: "#nosotros" },
+  { label: "Portafolio", href: "#portafolio" },
+  { label: "Contacto", href: "#contacto" },
+];
 
+const DIFFERENTIATORS = [
+  "Creatividad e innovación en cada proyecto",
+  "Personal altamente capacitado y multidisciplinario",
+  "Amplia experiencia en el sector público y privado",
+  "Flexibilidad y adaptabilidad a cada cliente",
+  "Pro-actividad y orientación a resultados",
+  "Diseño de proyectos según necesidades de la organización",
+  'Ejecución "llave en mano" bajo metodología PMI',
+];
 
-function percentile(values: number[], p: number) {
-  if (!values.length) return 0;
-  const sorted = values.slice().sort((a, b) => a - b);
-  const idx = (p / 100) * (sorted.length - 1);
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-}
-
-function formatMoney(n: number) {
-  if (!n || Number.isNaN(n)) return "ND";
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-}
-
-// ─── Types for admin dashboard ────────────────────────────────────────────────
-
-type AdminDashboardData = {
-  activeCompanies60Days: number;
-  totalCompanies: number;
-  totalPositions: number;
-  availableSnapshots: { id: string; label: string; date: string }[];
-  latestSnapshotId: string;
-  sectorDistribution: { sector: string; count: number; percentage: number }[];
-  percentilesByNivel: Record<string, { p25: number; p50: number; p75: number; count: number }>;
-  warnings: { companyId: string; companyName: string; missingFields: string[] }[];
-};
-
-// ─── Admin Dashboard View ─────────────────────────────────────────────────────
-
-function AdminDashboard() {
-  const [data, setData] = useState<AdminDashboardData | null>(null);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let ignore = false;
-    async function load(snapshotId?: string) {
-      setLoading(true);
-      try {
-        const url = snapshotId ? `/api/admin/dashboard?snapshotId=${snapshotId}` : "/api/admin/dashboard";
-        const res = await fetch(url);
-        if (!ignore && res.ok) {
-          const json = (await res.json()) as AdminDashboardData;
-          setData(json);
-          if (!snapshotId) setSelectedSnapshotId(json.latestSnapshotId);
-        }
-      } catch {
-        // ignore
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    }
-    void load(selectedSnapshotId || undefined);
-    return () => { ignore = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSnapshotId]);
-
-  if (loading && !data) {
-    return (
-      <main className="page-wrap">
-        <div className="flex w-full flex-col gap-5">
-          <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
-            <div className="h-24 animate-pulse rounded-[1rem] bg-slate-200/60" />
-          </section>
-        </div>
-      </main>
-    );
-  }
-
-  const d = data!;
-  const snapshots = d.availableSnapshots;
+export default function LandingPage() {
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <main className="page-wrap">
-      <div className="flex w-full flex-col gap-5">
+    <div className="min-h-screen bg-[#f8f7f4] text-slate-800">
 
-        {/* Panel principal */}
-        <section className="surface-panel overflow-hidden rounded-[1.75rem] p-4 md:p-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
-            <div>
-              <div className="eyebrow mb-1.5">Vista Salarial — Admin</div>
-              <h1 className="font-display text-[1.25rem] font-bold tracking-tight text-slate-900 md:text-[1.4rem]">
-                Mercado General
-              </h1>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <div className="metric-tile w-44 shrink-0 py-2.5">
-                  <div className="metric-label">Empresas activas (60d)</div>
-                  <div className="metric-value mt-1">{d.activeCompanies60Days}</div>
-                </div>
-                <div className="metric-tile w-44 shrink-0 py-2.5">
-                  <div className="metric-label">Total empresas</div>
-                  <div className="metric-value mt-1">{d.totalCompanies}</div>
-                </div>
-                <div className="metric-tile w-44 shrink-0 py-2.5">
-                  <div className="metric-label">Cargos Reportados</div>
-                  <div className="metric-value mt-1">{d.totalPositions}</div>
-                </div>
-                <div className="metric-tile w-44 shrink-0 py-2.5">
-                  <div className="metric-label">Cortes disponibles</div>
-                  <div className="metric-value mt-1">{snapshots.length}</div>
-                </div>
-              </div>
+      {/* ── Navbar ───────────────────────────────────────────── */}
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/60 bg-white/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center gap-6 px-5 py-3.5 md:px-8">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5 shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ac-consulting-logo.svg" alt="AC Consulting" style={{ width: 36, height: 36 }} />
+            <div className="leading-none">
+              <div className="font-display text-[13px] font-black tracking-tight text-slate-900">AC Consulting</div>
+              <div className="text-[10px] text-slate-500 tracking-wide">Gestión Humana</div>
             </div>
+          </Link>
 
-            <div className="flex flex-col gap-2 xl:self-end">
-              {snapshots.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <label className="field-label mb-0 whitespace-nowrap">Actualización:</label>
-                  <select
-                    title="Seleccionar actualización"
-                    aria-label="Seleccionar actualización"
-                    value={selectedSnapshotId}
-                    onChange={(e) => setSelectedSnapshotId(e.target.value)}
-                    className="field-select"
-                  >
-                    {snapshots.map((s) => (
-                      <option key={s.id} value={s.id}>{s.label} ({s.date})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-y-1.5 text-sm">
-                  <thead>
-                    <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                      {NIVELES.map((n) => (
-                        <th key={n} className="px-3 py-1.5 text-center">{n}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="rounded-[1.25rem] bg-white/60">
-                      {NIVELES.map((n, i) => {
-                        const val = d.percentilesByNivel[n]?.p50 ?? 0;
-                        return (
-                          <td key={n} className={`px-3 py-2.5 text-center font-display font-semibold text-xs ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""} ${val === 0 ? "text-slate-400" : "text-teal-700"}`}>
-                            <div className="text-[0.65rem] font-normal text-slate-400">P50</div>
-                            {val === 0 ? "ND" : formatMoney(val)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {/* Desktop links */}
+          <nav className="hidden md:flex items-center gap-1 ml-4 flex-1">
+            {NAV_LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                className="rounded-xl px-3.5 py-2 text-[13px] font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                {l.label}
+              </a>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-2">
+            <Link
+              href="/market-analyzer/signin"
+              className="hidden md:inline-flex items-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2 text-[13px] font-bold text-white transition hover:bg-teal-800"
+            >
+              Market Analyzer
+              <ChevronRight size={14} />
+            </Link>
+            <button
+              className="md:hidden rounded-xl p-2 text-slate-600 hover:bg-slate-100"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label="Menú"
+            >
+              {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
-        </section>
+        </div>
 
-        {/* Sectores + Advertencias */}
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <section className="surface-card rounded-[2rem] p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="rounded-full bg-teal-50 p-2 text-teal-700">
-                <Building2 size={14} aria-hidden />
-              </div>
-              <div>
-                <div className="eyebrow-xs eyebrow mb-0">Distribución</div>
-                <h2 className="font-display text-base font-bold text-slate-900">Sectores</h2>
-              </div>
+        {/* Mobile menu */}
+        {mobileOpen && (
+          <div className="border-t border-slate-100 bg-white px-5 pb-4 md:hidden">
+            {NAV_LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={() => setMobileOpen(false)}
+                className="block py-2.5 text-sm font-semibold text-slate-700"
+              >
+                {l.label}
+              </a>
+            ))}
+            <Link
+              href="/market-analyzer/signin"
+              className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white"
+              onClick={() => setMobileOpen(false)}
+            >
+              Market Analyzer <ChevronRight size={14} />
+            </Link>
+          </div>
+        )}
+      </header>
+
+      {/* ── Hero ─────────────────────────────────────────────── */}
+      <section
+        id="inicio"
+        className="relative flex min-h-screen items-center overflow-hidden pt-20"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(15,118,110,0.12),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(217,119,6,0.10),transparent_50%)]" />
+        <div className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-32">
+          <div className="max-w-2xl">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-1.5 text-xs font-semibold text-teal-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+              Asesoría y Consultoría en Gestión Humana
             </div>
-            {d.sectorDistribution.length === 0 ? (
-              <p className="text-sm text-slate-400">Sin datos de sector.</p>
-            ) : (
-              <div className="space-y-1.5">
-                {d.sectorDistribution.map((s) => (
-                  <div key={s.sector} className="flex items-center justify-between gap-3 rounded-[0.85rem] bg-slate-50/80 px-3 py-2">
-                    <span className="truncate text-xs font-semibold text-slate-700">{s.sector}</span>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[0.68rem] font-bold text-teal-800">{s.percentage}%</span>
-                      <span className="text-xs text-slate-400">{s.count}</span>
+            <h1 className="font-display text-5xl font-black tracking-tight text-slate-900 md:text-6xl lg:text-7xl">
+              Bienvenido a<br />
+              <span className="text-teal-700">AC Consulting</span>
+            </h1>
+            <p className="mt-6 text-lg leading-8 text-slate-600 md:text-xl">
+              Compañía especializada en asesoría, consultoría, desarrollo e implementación
+              de proyectos de Capital Humano para sectores públicos, privados y sin fines de lucro.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a
+                href="#nosotros"
+                className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-bold text-white transition hover:bg-slate-700"
+              >
+                Conocer más
+              </a>
+              <Link
+                href="/market-analyzer/signin"
+                className="inline-flex items-center gap-2 rounded-2xl border border-teal-200 bg-teal-50 px-6 py-3 text-sm font-bold text-teal-800 transition hover:bg-teal-100"
+              >
+                Market Analyzer <ChevronRight size={15} />
+              </Link>
+            </div>
+            <p className="mt-5 text-xs text-slate-400">
+              Venezuela · Costa Rica · Colombia · Curazao · Ecuador
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Quiénes somos ────────────────────────────────────── */}
+      <section id="nosotros" className="bg-white py-24">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div>
+              <div className="mb-3 text-xs font-bold uppercase tracking-widest text-teal-700">Quiénes somos</div>
+              <h2 className="font-display text-4xl font-black tracking-tight text-slate-900">
+                El Capital Humano al centro de todo
+              </h2>
+              <p className="mt-6 text-base leading-8 text-slate-600">
+                Somos una compañía joven, dinámica e innovadora, especializada en la asesoría, consultoría,
+                desarrollo, implementación y puesta en marcha de proyectos relacionados con el corazón de
+                las compañías: su <strong>Capital Humano</strong>.
+              </p>
+              <p className="mt-4 text-base leading-8 text-slate-600">
+                Disponemos de un equipo multidisciplinario capaz de detectar y entender los requerimientos
+                de nuestros clientes, brindando soluciones integrales que optimizan las estructuras organizacionales.
+                Creemos en establecer relaciones a largo plazo, aplicando ideas innovadoras y las mejores
+                prácticas del mercado.
+              </p>
+              <p className="mt-4 text-sm font-semibold text-slate-500">
+                Experiencia en Venezuela, Costa Rica, Colombia, Curazao y Ecuador.
+              </p>
+            </div>
+
+            {/* Mission / Vision / Values */}
+            <div className="flex flex-col gap-4">
+              {[
+                {
+                  icon: Target,
+                  label: "Misión",
+                  text: "Brindar asesoría técnica especializada de Gestión Humana para el sector público y privado, aplicando mejores prácticas del mercado e innovación en nuestros procesos.",
+                  color: "bg-teal-50 text-teal-700",
+                },
+                {
+                  icon: Eye,
+                  label: "Visión",
+                  text: "Ser reconocidos como una compañía responsable dentro de los primeros lugares del mercado nacional y expandirnos a nivel internacional.",
+                  color: "bg-amber-50 text-amber-700",
+                },
+                {
+                  icon: Star,
+                  label: "Valores",
+                  text: "Responsabilidad, honestidad y humildad ontológica guían cada una de nuestras actuaciones y relaciones con clientes y aliados.",
+                  color: "bg-indigo-50 text-indigo-700",
+                },
+              ].map(({ icon: Icon, label, text, color }) => (
+                <div key={label} className="rounded-2xl border border-slate-100 bg-[#f8f7f4] p-5">
+                  <div className="flex items-start gap-4">
+                    <div className={`rounded-xl p-2.5 ${color}`}>
+                      <Icon size={18} aria-hidden />
+                    </div>
+                    <div>
+                      <div className="font-display text-sm font-bold uppercase tracking-widest text-slate-900">{label}</div>
+                      <p className="mt-1.5 text-sm leading-6 text-slate-600">{text}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="surface-card rounded-[2rem] p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="rounded-full bg-amber-50 p-2 text-amber-700">
-                <AlertTriangle size={14} aria-hidden />
-              </div>
-              <div>
-                <div className="eyebrow-xs eyebrow mb-0">Validación</div>
-                <h2 className="font-display text-base font-bold text-slate-900">Advertencias de datos</h2>
-              </div>
-            </div>
-            {d.warnings.length === 0 ? (
-              <p className="text-sm text-slate-500">Todas las empresas tienen datos completos.</p>
-            ) : (
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {d.warnings.map((w) => (
-                  <div key={w.companyId} className="rounded-[1rem] border border-amber-100 bg-amber-50/60 px-3 py-2.5">
-                    <p className="text-xs font-bold text-slate-800">{w.companyName}</p>
-                    <p className="mt-0.5 text-xs text-amber-700">Falta: {w.missingFields.join(", ")}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            {d.warnings.length > 0 && (
-              <p className="mt-3 text-xs text-slate-400">{d.warnings.length} empresa{d.warnings.length !== 1 ? "s" : ""} con datos incompletos</p>
-            )}
-          </section>
-        </div>
-
-        {/* Percentiles por nivel organizacional */}
-        <section className="surface-card overflow-hidden rounded-[2rem]">
-          <div className="flex items-center gap-2 border-b border-slate-200/70 px-6 py-4">
-            <div className="rounded-full bg-teal-50 p-2 text-teal-700">
-              <TrendingUp size={14} aria-hidden />
-            </div>
-            <div>
-              <div className="eyebrow mb-0.5">Compensación mensual</div>
-              <h2 className="font-display text-base font-bold text-slate-900">
-                Percentiles por nivel organizacional
-                {selectedSnapshotId && snapshots.find(s => s.id === selectedSnapshotId) && (
-                  <span className="ml-2 text-sm font-normal text-slate-500">— {snapshots.find(s => s.id === selectedSnapshotId)?.label}</span>
-                )}
-              </h2>
-            </div>
-          </div>
-          <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
-            <table className="min-w-full border-separate border-spacing-y-2 text-sm">
-              <thead>
-                <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                  <th className="px-4 py-2">Nivel organizacional</th>
-                  <th className="px-4 py-2 text-center">Posiciones</th>
-                  <th className="px-4 py-2 text-right">P25</th>
-                  <th className="px-4 py-2 text-right text-teal-700">P50 (Mediana)</th>
-                  <th className="px-4 py-2 text-right">P75</th>
-                </tr>
-              </thead>
-              <tbody>
-                {NIVELES.map((nivel) => {
-                  const p = d.percentilesByNivel[nivel] ?? { p25: 0, p50: 0, p75: 0, count: 0 };
-                  const hasData = p.count > 0;
-                  return (
-                    <tr key={nivel} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                      <td className="rounded-l-[1.25rem] px-4 py-3 font-semibold text-slate-900">{nivel}</td>
-                      <td className="px-4 py-3 text-center font-display text-slate-500">{hasData ? p.count : "—"}</td>
-                      <td className="px-4 py-3 text-right font-display text-slate-600">{hasData ? formatMoney(p.p25) : "ND"}</td>
-                      <td className="px-4 py-3 text-right font-display font-bold text-teal-700">{hasData ? formatMoney(p.p50) : "ND"}</td>
-                      <td className="rounded-r-[1.25rem] px-4 py-3 text-right font-display text-slate-600">{hasData ? formatMoney(p.p75) : "ND"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-      </div>
-    </main>
-  );
-}
-
-// ─── CAPRI level classification ───────────────────────────────────────────────
-
-function getRowNivel(r: ExtendedMarketPosition): Nivel | null {
-  if (!r.hayGrade || !r.capriFamily) return null;
-  const g = r.hayGrade;
-  if (r.capriFamily === "IC") {
-    if (g >= 8  && g <= 12) return "Operativo";
-    if (g >= 13 && g <= 19) return "Profesional";
-  }
-  if (r.capriFamily === "LO") {
-    if (g >= 14 && g <= 16) return "Supervisor";
-  }
-  if (r.capriFamily === "GE") {
-    if (g >= 17 && g <= 19) return "Gerencia Media";
-    if (g >= 20 && g <= 23) return "Gerencia Alta";
-  }
-  if (r.capriFamily === "EJ") {
-    if (g >= 23 && g <= 25) return "Ejecutivo";
-  }
-  return null;
-}
-
-// ─── User Dashboard View ──────────────────────────────────────────────────────
-
-function UserDashboard() {
-  const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
-  const [publishedIds, setPublishedIds] = useState<string[]>([]);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
-  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let ignore = false;
-    async function loadWorkspace() {
-      try {
-        const workspace = await fetchWorkspace();
-        if (!ignore) {
-          setSnapshots(workspace.snapshots);
-          const published = workspace.publishedParticipatedSnapshotIds ?? [];
-          setPublishedIds(published);
-          // Default to latest published snapshot; fall back to most recent overall
-          const allSorted = Object.values(workspace.snapshots).sort((a, b) => b.date.localeCompare(a.date));
-          const latestPublished = allSorted.find((s) => published.includes(s.id));
-          setSelectedSnapshotId((latestPublished ?? allSorted[0])?.id ?? "");
-          setCompanyInfo(workspace.companyInfo);
-        }
-      } catch {
-        // ignore
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    }
-    void loadWorkspace();
-    return () => { ignore = true; };
-  }, []);
-
-  const rows = useMemo<ExtendedMarketPosition[]>(() => {
-    if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
-      return snapshots[selectedSnapshotId].rows || [];
-    }
-    return [];
-  }, [snapshots, selectedSnapshotId]);
-
-  const tasas = companyInfo.tasas ?? [];
-  // For fallback recomputation use the rate captured at save time, not the current live rate.
-  const bcvRate = (() => {
-    const saved = companyInfo.ratesAtSave?.bcvUsd;
-    if (typeof saved === "number" && saved > 0) return saved;
-    const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
-    return Number.isFinite(v) && v > 0 ? v : null;
-  })();
-  const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
-  const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
-
-  function rowMonthly(r: ExtendedMarketPosition): number {
-    return computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalSinPasivosMensual;
-  }
-  function rowAnnual(r: ExtendedMarketPosition): number {
-    return computeRowTotals(r, tasas, bcvRate, diasVacaciones, diasUtilidades).totalConPasivosAnual;
-  }
-
-  const medianasPorNivel = useMemo(() => {
-    const result = {} as Record<Nivel, { p50: string; count: number }>;
-    for (const nivel of NIVELES) {
-      const totals = rows
-        .filter((r) => getRowNivel(r) === nivel)
-        .map(rowMonthly)
-        .filter((v) => v > 0 && Number.isFinite(v));
-      result[nivel] = {
-        p50: formatMoney(totals.length ? Math.round(percentile(totals, 50)) : 0),
-        count: totals.length,
-      };
-    }
-    return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, companyInfo]);
-
-  const totalPositions = rows.length;
-  const nivelesConData = NIVELES.filter((n) => medianasPorNivel[n].count > 0).length;
-  const companyName = companyInfo.companyName || "Sin nombre";
-
-  // Snapshots available for selector (published ones first, then any remaining)
-  const snapshotList = useMemo(() => {
-    return Object.values(snapshots)
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .map((s) => ({ ...s, isPublished: publishedIds.includes(s.id) }));
-  }, [snapshots, publishedIds]);
-
-  if (loading) {
-    return (
-      <main className="page-wrap">
-        <div className="flex w-full flex-col gap-5">
-          <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
-            <div className="h-32 animate-pulse rounded-[1rem] bg-slate-200/60" />
-          </section>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="page-wrap">
-      <div className="flex w-full flex-col gap-5">
-        <section className="surface-panel overflow-hidden rounded-[1.75rem] p-4 md:p-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
-            <div>
-              <div className="eyebrow mb-1.5">Panel principal</div>
-              <h1 className="font-display text-[1.25rem] font-bold tracking-tight text-slate-900 md:text-[1.4rem]">
-                Resumen Empresa
-              </h1>
-              <div className="mt-3 flex flex-wrap items-start gap-2">
-                <div className="metric-tile w-44 shrink-0 py-2.5">
-                  <div className="metric-label">Total de posiciones</div>
-                  <div className="metric-value mt-1">{totalPositions}</div>
                 </div>
-                <div className="metric-tile w-44 shrink-0 py-2.5">
-                  <div className="metric-label">Niveles con data</div>
-                  <div className="metric-value mt-1">{nivelesConData}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Diferenciadores ───────────────────────────────────── */}
+      <section id="portafolio" className="py-24 bg-[#f8f7f4]">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="mb-3 text-xs font-bold uppercase tracking-widest text-teal-700">Por qué elegirnos</div>
+          <h2 className="font-display text-4xl font-black tracking-tight text-slate-900">¿Qué nos diferencia?</h2>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {DIFFERENTIATORS.map((d, i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm"
+              >
+                <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-700 text-xs font-black text-white">
+                  {String(i + 1).padStart(2, "0")}
                 </div>
-                {snapshotList.length > 1 && (
-                  <div className="flex items-center gap-2 self-center">
-                    <label className="field-label mb-0 whitespace-nowrap text-xs">Corte:</label>
-                    <select
-                      title="Seleccionar corte"
-                      aria-label="Seleccionar corte"
-                      value={selectedSnapshotId}
-                      onChange={(e) => setSelectedSnapshotId(e.target.value)}
-                      className="field-select text-xs"
-                    >
-                      {snapshotList.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <p className="text-sm font-semibold leading-6 text-slate-800">{d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Market Analyzer CTA ──────────────────────────────── */}
+      <section className="bg-teal-700 py-20">
+        <div className="mx-auto max-w-3xl px-5 text-center md:px-8">
+          <div className="mb-3 text-sm font-semibold text-teal-200">Herramienta exclusiva</div>
+          <h2 className="font-display text-4xl font-black tracking-tight text-white">
+            Market Analyzer
+          </h2>
+          <p className="mt-4 text-lg leading-8 text-teal-100">
+            La plataforma definitiva de benchmarking salarial. Consulta tabuladores,
+            compara curvas de mercado y mide la competitividad de tu organización.
+          </p>
+          <Link
+            href="/market-analyzer/signin"
+            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-3.5 text-sm font-black text-teal-800 transition hover:bg-teal-50"
+          >
+            Ingresar a Market Analyzer <ChevronRight size={16} />
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Contacto & Social ─────────────────────────────────── */}
+      <section id="contacto" className="bg-white py-20">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="grid gap-12 md:grid-cols-2 md:items-center">
+            <div>
+              <div className="mb-3 text-xs font-bold uppercase tracking-widest text-teal-700">Contacto</div>
+              <h2 className="font-display text-3xl font-black tracking-tight text-slate-900">Síguenos y mantente actualizado</h2>
+              <p className="mt-4 text-sm leading-7 text-slate-600">
+                Conéctate con nosotros en redes sociales para conocer novedades, artículos y proyectos de AC Consulting.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <a
+                  href="https://www.instagram.com/ac_consulting/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
+                >
+                  <Instagram size={16} /> Instagram
+                </a>
+                <a
+                  href="https://www.linkedin.com/company/corporacion-ac-consulting"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
+                >
+                  <Linkedin size={16} /> LinkedIn
+                </a>
+                <a
+                  href="https://twitter.com/ACConsulting_"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
+                >
+                  <Twitter size={16} /> Twitter
+                </a>
               </div>
             </div>
-
-            <div className="overflow-x-auto xl:self-end">
-              <table className="min-w-full border-separate border-spacing-y-1.5 text-sm">
-                <thead>
-                  <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                    {NIVELES.map((nivel) => (
-                      <th key={nivel} className="px-3 py-1.5 text-center">{nivel}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="bg-white/60 rounded-[1.25rem]">
-                    {NIVELES.map((nivel, i) => {
-                      const { p50, count } = medianasPorNivel[nivel];
-                      return (
-                        <td
-                          key={nivel}
-                          className={`px-3 py-2.5 text-center font-display ${i === 0 ? "rounded-l-[1.25rem]" : ""} ${i === NIVELES.length - 1 ? "rounded-r-[1.25rem]" : ""}`}
-                        >
-                          <div className="text-[0.6rem] font-normal text-slate-400">
-                            {count > 0 ? `P50 · ${count}` : "P50"}
-                          </div>
-                          <div className={`font-semibold ${p50 === "ND" ? "text-slate-400" : "text-teal-700"}`}>
-                            {p50}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                </tbody>
-              </table>
+            <div className="rounded-2xl border border-teal-100 bg-teal-50 p-8">
+              <div className="mb-2 flex items-center gap-3">
+                <Users size={20} className="text-teal-700" />
+                <span className="font-display text-base font-bold text-slate-900">¿Necesitas consultoría?</span>
+              </div>
+              <p className="text-sm leading-6 text-slate-600">
+                Escríbenos y con gusto evaluamos cómo podemos apoyar a tu organización.
+              </p>
+              <a
+                href="mailto:marketanalyzer@acconsult.net"
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800"
+              >
+                marketanalyzer@acconsult.net
+              </a>
             </div>
           </div>
-        </section>
-
-        <section className="surface-card overflow-hidden rounded-[2rem]">
-          <div className="flex flex-col gap-2 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-end md:justify-between">
-            <div>
-              <div className="eyebrow mb-2">Data</div>
-              <h2 className="font-display text-2xl font-bold text-slate-900">
-                Información de compensación: {companyName}
-              </h2>
-            </div>
-          </div>
-          <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
-            <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-              <thead>
-                <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                  <th className="px-4 py-2">Cargo</th>
-                  <th className="px-4 py-2 text-right">
-                    <span className="inline-flex items-center justify-end gap-1.5">
-                      Total Efectivo Mensual (TEM)
-                      <HelpTip
-                        title="Total Efectivo Mensual (TEM)"
-                        description="Refleja la liquidez real y directa que percibe el colaborador en un mes ordinario. Representa la suma de todas las remuneraciones y conceptos de pago (fijos y variables) que se cobran con una frecuencia estrictamente mensual. No incluye provisiones ni alícuotas de pasivos laborales (utilidades, bono vacacional, prestaciones sociales)."
-                      />
-                    </span>
-                  </th>
-                  <th className="px-4 py-2 text-right">
-                    <span className="inline-flex items-center justify-end gap-1.5">
-                      Paquete de Compensación Total Anual (PCTA)
-                      <HelpTip
-                        title="Paquete de Compensación Total Anual (PCTA)"
-                        description="Representa el valor macroeconómico global del paquete del trabajador proyectado a un ejercicio fiscal completo (12 meses). Es la sumatoria anualizada de todos los ingresos regulares, pagos de frecuencia variable y el costo total de los pasivos laborales (utilidades, bono vacacional y prestaciones sociales). El indicador definitivo para comparar competitividad del puesto contra el mercado laboral."
-                      />
-                    </span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-sm text-slate-400">
-                      Sin cargos registrados para esta actualización.
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((r) => {
-                    const monthly = rowMonthly(r);
-                    const annual = rowAnnual(r);
-                    return (
-                      <tr key={r.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                        <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
-                          {r.tituloCargo || "—"}
-                          {r.departamento && (
-                            <div className="text-xs text-slate-400">{r.departamento}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
-                          {monthly > 0 ? <FmtMoney value={monthly} prefix="$" /> : "ND"}
-                        </td>
-                        <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display font-semibold text-amber-700">
-                          {annual > 0 ? <FmtMoney value={annual} prefix="$" /> : "ND"}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </main>
-  );
-}
-
-// ─── Root component ───────────────────────────────────────────────────────────
-
-export default function Home() {
-  const { data: session, status } = useSession();
-  const isAdmin = session?.user?.role === "ADMIN";
-
-  if (status === "loading") {
-    return (
-      <main className="page-wrap">
-        <div className="flex w-full flex-col gap-5">
-          <section className="surface-panel rounded-[1.75rem] p-4 md:p-5">
-            <div className="h-24 animate-pulse rounded-[1rem] bg-slate-200/60" />
-          </section>
         </div>
-      </main>
-    );
-  }
+      </section>
 
-  return isAdmin ? <AdminDashboard /> : <UserDashboard />;
+      {/* ── Footer ───────────────────────────────────────────── */}
+      <footer className="border-t border-slate-200 bg-slate-900 px-5 py-10 text-center md:px-8">
+        <div className="mx-auto max-w-6xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/ac-consulting-logo.svg" alt="AC Consulting" style={{ width: 32, height: 32, filter: "brightness(0) invert(1)", margin: "0 auto 12px" }} />
+          <p className="text-xs text-slate-400">
+            © 2019 Corporación AC Consulting C.A. — RIF J-40503867-5
+          </p>
+          <p className="mt-1 text-xs text-slate-500">Todos los derechos reservados.</p>
+        </div>
+      </footer>
+
+    </div>
+  );
 }

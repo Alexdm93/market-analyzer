@@ -10,31 +10,33 @@ import { useNavigationTrigger } from "./NavigationProgress";
 import { useAnnouncements } from "@/contexts/AnnouncementContext";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 
+const BASE = "/market-analyzer";
+
 const menuItems = [
-  { name: "Inicio", href: "/inicio", icon: Newspaper, hint: "Noticias y anuncios" },
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
-  { name: "Empresa", href: "/informacion", icon: Info, hint: "Contexto y contacto" },
-  { name: "Data", href: "/data", icon: Database, hint: "Captura por cargo" },
-  { name: "Resultados", href: "/resultados", icon: TrendingUp, hint: "Resumen de mercado" },
+  { name: "Inicio", href: `${BASE}/inicio`, icon: Newspaper, hint: "Noticias y anuncios" },
+  { name: "Dashboard", href: `${BASE}/dashboard`, icon: LayoutDashboard, hint: "Indicadores base" },
+  { name: "Empresa", href: `${BASE}/informacion`, icon: Info, hint: "Contexto y contacto" },
+  { name: "Data", href: `${BASE}/data`, icon: Database, hint: "Captura por cargo" },
+  { name: "Resultados", href: `${BASE}/resultados`, icon: TrendingUp, hint: "Resumen de mercado" },
 ];
 
 const menuItemsAdmin = [
-  { name: "Inicio", href: "/inicio", icon: Newspaper, hint: "Noticias y anuncios" },
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, hint: "Indicadores base" },
-  { name: "Data", href: "/data", icon: Database, hint: "Captura por cargo" },
-  { name: "Estudio", href: "/estudio", icon: BookOpen, hint: "Estudio especializado" },
-  { name: "Resultados", href: "/resultados", icon: TrendingUp, hint: "Resumen de mercado" },
-  { name: "Empresa", href: "/informacion", icon: Info, hint: "Contexto y contacto" },
+  { name: "Inicio", href: `${BASE}/inicio`, icon: Newspaper, hint: "Noticias y anuncios" },
+  { name: "Dashboard", href: `${BASE}/dashboard`, icon: LayoutDashboard, hint: "Indicadores base" },
+  { name: "Data", href: `${BASE}/data`, icon: Database, hint: "Captura por cargo" },
+  { name: "Estudio", href: `${BASE}/estudio`, icon: BookOpen, hint: "Estudio especializado" },
+  { name: "Resultados", href: `${BASE}/resultados`, icon: TrendingUp, hint: "Resumen de mercado" },
+  { name: "Empresa", href: `${BASE}/informacion`, icon: Info, hint: "Contexto y contacto" },
 ];
 
-const estudioItem = { name: "Estudio", href: "/estudio", icon: BookOpen, hint: "Estudio especializado" };
-const estudiosItem = { name: "Estudios", href: "/estudios", icon: ChartBar, hint: "Participación por corte" };
+const estudioItem = { name: "Estudio", href: `${BASE}/estudio`, icon: BookOpen, hint: "Estudio especializado" };
+const estudiosItem = { name: "Estudios", href: `${BASE}/estudios`, icon: ChartBar, hint: "Participación por corte" };
 
 const adminMenuItems = [
-  { name: "Admin", href: "/admin", icon: Shield, hint: "Vista administrativa" },
-  { name: "Empresas", href: "/empresas", icon: Building2, hint: "Catálogo disponible" },
-  { name: "Anuncios", href: "/admin/anuncios", icon: Newspaper, hint: "Publicar noticias" },
-  { name: "Valoración", href: "/valoracion", icon: Layers, hint: "CAPRI por cargo" },
+  { name: "Admin", href: `${BASE}/admin`, icon: Shield, hint: "Vista administrativa" },
+  { name: "Empresas", href: `${BASE}/empresas`, icon: Building2, hint: "Catálogo disponible" },
+  { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
+  { name: "Valoración", href: `${BASE}/valoracion`, icon: Layers, hint: "CAPRI por cargo" },
 ];
 
 
@@ -50,7 +52,7 @@ export default function Sidebar() {
   const { hasUnread } = useAnnouncements();
   const { hasUnreadResultados, hasUnreadData } = useWorkspaceNotification();
 
-  if (pathname === "/signin" || pathname === "/register") {
+  if (pathname === "/" || pathname.startsWith("/market-analyzer/signin") || pathname.startsWith("/market-analyzer/register")) {
     return null;
   }
 
@@ -61,7 +63,7 @@ export default function Sidebar() {
           <div className="mb-2 flex justify-end">
             <span className="rounded-full border border-white/30 bg-white/20 px-1.5 py-0.5 text-[0.55rem] font-bold text-white">v2.0</span>
           </div>
-          <Link href="/inicio" className="flex items-center justify-center gap-1.5" onClick={pathname === "/inicio" ? undefined : triggerNavigation}>
+          <Link href="/market-analyzer/inicio" className="flex items-center justify-center gap-1.5" onClick={pathname === "/market-analyzer/inicio" ? undefined : triggerNavigation}>
             <div className="flex-none shrink-0 leading-none">
               <div className="font-display text-[20px] font-black tracking-tight text-white leading-[1.2]">Market</div>
               <div className="font-display text-[20px] font-black tracking-tight text-white leading-[1.2]">Analyzer</div>
@@ -90,13 +92,13 @@ export default function Sidebar() {
               >
                 <div className={`relative inline-flex shrink-0 rounded-xl p-2 ${isActive ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-slate-900 group-hover:text-white"}`}>
                   <Icon size={16} aria-hidden />
-                  {item.href === "/inicio" && hasUnread && (
+                  {item.href === `${BASE}/inicio` && hasUnread && (
                     <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
                   )}
-                  {item.href === "/resultados" && hasUnreadResultados && (
+                  {item.href === `${BASE}/resultados` && hasUnreadResultados && (
                     <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
                   )}
-                  {item.href === "/data" && hasUnreadData && (
+                  {item.href === `${BASE}/data` && hasUnreadData && (
                     <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
                   )}
                 </div>
@@ -120,7 +122,7 @@ export default function Sidebar() {
               <div className="mt-0.5 break-words text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-slate-500">{getRoleLabel(role)}</div>
 
               <button
-                onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/signin" }); }}
+                onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/market-analyzer/signin" }); }}
                 className="btn btn-secondary mt-2 w-full"
                 type="button"
                 disabled={signingOut}
@@ -140,7 +142,7 @@ export default function Sidebar() {
                   : "Entra con tus credenciales."}
               </p>
               <div className="mt-4 flex flex-col gap-2">
-                <Link href="/signin" className="btn btn-primary w-full">
+                <Link href="/market-analyzer/signin" className="btn btn-primary w-full">
                   <LogIn className="h-4 w-4" />
                   Iniciar sesion
                 </Link>

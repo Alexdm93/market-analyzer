@@ -22,7 +22,7 @@ function SessionGuard() {
 
   useEffect(() => {
     if (status === "unauthenticated" && !PUBLIC_PATHS.has(pathname)) {
-      router.push("/signin");
+      router.push("/market-analyzer/signin");
     }
   }, [status, pathname, router]);
 

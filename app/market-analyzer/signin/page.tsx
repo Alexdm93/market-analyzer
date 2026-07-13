@@ -26,7 +26,7 @@ export default function SignInPage() {
   const lastLookedUp = useRef("");
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/inicio");
+    if (status === "authenticated") router.replace("/market-analyzer/inicio");
   }, [router, status]);
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export default function SignInPage() {
     }
 
     startTransition(() => {
-      router.replace("/inicio");
+      router.replace("/market-analyzer/inicio");
       router.refresh();
     });
   }
@@ -218,7 +218,7 @@ export default function SignInPage() {
             )}
 
             {isBootstrap && (
-              <Link href="/register" className="btn btn-secondary w-full">
+              <Link href="/market-analyzer/register" className="btn btn-secondary w-full">
                 <LogIn className="h-4 w-4" />
                 Crear admin inicial
               </Link>
