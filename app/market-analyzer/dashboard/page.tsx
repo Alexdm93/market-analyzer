@@ -602,7 +602,7 @@ function UserDashboard() {
                       aria-label="Seleccionar corte"
                       value={selectedSnapshotId}
                       onChange={(e) => setSelectedSnapshotId(e.target.value)}
-                      className="field-select w-72 text-xs"
+                      className="field-select flex-1 text-xs"
                     >
                       {snapshotList.map((s) => (
                         <option key={s.id} value={s.id}>
