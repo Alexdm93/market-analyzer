@@ -200,23 +200,23 @@ export default function LandingPage() {
             <div className="hidden md:flex items-center gap-1 rounded-2xl border border-[#1B4965]/12 bg-[#ECF0F1]/70 p-1">
               <Link
                 href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#1B4965] px-3 py-1.5 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
-                Market Analyzer <ChevronRight size={12} />
+                className="inline-flex w-36 items-center justify-between gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
+                Market Analyzer <ChevronRight size={12} className="shrink-0" />
               </Link>
-              <div className="relative inline-flex cursor-not-allowed items-center gap-1 rounded-xl px-3 py-1.5 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
+              <div className="inline-flex w-36 cursor-not-allowed items-center justify-between gap-1.5 rounded-xl px-4 py-2 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
                 NexoHub
-                <span className="rounded-full bg-[#2C3E50]/10 px-1 py-px text-[0.5rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
+                <span className="shrink-0 rounded-full bg-[#2C3E50]/10 px-1.5 py-0.5 text-[0.48rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
               </div>
-              <div className="relative inline-flex cursor-not-allowed items-center gap-1 rounded-xl px-3 py-1.5 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
+              <div className="inline-flex w-36 cursor-not-allowed items-center justify-between gap-1.5 rounded-xl px-4 py-2 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
                 Talentium
-                <span className="rounded-full bg-[#2C3E50]/10 px-1 py-px text-[0.5rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
+                <span className="shrink-0 rounded-full bg-[#2C3E50]/10 px-1.5 py-0.5 text-[0.48rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
               </div>
             </div>
 
             {/* Auth section */}
             {status === "loading" ? null : session?.user ? (
               <div className="hidden md:flex items-center gap-2">
-                <div className="flex items-center gap-2 rounded-xl border border-[#ECF0F1] bg-[#ECF0F1]/60 px-3 py-1.5">
+                <div className="flex items-center gap-2 rounded-xl border border-[#ECF0F1] bg-[#ECF0F1]/60 px-3 py-2">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#1B4965] text-[10px] font-black text-white uppercase">
                     {session.user.name?.charAt(0) ?? "?"}
                   </span>
@@ -230,8 +230,8 @@ export default function LandingPage() {
               </div>
             ) : (
               <Link href="/market-analyzer/signin"
-                className="hidden md:inline-flex items-center gap-2 rounded-xl bg-[#1B4965] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#153a52]">
-                <LogIn size={14} /> Iniciar sesión
+                className="hidden md:inline-flex items-center gap-2 rounded-xl bg-[#1B4965] px-5 py-2 text-sm font-bold text-white transition hover:bg-[#153a52] whitespace-nowrap">
+                <LogIn size={14} className="shrink-0" /> Iniciar sesión
               </Link>
             )}
             <button className="md:hidden rounded-xl p-2.5 text-[#2C3E50] hover:bg-[#ECF0F1]"
