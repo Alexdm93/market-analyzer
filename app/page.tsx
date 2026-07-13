@@ -171,13 +171,24 @@ export default function LandingPage() {
   const { data: session, status } = useSession();
   const [signingOut, setSigningOut] = useState(false);
   const [nexoUser, setNexoUser] = useState<{ name: string; email?: string } | null>(null);
+  const [nexoLoaded, setNexoLoaded] = useState(false);
 
   useEffect(() => {
     fetch("https://nexohub.acconsult.net/api/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { if (data?.user?.name) setNexoUser(data.user); })
-      .catch(() => null);
+      .catch(() => null)
+      .finally(() => setNexoLoaded(true));
   }, []);
+
+  const sessionsLoading = status === "loading" || !nexoLoaded;
+  const hasMA = status === "authenticated";
+  const hasNexo = nexoUser !== null;
+  const isLoggedIn = hasMA || hasNexo;
+  // While loading, show all buttons; once resolved, show only active platforms (or all if none)
+  const showMA = sessionsLoading || !isLoggedIn || hasMA;
+  const showNexo = sessionsLoading || !isLoggedIn || hasNexo;
+  const showTalentium = sessionsLoading || !isLoggedIn;
 
   return (
     <div className="min-h-screen bg-white text-[#2C3E50]">
@@ -205,22 +216,30 @@ export default function LandingPage() {
 
           <div className="ml-auto flex items-center gap-2">
             {/* Platform group */}
-            <div className="hidden md:flex items-center gap-1 rounded-2xl border border-[#1B4965]/12 bg-[#ECF0F1]/70 p-1">
-              <Link
-                href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
-                className="inline-flex w-36 items-center justify-between gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
-                Market Analyzer <ChevronRight size={12} className="shrink-0" />
-              </Link>
-              <Link
-                href={nexoUser ? "https://nexohub.acconsult.net" : "https://nexohub.acconsult.net/signin"}
-                className="inline-flex w-36 items-center justify-between gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
-                NexoHub <ChevronRight size={12} className="shrink-0" />
-              </Link>
-              <div className="inline-flex w-36 cursor-not-allowed items-center justify-between gap-1.5 rounded-xl px-4 py-2 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
-                Talentium
-                <span className="shrink-0 rounded-full bg-[#2C3E50]/10 px-1.5 py-0.5 text-[0.48rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
+            {(showMA || showNexo || showTalentium) && (
+              <div className="hidden md:flex items-center gap-1 rounded-2xl border border-[#1B4965]/12 bg-[#ECF0F1]/70 p-1">
+                {showMA && (
+                  <Link
+                    href={hasMA ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
+                    className="inline-flex w-36 items-center justify-between gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
+                    Market Analyzer <ChevronRight size={12} className="shrink-0" />
+                  </Link>
+                )}
+                {showNexo && (
+                  <Link
+                    href={hasNexo ? "https://nexohub.acconsult.net" : "https://nexohub.acconsult.net/signin"}
+                    className="inline-flex w-36 items-center justify-between gap-1.5 rounded-xl bg-[#1B4965] px-4 py-2 text-[0.75rem] font-bold text-white transition hover:bg-[#153a52]">
+                    NexoHub <ChevronRight size={12} className="shrink-0" />
+                  </Link>
+                )}
+                {showTalentium && (
+                  <div className="inline-flex w-36 cursor-not-allowed items-center justify-between gap-1.5 rounded-xl px-4 py-2 text-[0.75rem] font-bold text-[#95A5A6]" title="Próximamente">
+                    Talentium
+                    <span className="shrink-0 rounded-full bg-[#2C3E50]/10 px-1.5 py-0.5 text-[0.48rem] font-bold uppercase tracking-wide text-[#95A5A6]">Pronto</span>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             {/* Auth section */}
             {status === "loading" ? null : session?.user ? (
@@ -257,21 +276,27 @@ export default function LandingPage() {
                 className="block border-b border-[#ECF0F1] py-3 text-base font-semibold text-[#2C3E50] last:border-0">{l.label}</a>
             ))}
             <div className="mt-4 text-[0.6rem] font-bold uppercase tracking-widest text-[#95A5A6] mb-1">Plataformas</div>
-            <Link
-              href={session?.user ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
-              className="flex items-center justify-between gap-2 rounded-xl bg-[#1B4965] px-4 py-2.5 text-sm font-bold text-white"
-              onClick={() => setMobileOpen(false)}>
-              Market Analyzer <ChevronRight size={14} />
-            </Link>
-            <Link
-              href={nexoUser ? "https://nexohub.acconsult.net" : "https://nexohub.acconsult.net/signin"}
-              className="mt-1 flex items-center justify-between gap-2 rounded-xl bg-[#1B4965] px-4 py-2.5 text-sm font-bold text-white"
-              onClick={() => setMobileOpen(false)}>
-              NexoHub <ChevronRight size={14} />
-            </Link>
-            <div className="mt-1 flex items-center justify-between rounded-xl border border-[#ECF0F1] bg-[#F5F7F8] px-4 py-2.5 text-sm font-bold text-[#95A5A6] cursor-not-allowed">
-              Talentium <span className="text-[0.55rem] font-bold uppercase tracking-wide bg-[#ECF0F1] px-1.5 py-0.5 rounded-full">Próximamente</span>
-            </div>
+            {showMA && (
+              <Link
+                href={hasMA ? "/market-analyzer/inicio" : "/market-analyzer/signin"}
+                className="flex items-center justify-between gap-2 rounded-xl bg-[#1B4965] px-4 py-2.5 text-sm font-bold text-white"
+                onClick={() => setMobileOpen(false)}>
+                Market Analyzer <ChevronRight size={14} />
+              </Link>
+            )}
+            {showNexo && (
+              <Link
+                href={hasNexo ? "https://nexohub.acconsult.net" : "https://nexohub.acconsult.net/signin"}
+                className="mt-1 flex items-center justify-between gap-2 rounded-xl bg-[#1B4965] px-4 py-2.5 text-sm font-bold text-white"
+                onClick={() => setMobileOpen(false)}>
+                NexoHub <ChevronRight size={14} />
+              </Link>
+            )}
+            {showTalentium && (
+              <div className="mt-1 flex items-center justify-between rounded-xl border border-[#ECF0F1] bg-[#F5F7F8] px-4 py-2.5 text-sm font-bold text-[#95A5A6] cursor-not-allowed">
+                Talentium <span className="text-[0.55rem] font-bold uppercase tracking-wide bg-[#ECF0F1] px-1.5 py-0.5 rounded-full">Próximamente</span>
+              </div>
+            )}
             {session?.user && (
               <button onClick={() => { setSigningOut(true); void signOut({ callbackUrl: "/" }); }}
                 className="mt-1 flex items-center justify-center gap-2 rounded-xl border border-[#ECF0F1] px-4 py-2.5 text-sm font-semibold text-[#95A5A6]">
