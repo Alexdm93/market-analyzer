@@ -370,16 +370,16 @@ export default function Informacion() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div>
+          <div className="mt-6 flex flex-wrap items-start gap-4">
+            <div className="w-36 shrink-0">
               <label className="field-label">Días de Bono Vacacional</label>
               <input title="Bono vacacional" aria-label="Bono vacacional" type="number" placeholder="0" value={companyInfo.minVacationDays} onChange={(e) => updateCompany("minVacationDays", e.target.value)} className="field" />
             </div>
-            <div>
+            <div className="w-36 shrink-0">
               <label className="field-label">Días mínimos de utilidades</label>
               <input title="Días utilidades" aria-label="Días utilidades" type="number" placeholder="0" value={companyInfo.minUtilityDays} onChange={(e) => updateCompany("minUtilityDays", e.target.value)} className="field" />
             </div>
-            <div className="md:col-span-2 xl:col-span-4">
+            <div className="min-w-0 flex-1">
               <label className="field-label">Localidad</label>
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {LOCALITY_OPTIONS.map((loc) => {
