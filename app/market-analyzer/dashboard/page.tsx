@@ -305,7 +305,7 @@ function AdminDashboard() {
             {d.sectorDistribution.length === 0 ? (
               <p className="text-sm text-slate-400">Sin datos de sector.</p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="h-64 overflow-y-auto space-y-1.5 pr-1">
                 {d.sectorDistribution.map((s) => (
                   <div key={s.sector} className="flex items-center justify-between gap-3 rounded-[0.85rem] bg-slate-50/80 px-3 py-2">
                     <span className="truncate text-xs font-semibold text-slate-700">{s.sector}</span>
@@ -332,7 +332,7 @@ function AdminDashboard() {
             {d.warnings.length === 0 ? (
               <p className="text-sm text-slate-500">Todas las empresas tienen datos completos.</p>
             ) : (
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <div className="h-64 overflow-y-auto space-y-2 pr-1">
                 {d.warnings.map((w) => (
                   <div key={w.companyId} className="rounded-[1rem] border border-amber-100 bg-amber-50/60 px-3 py-2.5">
                     <p className="text-xs font-bold text-slate-800">{w.companyName}</p>
