@@ -13,12 +13,6 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 8 * 60 * 60, // 8 horas
   },
-  cookies: process.env.NODE_ENV === "production" ? {
-    sessionToken: {
-      name: "next-auth.session-token",
-      options: { httpOnly: true, sameSite: "lax", path: "/", secure: true, domain: ".acconsult.net" },
-    },
-  } : undefined,
   pages: {
     signIn: "/market-analyzer/signin",
   },
