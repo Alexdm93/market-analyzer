@@ -12,19 +12,19 @@ const adminActions = [
   {
     title: "Gestionar empresas",
     description: "Crea y revisa las empresas disponibles para asignar usuarios.",
-    href: "/empresas",
+    href: "/market-analyzer/empresas",
     icon: Building2,
   },
   {
     title: "Actividad de empresas",
     description: "Monitorea cuándo cada empresa inició sesión, guardó datos o descargó información.",
-    href: "/admin/telemetry",
+    href: "/market-analyzer/admin/telemetry",
     icon: Activity,
   },
   {
     title: "Estudio Especializado",
     description: "Habilita o deshabilita el acceso al Estudio Especializado por empresa.",
-    href: "/admin/estudio-especializado",
+    href: "/market-analyzer/admin/estudio-especializado",
     icon: BookOpen,
   },
 ];
