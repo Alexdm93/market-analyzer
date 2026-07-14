@@ -29,12 +29,8 @@ export async function GET(request: Request) {
   const sixtyDaysAgo = new Date();
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-  const [
-    allCompanies,
-    recentSnapshotCompanies,
-    availableSnapshotsRaw,
-    totalPositionsCount,
-  ] = await Promise.all([
+  // Step 1: global data + available snapshots (needed to resolve latestSnapshotId)
+  const [allCompanies, availableSnapshotsRaw] = await Promise.all([
     prisma.company.findMany({
       select: {
         id: true,
@@ -49,17 +45,36 @@ export async function GET(request: Request) {
       },
     }),
     prisma.userSnapshot.findMany({
-      where: { updatedAt: { gte: sixtyDaysAgo } },
-      select: { companyId: true },
-      distinct: ["companyId"],
-    }),
-    prisma.userSnapshot.findMany({
       select: { snapshotId: true, label: true, date: true },
       distinct: ["snapshotId"],
       orderBy: [{ date: "desc" }],
     }),
-    prisma.userPosition.count(),
   ]);
+
+  // Available snapshots + resolve effective cut
+  const availableSnapshots = availableSnapshotsRaw.map((s) => ({
+    id: s.snapshotId,
+    label: s.label,
+    date: s.date.toISOString().split("T")[0],
+  }));
+  const latestSnapshotId = requestedSnapshotId || availableSnapshots[0]?.id || "";
+
+  // Step 2: per-cut metrics
+  const [cutActiveSnapshots, cutAllSnapshots, totalPositionsCount] = latestSnapshotId
+    ? await Promise.all([
+        prisma.userSnapshot.findMany({
+          where: { snapshotId: latestSnapshotId, updatedAt: { gte: sixtyDaysAgo } },
+          select: { companyId: true },
+          distinct: ["companyId"],
+        }),
+        prisma.userSnapshot.findMany({
+          where: { snapshotId: latestSnapshotId },
+          select: { companyId: true },
+          distinct: ["companyId"],
+        }),
+        prisma.userPosition.count({ where: { snapshotId: latestSnapshotId } }),
+      ])
+    : [[], [], 0] as [{ companyId: string }[], { companyId: string }[], number];
 
   // Sector distribution
   const sectorMap = new Map<string, number>();
@@ -84,13 +99,6 @@ export async function GET(request: Request) {
     })
     .filter((w) => w.missingFields.length > 0);
 
-  // Available snapshots
-  const availableSnapshots = availableSnapshotsRaw.map((s) => ({
-    id: s.snapshotId,
-    label: s.label,
-    date: s.date.toISOString().split("T")[0],
-  }));
-  const latestSnapshotId = requestedSnapshotId || availableSnapshots[0]?.id || "";
 
   // Percentiles by nivel from the selected snapshot
   const percentilesByNivel: Record<string, { p25: number; p50: number; p75: number; count: number }> = {};
@@ -161,8 +169,8 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
-    activeCompanies60Days: recentSnapshotCompanies.length,
-    totalCompanies: allCompanies.length,
+    activeCompanies60Days: cutActiveSnapshots.length,
+    totalCompanies: cutAllSnapshots.length,
     totalPositions: totalPositionsCount,
     availableSnapshots,
     latestSnapshotId,
