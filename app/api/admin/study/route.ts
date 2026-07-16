@@ -224,7 +224,7 @@ export async function GET(request: Request) {
         sector: position.company.economicSector || "",
         headcount: position.company.headcount || "",
         title: position.title || String(parsed.tituloCargo ?? "Sin título"),
-        level: String(parsed.nivelOrganizacional ?? "") || gradeToNivel(parsed.hayGrade, parsed.capriFamily),
+        level: gradeToNivel(parsed.hayGrade, parsed.capriFamily),
         hayGrade: parsed.hayGrade,
         classification: String(parsed.clasificacion ?? ""),
         description: String(parsed.descripcion ?? ""),
