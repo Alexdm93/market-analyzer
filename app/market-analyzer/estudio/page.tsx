@@ -1442,6 +1442,7 @@ export default function EstudioPage() {
                             <th className="px-4 py-2">Empresa</th>
                             <th className="px-4 py-2">Cargo</th>
                             <th className="px-4 py-2">Nivel</th>
+                            <th className="px-4 py-2 text-right">Grado CAPRI</th>
                             <th className="px-4 py-2 text-right">TEM</th>
                             <th className="px-4 py-2 text-right">TEMz</th>
                             <th className="px-4 py-2 text-right">PCTA</th>
@@ -1466,6 +1467,7 @@ export default function EstudioPage() {
                                 <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
                                 <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
                                 <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
+                                <td className="px-4 py-4 text-right font-mono text-xs text-slate-500">{position.hayGrade ?? "—"}</td>
                                 <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Sin pasivos — mensual"])} /> : "—"}</td>
                                 <td className={`px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
                                   {temz > 0 ? <FmtMoney value={temz} /> : "—"}
