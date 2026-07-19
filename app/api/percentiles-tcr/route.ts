@@ -71,20 +71,30 @@ export async function GET(request: Request) {
 
   const tcrType: TcrType = tcrTypeParam === "euro" ? "euro" : tcrTypeParam === "libre" ? "libre" : "bcv";
 
-  const publishedIds = await getPublishedSnapshotIds();
-  if (!publishedIds.includes(snapshotId)) {
-    return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
-  }
+  const isAdmin = session.user.role === "ADMIN";
 
-  const [{ rate: globalBcvRate }, { rate: globalBcvEurRate }, { rate: globalBinanceRate }, { rate: libreOverride }, workspaces] = await Promise.all([
-    getBcvRate(),
-    getBcvEuroRate(),
-    getBinanceRate(),
-    getLibreRate(),
+  const [publishedIds, globalRates, workspaces] = await Promise.all([
+    getPublishedSnapshotIds(),
+    Promise.all([getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate()]),
     prisma.userWorkspace.findMany({
       select: { userId: true, snapshotsJson: true, companyInfoJson: true },
     }),
   ]);
+  const [{ rate: globalBcvRate }, { rate: globalBcvEurRate }, { rate: globalBinanceRate }, { rate: libreOverride }] = globalRates;
+
+  // Non-admins can only access published snapshots they participated in
+  if (!isAdmin) {
+    if (!publishedIds.includes(snapshotId)) {
+      return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
+    }
+    const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
+    const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
+    const requestingSnapshot  = requestingSnapshots[snapshotId];
+    const userParticipated    = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
+    if (!userParticipated) {
+      return Response.json({ message: "No participaste en este corte." }, { status: 403 });
+    }
+  }
 
   // Fallback global libre (used only when a company has no ratesAtSave)
   const globalLibreRate = libreOverride
@@ -94,18 +104,6 @@ export async function GET(request: Request) {
 
   if (!globalLibreRate && !globalBcvRate) {
     return Response.json({ message: "No hay tasas de mercado disponibles para calcular TCR. Intenta más tarde." }, { status: 422 });
-  }
-
-  // Admins can view TCR for any snapshot without being a participant themselves
-  const isAdmin = session.user.role === "ADMIN";
-  if (!isAdmin) {
-    const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
-    const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
-    const requestingSnapshot  = requestingSnapshots[snapshotId];
-    const userParticipated    = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
-    if (!userParticipated) {
-      return Response.json({ message: "No participaste en este corte." }, { status: 403 });
-    }
   }
 
   const cargoGroups = new Map<string, CargoAccum>();
