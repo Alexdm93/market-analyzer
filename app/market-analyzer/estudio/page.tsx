@@ -1412,52 +1412,117 @@ export default function EstudioPage() {
                 )}
               </div>
 
+              <section className="surface-card overflow-hidden rounded-[2rem]">
+                <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="eyebrow mb-2">Data cruda</div>
+                    <h2 className="font-display text-2xl font-bold text-slate-900">Cargos cargados por empresa</h2>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setRangosDraft({ min: Object.fromEntries(Object.entries(nivelMin).map(([k, v]) => [k, String(v || "")])), max: Object.fromEntries(Object.entries(nivelMax).map(([k, v]) => [k, String(v || "")])) }); setRangosModalOpen(true); }}
+                      className="btn btn-secondary btn-xs"
+                    >
+                      <SlidersHorizontal className="h-3 w-3" />
+                      Rangos de referencia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterFueraDeRango((v) => !v)}
+                      className={`btn btn-xs whitespace-nowrap ${filterFueraDeRango ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100" : "btn-secondary"}`}
+                    >
+                      {filterFueraDeRango ? "Ver todos" : "Solo fuera de rango"}
+                    </button>
+                    <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
+                  </div>
+                </div>
+
+                <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
+                    <div>
+                      <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
+                      <select
+                        id="adminRawCargo"
+                        value={activeAdminCargo}
+                        onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                        className="field-select"
+                      >
+                        {availableAdminCargos.map((cargo) => (
+                          <option key={cargo} value={cargo}>{cargo}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
+                      className="btn btn-secondary"
+                    >
+                      Exportar Excel
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
+                  <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                    <thead>
+                      <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                        <th className="px-4 py-2">Empresa</th>
+                        <th className="px-4 py-2">Cargo</th>
+                        <th className="px-4 py-2">Nivel</th>
+                        <th className="px-4 py-2 text-right">Grado CAPRI</th>
+                        <th className="px-4 py-2 text-right">TEM</th>
+                        <th className="px-4 py-2 text-right">TEMz</th>
+                        <th className="px-4 py-2 text-right">PCTA</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeRawPositions.filter((position) => {
+                        if (!filterFueraDeRango) return true;
+                        const val = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
+                        const nivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+                        const mn = nivel ? (nivelMin[nivel] ?? 0) : 0;
+                        const mx = nivel ? (nivelMax[nivel] ?? 0) : 0;
+                        return val > 0 && ((mn > 0 && val < mn) || (mx > 0 && val > mx));
+                      }).map((position) => {
+                        const temz = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
+                        const normalizedNivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+                        const rangeMin = normalizedNivel ? (nivelMin[normalizedNivel] ?? 0) : 0;
+                        const rangeMax = normalizedNivel ? (nivelMax[normalizedNivel] ?? 0) : 0;
+                        const isOutOfRange = temz > 0 && ((rangeMin > 0 && temz < rangeMin) || (rangeMax > 0 && temz > rangeMax));
+                        return (
+                          <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                            <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
+                            <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
+                            <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
+                            <td className="px-4 py-4 text-right font-mono text-xs text-slate-500">{position.hayGrade ?? "—"}</td>
+                            <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Sin pasivos — mensual"])} /> : "—"}</td>
+                            <td className={`px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
+                              {temz > 0 ? <FmtMoney value={temz} /> : "—"}
+                              {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
+                            </td>
+                            <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{Number(position.conceptValues?.["Con pasivos — anual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Con pasivos — anual"])} /> : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
               {studyView === "cargo" ? (
-                <>
+                selectedAdminSnapshot?.status === "PROCESSED" ? (
                   <section className="surface-card overflow-hidden rounded-[2rem]">
                     <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <div className="eyebrow mb-2">Data cruda</div>
-                        <h2 className="font-display text-2xl font-bold text-slate-900">Cargos cargados por empresa</h2>
+                        <div className="eyebrow mb-2">Resultado procesado</div>
+                        <h2 className="font-display text-2xl font-bold text-slate-900">Percentiles por cargo</h2>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="pill">Procesada</div>
                         <button
                           type="button"
-                          onClick={() => { setRangosDraft({ min: Object.fromEntries(Object.entries(nivelMin).map(([k, v]) => [k, String(v || "")])), max: Object.fromEntries(Object.entries(nivelMax).map(([k, v]) => [k, String(v || "")])) }); setRangosModalOpen(true); }}
-                          className="btn btn-secondary btn-xs"
-                        >
-                          <SlidersHorizontal className="h-3 w-3" />
-                          Rangos de referencia
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFilterFueraDeRango((v) => !v)}
-                          className={`btn btn-xs whitespace-nowrap ${filterFueraDeRango ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100" : "btn-secondary"}`}
-                        >
-                          {filterFueraDeRango ? "Ver todos" : "Solo fuera de rango"}
-                        </button>
-                        <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
-                      </div>
-                    </div>
-
-                    <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
-                        <div>
-                          <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
-                          <select
-                            id="adminRawCargo"
-                            value={activeAdminCargo}
-                            onChange={(event) => setSelectedAdminCargo(event.target.value)}
-                            className="field-select"
-                          >
-                            {availableAdminCargos.map((cargo) => (
-                              <option key={cargo} value={cargo}>{cargo}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
+                          onClick={() => void exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminProcessedCargo, adminPositionsByCargo.find((e) => e.title === activeAdminProcessedCargo)?.positions ?? [])}
                           className="btn btn-secondary"
                         >
                           Exportar Excel
@@ -1465,135 +1530,68 @@ export default function EstudioPage() {
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
-                      <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                        <thead>
-                          <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                            <th className="px-4 py-2">Empresa</th>
-                            <th className="px-4 py-2">Cargo</th>
-                            <th className="px-4 py-2">Nivel</th>
-                            <th className="px-4 py-2 text-right">Grado CAPRI</th>
-                            <th className="px-4 py-2 text-right">TEM</th>
-                            <th className="px-4 py-2 text-right">TEMz</th>
-                            <th className="px-4 py-2 text-right">PCTA</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {activeRawPositions.filter((position) => {
-                            if (!filterFueraDeRango) return true;
-                            const val = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
-                            const nivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
-                            const mn = nivel ? (nivelMin[nivel] ?? 0) : 0;
-                            const mx = nivel ? (nivelMax[nivel] ?? 0) : 0;
-                            return val > 0 && ((mn > 0 && val < mn) || (mx > 0 && val > mx));
-                          }).map((position) => {
-                            const temz = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
-                            const normalizedNivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
-                            const rangeMin = normalizedNivel ? (nivelMin[normalizedNivel] ?? 0) : 0;
-                            const rangeMax = normalizedNivel ? (nivelMax[normalizedNivel] ?? 0) : 0;
-                            const isOutOfRange = temz > 0 && ((rangeMin > 0 && temz < rangeMin) || (rangeMax > 0 && temz > rangeMax));
-                            return (
-                              <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                                <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
-                                <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
-                                <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
-                                <td className="px-4 py-4 text-right font-mono text-xs text-slate-500">{position.hayGrade ?? "—"}</td>
-                                <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Sin pasivos — mensual"])} /> : "—"}</td>
-                                <td className={`px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
-                                  {temz > 0 ? <FmtMoney value={temz} /> : "—"}
-                                  {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
-                                </td>
-                                <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{Number(position.conceptValues?.["Con pasivos — anual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Con pasivos — anual"])} /> : "—"}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                    <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                      <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
+                      <select
+                        id="adminProcessedCargo"
+                        value={activeAdminProcessedCargo}
+                        onChange={(event) => setSelectedAdminProcessedCargo(event.target.value)}
+                        className="field-select mt-1.5"
+                      >
+                        {allAdminCargos.map((cargo) => (
+                          <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
+                        ))}
+                      </select>
                     </div>
-                  </section>
 
-                  {selectedAdminSnapshot?.status === "PROCESSED" ? (
-                    <section className="surface-card overflow-hidden rounded-[2rem]">
-                      <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <div className="eyebrow mb-2">Resultado procesado</div>
-                          <h2 className="font-display text-2xl font-bold text-slate-900">Percentiles por cargo</h2>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <div className="pill">Procesada</div>
-                          <button
-                            type="button"
-                            onClick={() => void exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminProcessedCargo, adminPositionsByCargo.find((e) => e.title === activeAdminProcessedCargo)?.positions ?? [])}
-                            className="btn btn-secondary"
-                          >
-                            Exportar Excel
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                        <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
-                        <select
-                          id="adminProcessedCargo"
-                          value={activeAdminProcessedCargo}
-                          onChange={(event) => setSelectedAdminProcessedCargo(event.target.value)}
-                          className="field-select mt-1.5"
-                        >
-                          {allAdminCargos.map((cargo) => (
-                            <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {(() => {
-                        const metricsMap = new Map(activeProcessedMetrics.map((m) => [m.concept, m]));
-                        const rows = COMPENSATION_METRIC_KEYS.map((key) => ({
-                          key,
-                          label: COMPENSATION_METRIC_LABELS[key],
-                          metric: metricsMap.get(key),
-                        }));
-                        const hasData = rows.some((r) => r.metric);
-                        if (!hasData) return null;
-                        return (
-                          <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
-                            <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                              <thead>
-                                <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                                  <th className="px-4 py-2">Concepto</th>
-                                  <th className="px-4 py-2 text-center">N</th>
-                                  <th className="px-4 py-2 text-right">Promedio</th>
-                                  <th className="px-4 py-2 text-right">Min</th>
-                                  <th className="px-4 py-2 text-right">P10</th>
-                                  <th className="px-4 py-2 text-right">P25</th>
-                                  <th className="px-4 py-2 text-right text-teal-700">P50</th>
-                                  <th className="px-4 py-2 text-right">P75</th>
-                                  <th className="px-4 py-2 text-right">P90</th>
-                                  <th className="px-4 py-2 text-right">Max</th>
+                    {(() => {
+                      const metricsMap = new Map(activeProcessedMetrics.map((m) => [m.concept, m]));
+                      const rows = COMPENSATION_METRIC_KEYS.map((key) => ({
+                        key,
+                        label: COMPENSATION_METRIC_LABELS[key],
+                        metric: metricsMap.get(key),
+                      }));
+                      const hasData = rows.some((r) => r.metric);
+                      if (!hasData) return null;
+                      return (
+                        <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
+                          <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                            <thead>
+                              <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                                <th className="px-4 py-2">Concepto</th>
+                                <th className="px-4 py-2 text-center">N</th>
+                                <th className="px-4 py-2 text-right">Promedio</th>
+                                <th className="px-4 py-2 text-right">Min</th>
+                                <th className="px-4 py-2 text-right">P10</th>
+                                <th className="px-4 py-2 text-right">P25</th>
+                                <th className="px-4 py-2 text-right text-teal-700">P50</th>
+                                <th className="px-4 py-2 text-right">P75</th>
+                                <th className="px-4 py-2 text-right">P90</th>
+                                <th className="px-4 py-2 text-right">Max</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map(({ key, label, metric }) => (
+                                <tr key={key} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                  <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{label}</td>
+                                  <td className="px-4 py-4 text-center font-semibold text-slate-600">{metric?.count ?? "—"}</td>
+                                  <td className="px-4 py-4 text-right font-display text-amber-700">{metric?.average ?? "—"}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-600">{metric?.min ?? "—"}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p10 ?? "—"}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p25 ?? "—"}</td>
+                                  <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{metric?.p50 ?? "—"}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p75 ?? "—"}</td>
+                                  <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p90 ?? "—"}</td>
+                                  <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-slate-600">{metric?.max ?? "—"}</td>
                                 </tr>
-                              </thead>
-                              <tbody>
-                                {rows.map(({ key, label, metric }) => (
-                                  <tr key={key} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{label}</td>
-                                    <td className="px-4 py-4 text-center font-semibold text-slate-600">{metric?.count ?? "—"}</td>
-                                    <td className="px-4 py-4 text-right font-display text-amber-700">{metric?.average ?? "—"}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-600">{metric?.min ?? "—"}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p10 ?? "—"}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p25 ?? "—"}</td>
-                                    <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{metric?.p50 ?? "—"}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p75 ?? "—"}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p90 ?? "—"}</td>
-                                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-slate-600">{metric?.max ?? "—"}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })()}
-                    </section>
-                  ) : null}
-                </>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </section>
+                ) : null
               ) : (
                 <section className="surface-card overflow-hidden rounded-[2rem]">
                   <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
