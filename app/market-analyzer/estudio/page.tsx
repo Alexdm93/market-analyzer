@@ -1511,8 +1511,8 @@ export default function EstudioPage() {
                 </div>
               </section>
 
-              {/* View toggle + TCR controls (admin) */}
-              <div className="flex flex-wrap items-center gap-3">
+              {/* View toggle + TCR controls (admin) — only when processed */}
+              {selectedAdminSnapshot?.status === "PROCESSED" && <div className="flex flex-wrap items-center gap-3">
                 <div className="flex gap-1.5 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
                   <button type="button" onClick={() => setStudyView("cargo")} className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "cargo" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Por cargo</button>
                   <button type="button" onClick={() => setStudyView("grado")} className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "grado" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Por grados</button>
@@ -1544,7 +1544,7 @@ export default function EstudioPage() {
                     {!tcrRates.libre && <span className="text-xs text-amber-700">Configura la tasa libre antes de activar TCR</span>}
                   </>
                 )}
-              </div>
+              </div>}
 
               {studyView === "cargo" ? (
                 selectedAdminSnapshot?.status === "PROCESSED" ? (
