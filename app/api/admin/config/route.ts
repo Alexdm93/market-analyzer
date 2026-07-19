@@ -70,6 +70,65 @@ type UpdateConfigBody = {
   cargos?: CargoEntry[];
 };
 
+type SnapshotCargoEntry = { departamento: string; tituloCargo: string };
+
+function propagateMasterToSnapshot(
+  oldMaster: CargoEntry[],
+  newMaster: CargoEntry[],
+  snapshot: SnapshotCargoEntry[]
+): SnapshotCargoEntry[] {
+  const oldDeptMap = new Map(oldMaster.map((d) => [d.departamento, new Set(d.cargos)]));
+  const newDeptMap = new Map(newMaster.map((d) => [d.departamento, new Set(d.cargos)]));
+
+  // Detect dept renames: old dept not in new + new dept not in old, with >50% cargo overlap
+  const removedDepts = oldMaster.filter((d) => !newDeptMap.has(d.departamento));
+  const addedDepts   = newMaster.filter((d) => !oldDeptMap.has(d.departamento));
+  const deptRenameMap = new Map<string, string>();
+  for (const oldDept of removedDepts) {
+    let best: { name: string; score: number } | null = null;
+    for (const newDept of addedDepts) {
+      const oldSet = oldDeptMap.get(oldDept.departamento)!;
+      const overlap = newDept.cargos.filter((c) => oldSet.has(c)).length;
+      const union   = new Set([...oldDept.cargos, ...newDept.cargos]).size;
+      const score   = union > 0 ? overlap / union : 0;
+      if (score > 0.5 && (!best || overlap > best.score)) {
+        best = { name: newDept.departamento, score: overlap };
+      }
+    }
+    if (best) deptRenameMap.set(oldDept.departamento, best.name);
+  }
+
+  // Rebuild snapshot: apply renames, remove deleted depts/cargos, keep valid entries
+  const kept: SnapshotCargoEntry[] = [];
+  const seenDepts = new Set<string>();
+  for (const entry of snapshot) {
+    const resolvedDept = deptRenameMap.get(entry.departamento) ?? entry.departamento;
+    const deptCargos   = newDeptMap.get(resolvedDept);
+    if (!deptCargos) continue; // dept deleted
+    if (!deptCargos.has(entry.tituloCargo)) continue; // cargo deleted from dept
+    kept.push({ departamento: resolvedDept, tituloCargo: entry.tituloCargo });
+    seenDepts.add(resolvedDept);
+  }
+
+  // Add new cargos to depts already present in this snapshot
+  const keptByDept = new Map<string, Set<string>>();
+  for (const e of kept) {
+    if (!keptByDept.has(e.departamento)) keptByDept.set(e.departamento, new Set());
+    keptByDept.get(e.departamento)!.add(e.tituloCargo);
+  }
+  for (const newDept of newMaster) {
+    const existing = keptByDept.get(newDept.departamento);
+    if (!existing) continue; // dept not in this snapshot — don't auto-add
+    for (const cargo of newDept.cargos) {
+      if (!existing.has(cargo)) {
+        kept.push({ departamento: newDept.departamento, tituloCargo: cargo });
+      }
+    }
+  }
+
+  return kept;
+}
+
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
 
@@ -101,12 +160,37 @@ export async function PUT(request: Request) {
     }
 
     if (Array.isArray(body.cargos)) {
+      // Read old master + all snapshot-cargos rows before saving
+      const [oldMasterRow, snapshotRows] = await Promise.all([
+        prisma.globalConfig.findUnique({ where: { key: CARGOS_KEY } }),
+        prisma.globalConfig.findMany({ where: { key: { startsWith: "snapshot-cargos-" } } }),
+      ]);
+
+      const oldMaster: CargoEntry[] = (() => {
+        try { return oldMasterRow?.value ? (JSON.parse(oldMasterRow.value) as CargoEntry[]) : []; }
+        catch { return []; }
+      })();
+
+      // Propagate changes to every snapshot-cargos row
+      const snapshotUpdates = snapshotRows.map((row) => {
+        const current: SnapshotCargoEntry[] = (() => {
+          try { return JSON.parse(row.value) as SnapshotCargoEntry[]; }
+          catch { return []; }
+        })();
+        const updated = propagateMasterToSnapshot(oldMaster, body.cargos!, current);
+        return prisma.globalConfig.update({
+          where: { key: row.key },
+          data: { value: JSON.stringify(updated) },
+        });
+      });
+
       operations.push(
         prisma.globalConfig.upsert({
           where: { key: CARGOS_KEY },
           create: { key: CARGOS_KEY, value: JSON.stringify(body.cargos) },
           update: { value: JSON.stringify(body.cargos) },
-        })
+        }),
+        ...snapshotUpdates
       );
     }
 
