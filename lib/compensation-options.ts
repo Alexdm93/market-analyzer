@@ -27,7 +27,7 @@ export const SYSTEM_FIXED_CONCEPTS: CompensationTemplateConcept[] = [
 export const FREQUENCY_OPTIONS: Array<{ value: PaymentFrequency; label: string }> = [
   { value: "biweekly", label: "Quincenal" },
   { value: "monthly", label: "Mensual" },
-  { value: "bimonthly", label: "Bimensual" },
+  { value: "bimonthly", label: "Bimestral" },
   { value: "quarterly", label: "Trimestral" },
   { value: "semiannual", label: "Semestral" },
   { value: "annual", label: "Anual" },
