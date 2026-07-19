@@ -234,6 +234,7 @@ export default function EstudioPage() {
   const [adminMessage, setAdminMessage] = useState("");
   const [selectedAdminCargo, setSelectedAdminCargo] = useState("");
   const [selectedAdminProcessedCargo, setSelectedAdminProcessedCargo] = useState("");
+  const [selectedAdminGrade, setSelectedAdminGrade] = useState<number | null>(null);
   const [studyView, setStudyView] = useState<"cargo" | "grado">("cargo");
   const [filterSectors, setFilterSectors] = useState<string[]>([]);
   const [filterCompanies, setFilterCompanies] = useState<string[]>([]);
@@ -345,7 +346,7 @@ export default function EstudioPage() {
 
       const conceptMetrics = Array.from(conceptMap.entries())
         .map(([concept, values]) => {
-          const numericValues = values.filter((value) => Number.isFinite(value));
+          const numericValues = values.filter((value) => Number.isFinite(value) && value > 0);
           const average = numericValues.length ? Math.round(numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length) : 0;
 
           const n = numericValues.length;
@@ -406,35 +407,77 @@ export default function EstudioPage() {
   const NIVELES_ESTUDIO = ["Operativo", "Profesional", "Supervisor", "Gerencia Media", "Gerencia Alta", "Ejecutivo"] as const;
 
   const adminPositionsByGrado = useMemo(() => {
-    const map = new Map<number, { companies: Set<string>; totals: number[] }>();
+    // Group by grade > company, track each of the 4 compensation metrics
+    const gradMap = new Map<number, Map<string, { tem: number[]; temz: number[]; cim: number[]; pcta: number[] }>>();
     filteredPositions.forEach((p) => {
       const grade = p.hayGrade;
       if (!grade) return;
-      if (!map.has(grade)) map.set(grade, { companies: new Set(), totals: [] });
-      const entry = map.get(grade)!;
-      entry.companies.add(p.companyName);
-      const total = p.conceptValues["Total directo mensualizado"] ?? p.conceptValues["Compensación total"] ?? 0;
-      if (total > 0) entry.totals.push(Number(total));
+      if (!gradMap.has(grade)) gradMap.set(grade, new Map());
+      const byCompany = gradMap.get(grade)!;
+      if (!byCompany.has(p.companyName)) byCompany.set(p.companyName, { tem: [], temz: [], cim: [], pcta: [] });
+      const entry = byCompany.get(p.companyName)!;
+      const tem  = Number(p.conceptValues["Sin pasivos — mensual"]      ?? 0);
+      const temz = Number(p.conceptValues["Total directo mensualizado"] ?? 0);
+      const cim  = Number(p.conceptValues["Con pasivos — mensual"]      ?? 0);
+      const pcta = Number(p.conceptValues["Con pasivos — anual"]        ?? 0);
+      if (tem  > 0) entry.tem.push(tem);
+      if (temz > 0) entry.temz.push(temz);
+      if (cim  > 0) entry.cim.push(cim);
+      if (pcta > 0) entry.pcta.push(pcta);
     });
-    return Array.from(map.entries())
+
+    const mkStats = (concept: string, vals: number[]): AdminConceptMetric => {
+      const n = vals.length;
+      const pct = (q: number, minN: number) =>
+        n >= minN ? formatMoney(Math.round(percentile(vals, q))) : "ND";
+      return {
+        concept,
+        count: n,
+        min:     n ? formatMoney(Math.min(...vals)) : "—",
+        max:     n ? formatMoney(Math.max(...vals)) : "—",
+        average: n >= PERCENTILE_MIN_N.promedio ? formatMoney(Math.round(vals.reduce((a, b) => a + b, 0) / n)) : "ND",
+        p10:     pct(10, PERCENTILE_MIN_N.p10),
+        p25:     pct(25, PERCENTILE_MIN_N.p25),
+        p50:     pct(50, PERCENTILE_MIN_N.p50),
+        p75:     pct(75, PERCENTILE_MIN_N.p75),
+        p90:     pct(90, PERCENTILE_MIN_N.p90),
+      };
+    };
+
+    return Array.from(gradMap.entries())
       .sort(([a], [b]) => a - b)
-      .map(([grade, entry]) => {
-        const totals = entry.totals;
+      .map(([grade, byCompany]) => {
+        // Compute per-company averages per metric, then collect across companies
+        const avgs = { tem: [] as number[], temz: [] as number[], cim: [] as number[], pcta: [] as number[] };
+        for (const [, entry] of byCompany) {
+          const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+          const t  = avg(entry.tem);  if (t  != null) avgs.tem.push(t);
+          const tz = avg(entry.temz); if (tz != null) avgs.temz.push(tz);
+          const c  = avg(entry.cim);  if (c  != null) avgs.cim.push(c);
+          const p  = avg(entry.pcta); if (p  != null) avgs.pcta.push(p);
+        }
         return {
           grade,
-          empresas: entry.companies.size,
-          obs: totals.length,
-          min:     totals.length ? formatMoney(Math.min(...totals)) : "—",
-          p25:     totals.length ? formatMoney(Math.round(percentile(totals, 25))) : "—",
-          p50:     totals.length ? formatMoney(Math.round(percentile(totals, 50))) : "—",
-          p75:     totals.length ? formatMoney(Math.round(percentile(totals, 75))) : "—",
-          p90:     totals.length ? formatMoney(Math.round(percentile(totals, 90))) : "—",
-          max:     totals.length ? formatMoney(Math.max(...totals)) : "—",
-          promedio:totals.length ? formatMoney(Math.round(totals.reduce((a, b) => a + b, 0) / totals.length)) : "—",
+          empresas: byCompany.size,
+          metrics: [
+            mkStats("Sin pasivos — mensual",      avgs.tem),
+            mkStats("Total directo mensualizado",  avgs.temz),
+            mkStats("Con pasivos — mensual",       avgs.cim),
+            mkStats("Con pasivos — anual",         avgs.pcta),
+          ],
         };
       })
-      .filter((g) => g.obs > 0);
+      .filter((g) => g.metrics.some((m) => m.count > 0));
   }, [filteredPositions]);
+
+  const allAdminGrades = adminPositionsByGrado.map((g) => g.grade);
+  const activeAdminGrade =
+    selectedAdminGrade !== null && allAdminGrades.includes(selectedAdminGrade)
+      ? selectedAdminGrade
+      : (allAdminGrades[0] ?? null);
+  const activeGradeEntry = activeAdminGrade !== null
+    ? (adminPositionsByGrado.find((g) => g.grade === activeAdminGrade) ?? null)
+    : null;
 
   const adminCompanySummary = useMemo(() => {
     const companiesMap = new Map<string, { sector: string; headcount: string }>();
@@ -917,35 +960,26 @@ export default function EstudioPage() {
     }], `percentiles-${sanitizeFileSegment(snapshotLabel)}-${sanitizeFileSegment(cargoTitle)}.xlsx`);
   }
 
-  async function exportAdminGradosExcel(snapshotLabel: string, positions: AdminStudyPosition[]) {
-    const companyMap = new Map<number, Set<string>>();
-    const valMap     = new Map<number, number[]>();
-    positions.forEach((p) => {
-      const grade = p.hayGrade;
-      if (!grade) return;
-      if (!companyMap.has(grade)) { companyMap.set(grade, new Set()); valMap.set(grade, []); }
-      companyMap.get(grade)!.add(p.companyName);
-      const total = Number(p.conceptValues["Total directo mensualizado"] ?? p.conceptValues["Compensación total"] ?? 0);
-      if (total > 0) valMap.get(grade)!.push(total);
-    });
-    const sheetRows = Array.from(valMap.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([grade, totals]) => {
-        if (!totals.length) return null;
-        return {
-          grado:         `Grado ${grade}`,
-          empresas:      companyMap.get(grade)?.size ?? 0,
-          observaciones: totals.length,
-          min:           Math.min(...totals),
-          p25:           Math.round(percentile(totals, 25)),
-          p50:           Math.round(percentile(totals, 50)),
-          p75:           Math.round(percentile(totals, 75)),
-          p90:           Math.round(percentile(totals, 90)),
-          max:           Math.max(...totals),
-          promedio:      Math.round(totals.reduce((a, b) => a + b, 0) / totals.length),
-        };
-      }).filter(Boolean);
-
+  async function exportAdminGradosExcel(snapshotLabel: string, data: typeof adminPositionsByGrado) {
+    const sheetRows: Record<string, string | number | null | undefined>[] = [];
+    for (const g of data) {
+      for (const m of g.metrics) {
+        sheetRows.push({
+          grado:    `Grado ${g.grade}`,
+          empresas: g.empresas,
+          concepto: COMPENSATION_METRIC_LABELS[m.concept as keyof typeof COMPENSATION_METRIC_LABELS] ?? m.concept,
+          obs:      m.count,
+          promedio: m.average,
+          min:      m.min,
+          p10:      m.p10,
+          p25:      m.p25,
+          p50:      m.p50,
+          p75:      m.p75,
+          p90:      m.p90,
+          max:      m.max,
+        });
+      }
+    }
     if (sheetRows.length === 0) {
       setAdminMessage("No hay data de grados para exportar.");
       return;
@@ -953,18 +987,20 @@ export default function EstudioPage() {
     await exportStyledExcel([{
       name: "Por grados",
       columns: [
-        { header: "Grado",        key: "grado",         width: 20, align: "left"   },
-        { header: "Empresas",     key: "empresas",      width: 12, align: "center" },
-        { header: "Obs.",         key: "observaciones", width: 10, align: "center" },
-        { header: "Min",          key: "min",           width: 14, align: "right"  },
-        { header: "P25",          key: "p25",           width: 14, align: "right"  },
-        { header: "P50",          key: "p50",           width: 14, align: "right"  },
-        { header: "P75",          key: "p75",           width: 14, align: "right"  },
-        { header: "P90",          key: "p90",           width: 14, align: "right"  },
-        { header: "Max",          key: "max",           width: 14, align: "right"  },
-        { header: "Promedio",     key: "promedio",      width: 14, align: "right"  },
+        { header: "Grado",    key: "grado",    width: 14, align: "left"   },
+        { header: "Empresas", key: "empresas", width: 12, align: "center" },
+        { header: "Concepto", key: "concepto", width: 44, align: "left"   },
+        { header: "N",        key: "obs",      width: 8,  align: "center" },
+        { header: "Promedio", key: "promedio", width: 14, align: "right"  },
+        { header: "Min",      key: "min",      width: 14, align: "right"  },
+        { header: "P10",      key: "p10",      width: 14, align: "right"  },
+        { header: "P25",      key: "p25",      width: 14, align: "right"  },
+        { header: "P50",      key: "p50",      width: 14, align: "right"  },
+        { header: "P75",      key: "p75",      width: 14, align: "right"  },
+        { header: "P90",      key: "p90",      width: 14, align: "right"  },
+        { header: "Max",      key: "max",      width: 14, align: "right"  },
       ],
-      rows: sheetRows as Record<string, string | number | null | undefined>[],
+      rows: sheetRows,
     }], `grados-${sanitizeFileSegment(snapshotLabel)}.xlsx`);
   }
 
@@ -1603,7 +1639,7 @@ export default function EstudioPage() {
                       {hasActiveFilters && <div className="pill">Filtrado</div>}
                       <button
                         type="button"
-                        onClick={() => void exportAdminGradosExcel(selectedAdminSnapshot?.label || "corte", filteredPositions)}
+                        onClick={() => void exportAdminGradosExcel(selectedAdminSnapshot?.label || "corte", adminPositionsByGrado)}
                         className="btn btn-secondary"
                       >
                         Exportar Excel
@@ -1614,71 +1650,123 @@ export default function EstudioPage() {
                   {(() => {
                     const useTcrGrades = adminTcrEnabled && (adminTcrPercentileData?.grades?.length ?? 0) > 0;
                     const tcrGrades = adminTcrPercentileData?.grades ?? [];
-                    const fmt = (v: number | null) => v != null ? formatMoney(Math.round(v)) : "—";
+                    const displayGrades = useTcrGrades ? tcrGrades.map((g) => g.grade) : allAdminGrades;
+
                     if (!useTcrGrades && adminPositionsByGrado.length === 0) {
                       return <div className="px-6 py-8 text-sm text-slate-500">No hay posiciones con grado CAPRI asignado en el corte actual.</div>;
                     }
                     if (useTcrGrades && tcrGrades.length === 0) {
                       return <div className="px-6 py-8 text-sm text-slate-500">No hay datos TCR por grado disponibles.</div>;
                     }
+
+                    const effectiveGrade = displayGrades.includes(activeAdminGrade as number)
+                      ? activeAdminGrade
+                      : (displayGrades[0] ?? null);
+
+                    // Build metric rows for the selected grade
+                    type MetricRow = { concept: typeof COMPENSATION_METRIC_KEYS[number]; metric: AdminConceptMetric | null };
+                    let rows: MetricRow[];
+
+                    if (useTcrGrades) {
+                      const tcrEntry = tcrGrades.find((g) => g.grade === effectiveGrade);
+                      const tcrMap = [
+                        { concept: "Sin pasivos — mensual"      as const, data: tcrEntry?.sinPasivosMensual },
+                        { concept: "Total directo mensualizado" as const, data: tcrEntry?.directoMensualizado },
+                        { concept: "Con pasivos — mensual"      as const, data: tcrEntry?.conPasivosMensual },
+                        { concept: "Con pasivos — anual"        as const, data: tcrEntry?.conPasivosAnual },
+                      ];
+                      const fmt = (v: number | null | undefined) => (v != null ? formatMoney(Math.round(v)) : "ND");
+                      rows = tcrMap.map(({ concept, data: m }) => ({
+                        concept,
+                        metric: m ? {
+                          concept,
+                          count:   m.n,
+                          min:     m.min   != null ? formatMoney(m.min)   : "—",
+                          max:     m.max   != null ? formatMoney(m.max)   : "—",
+                          average: fmt(m.promedio),
+                          p10:     fmt(m.p10),
+                          p25:     fmt(m.p25),
+                          p50:     fmt(m.p50),
+                          p75:     fmt(m.p75),
+                          p90:     fmt(m.p90),
+                        } as AdminConceptMetric : null,
+                      }));
+                    } else {
+                      const entry = adminPositionsByGrado.find((g) => g.grade === effectiveGrade) ?? null;
+                      const metricsMap = new Map((entry?.metrics ?? []).map((m) => [m.concept, m]));
+                      rows = COMPENSATION_METRIC_KEYS.map((key) => ({
+                        concept: key,
+                        metric:  metricsMap.get(key) ?? null,
+                      }));
+                    }
+
+                    const hasData = rows.some((r) => r.metric && r.metric.count > 0);
+                    const badgeColor = useTcrGrades ? "bg-amber-600" : "bg-teal-600";
+
                     return (
-                      <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
-                        <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                          <thead>
-                            <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                              <th className="px-4 py-2">Grado CAPRI</th>
-                              <th className="px-4 py-2 text-center">Empresas</th>
-                              <th className="px-4 py-2 text-center">Obs.</th>
-                              <th className="px-4 py-2 text-right">Min</th>
-                              <th className="px-4 py-2 text-right">P25</th>
-                              <th className="px-4 py-2 text-right">P50</th>
-                              <th className="px-4 py-2 text-right">P75</th>
-                              <th className="px-4 py-2 text-right">P90</th>
-                              <th className="px-4 py-2 text-right">Max</th>
-                              <th className="px-4 py-2 text-right">Promedio</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {useTcrGrades
-                              ? tcrGrades.map((g) => {
-                                  const m = g.directoMensualizado;
-                                  return (
-                                    <tr key={g.grade} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                                      <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
-                                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-amber-600 text-sm font-black text-white">{g.grade}</span>
-                                      </td>
-                                      <td className="px-4 py-4 text-center text-slate-600">{g.n}</td>
-                                      <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.n}</td>
-                                      <td className="px-4 py-4 text-right font-display text-slate-600">{fmt(m.min)}</td>
-                                      <td className="px-4 py-4 text-right font-display text-slate-700">{fmt(m.p25)}</td>
-                                      <td className="px-4 py-4 text-right font-display font-semibold text-amber-700">{fmt(m.p50)}</td>
-                                      <td className="px-4 py-4 text-right font-display text-slate-700">{fmt(m.p75)}</td>
-                                      <td className="px-4 py-4 text-right font-display text-slate-700">{fmt(m.p90)}</td>
-                                      <td className="px-4 py-4 text-right font-display text-slate-600">{fmt(m.max)}</td>
-                                      <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{fmt(m.promedio)}</td>
-                                    </tr>
-                                  );
-                                })
-                              : adminPositionsByGrado.map((g) => (
-                                  <tr key={g.grade} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
-                                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-black text-white">{g.grade}</span>
-                                    </td>
-                                    <td className="px-4 py-4 text-center text-slate-600">{g.empresas}</td>
-                                    <td className="px-4 py-4 text-center font-semibold text-slate-700">{g.obs}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-600">{g.min}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-700">{g.p25}</td>
-                                    <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{g.p50}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-700">{g.p75}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-700">{g.p90}</td>
-                                    <td className="px-4 py-4 text-right font-display text-slate-600">{g.max}</td>
-                                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{g.promedio}</td>
+                      <>
+                        <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                          <div className="flex items-center gap-4">
+                            <div>
+                              <label htmlFor="adminGradeSelector" className="field-label">Seleccionar grado</label>
+                              <select
+                                id="adminGradeSelector"
+                                value={effectiveGrade ?? ""}
+                                onChange={(e) => setSelectedAdminGrade(Number(e.target.value) || null)}
+                                className="field-select mt-1.5"
+                              >
+                                {displayGrades.map((grade) => (
+                                  <option key={grade} value={grade}>Grado {grade}</option>
+                                ))}
+                              </select>
+                            </div>
+                            {effectiveGrade != null && (
+                              <span className={`mt-5 inline-flex h-10 w-10 items-center justify-center rounded-xl ${badgeColor} text-base font-black text-white`}>
+                                {effectiveGrade}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {!hasData ? (
+                          <div className="px-6 py-8 text-sm text-slate-500">No hay datos suficientes para el grado seleccionado.</div>
+                        ) : (
+                          <div className="overflow-x-auto px-3 py-4 md:px-4 md:py-5">
+                            <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                              <thead>
+                                <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                                  <th className="px-4 py-2">Concepto</th>
+                                  <th className="px-4 py-2 text-center">N</th>
+                                  <th className="px-4 py-2 text-right">Promedio</th>
+                                  <th className="px-4 py-2 text-right">Min</th>
+                                  <th className="px-4 py-2 text-right">P10</th>
+                                  <th className="px-4 py-2 text-right">P25</th>
+                                  <th className="px-4 py-2 text-right text-teal-700">P50</th>
+                                  <th className="px-4 py-2 text-right">P75</th>
+                                  <th className="px-4 py-2 text-right">P90</th>
+                                  <th className="px-4 py-2 text-right">Max</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map(({ concept, metric }) => (
+                                  <tr key={concept} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{COMPENSATION_METRIC_LABELS[concept]}</td>
+                                    <td className="px-4 py-4 text-center font-semibold text-slate-600">{metric?.count ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-amber-700">{metric?.average ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-600">{metric?.min ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p10 ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p25 ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">{metric?.p50 ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p75 ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{metric?.p90 ?? "—"}</td>
+                                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-slate-600">{metric?.max ?? "—"}</td>
                                   </tr>
-                                ))
-                            }
-                          </tbody>
-                        </table>
-                      </div>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
                     );
                   })()}
                 </section>
