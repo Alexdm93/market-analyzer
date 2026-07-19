@@ -49,13 +49,10 @@ export async function GET(request: Request) {
     return Response.json({ message: "Indica el corte." }, { status: 400 });
   }
 
-  // Only published snapshots are visible to users
-  const publishedIds = await getPublishedSnapshotIds();
-  if (!publishedIds.includes(snapshotId)) {
-    return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
-  }
+  const isAdmin = session.user.role === "ADMIN";
 
-  const [{ rate: bcvRate }, workspaces] = await Promise.all([
+  const [publishedIds, { rate: bcvRate }, workspaces] = await Promise.all([
+    getPublishedSnapshotIds(),
     getBcvRate(),
     prisma.userWorkspace.findMany({
       select: {
@@ -66,13 +63,17 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  // Verify the requesting user participated (has at least one non-carried row for this snapshot)
-  const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
-  const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
-  const requestingSnapshot = requestingSnapshots[snapshotId];
-  const userParticipated = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
-  if (!userParticipated) {
-    return Response.json({ message: "No participaste en este corte." }, { status: 403 });
+  if (!isAdmin) {
+    if (!publishedIds.includes(snapshotId)) {
+      return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
+    }
+    const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
+    const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
+    const requestingSnapshot = requestingSnapshots[snapshotId];
+    const userParticipated = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
+    if (!userParticipated) {
+      return Response.json({ message: "No participaste en este corte." }, { status: 403 });
+    }
   }
 
   // Accumulate one value per (company × tituloCargo)
