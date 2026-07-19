@@ -85,14 +85,16 @@ export async function GET(request: Request) {
       })
     : 0;
 
-  // Sector distribution
+  // Sector distribution — only companies that submitted for this cut
+  const submittedCompanyIds = new Set(submittedSnapshots.map((s) => s.companyId));
+  const submittedCompanies = allCompanies.filter((c) => submittedCompanyIds.has(c.id));
   const sectorMap = new Map<string, number>();
-  for (const c of allCompanies) {
+  for (const c of submittedCompanies) {
     const s = c.economicSector?.trim() || "Sin sector";
     sectorMap.set(s, (sectorMap.get(s) ?? 0) + 1);
   }
   const sectorDistribution = Array.from(sectorMap.entries())
-    .map(([sector, count]) => ({ sector, count, percentage: Math.round((count / allCompanies.length) * 100) }))
+    .map(([sector, count]) => ({ sector, count, percentage: Math.round((count / Math.max(submittedCompanies.length, 1)) * 100) }))
     .sort((a, b) => b.count - a.count);
 
   // Warnings: companies missing key fields
