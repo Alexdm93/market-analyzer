@@ -1278,8 +1278,8 @@ export default function DataPage() {
                       ) : (
                         <div className="pill text-slate-400">Sin clasificar</div>
                       )}
-                      <div className="pill">{(r.additionalFixedPayments || []).length} conceptos fijos</div>
-                      <div className="pill">{(r.additionalVariablePayments || []).length} conceptos variables</div>
+                      <div className="pill">{[r.sueldoBasico, r.bonoAlimentacion, r.bonoMovilizacion].filter(v => v != null && Number(v) > 0).length + (r.additionalFixedPayments || []).length} conceptos fijos</div>
+                      <div className="pill">{[r.bonoDesempeno, r.comisiones, r.pagoVariableOtros].filter(v => v != null && Number(v) > 0).length + (r.additionalVariablePayments || []).length} conceptos variables</div>
                     </div>
                   </div>
 
