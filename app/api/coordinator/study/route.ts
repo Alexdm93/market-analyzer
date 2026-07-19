@@ -80,9 +80,25 @@ export async function GET(request: Request) {
     });
   }
 
+  // Restrict to companies currently assigned to this snapshot (if a list is configured)
+  const companiesConfigRow = await prisma.globalConfig.findUnique({
+    where: { key: `snapshot-companies-${snapshotId}` },
+    select: { value: true },
+  });
+  let allowedCompanyIds: string[] | null = null;
+  if (companiesConfigRow?.value) {
+    try {
+      const parsed = JSON.parse(companiesConfigRow.value) as { companyIds?: string[] };
+      if (Array.isArray(parsed.companyIds)) allowedCompanyIds = parsed.companyIds;
+    } catch {}
+  }
+
   // Detail view: companies for a specific snapshot
   const rows = await prisma.userSnapshot.findMany({
-    where: { snapshotId },
+    where: {
+      snapshotId,
+      ...(allowedCompanyIds ? { companyId: { in: allowedCompanyIds } } : {}),
+    },
     select: {
       submittedAt: true,
       company: {
@@ -195,6 +211,8 @@ export async function GET(request: Request) {
     snapshot: snapshot
       ? { id: snapshot.snapshotId, label: snapshot.label, date: snapshot.date.toISOString().split("T")[0], status: snapshot.status }
       : null,
-    companies: Array.from(byCompany.values()),
+    companies: Array.from(byCompany.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, "es", { sensitivity: "base" })
+    ),
   });
 }

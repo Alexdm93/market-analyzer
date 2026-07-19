@@ -60,10 +60,7 @@ export async function GET(request: Request) {
   const latestSnapshotId = requestedSnapshotId || availableSnapshots[0]?.id || "";
 
   // Step 2: per-cut metrics
-  // "Activas 60d" = companies that actually saved cargo data in this cut within the last 60 days
-  // "Total empresas" = companies that have submitted (enviadas) for this cut
-  // "Cargos Reportados" = positions from submitted companies only
-  const [cutActivePositions, submittedSnapshots] = latestSnapshotId
+  const [cutActivePositions, submittedSnapshots, snapshotCompaniesRow] = latestSnapshotId
     ? await Promise.all([
         prisma.userPosition.findMany({
           where: { snapshotId: latestSnapshotId, updatedAt: { gte: sixtyDaysAgo } },
@@ -75,8 +72,31 @@ export async function GET(request: Request) {
           select: { companyId: true, userId: true },
           distinct: ["companyId"],
         }),
+        prisma.globalConfig.findUnique({
+          where: { key: `snapshot-companies-${latestSnapshotId}` },
+          select: { value: true },
+        }),
       ])
-    : [[], []] as [{ companyId: string }[], { companyId: string; userId: string }[]];
+    : [[], [], null] as [{ companyId: string }[], { companyId: string; userId: string }[], null];
+
+  // "Total empresas" = companies currently assigned to this cut (from snapshot-companies config)
+  // Falls back to distinct UserSnapshot count if no restriction is configured
+  let totalAssignedCompanies: number;
+  if (snapshotCompaniesRow?.value) {
+    try {
+      const parsed = JSON.parse(snapshotCompaniesRow.value) as { companyIds?: string[] };
+      totalAssignedCompanies = Array.isArray(parsed.companyIds) ? parsed.companyIds.length : 0;
+    } catch { totalAssignedCompanies = 0; }
+  } else if (latestSnapshotId) {
+    const all = await prisma.userSnapshot.findMany({
+      where: { snapshotId: latestSnapshotId },
+      select: { companyId: true },
+      distinct: ["companyId"],
+    });
+    totalAssignedCompanies = all.length;
+  } else {
+    totalAssignedCompanies = 0;
+  }
 
   const submittedUserIds = new Set(submittedSnapshots.map((s) => s.userId));
   const totalPositionsCount = latestSnapshotId
@@ -181,7 +201,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     activeCompanies60Days: cutActivePositions.length,
-    totalCompanies: submittedSnapshots.length,
+    totalCompanies: totalAssignedCompanies,
     totalPositions: totalPositionsCount,
     availableSnapshots,
     latestSnapshotId,
