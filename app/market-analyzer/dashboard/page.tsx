@@ -485,6 +485,7 @@ function UserDashboard() {
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<"nombre" | "nivel">("nombre");
 
   useEffect(() => {
     let ignore = false;
@@ -555,6 +556,22 @@ function UserDashboard() {
   const totalPositions = rows.length;
   const nivelesConData = NIVELES.filter((n) => medianasPorNivel[n].count > 0).length;
   const companyName = companyInfo.companyName || "Sin nombre";
+
+  const sortedRows = useMemo(() => {
+    const nivelOrder = Object.fromEntries(NIVELES.map((n, i) => [n, i]));
+    return [...rows].sort((a, b) => {
+      if (sortBy === "nivel") {
+        const na = getRowNivel(a);
+        const nb = getRowNivel(b);
+        if (na === null && nb === null) return (a.tituloCargo ?? "").localeCompare(b.tituloCargo ?? "", "es");
+        if (na === null) return 1;
+        if (nb === null) return -1;
+        const diff = (nivelOrder[na] ?? 99) - (nivelOrder[nb] ?? 99);
+        return diff !== 0 ? diff : (a.tituloCargo ?? "").localeCompare(b.tituloCargo ?? "", "es");
+      }
+      return (a.tituloCargo ?? "").localeCompare(b.tituloCargo ?? "", "es");
+    });
+  }, [rows, sortBy]);
 
   // Snapshots available for selector (published ones first, then any remaining)
   const snapshotList = useMemo(() => {
@@ -650,12 +667,29 @@ function UserDashboard() {
         </section>
 
         <section className="surface-card overflow-hidden rounded-[2rem]">
-          <div className="flex flex-col gap-2 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-2 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="eyebrow mb-2">Data</div>
               <h2 className="font-display text-2xl font-bold text-slate-900">
                 Información de compensación: {companyName}
               </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Ordenar:</span>
+              <button
+                type="button"
+                onClick={() => setSortBy("nombre")}
+                className={`btn btn-xs ${sortBy === "nombre" ? "bg-teal-600 text-white border-teal-600 hover:bg-teal-700" : "btn-secondary"}`}
+              >
+                Nombre
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortBy("nivel")}
+                className={`btn btn-xs ${sortBy === "nivel" ? "bg-teal-600 text-white border-teal-600 hover:bg-teal-700" : "btn-secondary"}`}
+              >
+                Nivel
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto px-3 pb-3 md:px-4 md:pb-4">
@@ -663,6 +697,7 @@ function UserDashboard() {
               <thead>
                 <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                   <th className="px-4 py-2">Cargo</th>
+                  <th className="px-4 py-2">Nivel</th>
                   <th className="px-4 py-2 text-right">
                     <span className="inline-flex items-center justify-end gap-1.5">
                       Total Efectivo Mensual (TEM)
@@ -684,16 +719,17 @@ function UserDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? (
+                {sortedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-sm text-slate-400">
+                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">
                       Sin cargos registrados para esta actualización.
                     </td>
                   </tr>
                 ) : (
-                  rows.map((r) => {
+                  sortedRows.map((r) => {
                     const monthly = rowMonthly(r);
                     const annual = rowAnnual(r);
+                    const nivel = getRowNivel(r);
                     return (
                       <tr key={r.id} className="overflow-hidden rounded-[1.25rem] bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
                         <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">
@@ -701,6 +737,9 @@ function UserDashboard() {
                           {r.departamento && (
                             <div className="text-xs text-slate-400">{r.departamento}</div>
                           )}
+                        </td>
+                        <td className="px-4 py-4 text-slate-600 text-sm">
+                          {nivel ?? <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-4 py-4 text-right font-display font-semibold text-teal-700">
                           {monthly > 0 ? <FmtMoney value={monthly} prefix="$" /> : "ND"}
