@@ -60,21 +60,30 @@ export async function GET(request: Request) {
   const latestSnapshotId = requestedSnapshotId || availableSnapshots[0]?.id || "";
 
   // Step 2: per-cut metrics
-  const [cutActiveSnapshots, cutAllSnapshots, totalPositionsCount] = latestSnapshotId
+  // "Activas 60d" = companies that actually saved cargo data in this cut within the last 60 days
+  // "Total empresas" = companies that have submitted (enviadas) for this cut
+  // "Cargos Reportados" = positions from submitted companies only
+  const [cutActivePositions, submittedSnapshots] = latestSnapshotId
     ? await Promise.all([
-        prisma.userSnapshot.findMany({
+        prisma.userPosition.findMany({
           where: { snapshotId: latestSnapshotId, updatedAt: { gte: sixtyDaysAgo } },
           select: { companyId: true },
           distinct: ["companyId"],
         }),
         prisma.userSnapshot.findMany({
-          where: { snapshotId: latestSnapshotId },
-          select: { companyId: true },
+          where: { snapshotId: latestSnapshotId, submittedAt: { not: null } },
+          select: { companyId: true, userId: true },
           distinct: ["companyId"],
         }),
-        prisma.userPosition.count({ where: { snapshotId: latestSnapshotId } }),
       ])
-    : [[], [], 0] as [{ companyId: string }[], { companyId: string }[], number];
+    : [[], []] as [{ companyId: string }[], { companyId: string; userId: string }[]];
+
+  const submittedUserIds = new Set(submittedSnapshots.map((s) => s.userId));
+  const totalPositionsCount = latestSnapshotId
+    ? await prisma.userPosition.count({
+        where: { snapshotId: latestSnapshotId, userId: { in: [...submittedUserIds] } },
+      })
+    : 0;
 
   // Sector distribution
   const sectorMap = new Map<string, number>();
@@ -169,8 +178,8 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
-    activeCompanies60Days: cutActiveSnapshots.length,
-    totalCompanies: cutAllSnapshots.length,
+    activeCompanies60Days: cutActivePositions.length,
+    totalCompanies: submittedSnapshots.length,
     totalPositions: totalPositionsCount,
     availableSnapshots,
     latestSnapshotId,
