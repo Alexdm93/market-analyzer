@@ -1448,10 +1448,13 @@ export default function EstudioPage() {
                         value={activeAdminCargo}
                         onChange={(event) => setSelectedAdminCargo(event.target.value)}
                         className="field-select"
+                        disabled={availableAdminCargos.length === 0}
                       >
-                        {availableAdminCargos.map((cargo) => (
-                          <option key={cargo} value={cargo}>{cargo}</option>
-                        ))}
+                        {availableAdminCargos.length === 0
+                          ? <option value="">Sin cargos fuera de rango</option>
+                          : availableAdminCargos.map((cargo) => (
+                            <option key={cargo} value={cargo}>{cargo}</option>
+                          ))}
                       </select>
                     </div>
                     <button
