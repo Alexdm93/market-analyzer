@@ -1663,7 +1663,7 @@ export default function EstudioPage() {
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => { setRangosModalOpen(false); setRangosDraft(null); }} />
           <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-3xl rounded-[1.75rem] p-6">
             <div className="eyebrow mb-1">Rangos de referencia</div>
-            <h3 className="font-display text-xl font-bold text-slate-900">CIM — Compensación Integral Mensualizada — por nivel</h3>
+            <h3 className="font-display text-xl font-bold text-slate-900">TEMz — Total Efectivo Mensualizado — por nivel</h3>
             <p className="mt-1 text-xs leading-5 text-slate-500">Los cargos cuyo valor quede fuera de estos rangos se marcarán en rojo en la tabla de data cruda.</p>
             <div className="mt-5 overflow-x-auto">
               <table className="w-full border-separate border-spacing-x-2 border-spacing-y-2 text-sm">
