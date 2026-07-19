@@ -233,6 +233,7 @@ export default function EstudioPage() {
   const [adminStatus, setAdminStatus] = useState<"idle" | "processing" | "done">("idle");
   const [adminMessage, setAdminMessage] = useState("");
   const [selectedAdminCargo, setSelectedAdminCargo] = useState("");
+  const [selectedAdminProcessedCargo, setSelectedAdminProcessedCargo] = useState("");
   const [studyView, setStudyView] = useState<"cargo" | "grado">("cargo");
   const [filterSectors, setFilterSectors] = useState<string[]>([]);
   const [filterCompanies, setFilterCompanies] = useState<string[]>([]);
@@ -1126,12 +1127,41 @@ export default function EstudioPage() {
 
   if (isAdmin) {
     const selectedAdminSnapshot = adminSnapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? null;
-    const availableAdminCargos = adminPositionsByCargo.map((entry) => entry.title);
-    const activeAdminCargo = adminPositionsByCargo.find((entry) => entry.title === selectedAdminCargo)?.title ?? availableAdminCargos[0] ?? "";
+    const allAdminCargos = adminPositionsByCargo.map((entry) => entry.title);
+
+    // Cargos with at least one out-of-range position (for the raw data selector filter)
+    const cargosConFueraDeRango = new Set(
+      adminPositionsByCargo
+        .filter(({ positions }) =>
+          positions.some((p) => {
+            const val = Number(p.conceptValues?.["Total directo mensualizado"] ?? 0);
+            const nivel = NIVELES_ESTUDIO.find((n) => (p.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+            const mn = nivel ? (nivelMin[nivel] ?? 0) : 0;
+            const mx = nivel ? (nivelMax[nivel] ?? 0) : 0;
+            return val > 0 && ((mn > 0 && val < mn) || (mx > 0 && val > mx));
+          })
+        )
+        .map(({ title }) => title)
+    );
+
+    const availableAdminCargos = filterFueraDeRango
+      ? allAdminCargos.filter((t) => cargosConFueraDeRango.has(t))
+      : allAdminCargos;
+
+    const activeAdminCargo = availableAdminCargos.includes(selectedAdminCargo)
+      ? selectedAdminCargo
+      : (availableAdminCargos[0] ?? "");
+
     const activeRawPositions = adminPositionsByCargo.find((entry) => entry.title === activeAdminCargo)?.positions ?? [];
+
+    // Processed section uses its own independent selector
+    const activeAdminProcessedCargo = allAdminCargos.includes(selectedAdminProcessedCargo)
+      ? selectedAdminProcessedCargo
+      : (allAdminCargos[0] ?? "");
     const activeProcessedMetrics = (adminTcrEnabled && adminTcrConceptMetrics.size > 0
-      ? adminTcrConceptMetrics.get(activeAdminCargo)
-      : adminProcessedMetrics.get(activeAdminCargo)) ?? [];
+      ? adminTcrConceptMetrics.get(activeAdminProcessedCargo)
+      : adminProcessedMetrics.get(activeAdminProcessedCargo)) ?? [];
+
     const hasActiveFilters = filterSectors.length > 0 || filterCompanies.length > 0 || filterSizes.length > 0;
 
     return (
@@ -1493,7 +1523,7 @@ export default function EstudioPage() {
                           <div className="pill">Procesada</div>
                           <button
                             type="button"
-                            onClick={() => void exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
+                            onClick={() => void exportAdminProcessedExcel(selectedAdminSnapshot?.label || "corte", activeAdminProcessedCargo, adminPositionsByCargo.find((e) => e.title === activeAdminProcessedCargo)?.positions ?? [])}
                             className="btn btn-secondary"
                           >
                             Exportar Excel
@@ -1505,11 +1535,11 @@ export default function EstudioPage() {
                         <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
                         <select
                           id="adminProcessedCargo"
-                          value={activeAdminCargo}
-                          onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                          value={activeAdminProcessedCargo}
+                          onChange={(event) => setSelectedAdminProcessedCargo(event.target.value)}
                           className="field-select mt-1.5"
                         >
-                          {availableAdminCargos.map((cargo) => (
+                          {allAdminCargos.map((cargo) => (
                             <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
                           ))}
                         </select>
