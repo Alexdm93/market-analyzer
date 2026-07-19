@@ -1628,7 +1628,7 @@ export default function EstudioPage() {
                     })()}
                   </section>
                 ) : null
-              ) : (
+              ) : selectedAdminSnapshot?.status === "PROCESSED" ? (
                 <section className="surface-card overflow-hidden rounded-[2rem]">
                   <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -1770,7 +1770,7 @@ export default function EstudioPage() {
                     );
                   })()}
                 </section>
-              )}
+              ) : null}
             </>
           )}
         </div>
