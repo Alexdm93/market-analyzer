@@ -1413,41 +1413,6 @@ export default function EstudioPage() {
                 </div>
               </section>
 
-              {/* View toggle + TCR controls (admin) */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex gap-1.5 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
-                  <button type="button" onClick={() => setStudyView("cargo")} className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "cargo" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Por cargo</button>
-                  <button type="button" onClick={() => setStudyView("grado")} className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "grado" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Por grados</button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAdminTcrEnabled((v) => !v)}
-                  className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${adminTcrEnabled ? "bg-amber-600 text-white shadow-sm" : "surface-card text-slate-500 hover:text-slate-800"}`}
-                >
-                  TCR {adminTcrEnabled ? "activado" : "desactivado"}
-                </button>
-                {adminTcrEnabled && (
-                  <>
-                    <div className="flex gap-1 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
-                      {(["bcv", "euro", "libre"] as const).map((t) => {
-                        const unavailable = t === "euro" && !tcrRates.bcvEur;
-                        return (
-                          <button key={t} type="button" onClick={() => setAdminTcrType(t)}
-                            title={unavailable ? "Tasa BCV EUR no disponible — actualiza las tasas primero" : undefined}
-                            className={`rounded-[0.9rem] px-3 py-1.5 text-sm font-semibold transition-colors ${adminTcrType === t ? "bg-amber-600 text-white shadow-sm" : unavailable ? "text-slate-400 cursor-not-allowed" : "text-slate-600 hover:text-slate-900"}`}>
-                            {t === "bcv" ? "BCV USD" : t === "euro" ? "BCV EUR" : "Libre"}
-                            {unavailable && <span className="ml-1 text-[10px] font-normal opacity-70">ND</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {adminTcrLoading && <span className="text-xs text-slate-400">Calculando TCR…</span>}
-                    {adminTcrType === "euro" && !tcrRates.bcvEur && <span className="text-xs text-amber-700">Tasa BCV EUR no disponible — usa &ldquo;Actualizar tasas&rdquo; en el panel admin</span>}
-                    {!tcrRates.libre && <span className="text-xs text-amber-700">Configura la tasa libre antes de activar TCR</span>}
-                  </>
-                )}
-              </div>
-
               <section className="surface-card overflow-hidden rounded-[2rem]">
                 <div className="flex flex-col gap-3 border-b border-slate-200/70 px-6 py-5 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -1545,6 +1510,41 @@ export default function EstudioPage() {
                   </table>
                 </div>
               </section>
+
+              {/* View toggle + TCR controls (admin) */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex gap-1.5 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
+                  <button type="button" onClick={() => setStudyView("cargo")} className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "cargo" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Por cargo</button>
+                  <button type="button" onClick={() => setStudyView("grado")} className={`rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors ${studyView === "grado" ? "bg-teal-700 text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Por grados</button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdminTcrEnabled((v) => !v)}
+                  className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${adminTcrEnabled ? "bg-amber-600 text-white shadow-sm" : "surface-card text-slate-500 hover:text-slate-800"}`}
+                >
+                  TCR {adminTcrEnabled ? "activado" : "desactivado"}
+                </button>
+                {adminTcrEnabled && (
+                  <>
+                    <div className="flex gap-1 rounded-[1.25rem] bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/60">
+                      {(["bcv", "euro", "libre"] as const).map((t) => {
+                        const unavailable = t === "euro" && !tcrRates.bcvEur;
+                        return (
+                          <button key={t} type="button" onClick={() => setAdminTcrType(t)}
+                            title={unavailable ? "Tasa BCV EUR no disponible — actualiza las tasas primero" : undefined}
+                            className={`rounded-[0.9rem] px-3 py-1.5 text-sm font-semibold transition-colors ${adminTcrType === t ? "bg-amber-600 text-white shadow-sm" : unavailable ? "text-slate-400 cursor-not-allowed" : "text-slate-600 hover:text-slate-900"}`}>
+                            {t === "bcv" ? "BCV USD" : t === "euro" ? "BCV EUR" : "Libre"}
+                            {unavailable && <span className="ml-1 text-[10px] font-normal opacity-70">ND</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {adminTcrLoading && <span className="text-xs text-slate-400">Calculando TCR…</span>}
+                    {adminTcrType === "euro" && !tcrRates.bcvEur && <span className="text-xs text-amber-700">Tasa BCV EUR no disponible — usa &ldquo;Actualizar tasas&rdquo; en el panel admin</span>}
+                    {!tcrRates.libre && <span className="text-xs text-amber-700">Configura la tasa libre antes de activar TCR</span>}
+                  </>
+                )}
+              </div>
 
               {studyView === "cargo" ? (
                 selectedAdminSnapshot?.status === "PROCESSED" ? (
