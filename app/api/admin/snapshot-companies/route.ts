@@ -137,13 +137,9 @@ export async function PUT(request: Request) {
     create: { key: companiesKey(snapshotId), value: JSON.stringify({ companyIds: newCompanyIds }) },
   });
 
-  // Push snapshot to companies that were newly added (not in the old list)
-  // If oldCompanyIds === null it meant "all companies already had it" — no new ones to push
-  if (oldCompanyIds !== null) {
-    const oldSet = new Set(oldCompanyIds);
-    const newlyAdded = newCompanyIds.filter((id) => !oldSet.has(id));
-    await pushSnapshotToNewCompanies(snapshotId, newlyAdded);
-  }
+  // Ensure all selected companies have a UserSnapshot record.
+  // Always push to the full list — pushSnapshotToNewCompanies skips companies that already have one.
+  await pushSnapshotToNewCompanies(snapshotId, newCompanyIds);
 
   return Response.json({ snapshotId, companyIds: newCompanyIds });
 }
