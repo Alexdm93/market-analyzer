@@ -1492,9 +1492,9 @@ export default function EstudioPage() {
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
+                    <div className="max-h-[560px] overflow-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
                       <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                        <thead>
+                        <thead className="sticky top-0 bg-white/95 backdrop-blur-sm">
                           <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                             <th className="px-4 py-2">Empresa</th>
                             <th className="px-4 py-2">Cargo</th>
@@ -1539,12 +1539,12 @@ export default function EstudioPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
+                  <div className="max-h-[560px] overflow-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
                     {outOfRangeByCompany.length === 0 ? (
                       <p className="py-8 text-center text-sm text-slate-400">No hay cargos fuera de rango en este corte.</p>
                     ) : (
                       <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                        <thead>
+                        <thead className="sticky top-0 bg-white/95 backdrop-blur-sm">
                           <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
                             <th className="px-4 py-2">Cargo</th>
                             <th className="px-4 py-2">Nivel</th>
