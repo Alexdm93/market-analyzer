@@ -277,6 +277,7 @@ export default function EstudioPage() {
   const [rangosDraft, setRangosDraft] = useState<{ min: Record<string, string>; max: Record<string, string> } | null>(null);
   const [rangosModalOpen, setRangosModalOpen] = useState(false);
   const [filterFueraDeRango, setFilterFueraDeRango] = useState(false);
+  const [dataCrudaView, setDataCrudaView] = useState<"por-cargo" | "completa">("por-cargo");
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
     if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
@@ -509,6 +510,22 @@ export default function EstudioPage() {
 
     return { total, sectors, sizes: { pequeña, mediana, grande, nd } };
   }, [filteredPositions]);
+
+  const outOfRangeByCompany = useMemo(() => {
+    const map = new Map<string, { companyName: string; positions: typeof filteredPositions }>();
+    for (const p of filteredPositions) {
+      const temz = Number(p.conceptValues?.["Total directo mensualizado"] ?? 0);
+      const nivel = NIVELES_ESTUDIO.find((n) => (p.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+      const mn = nivel ? (nivelMin[nivel] ?? 0) : 0;
+      const mx = nivel ? (nivelMax[nivel] ?? 0) : 0;
+      if (!(temz > 0 && ((mn > 0 && temz < mn) || (mx > 0 && temz > mx)))) continue;
+      if (!map.has(p.companyName)) map.set(p.companyName, { companyName: p.companyName, positions: [] });
+      map.get(p.companyName)!.positions.push(p);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.companyName.localeCompare(b.companyName, "es", { sensitivity: "base" })
+    );
+  }, [filteredPositions, nivelMin, nivelMax, NIVELES_ESTUDIO]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -1420,6 +1437,10 @@ export default function EstudioPage() {
                     <h2 className="font-display text-2xl font-bold text-slate-900">Cargos cargados por empresa</h2>
                   </div>
                   <div className="flex items-center gap-3">
+                    <div className="flex gap-1 rounded-[1.25rem] bg-slate-100 p-1">
+                      <button type="button" onClick={() => setDataCrudaView("por-cargo")} className={`rounded-[0.9rem] px-3 py-1 text-xs font-semibold transition-colors ${dataCrudaView === "por-cargo" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>Por cargos</button>
+                      <button type="button" onClick={() => setDataCrudaView("completa")} className={`rounded-[0.9rem] px-3 py-1 text-xs font-semibold transition-colors ${dataCrudaView === "completa" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>Completa</button>
+                    </div>
                     <button
                       type="button"
                       onClick={() => { setRangosDraft({ min: Object.fromEntries(Object.entries(nivelMin).map(([k, v]) => [k, String(v || "")])), max: Object.fromEntries(Object.entries(nivelMax).map(([k, v]) => [k, String(v || "")])) }); setRangosModalOpen(true); }}
@@ -1428,90 +1449,144 @@ export default function EstudioPage() {
                       <SlidersHorizontal className="h-3 w-3" />
                       Rangos de referencia
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setFilterFueraDeRango((v) => !v)}
-                      className={`btn btn-xs whitespace-nowrap ${filterFueraDeRango ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100" : "btn-secondary"}`}
-                    >
-                      {filterFueraDeRango ? "Ver todos" : "Solo fuera de rango"}
-                    </button>
+                    {dataCrudaView === "por-cargo" && (
+                      <button
+                        type="button"
+                        onClick={() => setFilterFueraDeRango((v) => !v)}
+                        className={`btn btn-xs whitespace-nowrap ${filterFueraDeRango ? "bg-red-50 border-red-200 text-red-700 hover:bg-red-100" : "btn-secondary"}`}
+                      >
+                        {filterFueraDeRango ? "Ver todos" : "Solo fuera de rango"}
+                      </button>
+                    )}
                     <div className="pill">{selectedAdminSnapshot?.status === "PROCESSED" ? "Procesada" : "En revisión"}</div>
                   </div>
                 </div>
 
-                <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
-                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
-                    <div>
-                      <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
-                      <select
-                        id="adminRawCargo"
-                        value={activeAdminCargo}
-                        onChange={(event) => setSelectedAdminCargo(event.target.value)}
-                        className="field-select"
-                        disabled={availableAdminCargos.length === 0}
-                      >
-                        {availableAdminCargos.length === 0
-                          ? <option value="">Sin cargos fuera de rango</option>
-                          : availableAdminCargos.map((cargo) => (
-                            <option key={cargo} value={cargo}>{cargo}</option>
-                          ))}
-                      </select>
+                {dataCrudaView === "por-cargo" ? (
+                  <>
+                    <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
+                        <div>
+                          <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
+                          <select
+                            id="adminRawCargo"
+                            value={activeAdminCargo}
+                            onChange={(event) => setSelectedAdminCargo(event.target.value)}
+                            className="field-select"
+                            disabled={availableAdminCargos.length === 0}
+                          >
+                            {availableAdminCargos.length === 0
+                              ? <option value="">Sin cargos fuera de rango</option>
+                              : availableAdminCargos.map((cargo) => (
+                                <option key={cargo} value={cargo}>{cargo}</option>
+                              ))}
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
+                          className="btn btn-secondary"
+                        >
+                          Exportar Excel
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void exportAdminRawExcel(selectedAdminSnapshot?.label || "corte", activeAdminCargo, activeRawPositions)}
-                      className="btn btn-secondary"
-                    >
-                      Exportar Excel
-                    </button>
-                  </div>
-                </div>
 
-                <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
-                  <table className="min-w-full border-separate border-spacing-y-3 text-sm">
-                    <thead>
-                      <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
-                        <th className="px-4 py-2">Empresa</th>
-                        <th className="px-4 py-2">Cargo</th>
-                        <th className="px-4 py-2">Nivel</th>
-                        <th className="px-4 py-2 text-right">Grado CAPRI</th>
-                        <th className="px-4 py-2 text-right">TEM</th>
-                        <th className="px-4 py-2 text-right">TEMz</th>
-                        <th className="px-4 py-2 text-right">PCTA</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeRawPositions.filter((position) => {
-                        if (!filterFueraDeRango) return true;
-                        const val = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
-                        const nivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
-                        const mn = nivel ? (nivelMin[nivel] ?? 0) : 0;
-                        const mx = nivel ? (nivelMax[nivel] ?? 0) : 0;
-                        return val > 0 && ((mn > 0 && val < mn) || (mx > 0 && val > mx));
-                      }).map((position) => {
-                        const temz = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
-                        const normalizedNivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
-                        const rangeMin = normalizedNivel ? (nivelMin[normalizedNivel] ?? 0) : 0;
-                        const rangeMax = normalizedNivel ? (nivelMax[normalizedNivel] ?? 0) : 0;
-                        const isOutOfRange = temz > 0 && ((rangeMin > 0 && temz < rangeMin) || (rangeMax > 0 && temz > rangeMax));
-                        return (
-                          <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
-                            <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
-                            <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
-                            <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
-                            <td className="px-4 py-4 text-right font-mono text-xs text-slate-500">{position.hayGrade ?? "—"}</td>
-                            <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Sin pasivos — mensual"])} /> : "—"}</td>
-                            <td className={`px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
-                              {temz > 0 ? <FmtMoney value={temz} /> : "—"}
-                              {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
-                            </td>
-                            <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{Number(position.conceptValues?.["Con pasivos — anual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Con pasivos — anual"])} /> : "—"}</td>
+                    <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
+                      <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                            <th className="px-4 py-2">Empresa</th>
+                            <th className="px-4 py-2">Cargo</th>
+                            <th className="px-4 py-2">Nivel</th>
+                            <th className="px-4 py-2 text-right">Grado CAPRI</th>
+                            <th className="px-4 py-2 text-right">TEM</th>
+                            <th className="px-4 py-2 text-right">TEMz</th>
+                            <th className="px-4 py-2 text-right">PCTA</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {activeRawPositions.filter((position) => {
+                            if (!filterFueraDeRango) return true;
+                            const val = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
+                            const nivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+                            const mn = nivel ? (nivelMin[nivel] ?? 0) : 0;
+                            const mx = nivel ? (nivelMax[nivel] ?? 0) : 0;
+                            return val > 0 && ((mn > 0 && val < mn) || (mx > 0 && val > mx));
+                          }).map((position) => {
+                            const temz = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
+                            const normalizedNivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+                            const rangeMin = normalizedNivel ? (nivelMin[normalizedNivel] ?? 0) : 0;
+                            const rangeMax = normalizedNivel ? (nivelMax[normalizedNivel] ?? 0) : 0;
+                            const isOutOfRange = temz > 0 && ((rangeMin > 0 && temz < rangeMin) || (rangeMax > 0 && temz > rangeMax));
+                            return (
+                              <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                <td className="rounded-l-[1.25rem] px-4 py-4 text-slate-700">{position.companyName}</td>
+                                <td className="px-4 py-4 font-medium text-slate-900">{position.title}</td>
+                                <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
+                                <td className="px-4 py-4 text-right font-mono text-xs text-slate-500">{position.hayGrade ?? "—"}</td>
+                                <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Sin pasivos — mensual"])} /> : "—"}</td>
+                                <td className={`px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
+                                  {temz > 0 ? <FmtMoney value={temz} /> : "—"}
+                                  {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
+                                </td>
+                                <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{Number(position.conceptValues?.["Con pasivos — anual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Con pasivos — anual"])} /> : "—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="overflow-x-auto px-3 pb-3 pt-4 md:px-4 md:pb-4">
+                    {outOfRangeByCompany.length === 0 ? (
+                      <p className="py-8 text-center text-sm text-slate-400">No hay cargos fuera de rango en este corte.</p>
+                    ) : (
+                      <table className="min-w-full border-separate border-spacing-y-3 text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                            <th className="px-4 py-2">Cargo</th>
+                            <th className="px-4 py-2">Nivel</th>
+                            <th className="px-4 py-2 text-right">Grado CAPRI</th>
+                            <th className="px-4 py-2 text-right">TEM</th>
+                            <th className="px-4 py-2 text-right">TEMz</th>
+                            <th className="px-4 py-2 text-right">PCTA</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {outOfRangeByCompany.map(({ companyName, positions }) => (
+                            <>
+                              <tr key={`header-${companyName}`}>
+                                <td colSpan={6} className="px-4 pb-1 pt-4 text-xs font-extrabold uppercase tracking-[0.16em] text-slate-400">{companyName}</td>
+                              </tr>
+                              {positions.map((position) => {
+                                const temz = Number(position.conceptValues?.["Total directo mensualizado"] ?? 0);
+                                const normalizedNivel = NIVELES_ESTUDIO.find((n) => (position.level || "").toLowerCase().includes(n.toLowerCase())) ?? "";
+                                const rangeMin = normalizedNivel ? (nivelMin[normalizedNivel] ?? 0) : 0;
+                                const rangeMax = normalizedNivel ? (nivelMax[normalizedNivel] ?? 0) : 0;
+                                const isOutOfRange = temz > 0 && ((rangeMin > 0 && temz < rangeMin) || (rangeMax > 0 && temz > rangeMax));
+                                return (
+                                  <tr key={position.id} className="bg-white shadow-[0_10px_30px_rgba(24,52,45,0.06)]">
+                                    <td className="rounded-l-[1.25rem] px-4 py-4 font-medium text-slate-900">{position.title}</td>
+                                    <td className="px-4 py-4 text-slate-600">{position.level || "—"}</td>
+                                    <td className="px-4 py-4 text-right font-mono text-xs text-slate-500">{position.hayGrade ?? "—"}</td>
+                                    <td className="px-4 py-4 text-right font-display text-slate-700">{Number(position.conceptValues?.["Sin pasivos — mensual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Sin pasivos — mensual"])} /> : "—"}</td>
+                                    <td className={`px-4 py-4 text-right font-display font-semibold ${isOutOfRange ? "text-red-600" : "text-teal-700"}`}>
+                                      {temz > 0 ? <FmtMoney value={temz} /> : "—"}
+                                      {isOutOfRange && <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-red-500">fuera de rango</span>}
+                                    </td>
+                                    <td className="rounded-r-[1.25rem] px-4 py-4 text-right font-display text-amber-700">{Number(position.conceptValues?.["Con pasivos — anual"] ?? 0) > 0 ? <FmtMoney value={Number(position.conceptValues["Con pasivos — anual"])} /> : "—"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
               </section>
 
               {/* View toggle + TCR controls (admin) — only when processed */}
