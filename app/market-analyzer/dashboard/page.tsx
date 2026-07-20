@@ -211,8 +211,8 @@ function AdminDashboard() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                  <span className="rounded-full bg-teal-50 px-3 py-1 text-teal-700">{submitted.length} enviadas</span>
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">{pending.length} pendientes</span>
+                  <span className="rounded-full bg-teal-50 px-3 py-1 text-teal-700">{submitted.length} enviadas</span>
                   {sinCambios > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">{sinCambios} sin cambios</span>}
                   {modificadas > 0 && <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{modificadas} modificadas</span>}
                 </div>
