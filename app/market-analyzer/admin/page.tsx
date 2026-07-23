@@ -182,6 +182,7 @@ export default function AdminPage() {
   const [restoreLabel, setRestoreLabel] = useState("");
   const [isRestoring, setIsRestoring] = useState(false);
   const [backingUpSnapshotId, setBackingUpSnapshotId] = useState("");
+  const [backupConfirmSnapshot, setBackupConfirmSnapshot] = useState<{ id: string; label: string } | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -1723,7 +1724,7 @@ export default function AdminPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void handleCreateBackup(snapshot.id)}
+                          onClick={() => setBackupConfirmSnapshot({ id: snapshot.id, label: snapshot.label })}
                           className="btn btn-secondary"
                           disabled={isMutatingSnapshot || Boolean(backingUpSnapshotId)}
                           title="Crea un respaldo de toda la data enviada por las empresas en este corte"
@@ -2680,20 +2681,23 @@ export default function AdminPage() {
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="rounded-[1.1rem] border border-violet-100 bg-violet-50/60 px-4 py-3 text-sm">
-                <div className="flex gap-3 text-xs text-slate-500 mt-1">
+              <div className="rounded-[1.1rem] border border-violet-100 bg-violet-50/60 px-4 py-3 space-y-2">
+                <div className="flex gap-3 text-xs text-slate-500">
                   <span>{restoreModal.totalCompanies} empresas</span>
                   <span>·</span>
                   <span>{restoreModal.totalPositions} posiciones</span>
                   <span>·</span>
-                  <span>Publicado {new Date(restoreModal.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                  <span>Respaldado {new Date(restoreModal.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}</span>
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
-                  Se recrearán todos los <strong>UserPosition</strong> y se actualizará el workspace de cada empresa. Los cortes que no estén en el respaldo no se modifican.
+                <p className="text-xs text-slate-500">
+                  <strong>ID del corte:</strong> {restoreModal.snapshotId}
+                </p>
+                <p className="text-xs text-slate-500">
+                  No necesitas subir ningún archivo — la data se recupera directamente desde la base de datos. Se recrearán todas las posiciones enviadas y se actualizará el workspace de cada empresa.
                 </p>
               </div>
               <div>
-                <label htmlFor="restoreLabel" className="field-label">Nombre del corte</label>
+                <label htmlFor="restoreLabel" className="field-label">Renombrar corte <span className="font-normal text-slate-400">(opcional)</span></label>
                 <input
                   id="restoreLabel"
                   type="text"
@@ -2703,7 +2707,7 @@ export default function AdminPage() {
                   placeholder={restoreModal.snapshotLabel}
                   disabled={isRestoring}
                 />
-                <p className="mt-1 text-xs text-slate-400">Deja vacío para usar el nombre original.</p>
+                <p className="mt-1 text-xs text-slate-400">Deja vacío para conservar el nombre original: <em>{restoreModal.snapshotLabel}</em></p>
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
@@ -2713,6 +2717,49 @@ export default function AdminPage() {
               <button type="button" onClick={() => void handleRestoreBackup()} className="btn btn-primary" disabled={isRestoring}>
                 {isRestoring ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                 {isRestoring ? "Restaurando..." : "Restaurar corte"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {backupConfirmSnapshot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="surface-card w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <div className="eyebrow mb-0.5">Respaldo</div>
+                <h2 className="font-display text-lg font-bold text-slate-900">Confirmar respaldo</h2>
+              </div>
+              <button type="button" onClick={() => setBackupConfirmSnapshot(null)} className="rounded-full p-1.5 hover:bg-slate-100">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-slate-700">
+                Se creará un respaldo del corte <strong>{backupConfirmSnapshot.label}</strong> y se guardará en la base de datos.
+              </p>
+              <div className="rounded-[1rem] border border-amber-100 bg-amber-50/60 px-4 py-3 text-xs text-amber-800 space-y-1">
+                <p><strong>ID del corte:</strong> {backupConfirmSnapshot.id}</p>
+                <p>El archivo JSON se descargará automáticamente en tu equipo.</p>
+                <p>Si ya existe un respaldo anterior para este corte, será reemplazado.</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+              <button type="button" onClick={() => setBackupConfirmSnapshot(null)} className="btn btn-secondary">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const snap = backupConfirmSnapshot;
+                  setBackupConfirmSnapshot(null);
+                  void handleCreateBackup(snap.id);
+                }}
+                className="btn btn-primary"
+              >
+                <HardDrive className="h-4 w-4" />
+                Crear respaldo
               </button>
             </div>
           </div>
