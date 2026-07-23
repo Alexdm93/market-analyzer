@@ -99,6 +99,7 @@ export async function GET(request: Request) {
 type RestoreBody = {
   snapshotId?: string;
   label?: string;
+  backup?: SnapshotBackup;
 };
 
 export async function POST(request: Request) {
@@ -106,29 +107,36 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => null)) as RestoreBody | null;
-  const snapshotId = body?.snapshotId?.trim() ?? "";
   const customLabel = body?.label?.trim() ?? "";
 
-  if (!snapshotId) {
-    return Response.json({ message: "Indica el corte a restaurar." }, { status: 400 });
-  }
-
-  const record = await prisma.globalConfig.findUnique({
-    where: { key: backupKey(snapshotId) },
-    select: { value: true },
-  });
-
-  if (!record) {
-    return Response.json({ message: "No existe un respaldo para ese corte." }, { status: 404 });
-  }
-
   let backup: SnapshotBackup;
-  try {
-    backup = JSON.parse(record.value) as SnapshotBackup;
-  } catch {
-    return Response.json({ message: "El respaldo está dañado y no puede restaurarse." }, { status: 422 });
+
+  if (body?.backup) {
+    // Restore from JSON supplied directly by the client (uploaded file)
+    backup = body.backup;
+  } else {
+    const snapshotId = body?.snapshotId?.trim() ?? "";
+    if (!snapshotId) {
+      return Response.json({ message: "Indica el corte a restaurar." }, { status: 400 });
+    }
+
+    const record = await prisma.globalConfig.findUnique({
+      where: { key: backupKey(snapshotId) },
+      select: { value: true },
+    });
+
+    if (!record) {
+      return Response.json({ message: "No existe un respaldo guardado en la BD para ese corte." }, { status: 404 });
+    }
+
+    try {
+      backup = JSON.parse(record.value) as SnapshotBackup;
+    } catch {
+      return Response.json({ message: "El respaldo está dañado y no puede restaurarse." }, { status: 422 });
+    }
   }
 
+  const snapshotId = backup.snapshotId;
   const label = customLabel || backup.snapshotLabel;
   const snapshotDate = new Date(`${backup.snapshotDate}T00:00:00.000Z`);
 

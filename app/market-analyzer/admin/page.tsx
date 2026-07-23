@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, HardDrive, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, RotateCcw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
-import type { BackupSummary } from "@/app/api/admin/backups/route";
+import type { BackupSummary, SnapshotBackup } from "@/app/api/admin/backups/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
@@ -180,6 +180,9 @@ export default function AdminPage() {
   const [openBackups, setOpenBackups] = useState(false);
   const [restoreModal, setRestoreModal] = useState<BackupSummary | null>(null);
   const [restoreLabel, setRestoreLabel] = useState("");
+  const [restoreSource, setRestoreSource] = useState<"db" | "file">("db");
+  const [restoreFileData, setRestoreFileData] = useState<SnapshotBackup | null>(null);
+  const [restoreFileError, setRestoreFileError] = useState("");
   const [isRestoring, setIsRestoring] = useState(false);
   const [backingUpSnapshotId, setBackingUpSnapshotId] = useState("");
   const [backupConfirmSnapshot, setBackupConfirmSnapshot] = useState<{ id: string; label: string } | null>(null);
@@ -1146,14 +1149,22 @@ export default function AdminPage() {
 
   async function handleRestoreBackup() {
     if (!restoreModal) return;
+    if (restoreSource === "file" && !restoreFileData) {
+      setRestoreFileError("Selecciona un archivo JSON de respaldo.");
+      return;
+    }
     setIsRestoring(true);
     setErrorMessage("");
     setStatusMessage("");
     try {
+      const bodyPayload =
+        restoreSource === "file" && restoreFileData
+          ? { backup: restoreFileData, label: restoreLabel.trim() || undefined }
+          : { snapshotId: restoreModal.snapshotId, label: restoreLabel.trim() || restoreModal.snapshotLabel };
       const response = await fetch("/api/admin/backups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshotId: restoreModal.snapshotId, label: restoreLabel.trim() || restoreModal.snapshotLabel }),
+        body: JSON.stringify(bodyPayload),
       });
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
       if (!response.ok) throw new Error(payload?.message ?? "No fue posible restaurar el respaldo.");
@@ -1817,7 +1828,7 @@ export default function AdminPage() {
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            onClick={() => { setRestoreModal(backup); setRestoreLabel(backup.snapshotLabel); }}
+                            onClick={() => { setRestoreModal(backup); setRestoreLabel(backup.snapshotLabel); setRestoreSource("db"); setRestoreFileData(null); setRestoreFileError(""); }}
                           >
                             <RotateCcw className="h-4 w-4" />
                             Restaurar
@@ -2681,7 +2692,8 @@ export default function AdminPage() {
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="rounded-[1.1rem] border border-violet-100 bg-violet-50/60 px-4 py-3 space-y-2">
+              {/* Info del respaldo */}
+              <div className="rounded-[1.1rem] border border-violet-100 bg-violet-50/60 px-4 py-3 space-y-1.5">
                 <div className="flex gap-3 text-xs text-slate-500">
                   <span>{restoreModal.totalCompanies} empresas</span>
                   <span>·</span>
@@ -2689,13 +2701,78 @@ export default function AdminPage() {
                   <span>·</span>
                   <span>Respaldado {new Date(restoreModal.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}</span>
                 </div>
-                <p className="text-xs text-slate-500">
-                  <strong>ID del corte:</strong> {restoreModal.snapshotId}
-                </p>
-                <p className="text-xs text-slate-500">
-                  No necesitas subir ningún archivo — la data se recupera directamente desde la base de datos. Se recrearán todas las posiciones enviadas y se actualizará el workspace de cada empresa.
-                </p>
+                <p className="text-xs text-slate-500"><strong>ID del corte:</strong> {restoreModal.snapshotId}</p>
               </div>
+
+              {/* Toggle de fuente */}
+              <div>
+                <p className="field-label mb-2">Fuente del respaldo</p>
+                <div className="flex rounded-xl border border-slate-200 overflow-hidden text-sm">
+                  <button
+                    type="button"
+                    className={`flex-1 px-4 py-2 font-medium transition-colors ${restoreSource === "db" ? "bg-violet-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+                    onClick={() => { setRestoreSource("db"); setRestoreFileData(null); setRestoreFileError(""); }}
+                    disabled={isRestoring}
+                  >
+                    Desde BD
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 px-4 py-2 font-medium transition-colors ${restoreSource === "file" ? "bg-violet-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+                    onClick={() => { setRestoreSource("file"); setRestoreFileData(null); setRestoreFileError(""); }}
+                    disabled={isRestoring}
+                  >
+                    Desde archivo JSON
+                  </button>
+                </div>
+                {restoreSource === "db" && (
+                  <p className="mt-1.5 text-xs text-slate-400">Se usa el último respaldo guardado en la base de datos para este corte.</p>
+                )}
+              </div>
+
+              {/* File input (solo cuando fuente = archivo) */}
+              {restoreSource === "file" && (
+                <div>
+                  <label htmlFor="restoreFile" className="field-label">Archivo JSON de respaldo</label>
+                  <input
+                    id="restoreFile"
+                    type="file"
+                    accept="application/json,.json"
+                    disabled={isRestoring}
+                    className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-violet-700 hover:file:bg-violet-100 cursor-pointer"
+                    onChange={(e) => {
+                      setRestoreFileError("");
+                      setRestoreFileData(null);
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        try {
+                          const parsed = JSON.parse(ev.target?.result as string) as SnapshotBackup;
+                          if (!parsed.version || !parsed.snapshotId || !Array.isArray(parsed.companies)) {
+                            setRestoreFileError("El archivo no tiene el formato esperado de respaldo.");
+                            return;
+                          }
+                          setRestoreFileData(parsed);
+                        } catch {
+                          setRestoreFileError("No se pudo leer el archivo JSON.");
+                        }
+                      };
+                      reader.readAsText(file);
+                    }}
+                  />
+                  {restoreFileData && (
+                    <p className="mt-1.5 text-xs text-emerald-600">
+                      Archivo válido — {restoreFileData.totalCompanies} empresas, {restoreFileData.totalPositions} posiciones · corte {restoreFileData.snapshotId}
+                    </p>
+                  )}
+                  {restoreFileError && (
+                    <p className="mt-1.5 text-xs text-red-600">{restoreFileError}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Renombrar corte */}
               <div>
                 <label htmlFor="restoreLabel" className="field-label">Renombrar corte <span className="font-normal text-slate-400">(opcional)</span></label>
                 <input
@@ -2714,7 +2791,7 @@ export default function AdminPage() {
               <button type="button" onClick={() => setRestoreModal(null)} className="btn btn-secondary" disabled={isRestoring}>
                 Cancelar
               </button>
-              <button type="button" onClick={() => void handleRestoreBackup()} className="btn btn-primary" disabled={isRestoring}>
+              <button type="button" onClick={() => void handleRestoreBackup()} className="btn btn-primary" disabled={isRestoring || (restoreSource === "file" && !restoreFileData)}>
                 {isRestoring ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                 {isRestoring ? "Restaurando..." : "Restaurar corte"}
               </button>
