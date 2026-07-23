@@ -181,6 +181,7 @@ export default function AdminPage() {
   const [restoreModal, setRestoreModal] = useState<BackupSummary | null>(null);
   const [restoreLabel, setRestoreLabel] = useState("");
   const [isRestoring, setIsRestoring] = useState(false);
+  const [backingUpSnapshotId, setBackingUpSnapshotId] = useState("");
 
   useEffect(() => {
     let ignore = false;
@@ -1105,6 +1106,31 @@ export default function AdminPage() {
     }
   }
 
+  async function handleCreateBackup(snapshotId: string) {
+    if (backingUpSnapshotId) return;
+    setBackingUpSnapshotId(snapshotId);
+    setErrorMessage("");
+    setStatusMessage("");
+    try {
+      const response = await fetch("/api/admin/backups", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) throw new Error(payload?.message ?? "No fue posible crear el respaldo.");
+      setStatusMessage(payload?.message ?? "Respaldo creado correctamente.");
+      // Reload backups list so the new entry appears immediately
+      const backupsRes = await fetch("/api/admin/backups", { cache: "no-store" });
+      const backupsPayload = (await backupsRes.json().catch(() => null)) as { backups?: BackupSummary[] } | null;
+      if (Array.isArray(backupsPayload?.backups)) setBackups(backupsPayload.backups);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No fue posible crear el respaldo.");
+    } finally {
+      setBackingUpSnapshotId("");
+    }
+  }
+
   async function handleRestoreBackup() {
     if (!restoreModal) return;
     setIsRestoring(true);
@@ -1682,6 +1708,18 @@ export default function AdminPage() {
                         <button type="button" onClick={() => void openSnapshotCompaniesModal(snapshot.id, snapshot.label)} className="btn btn-secondary" disabled={isMutatingSnapshot}>
                           <Building2 className="h-4 w-4" />
                           Empresas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleCreateBackup(snapshot.id)}
+                          className="btn btn-secondary"
+                          disabled={isMutatingSnapshot || Boolean(backingUpSnapshotId)}
+                          title="Crea un respaldo de toda la data enviada por las empresas en este corte"
+                        >
+                          {backingUpSnapshotId === snapshot.id
+                            ? <LoaderCircle className="h-4 w-4 animate-spin" />
+                            : <HardDrive className="h-4 w-4" />}
+                          {backingUpSnapshotId === snapshot.id ? "Respaldando..." : "Respaldar"}
                         </button>
                         <button type="button" onClick={() => void handleDeleteSnapshot(snapshot.id)} className="btn btn-danger" disabled={isMutatingSnapshot}>
                           <Trash2 className="h-4 w-4" />

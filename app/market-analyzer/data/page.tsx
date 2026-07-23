@@ -1,7 +1,7 @@
 "use client";
 import { exportStyledExcel } from "@/lib/excel-export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BriefcaseBusiness, CalendarDays, Check, Edit, HardDrive, Layers, Lock, LockOpen, Plus, RefreshCw, Save, Send, Sparkles, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, Check, Edit, Layers, Lock, LockOpen, Plus, RefreshCw, Save, Send, Sparkles, Trash2 } from "lucide-react";
 import { CapriWizardModal, ROLES as CAPRI_ROLES } from "@/components/CapriWizardModal";
 import { useSession } from "next-auth/react";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
@@ -139,7 +139,6 @@ export default function DataPage() {
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
 
   const isReadOnlyDataView = isAdmin && !selectedCompanyId;
   const isAdminCompanyView = isAdmin && Boolean(selectedCompanyId);
@@ -579,28 +578,6 @@ export default function DataPage() {
       showNotification("Error al reabrir la edición.");
     } finally {
       setIsSubmitting(false);
-    }
-  }
-
-  async function handleCreateBackup() {
-    if (!selectedSnapshotId || isCreatingBackup) return;
-    setIsCreatingBackup(true);
-    try {
-      const res = await fetch("/api/admin/backups", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshotId: selectedSnapshotId }),
-      });
-      const payload = (await res.json().catch(() => null)) as { message?: string } | null;
-      if (res.ok) {
-        showNotification(payload?.message ?? "Respaldo creado correctamente.");
-      } else {
-        showNotification(payload?.message ?? "No se pudo crear el respaldo.");
-      }
-    } catch {
-      showNotification("Error al crear el respaldo.");
-    } finally {
-      setIsCreatingBackup(false);
     }
   }
 
@@ -1240,16 +1217,6 @@ export default function DataPage() {
                     <Check className="h-3.5 w-3.5" />
                     Exportar a Excel
                   </button>
-                  {isAdmin && selectedSnapshotId && (
-                    <button
-                      onClick={() => void handleCreateBackup()}
-                      className="btn btn-secondary sm:col-span-2"
-                      disabled={isCreatingBackup}
-                    >
-                      <HardDrive className={`h-3.5 w-3.5 ${isCreatingBackup ? "animate-pulse" : ""}`} />
-                      {isCreatingBackup ? "Creando respaldo..." : "Crear respaldo"}
-                    </button>
-                  )}
                   {!isReadOnlyDataView && !isLockedBySubmission ? (
                     <>
                       <button
