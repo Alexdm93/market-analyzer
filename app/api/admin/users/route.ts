@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { type AppUserRole, isAppUserRole } from "@/lib/roles";
+import { transferSubmittedData } from "@/lib/transfer-user-data";
 
 function forbiddenResponse() {
   return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
@@ -254,6 +255,43 @@ export async function DELETE(request: Request) {
 
   if (auth.session.user.id === userId) {
     return Response.json({ message: "No puedes eliminar tu propia cuenta." }, { status: 400 });
+  }
+
+  // Check if this user has submitted positions that would be permanently lost on cascade delete.
+  const submittedCount = await prisma.userPosition.count({
+    where: { userId, snapshot: { submittedAt: { not: null } } },
+  });
+
+  if (submittedCount > 0) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { companyId: true },
+    });
+
+    if (!user) {
+      return Response.json({ message: "El usuario no existe." }, { status: 404 });
+    }
+
+    const otherUsers = await prisma.user.findMany({
+      where: { companyId: user.companyId, id: { not: userId } },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: 1,
+    });
+
+    if (otherUsers.length === 0) {
+      return Response.json(
+        {
+          message:
+            "Este usuario tiene data enviada en cortes activos. Crea otro usuario para esta empresa antes de eliminarlo.",
+          blocked: true,
+        },
+        { status: 409 },
+      );
+    }
+
+    // Transfer submitted snapshots, positions, and workspace data to the other company user before deleting.
+    await transferSubmittedData(userId, otherUsers[0].id);
   }
 
   const deleted = await prisma.user.delete({ where: { id: userId } }).catch(() => null);
