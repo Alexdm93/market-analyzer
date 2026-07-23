@@ -778,17 +778,21 @@ export async function GET(request: Request) {
       return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
     }
 
-    const [companyPayload, bcv, bcvEur] = await Promise.all([
+    const [companyPayload, bcv, bcvEur, posDescConfig] = await Promise.all([
       buildCompanyPayload(companyId),
       getBcvRate(),
       getBcvEuroRate(),
+      prisma.globalConfig.findUnique({ where: { key: 'position-descriptions' }, select: { value: true } }),
     ]);
 
     if (!companyPayload) {
       return Response.json({ message: "La empresa seleccionada no existe." }, { status: 404 });
     }
 
-    return Response.json(injectSystemTasas(companyPayload, bcv, bcvEur));
+    let positionDescriptions: Record<string, string> = {};
+    try { if (posDescConfig?.value) positionDescriptions = JSON.parse(posDescConfig.value) as Record<string, string>; } catch {}
+
+    return Response.json({ ...injectSystemTasas(companyPayload, bcv, bcvEur), positionDescriptions });
   }
 
   const workspace = await getOrCreateWorkspace(userId);

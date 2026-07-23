@@ -478,6 +478,30 @@ export default function DataPage() {
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<Record<string, "identidad" | "fija" | "variable">>({});
+  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
+
+  const rowsByDept = useMemo(() => {
+    const deptOrder = availableDepts.length > 0
+      ? availableDepts
+      : [...new Set(rows.map((r) => r.departamento || "Sin departamento"))].sort((a, b) => a.localeCompare(b, "es"));
+    const grouped = new Map<string, { row: ExtendedMarketPosition; index: number }[]>();
+    rows.forEach((row, index) => {
+      const dept = row.departamento || "Sin departamento";
+      if (!grouped.has(dept)) grouped.set(dept, []);
+      grouped.get(dept)!.push({ row, index });
+    });
+    const result: { dept: string; items: { row: ExtendedMarketPosition; index: number }[] }[] = [];
+    for (const dept of deptOrder) {
+      if (grouped.has(dept)) {
+        result.push({ dept, items: grouped.get(dept)! });
+        grouped.delete(dept);
+      }
+    }
+    for (const [dept, items] of [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b, "es"))) {
+      result.push({ dept, items });
+    }
+    return result;
+  }, [rows, availableDepts]);
 
   function toggleExpand(id: string) {
     setExpanded((s) => ({ ...s, [id]: !s[id] }));
@@ -1245,7 +1269,31 @@ export default function DataPage() {
           </section>
         ) : (
           <section className="space-y-3">
-            {rows.map((r, i) => (
+            {rowsByDept.map(({ dept, items }) => {
+              const isDeptOpen = expandedDepts[dept] === true;
+              return (
+                <div key={dept} className="surface-card overflow-hidden rounded-[1.5rem]">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedDepts((prev) => ({ ...prev, [dept]: !isDeptOpen }))}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50/70 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <svg
+                        width="14" height="14" viewBox="0 0 12 12" fill="none"
+                        className={`shrink-0 text-slate-400 transition-transform duration-200 ${isDeptOpen ? "rotate-90" : ""}`}
+                      >
+                        <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="font-display font-bold text-slate-900 text-[0.95rem]">{dept}</span>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-500">
+                      {items.length} {items.length === 1 ? "cargo" : "cargos"}
+                    </span>
+                  </button>
+                  {isDeptOpen && (
+                    <div className="space-y-3 border-t border-slate-100 p-3">
+                      {items.map(({ row: r, index: i }) => (
               <article key={r.id} className="surface-card overflow-hidden rounded-[1.5rem]">
                 <div className="flex flex-col gap-3 p-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex-1">
@@ -1524,7 +1572,12 @@ export default function DataPage() {
                   </div>
                 )}
               </article>
-            ))}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </section>
         )}
       </div>
