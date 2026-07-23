@@ -272,6 +272,7 @@ export default function EstudioPage() {
   const [availableUserSizes, setAvailableUserSizes] = useState<string[]>([]);
   const [availableUserCompanies, setAvailableUserCompanies] = useState<string[]>([]);
   const [adminPublishStatus, setAdminPublishStatus] = useState<"idle" | "working">("idle");
+  const [publishModal, setPublishModal] = useState<"publish" | "unpublish" | null>(null);
   const [nivelMin, setNivelMin] = useState<Record<string, number>>({});
   const [nivelMax, setNivelMax] = useState<Record<string, number>>({});
   const [rangosDraft, setRangosDraft] = useState<{ min: Record<string, string>; max: Record<string, string> } | null>(null);
@@ -1346,7 +1347,7 @@ export default function EstudioPage() {
                 {selectedAdminSnapshot?.status === "PROCESSED" && (
                   <button
                     type="button"
-                    onClick={() => void handleTogglePublish(!selectedAdminSnapshot.published)}
+                    onClick={() => setPublishModal(selectedAdminSnapshot.published ? "unpublish" : "publish")}
                     className={`mt-3 w-full rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
                       selectedAdminSnapshot.published
                         ? "bg-rose-50 text-rose-700 hover:bg-rose-100"
@@ -2359,6 +2360,78 @@ export default function EstudioPage() {
           )
         )}
       </div>
+
+      {publishModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setPublishModal(null)} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md rounded-[1.75rem] bg-white p-6 shadow-xl">
+            {publishModal === "publish" ? (() => {
+              const submittedCompanies = [...new Set(adminPositions.map((p) => p.companyName))].sort((a, b) => a.localeCompare(b, "es"));
+              return (
+                <>
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50">
+                    <Database className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <h3 className="font-display text-center text-xl font-bold text-slate-900">Publicar corte</h3>
+                  <p className="mt-2 text-center text-sm text-slate-500">
+                    El estudio quedará visible para las empresas que enviaron su data. No podrán ver la data de otras empresas.
+                  </p>
+                  {submittedCompanies.length > 0 ? (
+                    <div className="mt-4 rounded-[1.1rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-emerald-700">
+                        {submittedCompanies.length} {submittedCompanies.length === 1 ? "empresa recibirá" : "empresas recibirán"} los resultados
+                      </p>
+                      <ul className="max-h-48 space-y-1 overflow-y-auto">
+                        {submittedCompanies.map((name) => (
+                          <li key={name} className="flex items-center gap-2 text-xs text-emerald-800">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                            {name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
+                      No hay empresas con data enviada en este corte.
+                    </div>
+                  )}
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button type="button" onClick={() => setPublishModal(null)} className="btn btn-secondary">Cancelar</button>
+                    <button
+                      type="button"
+                      disabled={submittedCompanies.length === 0 || adminPublishStatus === "working"}
+                      onClick={() => { setPublishModal(null); void handleTogglePublish(true); }}
+                      className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                      Confirmar publicación
+                    </button>
+                  </div>
+                </>
+              );
+            })() : (
+              <>
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50">
+                  <Database className="h-5 w-5 text-rose-500" />
+                </div>
+                <h3 className="font-display text-center text-xl font-bold text-slate-900">Despublicar corte</h3>
+                <p className="mt-2 text-center text-sm text-slate-500">
+                  Las empresas dejarán de ver los resultados de este corte hasta que sea publicado nuevamente.
+                </p>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={() => setPublishModal(null)} className="btn btn-secondary">Cancelar</button>
+                  <button
+                    type="button"
+                    onClick={() => { setPublishModal(null); void handleTogglePublish(false); }}
+                    className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
+                  >
+                    Sí, despublicar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
     </main>
   );
