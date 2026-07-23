@@ -183,6 +183,7 @@ export default function AdminPage() {
   const [restoreSource, setRestoreSource] = useState<"db" | "file">("db");
   const [restoreFileData, setRestoreFileData] = useState<SnapshotBackup | null>(null);
   const [restoreFileError, setRestoreFileError] = useState("");
+  const [restoreConfirmStep, setRestoreConfirmStep] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [backingUpSnapshotId, setBackingUpSnapshotId] = useState("");
   const [backupConfirmSnapshot, setBackupConfirmSnapshot] = useState<{ id: string; label: string } | null>(null);
@@ -1828,7 +1829,7 @@ export default function AdminPage() {
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            onClick={() => { setRestoreModal(backup); setRestoreLabel(backup.snapshotLabel); setRestoreSource("db"); setRestoreFileData(null); setRestoreFileError(""); }}
+                            onClick={() => { setRestoreModal(backup); setRestoreLabel(backup.snapshotLabel); setRestoreSource("db"); setRestoreFileData(null); setRestoreFileError(""); setRestoreConfirmStep(false); }}
                           >
                             <RotateCcw className="h-4 w-4" />
                             Restaurar
@@ -2787,15 +2788,32 @@ export default function AdminPage() {
                 <p className="mt-1 text-xs text-slate-400">Deja vacío para conservar el nombre original: <em>{restoreModal.snapshotLabel}</em></p>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <button type="button" onClick={() => setRestoreModal(null)} className="btn btn-secondary" disabled={isRestoring}>
-                Cancelar
-              </button>
-              <button type="button" onClick={() => void handleRestoreBackup()} className="btn btn-primary" disabled={isRestoring || (restoreSource === "file" && !restoreFileData)}>
-                {isRestoring ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                {isRestoring ? "Restaurando..." : "Restaurar corte"}
-              </button>
-            </div>
+            {restoreConfirmStep ? (
+              <div className="border-t border-red-100 bg-red-50/60 px-6 py-4 space-y-3">
+                <p className="text-sm font-medium text-red-700">
+                  ¿Seguro que quieres restaurar? Se sobreescribirán todas las posiciones enviadas del corte <strong>{restoreModal.snapshotId}</strong>. Esta acción no se puede deshacer.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setRestoreConfirmStep(false)} className="btn btn-secondary" disabled={isRestoring}>
+                    Volver
+                  </button>
+                  <button type="button" onClick={() => void handleRestoreBackup()} className="btn btn-danger" disabled={isRestoring}>
+                    {isRestoring ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                    {isRestoring ? "Restaurando..." : "Sí, sobreescribir y restaurar"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+                <button type="button" onClick={() => setRestoreModal(null)} className="btn btn-secondary">
+                  Cancelar
+                </button>
+                <button type="button" onClick={() => setRestoreConfirmStep(true)} className="btn btn-primary" disabled={restoreSource === "file" && !restoreFileData}>
+                  <RotateCcw className="h-4 w-4" />
+                  Restaurar corte
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
