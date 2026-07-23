@@ -1117,8 +1117,20 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ snapshotId }),
       });
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { message?: string; backup?: unknown } | null;
       if (!response.ok) throw new Error(payload?.message ?? "No fue posible crear el respaldo.");
+
+      // Trigger browser download of the JSON file
+      if (payload?.backup) {
+        const blob = new Blob([JSON.stringify(payload.backup, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `respaldo-${snapshotId}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
       setStatusMessage(payload?.message ?? "Respaldo creado correctamente.");
       // Reload backups list so the new entry appears immediately
       const backupsRes = await fetch("/api/admin/backups", { cache: "no-store" });
@@ -1780,14 +1792,36 @@ export default function AdminPage() {
                             <span>Publicado {new Date(backup.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}</span>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn-secondary shrink-0"
-                          onClick={() => { setRestoreModal(backup); setRestoreLabel(backup.snapshotLabel); }}
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                          Restaurar
-                        </button>
+                        <div className="flex shrink-0 gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={async () => {
+                              const res = await fetch(`/api/admin/backups?snapshotId=${encodeURIComponent(backup.snapshotId)}`, { cache: "no-store" });
+                              const data = (await res.json().catch(() => null)) as { backup?: unknown } | null;
+                              if (data?.backup) {
+                                const blob = new Blob([JSON.stringify(data.backup, null, 2)], { type: "application/json" });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `respaldo-${backup.snapshotId}.json`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }
+                            }}
+                          >
+                            <Save className="h-4 w-4" />
+                            Descargar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => { setRestoreModal(backup); setRestoreLabel(backup.snapshotLabel); }}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Restaurar
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

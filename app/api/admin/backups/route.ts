@@ -47,10 +47,29 @@ async function requireAdminSession() {
   return { ok: true as const };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireAdminSession();
   if (!auth.ok) return auth.response;
 
+  const { searchParams } = new URL(request.url);
+  const snapshotId = searchParams.get("snapshotId")?.trim() ?? "";
+
+  // Single backup (full data) for download
+  if (snapshotId) {
+    const record = await prisma.globalConfig.findUnique({
+      where: { key: `snapshot-backup-${snapshotId}` },
+      select: { value: true },
+    });
+    if (!record) return Response.json({ message: "Respaldo no encontrado." }, { status: 404 });
+    try {
+      const backup = JSON.parse(record.value) as SnapshotBackup;
+      return Response.json({ backup });
+    } catch {
+      return Response.json({ message: "El respaldo está dañado." }, { status: 422 });
+    }
+  }
+
+  // List of all backups (summaries only)
   const records = await prisma.globalConfig.findMany({
     where: { key: { startsWith: "snapshot-backup-" } },
     select: { key: true, value: true },
@@ -232,5 +251,15 @@ export async function PUT(request: Request) {
 
   await createSnapshotBackup(snapshotId);
 
-  return Response.json({ message: `Respaldo del corte ${snapshotId} creado correctamente.`, snapshotId });
+  // Return the full backup so the client can trigger a browser download.
+  const record = await prisma.globalConfig.findUnique({
+    where: { key: `snapshot-backup-${snapshotId}` },
+    select: { value: true },
+  });
+
+  return Response.json({
+    message: `Respaldo del corte ${snapshotId} creado correctamente.`,
+    snapshotId,
+    backup: record?.value ? (JSON.parse(record.value) as SnapshotBackup) : null,
+  });
 }
