@@ -8,6 +8,7 @@ import { safeParseCompanyInfo } from "@/lib/workspace";
 import { computeRowTotals } from "@/lib/compensation";
 import { getBcvRate } from "@/lib/bcv";
 import type { ExtendedMarketPosition } from "@/types/salary";
+import { createSnapshotBackup } from "@/lib/snapshot-backup";
 
 function gradeToNivel(grade: number | undefined, family: string | undefined): string {
   if (!grade) return "";
@@ -264,6 +265,8 @@ export async function PATCH(request: Request) {
     }
     if (body.publish) {
       await publishSnapshot(snapshotId);
+      // Fire-and-forget backup — don't block the publish response if it fails.
+      void createSnapshotBackup(snapshotId).catch(() => null);
       return Response.json({ message: `Corte ${snapshotId} publicado.`, snapshotId, published: true });
     } else {
       await unpublishSnapshot(snapshotId);
@@ -302,3 +305,4 @@ export async function PATCH(request: Request) {
     affectedUsers: result.count,
   });
 }
+
