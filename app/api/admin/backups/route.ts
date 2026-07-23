@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { safeParseSnapshots } from "@/lib/workspace";
+import { createSnapshotBackup } from "@/lib/snapshot-backup";
 
 export type BackupSummary = {
   snapshotId: string;
@@ -210,4 +211,26 @@ export async function POST(request: Request) {
     restoredCompanies,
     restoredPositions,
   });
+}
+
+// Manual backup trigger — admin can call this from the data page without publishing.
+export async function PUT(request: Request) {
+  const auth = await requireAdminSession();
+  if (!auth.ok) return auth.response;
+
+  const body = (await request.json().catch(() => null)) as { snapshotId?: string } | null;
+  const snapshotId = body?.snapshotId?.trim() ?? "";
+
+  if (!snapshotId) {
+    return Response.json({ message: "Indica el corte a respaldar." }, { status: 400 });
+  }
+
+  const exists = await prisma.userSnapshot.count({ where: { snapshotId } });
+  if (exists === 0) {
+    return Response.json({ message: "El corte no existe." }, { status: 404 });
+  }
+
+  await createSnapshotBackup(snapshotId);
+
+  return Response.json({ message: `Respaldo del corte ${snapshotId} creado correctamente.`, snapshotId });
 }
