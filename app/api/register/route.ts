@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { COORDINATOR_ROLE, type AppUserRole, isAppUserRole } from "@/lib/roles";
 import { DEFAULT_WORKSPACE } from "@/lib/workspace";
+import { inheritCompanyData } from "@/lib/transfer-user-data";
 
 type RegisterBody = {
   companyId?: string;
@@ -241,6 +242,10 @@ export async function POST(request: Request) {
   if (!user) {
     return Response.json({ message: "La empresa seleccionada no existe." }, { status: 404 });
   }
+
+  // If the company already has other users with data, move it to the new user
+  // so they pick up exactly where the previous person left off.
+  await inheritCompanyData(user.id, user.companyId).catch(() => null);
 
   return Response.json({ user }, { status: 201 });
 }
