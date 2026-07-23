@@ -1802,7 +1802,7 @@ export default function AdminPage() {
                             <span className="uppercase tracking-[0.12em]">{backup.snapshotDate}</span>
                             <span>{backup.totalCompanies} empresa{backup.totalCompanies !== 1 ? "s" : ""}</span>
                             <span>{backup.totalPositions} posicion{backup.totalPositions !== 1 ? "es" : ""}</span>
-                            <span>Publicado {new Date(backup.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                            <span>Respaldado {new Date(backup.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })} {new Date(backup.publishedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}</span>
                           </div>
                         </div>
                         <div className="flex shrink-0 gap-2">
@@ -2700,7 +2700,7 @@ export default function AdminPage() {
                   <span>·</span>
                   <span>{restoreModal.totalPositions} posiciones</span>
                   <span>·</span>
-                  <span>Respaldado {new Date(restoreModal.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                  <span>Respaldado {new Date(restoreModal.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })} {new Date(restoreModal.publishedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}</span>
                 </div>
                 <p className="text-xs text-slate-500"><strong>ID del corte:</strong> {restoreModal.snapshotId}</p>
               </div>
