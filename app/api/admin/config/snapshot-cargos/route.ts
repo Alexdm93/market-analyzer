@@ -92,6 +92,16 @@ async function pruneWorkspaceRows(snapshotId: string, allowedCargos: SnapshotCar
     normDept: c.departamento.trim().toLowerCase(),
   }));
 
+  // Never touch workspaces that already submitted — their data is locked.
+  const submittedUserIds = new Set(
+    (
+      await prisma.userSnapshot.findMany({
+        where: { snapshotId, submittedAt: { not: null } },
+        select: { userId: true },
+      })
+    ).map((s) => s.userId),
+  );
+
   const workspaces = await prisma.userWorkspace.findMany({
     select: { userId: true, snapshotsJson: true },
   });
@@ -105,6 +115,8 @@ async function pruneWorkspaceRows(snapshotId: string, allowedCargos: SnapshotCar
   const updates: WorkspaceUpdate[] = [];
 
   for (const workspace of workspaces) {
+    if (submittedUserIds.has(workspace.userId)) continue;
+
     const snapshots = safeParseSnapshots(workspace.snapshotsJson);
     const snapshot = snapshots[snapshotId];
     if (!snapshot?.rows?.length) continue;
