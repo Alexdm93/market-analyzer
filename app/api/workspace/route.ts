@@ -818,9 +818,8 @@ export async function GET(request: Request) {
   try { if (posDescConfig?.value) positionDescriptions = JSON.parse(posDescConfig.value) as Record<string, string>; } catch {}
 
   const publishedSet = new Set(publishedIds);
-  const userSnapshots = safeParseSnapshots(workspace.snapshotsJson);
-  const publishedParticipatedSnapshotIds = Object.entries(userSnapshots)
-    .filter(([id, snap]) => publishedSet.has(id) && snap.rows?.some((row) => !row._carried))
+  const publishedParticipatedSnapshotIds = Object.entries(payload.snapshots)
+    .filter(([id, snap]) => publishedSet.has(id) && snap.submittedAt && snap.rows?.some((row) => !row._carried))
     .map(([id]) => id);
 
   return Response.json({
