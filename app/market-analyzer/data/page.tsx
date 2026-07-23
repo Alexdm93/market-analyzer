@@ -591,7 +591,7 @@ export default function DataPage() {
   }
 
   // modal state
-  const [modal, setModal] = useState<{ type: 'save' | 'confirm-delete' | null; id?: string }>(() => ({ type: null }));
+  const [modal, setModal] = useState<{ type: 'save' | 'confirm-delete' | 'confirm-submit' | 'confirm-save-all' | null; id?: string }>(() => ({ type: null }));
   const [capriModal, setCapriModal] = useState<{ rowIndex: number } | null>(null);
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
 
@@ -993,6 +993,25 @@ export default function DataPage() {
     if (!companyInfo.hrEmail) missingCompanyFields.push("Correo de contacto de RRHH");
   }
 
+  const missingCompanyFieldsForSubmit = useMemo(() => {
+    const missing: string[] = [];
+    if (!companyInfo.headcount) missing.push("Headcount");
+    if (!companyInfo.revenueUSD) missing.push("Facturación");
+    if (!companyInfo.avgProfitPercent) missing.push("Utilidades antes de ISLR (%)");
+    if (!companyInfo.hrName) missing.push("Nombre de contacto de RRHH");
+    if (!companyInfo.hrEmail) missing.push("Correo de contacto de RRHH");
+    return missing;
+  }, [companyInfo]);
+
+  const incompleteRows = useMemo(() => {
+    return rows.map((r, i) => {
+      const issues: string[] = [];
+      if (!r.hayGrade) issues.push("Sin clasificación CAPRI");
+      if ((r.sueldoBasico ?? 0) <= 0) issues.push("Sueldo básico = $0");
+      return { row: r, index: i, issues };
+    }).filter(({ issues }) => issues.length > 0);
+  }, [rows]);
+
   // Admin: medians per grade group from current rows
   const medianasPorNivelAdmin = useMemo(() => {
     const diasVac = Number(companyInfo.minVacationDays) || 0;
@@ -1206,7 +1225,7 @@ export default function DataPage() {
                             showNotification("Seleccione una actualización");
                             return;
                           }
-                          void saveCurrentToSnapshot(selectedSnapshotId);
+                          setModal({ type: 'confirm-save-all' });
                         }}
                         className="btn btn-secondary"
                       >
@@ -1221,7 +1240,7 @@ export default function DataPage() {
                   ) : null}
                   {isRegularUser && selectedSnapshotId && !isSubmitted && (
                     <button
-                      onClick={() => void handleSubmitData()}
+                      onClick={() => setModal({ type: 'confirm-submit' })}
                       className="btn btn-primary sm:col-span-2"
                       disabled={isSubmitting || rows.length === 0}
                     >
@@ -1586,6 +1605,30 @@ export default function DataPage() {
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={closeModal} />
           <div role="dialog" aria-modal="true" className="surface-card relative z-10 w-full max-w-lg rounded-[1.75rem] p-6">
 
+            {/* Modal: Confirmar guardar todo */}
+            {modal.type === "confirm-save-all" && (
+              <div>
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                  <Save className="h-5 w-5 text-slate-600" />
+                </div>
+                <h3 className="font-display text-center text-xl font-bold text-slate-900">¿Guardar todos los cargos?</h3>
+                <p className="mt-2 text-center text-sm text-slate-500">
+                  Se guardarán los {rows.length} {rows.length === 1 ? "cargo" : "cargos"} del corte en la base de datos, incluyendo los que estén incompletos.
+                </p>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
+                  <button
+                    type="button"
+                    onClick={() => { closeModal(); void saveCurrentToSnapshot(selectedSnapshotId); }}
+                    className="btn btn-primary"
+                  >
+                    <Save className="h-4 w-4" />
+                    Sí, guardar todo
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Modal: Confirmar eliminación de cargo */}
             {modal.type === "confirm-delete" && (
               <div>
@@ -1629,6 +1672,77 @@ export default function DataPage() {
             )}
 
 
+            {modal.type === "confirm-submit" && (() => {
+              const allOk = incompleteRows.length === 0 && missingCompanyFieldsForSubmit.length === 0;
+              return (
+                <div>
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-teal-50">
+                    <Send className={`h-5 w-5 ${allOk ? "text-teal-600" : "text-slate-400"}`} />
+                  </div>
+                  <h3 className="font-display text-center text-xl font-bold text-slate-900">Verificación antes de enviar</h3>
+
+                  {allOk ? (
+                    <div className="mt-4 rounded-[1.1rem] border border-teal-200 bg-teal-50 px-4 py-4 text-center">
+                      <p className="text-sm font-semibold text-teal-800">Tu data está correcta</p>
+                      <p className="mt-1 text-xs text-teal-700">Todos los cargos tienen clasificación CAPRI y sueldo básico registrado.</p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {missingCompanyFieldsForSubmit.length > 0 && (
+                        <div className="rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-700">Información de empresa incompleta</p>
+                          <ul className="mt-2 space-y-0.5">
+                            {missingCompanyFieldsForSubmit.map((f) => (
+                              <li key={f} className="flex items-center gap-1.5 text-xs text-amber-800">
+                                <span className="h-1 w-1 shrink-0 rounded-full bg-amber-500" />
+                                {f}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {incompleteRows.length > 0 && (
+                        <div className="rounded-[1.1rem] border border-red-200 bg-red-50 px-4 py-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.1em] text-red-700">
+                            {incompleteRows.length} {incompleteRows.length === 1 ? "cargo incompleto" : "cargos incompletos"}
+                          </p>
+                          <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+                            {incompleteRows.map(({ row, index, issues }) => (
+                              <li key={row.id} className="text-xs text-red-800">
+                                <span className="font-semibold">{row.tituloCargo || `Cargo ${index + 1}`}</span>
+                                {row.departamento ? <span className="ml-1 text-red-500">({row.departamento})</span> : null}
+                                <ul className="mt-0.5 space-y-0.5 pl-3">
+                                  {issues.map((issue) => (
+                                    <li key={issue} className="flex items-center gap-1.5">
+                                      <span className="h-1 w-1 shrink-0 rounded-full bg-red-400" />
+                                      {issue}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
+                    <button
+                      type="button"
+                      disabled={!allOk || isSubmitting}
+                      onClick={() => { closeModal(); void handleSubmitData(); }}
+                      className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {isSubmitting ? "Enviando..." : "Confirmar envío"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
             {modal.type === "save" && (
               <div>
                 <div className="eyebrow mb-2">Resumen del cargo</div>
@@ -1667,6 +1781,15 @@ export default function DataPage() {
                   </div>
                 )}
 
+                {(modalSaveRow?.sueldoBasico ?? 0) <= 0 && (
+                  <div className="mt-4 rounded-[1.1rem] border border-red-200 bg-red-50 px-4 py-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-red-700">Sueldo básico requerido</p>
+                    <p className="mt-1 text-xs leading-5 text-red-700">
+                      El sueldo básico debe ser mayor a $0 antes de guardar este cargo.
+                    </p>
+                  </div>
+                )}
+
                 {missingCompanyFields.length > 0 && (
                   <div className="mt-4 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3">
                     <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-700">Información de empresa incompleta</p>
@@ -1686,7 +1809,7 @@ export default function DataPage() {
 
                 <div className="mt-5 flex justify-end gap-3">
                   <button onClick={() => setModal({ type: null })} className="btn btn-secondary">Cancelar</button>
-                  <button onClick={() => { const id = modal.id; if (id) { void saveRowById(id); setExpanded((prev) => ({ ...prev, [id]: false })); } setModal({ type: null }); }} disabled={!modalSaveRow?.hayGrade || missingCompanyFields.length > 0} className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">Guardar</button>
+                  <button onClick={() => { const id = modal.id; if (id) { void saveRowById(id); setExpanded((prev) => ({ ...prev, [id]: false })); } setModal({ type: null }); }} disabled={!modalSaveRow?.hayGrade || missingCompanyFields.length > 0 || (modalSaveRow?.sueldoBasico ?? 0) <= 0} className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none">Guardar</button>
                 </div>
               </div>
             )}

@@ -165,7 +165,7 @@ export async function GET(request: Request) {
 
   const [positions, { rate: bcvRateFallback }] = await Promise.all([
     prisma.userPosition.findMany({
-      where: { snapshotId },
+      where: { snapshotId, snapshot: { submittedAt: { not: null } } },
       select: {
         id: true,
         userId: true,
