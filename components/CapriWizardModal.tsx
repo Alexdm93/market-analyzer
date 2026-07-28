@@ -152,7 +152,7 @@ const Q: Record<Familia, Question[]> = {
 const EQUIPO_OPTS: Partial<Record<Familia, { value: string; title: string }[]>> = {
   LO: [
     { value: "operativo", title: "Personal operativo / auxiliar" },
-    { value: "tecnico",   title: "Técnicos no profesionales" },
+    { value: "tecnico",   title: "Técnicos profesionales" },
   ],
   GE: [
     { value: "profesional", title: "Profesionales con título universitario" },
