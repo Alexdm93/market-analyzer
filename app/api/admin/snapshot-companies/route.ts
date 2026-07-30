@@ -41,16 +41,18 @@ export async function GET(request: Request) {
 async function pushSnapshotToNewCompanies(snapshotId: string, newCompanyIds: string[]) {
   if (newCompanyIds.length === 0) return;
 
+  // Snapshot metadata may not exist yet if no company had it before — fall back to snapshotId
   const snapshotRow = await prisma.userSnapshot.findFirst({
     where: { snapshotId },
     select: { label: true, date: true },
   });
-  if (!snapshotRow) return;
+  const snapshotLabel = snapshotRow?.label ?? snapshotId;
+  const snapshotDate = snapshotRow?.date ?? new Date(`${snapshotId}T00:00:00.000Z`);
 
   const snapshot: Snapshot = {
     id: snapshotId,
-    label: snapshotRow.label,
-    date: snapshotRow.date.toISOString().split("T")[0],
+    label: snapshotLabel,
+    date: snapshotId,
     rows: [],
   };
 
@@ -100,8 +102,8 @@ async function pushSnapshotToNewCompanies(snapshotId: string, newCompanyIds: str
           userId: user.id,
           companyId: user.companyId,
           snapshotId: snapshot.id,
-          label: snapshot.label,
-          date: snapshotRow.date,
+          label: snapshotLabel,
+          date: snapshotDate,
         },
       });
     }
