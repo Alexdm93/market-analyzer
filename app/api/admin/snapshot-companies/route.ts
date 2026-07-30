@@ -156,5 +156,9 @@ export async function DELETE(request: Request) {
 
   await prisma.globalConfig.deleteMany({ where: { key: companiesKey(snapshotId) } });
 
+  // No restriction = all companies can access. Ensure every company has UserSnapshot records.
+  const allCompanies = await prisma.company.findMany({ select: { id: true } });
+  await pushSnapshotToNewCompanies(snapshotId, allCompanies.map((c) => c.id));
+
   return Response.json({ snapshotId, companyIds: null });
 }
