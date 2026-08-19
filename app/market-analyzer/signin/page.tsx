@@ -155,7 +155,12 @@ export default function SignInPage() {
                       type="email"
                       value={email}
                       onChange={(e) => { setEmail(e.target.value); resetCompanies(); }}
-                      onBlur={() => lookupByEmail(email)}
+                      onBlur={(e) => {
+                        // Chrome autofill bypasses onChange — read DOM value directly
+                        const domVal = e.target.value;
+                        if (domVal !== email) setEmail(domVal);
+                        lookupByEmail(domVal);
+                      }}
                       className="field pr-9"
                       placeholder="usuario@tuempresa.com"
                       autoComplete="email"
