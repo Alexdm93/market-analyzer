@@ -332,3 +332,12 @@ input[type="number"].field::-webkit-inner-spin-button {
     min-height: 6.25rem;
   }
 }
+
+/* Detect Chrome autofill via animation — used in signin page */
+@keyframes autofill-detect {
+  from {}
+}
+input:-webkit-autofill {
+  animation-name: autofill-detect;
+  animation-duration: 1ms;
+}

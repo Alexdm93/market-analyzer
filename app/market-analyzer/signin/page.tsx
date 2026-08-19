@@ -161,6 +161,14 @@ export default function SignInPage() {
                         if (domVal !== email) setEmail(domVal);
                         lookupByEmail(domVal);
                       }}
+                      onAnimationStart={(e) => {
+                        // Fired when Chrome autofills before any user interaction
+                        if (e.animationName === "autofill-detect") {
+                          const domVal = e.currentTarget.value;
+                          if (domVal !== email) setEmail(domVal);
+                          lookupByEmail(domVal);
+                        }
+                      }}
                       className="field pr-9"
                       placeholder="usuario@tuempresa.com"
                       autoComplete="email"
