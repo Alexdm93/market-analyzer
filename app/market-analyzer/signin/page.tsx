@@ -24,6 +24,8 @@ export default function SignInPage() {
   const [isLoadingBootstrap, setIsLoadingBootstrap] = useState(true);
   const [isPending, startTransition] = useTransition();
   const lastLookedUp = useRef("");
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (status === "authenticated") router.replace("/market-analyzer/inicio");
@@ -74,16 +76,60 @@ export default function SignInPage() {
     setError("");
     setIsSubmitting(true);
 
-    if (!companyId) {
+    // Chrome autofill bypasses React state — read from DOM refs as ground truth
+    const domEmail = (emailRef.current?.value ?? email).trim().toLowerCase();
+    const domPassword = passwordRef.current?.value ?? password;
+
+    if (!domEmail) {
+      setError("Ingresa tu correo.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // If the company lookup hasn't run yet (e.g. autofill with no user interaction),
+    // do it inline now before signing in
+    let resolvedCompanyId = companyId;
+    if (!companiesReady) {
+      lastLookedUp.current = domEmail;
+      setIsLookingUp(true);
+      try {
+        const res = await fetch(`/api/auth/user-companies?email=${encodeURIComponent(domEmail)}`, { cache: "no-store" });
+        const data = (await res.json()) as { companies?: CompanyOption[] };
+        const found = data.companies ?? [];
+        setCompanies(found);
+        if (found.length === 1) {
+          resolvedCompanyId = found[0].id;
+          setCompanyId(found[0].id);
+        } else if (found.length === 0) {
+          setLookupError("No se encontró ninguna cuenta con ese correo.");
+          setIsSubmitting(false);
+          setIsLookingUp(false);
+          return;
+        } else {
+          // Multiple companies — show selector, user must pick one
+          setIsSubmitting(false);
+          setIsLookingUp(false);
+          return;
+        }
+      } catch {
+        setLookupError("Error al verificar el correo. Intenta de nuevo.");
+        setIsSubmitting(false);
+        setIsLookingUp(false);
+        return;
+      }
+      setIsLookingUp(false);
+    }
+
+    if (!resolvedCompanyId) {
       setError("Selecciona una empresa.");
       setIsSubmitting(false);
       return;
     }
 
     const result = await signIn("credentials", {
-      companyId,
-      email: email.trim().toLowerCase(),
-      password,
+      companyId: resolvedCompanyId,
+      email: domEmail,
+      password: domPassword,
       redirect: false,
     });
 
@@ -101,7 +147,8 @@ export default function SignInPage() {
 
   const isBootstrap = !isLoadingBootstrap && bootstrapRequired;
   const companiesReady = companies !== null && companies.length > 0;
-  const canSubmit = companiesReady && !!companyId && !!email && !!password && !isSubmitting && !isPending && !isLookingUp;
+  // Don't gate on companiesReady — submit handler does inline lookup if Chrome autofilled without triggering it
+  const canSubmit = !isSubmitting && !isPending && !isLookingUp;
 
   return (
     <main className="relative flex min-h-screen w-full flex-col overflow-x-hidden px-4 pt-6 pb-8 sm:px-6 sm:pt-8 md:px-10 md:pt-10">
@@ -151,6 +198,7 @@ export default function SignInPage() {
                   <label htmlFor="email" className="field-label">Correo</label>
                   <div className="relative">
                     <input
+                      ref={emailRef}
                       id="email"
                       type="email"
                       value={email}
@@ -213,6 +261,7 @@ export default function SignInPage() {
                 <div>
                   <label htmlFor="password" className="field-label">Contraseña</label>
                   <input
+                    ref={passwordRef}
                     id="password"
                     type="password"
                     value={password}
