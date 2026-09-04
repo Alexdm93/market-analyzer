@@ -91,7 +91,9 @@ function tcrNormalizeComponent(
     // Escenario 4: MC(Bs) / TC(Cliente), then convert to reference currency
     const tasa = tasaId ? tasas.find((t) => t.id === tasaId) : undefined;
     const tasaValor = tasa ? Number(tasa.valor) : 0;
-    const tcCliente = tasaValor > 0 ? tasaValor : (bcvRate ?? 1);
+    const tcCliente = tasaValor > 0 ? tasaValor : bcvRate;
+    // No hay tasa válida (ni propia ni BCV) — no inventar un tipo de cambio de 1:1
+    if (!tcCliente || tcCliente <= 0) return 0;
     return usdToRef(amount / tcCliente);
   }
 
@@ -100,7 +102,9 @@ function tcrNormalizeComponent(
     // Escenario 2: MC(USD) × TC(Cliente) / tcrRate
     const tasa = tasaId ? tasas.find((t) => t.id === tasaId) : undefined;
     const tasaValor = tasa ? Number(tasa.valor) : 0;
-    const paymentRate = tasaValor > 0 ? tasaValor : (bcvRate ?? 1);
+    const paymentRate = tasaValor > 0 ? tasaValor : bcvRate;
+    // No hay tasa válida (ni propia ni BCV) — no inventar un tipo de cambio de 1:1
+    if (!paymentRate || paymentRate <= 0) return 0;
     return amount * paymentRate / tcrRate;
   }
 
@@ -190,6 +194,9 @@ export function pct(values: number[], p: number): number {
 }
 
 export const PERCENTILE_MIN_N = {
+  // min/max son los valores más identificables (pueden ser el dato exacto de una sola
+  // empresa/persona) — exigen al menos tantas observaciones como los percentiles extremos.
+  minMax: 12,
   p10: 12,
   p25: 8,
   p50: 4,
@@ -214,8 +221,8 @@ export function computeMetricPercentiles(values: number[]): MetricPercentiles {
   const n = values.length;
   return {
     n,
-    min: n > 0 ? Math.min(...values) : null,
-    max: n > 0 ? Math.max(...values) : null,
+    min: n >= PERCENTILE_MIN_N.minMax ? Math.min(...values) : null,
+    max: n >= PERCENTILE_MIN_N.minMax ? Math.max(...values) : null,
     p10: n >= PERCENTILE_MIN_N.p10 ? Math.round(pct(values, 10)) : null,
     p25: n >= PERCENTILE_MIN_N.p25 ? Math.round(pct(values, 25)) : null,
     p50: n >= PERCENTILE_MIN_N.p50 ? Math.round(pct(values, 50)) : null,
