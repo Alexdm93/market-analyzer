@@ -327,6 +327,23 @@ async function deleteSnapshotForAllUsers(snapshotId: string) {
         },
       });
     }
+
+    // Limpiar configuración huérfana del corte eliminado (restricción de empresas y
+    // cargos configurados) para que, si luego se crea otro corte con la misma fecha,
+    // no herede en silencio restricciones de este corte ya borrado.
+    // snapshot-backup-{id} se deja intacto a propósito: es el respaldo del usuario y
+    // debe sobrevivir a la eliminación del corte para poder restaurarlo después.
+    await tx.globalConfig.deleteMany({
+      where: {
+        key: {
+          in: [
+            `snapshot-companies-${snapshotId}`,
+            `snapshot-cargos-${snapshotId}`,
+            `snapshot-ranges-${snapshotId}`,
+          ],
+        },
+      },
+    });
   });
 
   return deletedSnapshots.count;

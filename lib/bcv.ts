@@ -133,13 +133,36 @@ export function getBcvRate()     { return getCachedRate(BCV_KEY,     fetchBcvFro
 export function getBcvEuroRate() { return getCachedRate(BCV_EUR_KEY,  fetchBcvEurFromApi); }
 export function getBinanceRate() { return getCachedRate(BINANCE_KEY,  fetchBinanceFromApi); }
 
-/** Force-refreshes all three rates in parallel by deleting their cache entries. */
+async function forceRefreshRate(
+  key: string,
+  fetcher: () => Promise<number | null>,
+): Promise<{ rate: number | null; updatedAt: string | null }> {
+  const fresh = await fetcher();
+  if (fresh !== null) {
+    await prisma.globalConfig.upsert({
+      where: { key },
+      create: { key, value: String(fresh) },
+      update: { value: String(fresh) },
+    });
+    return { rate: fresh, updatedAt: new Date().toISOString() };
+  }
+
+  // El fetch nuevo falló — no borrar el valor anterior, devolver lo que ya había en caché.
+  const config = await prisma.globalConfig.findUnique({ where: { key } });
+  if (!config) return { rate: null, updatedAt: null };
+  const rate = parseFloat(config.value);
+  return {
+    rate: Number.isFinite(rate) && rate > 0 ? rate : null,
+    updatedAt: config.updatedAt.toISOString(),
+  };
+}
+
+/** Force-refreshes all three rates in parallel, without ever discarding a still-valid cached rate. */
 export async function refreshAllRates() {
-  await prisma.globalConfig.deleteMany({
-    where: { key: { in: [BCV_KEY, BCV_EUR_KEY, BINANCE_KEY] } },
-  });
   const [bcvUsd, bcvEur, binance] = await Promise.all([
-    getBcvRate(), getBcvEuroRate(), getBinanceRate(),
+    forceRefreshRate(BCV_KEY, fetchBcvFromApi),
+    forceRefreshRate(BCV_EUR_KEY, fetchBcvEurFromApi),
+    forceRefreshRate(BINANCE_KEY, fetchBinanceFromApi),
   ]);
   return { bcvUsd, bcvEur, binance };
 }

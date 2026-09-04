@@ -862,8 +862,12 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Determinístico: el usuario más reciente de la empresa (mismo criterio que ya
+    // se usa al restaurar backups), en vez de un `findFirst` sin orden que podía
+    // devolver cualquier fila física de la tabla.
     const companyUser = await prisma.user.findFirst({
       where: { companyId: targetCompanyId },
+      orderBy: { createdAt: "desc" },
       select: { id: true },
     });
 

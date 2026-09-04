@@ -25,9 +25,13 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Contrasena", type: "password" },
       },
       async authorize(credentials, req) {
+        // x-real-ip is set by our own infra and not client-controllable — prefer it.
+        // If falling back to x-forwarded-for, use the LAST hop (closest to our proxy),
+        // never the first (which a client can freely spoof to get a fresh IP each try).
+        const xForwardedFor = req?.headers?.["x-forwarded-for"] as string | undefined;
         const ip =
-          (req?.headers?.["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
           (req?.headers?.["x-real-ip"] as string | undefined) ??
+          xForwardedFor?.split(",").map((part) => part.trim()).filter(Boolean).pop() ??
           "unknown";
 
         const { allowed } = checkRateLimit(ip);

@@ -142,21 +142,29 @@ export async function GET(request: Request) {
     const diasUtilidades = Number(companyInfo.minUtilityDays)  || 0;
     const tasas          = companyInfo.tasas ?? [];
 
+    // Una observación por empresa por cargo/grado — igual que percentiles y
+    // percentiles-by-grade — para que una sola empresa con muchos empleados en
+    // el mismo cargo no domine/sesgue el "promedio de mercado".
+    const seenTituloInCompany = new Set<string>();
+    const seenGradeInCompany = new Set<number>();
+
     for (const row of snapshot.rows) {
       const totals = computeTCRTotals(row, tasas, bcvRate, bcvEurRate, libreRate, tcrRate, tcrType, diasVacaciones, diasUtilidades);
       if (totals.totalSinPasivosMensual === 0 && totals.totalDirectoMensualizado === 0) continue;
 
-      // Accumulate by cargo title
+      // Accumulate by cargo title — one observation per company (first row wins on duplicates)
       const titulo = String(row.tituloCargo ?? "").trim();
-      if (titulo) {
-        const existing = cargoGroups.get(titulo);
+      const normTitulo = titulo.toLowerCase();
+      if (normTitulo && !seenTituloInCompany.has(normTitulo)) {
+        seenTituloInCompany.add(normTitulo);
+        const existing = cargoGroups.get(normTitulo);
         if (existing) {
           existing.sinPasivosMensual.push(totals.totalSinPasivosMensual);
           existing.conPasivosMensual.push(totals.totalConPasivosMensual);
           existing.conPasivosAnual.push(totals.totalConPasivosAnual);
           existing.directoMensualizado.push(totals.totalDirectoMensualizado);
         } else {
-          cargoGroups.set(titulo, {
+          cargoGroups.set(normTitulo, {
             tituloCargo: titulo,
             sinPasivosMensual:   [totals.totalSinPasivosMensual],
             conPasivosMensual:   [totals.totalConPasivosMensual],
@@ -166,9 +174,10 @@ export async function GET(request: Request) {
         }
       }
 
-      // Accumulate by grade (one entry per company×grade)
+      // Accumulate by grade — one observation per company×grade (first row wins on duplicates)
       const grade = row.hayGrade;
-      if (grade) {
+      if (grade && !seenGradeInCompany.has(grade)) {
+        seenGradeInCompany.add(grade);
         const existing = gradeGroups.get(grade);
         if (existing) {
           existing.sinPasivosMensual.push(totals.totalSinPasivosMensual);

@@ -77,10 +77,11 @@ function tcrNormalizeComponent(
 
   // For BCV-EUR: convert a USD amount to EUR using BCV cross-rate
   function usdToRef(usd: number): number {
-    if (isEur && bcvRate && bcvEurRate && bcvEurRate > 0) {
-      return usd * (bcvRate / bcvEurRate);
-    }
-    return usd; // BCV-USD and Libre: reference currency is USD — no conversion needed
+    if (!isEur) return usd; // BCV-USD and Libre: reference currency is USD — no conversion needed
+    // Modo BCV-EUR pero falta alguna de las dos tasas: no devolver el monto en USD
+    // disfrazado de EUR — es mejor "sin dato" que una cifra mezclada sin etiquetar.
+    if (!bcvRate || !bcvEurRate || bcvEurRate <= 0) return 0;
+    return usd * (bcvRate / bcvEurRate);
   }
 
   if (cuentaMoneda === "VES") {
