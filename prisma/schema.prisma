@@ -19,6 +19,12 @@ enum SnapshotProcessingStatus {
   PROCESSED
 }
 
+enum EditRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Company {
   id         String         @id @default(cuid())
   name       String         @unique
@@ -40,6 +46,7 @@ model Company {
   users           User[]
   snapshots       UserSnapshot[]
   positions       UserPosition[]
+  editRequests    EditRequest[]
   estudioEnabled      Boolean @default(false)
   estudioSnapshotIds  String  @default("[]")
   createdAt       DateTime @default(now())
@@ -58,6 +65,7 @@ model User {
   workspace     UserWorkspace?
   snapshots    UserSnapshot[]
   positions    UserPosition[]
+  editRequests EditRequest[]
   lastLoginAt     DateTime?
   sessionVersion  Int      @default(0)
   createdAt       DateTime @default(now())
@@ -125,6 +133,25 @@ model GlobalConfig {
   key       String   @id
   value     String   @default("")
   updatedAt DateTime @updatedAt
+}
+
+model EditRequest {
+  id             String            @id @default(cuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId      String
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshotId     String
+  reason         String?
+  status         EditRequestStatus @default(PENDING)
+  resolvedByName String?
+  resolvedAt     DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([snapshotId, status])
+  @@index([companyId])
+  @@index([userId, snapshotId, status])
 }
 
 model Announcement {

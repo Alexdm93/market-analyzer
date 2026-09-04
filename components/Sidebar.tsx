@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChartBar, Database, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, ChartBar, ClipboardCheck, Database, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { getRoleLabel, isAdminRole, isCoordinatorRole } from "@/lib/roles";
 import { useNavigationTrigger } from "./NavigationProgress";
@@ -35,6 +35,7 @@ const estudiosItem = { name: "Estudios", href: `${BASE}/estudios`, icon: ChartBa
 const adminMenuItems = [
   { name: "Admin", href: `${BASE}/admin`, icon: Shield, hint: "Vista administrativa" },
   { name: "Empresas", href: `${BASE}/empresas`, icon: Building2, hint: "Catálogo disponible" },
+  { name: "Aprobaciones", href: `${BASE}/admin/aprobaciones`, icon: ClipboardCheck, hint: "Solicitudes de edición" },
   { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
   { name: "Valoración", href: `${BASE}/valoracion`, icon: Layers, hint: "CAPRI por cargo" },
 ];
@@ -51,6 +52,24 @@ export default function Sidebar() {
   const [signingOut, setSigningOut] = useState(false);
   const { hasUnread } = useAnnouncements();
   const { hasUnreadResultados, hasUnreadData } = useWorkspaceNotification();
+  const [pendingEditRequests, setPendingEditRequests] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let ignore = false;
+
+    async function loadPendingCount() {
+      try {
+        const res = await fetch("/api/admin/edit-requests?status=PENDING", { cache: "no-store" });
+        const payload = (await res.json().catch(() => null)) as { requests?: unknown[] } | null;
+        if (!ignore && res.ok) setPendingEditRequests(Array.isArray(payload?.requests) ? payload.requests.length : 0);
+      } catch { /* silencioso — no bloquea la navegación */ }
+    }
+
+    void loadPendingCount();
+    const interval = window.setInterval(loadPendingCount, 60000);
+    return () => { ignore = true; window.clearInterval(interval); };
+  }, [isAdmin]);
 
   if (pathname === "/" || pathname.startsWith("/market-analyzer/signin") || pathname.startsWith("/market-analyzer/register")) {
     return null;
@@ -100,6 +119,11 @@ export default function Sidebar() {
                   )}
                   {item.href === `${BASE}/data` && hasUnreadData && (
                     <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+                  )}
+                  {item.href === `${BASE}/admin/aprobaciones` && pendingEditRequests > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[0.6rem] font-bold text-white ring-2 ring-white">
+                      {pendingEditRequests > 9 ? "9+" : pendingEditRequests}
+                    </span>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">

@@ -139,6 +139,9 @@ export default function DataPage() {
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [editRequestStatus, setEditRequestStatus] = useState<"PENDING" | "APPROVED" | "REJECTED" | null>(null);
+  const [isRequestingEdit, setIsRequestingEdit] = useState(false);
+  const [editRequestReason, setEditRequestReason] = useState("");
 
   const isReadOnlyDataView = isAdmin && !selectedCompanyId;
   const isAdminCompanyView = isAdmin && Boolean(selectedCompanyId);
@@ -555,29 +558,48 @@ export default function DataPage() {
     }
   }
 
-  async function handleUnsubmitData() {
-    if (!selectedSnapshotId || isSubmitting) return;
-    setIsSubmitting(true);
+  // Nota: reabrir un corte enviado ya no es autoservicio — requiere aprobación del
+  // admin vía /api/workspace/request-edit (ver handleRequestEdit más abajo). El
+  // servidor sigue aceptando DELETE /api/workspace/submit para ese flujo de aprobación.
+
+  // Consultar si ya existe una solicitud de edición (y su estado) para el corte enviado
+  useEffect(() => {
+    if (!isRegularUser || !isSubmitted || !selectedSnapshotId) {
+      setEditRequestStatus(null);
+      return;
+    }
+    let ignore = false;
+    fetch(`/api/workspace/request-edit?snapshotId=${encodeURIComponent(selectedSnapshotId)}`, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((payload: { request?: { status: "PENDING" | "APPROVED" | "REJECTED" } | null } | null) => {
+        if (!ignore) setEditRequestStatus(payload?.request?.status ?? null);
+      })
+      .catch(() => { if (!ignore) setEditRequestStatus(null); });
+    return () => { ignore = true; };
+  }, [isRegularUser, isSubmitted, selectedSnapshotId]);
+
+  async function handleRequestEdit() {
+    if (!selectedSnapshotId || isRequestingEdit) return;
+    setIsRequestingEdit(true);
     try {
-      const res = await fetch("/api/workspace/submit", {
-        method: "DELETE",
+      const res = await fetch("/api/workspace/request-edit", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshotId: selectedSnapshotId }),
+        body: JSON.stringify({ snapshotId: selectedSnapshotId, reason: editRequestReason.trim() || undefined }),
       });
+      const payload = (await res.json().catch(() => null)) as { message?: string } | null;
       if (res.ok) {
-        setIsSubmitted(false);
-        setSnapshots((prev) => ({
-          ...prev,
-          [selectedSnapshotId]: { ...prev[selectedSnapshotId], submittedAt: null },
-        }));
-        showNotification("Puedes continuar editando tu data.");
+        setEditRequestStatus("PENDING");
+        setEditRequestReason("");
+        closeModal();
+        showNotification("Solicitud enviada. El administrador la revisará pronto.");
       } else {
-        showNotification("No se pudo reabrir la edición.");
+        showNotification(payload?.message ?? "No se pudo enviar la solicitud.");
       }
     } catch {
-      showNotification("Error al reabrir la edición.");
+      showNotification("Error al enviar la solicitud.");
     } finally {
-      setIsSubmitting(false);
+      setIsRequestingEdit(false);
     }
   }
 
@@ -591,12 +613,13 @@ export default function DataPage() {
   }
 
   // modal state
-  const [modal, setModal] = useState<{ type: 'save' | 'confirm-delete' | 'confirm-submit' | 'confirm-save-all' | null; id?: string }>(() => ({ type: null }));
+  const [modal, setModal] = useState<{ type: 'save' | 'confirm-delete' | 'confirm-submit' | 'confirm-save-all' | 'request-edit' | null; id?: string }>(() => ({ type: null }));
   const [capriModal, setCapriModal] = useState<{ rowIndex: number } | null>(null);
   const titleRefs = useRef<Record<string, HTMLSelectElement | null>>({});
 
   function closeModal() {
     setModal({ type: null });
+    setEditRequestReason("");
   }
 
   function loadSnapshot(id: string) {
@@ -1136,9 +1159,11 @@ export default function DataPage() {
                 </div>
               ) : null}
               {isLockedBySubmission && (
-                <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+                <div className={`mt-2 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${editRequestStatus === "PENDING" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"}`}>
                   <Lock size={14} aria-hidden />
-                  Data enviada — en espera del coordinador
+                  {editRequestStatus === "PENDING"
+                    ? "Solicitud de edición enviada — esperando aprobación del administrador"
+                    : "Data enviada — en espera del coordinador"}
                 </div>
               )}
 
@@ -1250,12 +1275,12 @@ export default function DataPage() {
                   )}
                   {isRegularUser && isSubmitted && (
                     <button
-                      onClick={() => void handleUnsubmitData()}
+                      onClick={() => setModal({ type: 'request-edit' })}
                       className="btn btn-secondary sm:col-span-2"
-                      disabled={isSubmitting}
+                      disabled={editRequestStatus === "PENDING"}
                     >
                       <LockOpen className="h-3.5 w-3.5" />
-                      {isSubmitting ? "Procesando..." : "Editar data"}
+                      {editRequestStatus === "PENDING" ? "Solicitud enviada" : "Solicitar edición"}
                     </button>
                   )}
                 </div>
@@ -1742,6 +1767,42 @@ export default function DataPage() {
                 </div>
               );
             })()}
+
+            {/* Modal: Solicitar edición de un corte ya enviado */}
+            {modal.type === "request-edit" && (
+              <div>
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                  <LockOpen className="h-5 w-5 text-amber-700" />
+                </div>
+                <h3 className="font-display text-center text-xl font-bold text-slate-900">¿Solicitar edición de este corte?</h3>
+                <p className="mt-2 text-center text-sm text-slate-500">
+                  Ya enviaste esta data. Para volver a editarla, un administrador debe aprobar tu solicitud.
+                </p>
+                <div className="mt-4">
+                  <label htmlFor="edit-request-reason" className="field-label">Motivo (opcional)</label>
+                  <textarea
+                    id="edit-request-reason"
+                    value={editRequestReason}
+                    onChange={(e) => setEditRequestReason(e.target.value)}
+                    rows={3}
+                    className="field resize-none"
+                    placeholder="Ej. Me equivoqué en el sueldo de un cargo..."
+                  />
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={closeModal} className="btn btn-secondary">Cancelar</button>
+                  <button
+                    type="button"
+                    disabled={isRequestingEdit}
+                    onClick={() => void handleRequestEdit()}
+                    className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
+                  >
+                    <LockOpen className="h-3.5 w-3.5" />
+                    {isRequestingEdit ? "Enviando..." : "Enviar solicitud"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {modal.type === "save" && (
               <div>
