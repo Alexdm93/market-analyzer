@@ -314,8 +314,12 @@ async function syncRelationalWorkspace(
     } catch { /* skip malformed */ }
   }
 
-  await tx.userPosition.deleteMany({ where: { userId } });
-  await tx.userSnapshot.deleteMany({ where: { userId } });
+  // Solo tocar los cortes que vienen en este guardado — cualquier otro corte del
+  // usuario que no esté en `snapshots` (p. ej. porque quedó fuera del payload de esta
+  // pestaña) se deja intacto en la base de datos en vez de borrarse.
+  const snapshotIdsInPayload = Object.keys(snapshots);
+  await tx.userPosition.deleteMany({ where: { userId, snapshotId: { in: snapshotIdsInPayload } } });
+  await tx.userSnapshot.deleteMany({ where: { userId, snapshotId: { in: snapshotIdsInPayload } } });
 
   const now = new Date().toISOString();
 

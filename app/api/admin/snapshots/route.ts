@@ -125,12 +125,16 @@ async function rebuildRelationalWorkspace(
   });
   const statusBySnapshotId = new Map(existingStatuses.map((snapshot) => [snapshot.snapshotId, { status: snapshot.status, processedAt: snapshot.processedAt, submittedAt: snapshot.submittedAt }]));
 
+  // Solo tocar los cortes incluidos en `snapshots` — cualquier otro corte del usuario
+  // que no venga en este set se deja intacto en la base de datos en vez de borrarse.
+  const snapshotIdsInPayload = Object.keys(snapshots);
+
   await tx.userPosition.deleteMany({
-    where: { userId: user.id },
+    where: { userId: user.id, snapshotId: { in: snapshotIdsInPayload } },
   });
 
   await tx.userSnapshot.deleteMany({
-    where: { userId: user.id },
+    where: { userId: user.id, snapshotId: { in: snapshotIdsInPayload } },
   });
 
   for (const snapshot of Object.values(snapshots)) {
