@@ -1085,6 +1085,13 @@ export default function EstudioPage() {
   }, [tcrPercentileData]);
 
   async function exportUserExcel() {
+    // Exportar exactamente lo mismo que se está viendo en pantalla: si el modo TCR
+    // está activo, usar los totales y percentiles TCR — no los de BCV estándar.
+    const usingTcr = tcrEnabled && Boolean(userTcrRowTotals);
+    const effectiveRowTotals = usingTcr ? userTcrRowTotals! : userRowTotals;
+    const effectiveMarketByTitle = usingTcr ? tcrMarketByTitle : marketByTitle;
+    const currencySuffix = usingTcr ? (tcrType === "euro" ? " — TCR EUR" : tcrType === "libre" ? " — TCR Libre" : " — TCR BCV") : "";
+
     const allMetrics = [
       { key: "sinPasivosMensual",  label: "TEM"  },
       { key: "directoMensualizado",label: "TEMz" },
@@ -1097,7 +1104,7 @@ export default function EstudioPage() {
       columns: [
         { header: "Cargo",              key: "cargo",    width: 40, align: "left"   as const },
         { header: "N",                  key: "n",        width: 8,  align: "center" as const },
-        { header: `Mi valor (${label})`,key: "miValor",  width: 16, align: "right"  as const },
+        { header: `Mi valor (${label}${currencySuffix})`,key: "miValor",  width: 20, align: "right"  as const },
         { header: "P10",                key: "p10",      width: 14, align: "right"  as const },
         { header: "P25",                key: "p25",      width: 14, align: "right"  as const },
         { header: "P50",                key: "p50",      width: 14, align: "right"  as const },
@@ -1106,9 +1113,9 @@ export default function EstudioPage() {
         { header: "Promedio",           key: "promedio", width: 14, align: "right"  as const },
         { header: "Posición",           key: "posicion", width: 20, align: "left"   as const },
       ],
-      rows: userRowTotals.map(({ row, totals }) => {
+      rows: effectiveRowTotals.map(({ row, totals }) => {
         const normTitle = (row.tituloCargo ?? "").trim().toLowerCase();
-        const mkt = marketByTitle.get(normTitle);
+        const mkt = effectiveMarketByTitle.get(normTitle);
         const mktData = mkt ? mkt[key] : null;
         const myValue = totals[METRIC_KEY[key]];
         const nd = (v: number | null) => v ?? null;
@@ -1130,7 +1137,8 @@ export default function EstudioPage() {
     const snapshotLabel = selectedSnapshotId
       ? sanitizeFileSegment(snapshots[selectedSnapshotId]?.label || selectedSnapshotId)
       : "estudio";
-    await exportStyledExcel(sheets, `posicionamiento-${snapshotLabel}.xlsx`);
+    const fileSuffix = usingTcr ? `-tcr-${tcrType}` : "";
+    await exportStyledExcel(sheets, `posicionamiento-${snapshotLabel}${fileSuffix}.xlsx`);
   }
 
   async function exportUserGradeExcel() {

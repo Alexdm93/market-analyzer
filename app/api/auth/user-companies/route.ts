@@ -1,6 +1,22 @@
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
+  // Endpoint público (sin sesión) que revela si un correo existe y a qué empresa
+  // pertenece — limitar por IP para evitar scraping masivo del mapeo correo→empresa.
+  const xForwardedFor = request.headers.get("x-forwarded-for") ?? undefined;
+  const ip =
+    request.headers.get("x-real-ip") ??
+    xForwardedFor?.split(",").map((part) => part.trim()).filter(Boolean).pop() ??
+    "unknown";
+
+  // Prefijo distinto al que usa el login — esta búsqueda se dispara automáticamente
+  // (autofill, onBlur) y no debe consumir el mismo cupo que los intentos de login real.
+  const { allowed } = checkRateLimit(`lookup:${ip}`);
+  if (!allowed) {
+    return Response.json({ message: "Demasiadas solicitudes. Intenta de nuevo en unos minutos." }, { status: 429 });
+  }
+
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("email")?.trim().toLowerCase() ?? "";
 

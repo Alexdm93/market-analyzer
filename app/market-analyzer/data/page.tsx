@@ -44,7 +44,9 @@ function pct(values: number[], p: number): number {
 }
 
 const empty = (i: number): ExtendedMarketPosition => ({
-  id: `r-${Date.now()}-${i}`,
+  // Sufijo aleatorio para que dos clics rápidos (mismo ms, mismo rows.length aún no
+  // re-renderizado) no generen el mismo id — eso rompía el guardado por completo.
+  id: `r-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
   departamento: "",
   tituloCargo: "",
   descripcion: "",

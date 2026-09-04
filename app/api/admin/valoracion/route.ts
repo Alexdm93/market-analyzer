@@ -21,6 +21,14 @@ export type ValoracionItem = {
   updatedAt?: string;
 };
 
+class ValoracionApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function readList(): Promise<ValoracionItem[]> {
   const row = await prisma.globalConfig.findUnique({ where: { key: KEY } });
   try {
@@ -29,11 +37,35 @@ async function readList(): Promise<ValoracionItem[]> {
   return [];
 }
 
-async function writeList(items: ValoracionItem[]) {
-  await prisma.globalConfig.upsert({
-    where: { key: KEY },
-    create: { key: KEY, value: JSON.stringify(items) },
-    update: { value: JSON.stringify(items) },
+/**
+ * Lee, modifica y escribe la lista dentro de una sola transacción, tomando un
+ * advisory lock de Postgres sobre esta key para que dos admins editando al mismo
+ * tiempo (o dos pestañas del mismo admin) no se pisen entre sí — sin esto, un
+ * PUT/POST/DELETE concurrente podía leer una copia vieja y sobreescribir el cambio
+ * del otro en silencio. `mutate` puede lanzar ValoracionApiError para abortar sin
+ * escribir nada (p. ej. cargo duplicado, item no encontrado).
+ */
+async function updateListAtomically(
+  mutate: (items: ValoracionItem[]) => ValoracionItem[]
+): Promise<ValoracionItem[]> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${KEY}))`;
+
+    const row = await tx.globalConfig.findUnique({ where: { key: KEY } });
+    let items: ValoracionItem[] = [];
+    try {
+      if (row?.value) items = JSON.parse(row.value) as ValoracionItem[];
+    } catch { /* empty */ }
+
+    const nextItems = mutate(items);
+
+    await tx.globalConfig.upsert({
+      where: { key: KEY },
+      create: { key: KEY, value: JSON.stringify(nextItems) },
+      update: { value: JSON.stringify(nextItems) },
+    });
+
+    return nextItems;
   });
 }
 
@@ -53,15 +85,18 @@ export async function POST(request: Request) {
   const departamento = body?.departamento?.trim() ?? "";
   if (!cargo) return Response.json({ message: "Indica el cargo." }, { status: 400 });
 
-  const items = await readList();
-  if (items.some((i) => i.cargo === cargo && i.departamento === departamento)) {
-    return Response.json({ message: "El cargo ya está en la lista." }, { status: 409 });
+  try {
+    const items = await updateListAtomically((current) => {
+      if (current.some((i) => i.cargo === cargo && i.departamento === departamento)) {
+        throw new ValoracionApiError("El cargo ya está en la lista.", 409);
+      }
+      return [...current, { id: crypto.randomUUID(), cargo, departamento }];
+    });
+    return Response.json({ items });
+  } catch (error) {
+    if (error instanceof ValoracionApiError) return Response.json({ message: error.message }, { status: error.status });
+    throw error;
   }
-
-  const newItem: ValoracionItem = { id: crypto.randomUUID(), cargo, departamento };
-  items.push(newItem);
-  await writeList(items);
-  return Response.json({ items });
 }
 
 /** PUT: save CAPRI classification for an existing item */
@@ -79,13 +114,19 @@ export async function PUT(request: Request) {
   const { id, grade, familia, rol } = body ?? {};
   if (!id || typeof grade !== "number") return Response.json({ message: "Datos inválidos." }, { status: 400 });
 
-  const items = await readList();
-  const idx = items.findIndex((i) => i.id === id);
-  if (idx === -1) return Response.json({ message: "Cargo no encontrado." }, { status: 404 });
-
-  items[idx] = { ...items[idx], grade, familia: familia ?? "", rol: rol ?? "", updatedAt: new Date().toISOString().split("T")[0] };
-  await writeList(items);
-  return Response.json({ items });
+  try {
+    const items = await updateListAtomically((current) => {
+      const idx = current.findIndex((i) => i.id === id);
+      if (idx === -1) throw new ValoracionApiError("Cargo no encontrado.", 404);
+      const next = [...current];
+      next[idx] = { ...next[idx], grade, familia: familia ?? "", rol: rol ?? "", updatedAt: new Date().toISOString().split("T")[0] };
+      return next;
+    });
+    return Response.json({ items });
+  } catch (error) {
+    if (error instanceof ValoracionApiError) return Response.json({ message: error.message }, { status: error.status });
+    throw error;
+  }
 }
 
 /** DELETE: remove a cargo from the list */
@@ -97,7 +138,6 @@ export async function DELETE(request: Request) {
   const id = body?.id?.trim();
   if (!id) return Response.json({ message: "Indica el id." }, { status: 400 });
 
-  const items = (await readList()).filter((i) => i.id !== id);
-  await writeList(items);
+  const items = await updateListAtomically((current) => current.filter((i) => i.id !== id));
   return Response.json({ items });
 }

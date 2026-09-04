@@ -411,6 +411,14 @@ async function getCurrentSession() {
 }
 
 async function getOrCreateWorkspace(userId: string) {
+  // Leer primero y no tocar nada si ya existe — un upsert con `update: {}` sigue
+  // siendo un UPDATE para Postgres/Prisma, así que @updatedAt se actualizaba en
+  // cada simple GET, disparando falsos indicadores de "hay datos nuevos".
+  const existing = await prisma.userWorkspace.findUnique({ where: { userId } });
+  if (existing) return existing;
+
+  // Solo se ejecuta en el primer fetch del workspace de un usuario — el upsert
+  // sigue protegiendo el caso raro de dos requests concurrentes de primera vez.
   return prisma.userWorkspace.upsert({
     where: { userId },
     update: {},
