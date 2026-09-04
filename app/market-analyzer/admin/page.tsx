@@ -119,6 +119,7 @@ export default function AdminPage() {
   const [renameSnapshotLabel, setRenameSnapshotLabel] = useState("");
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
+  const [pendingAdminCreation, setPendingAdminCreation] = useState<UserRegistrationValues | null>(null);
   const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
   const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
   const [userCompanyFilter, setUserCompanyFilter] = useState("");
@@ -779,7 +780,15 @@ export default function AdminPage() {
     setIsSubmittingRegister(false);
   }
 
-  async function handleCreateUser(values: UserRegistrationValues) {
+  function handleCreateUser(values: UserRegistrationValues) {
+    if (values.role === "ADMIN") {
+      setPendingAdminCreation(values);
+      return;
+    }
+    void performCreateUser(values);
+  }
+
+  async function performCreateUser(values: UserRegistrationValues) {
     setErrorMessage("");
     setStatusMessage("");
 
@@ -2855,6 +2864,49 @@ export default function AdminPage() {
               >
                 <HardDrive className="h-4 w-4" />
                 Crear respaldo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmar creación de un usuario ADMIN */}
+      {pendingAdminCreation && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="surface-card w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <div className="eyebrow mb-0.5">Acceso total</div>
+                <h2 className="font-display text-lg font-bold text-slate-900">Confirmar rol de Admin</h2>
+              </div>
+              <button type="button" onClick={() => setPendingAdminCreation(null)} className="rounded-full p-1.5 hover:bg-slate-100">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-slate-700">
+                Estás a punto de crear a <strong>{pendingAdminCreation.name || pendingAdminCreation.email}</strong> con rol <strong>Admin</strong>.
+              </p>
+              <div className="rounded-[1rem] border border-amber-100 bg-amber-50/60 px-4 py-3 text-xs text-amber-800 space-y-1">
+                <p>Un Admin tiene acceso total: puede ver y editar la data salarial de <strong>todas</strong> las empresas, gestionar cortes, usuarios y respaldos.</p>
+                <p>No es un rol por empresa — aplica a toda la plataforma.</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+              <button type="button" onClick={() => setPendingAdminCreation(null)} className="btn btn-secondary">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const values = pendingAdminCreation;
+                  setPendingAdminCreation(null);
+                  void performCreateUser(values);
+                }}
+                className="btn btn-primary"
+              >
+                <Shield className="h-4 w-4" />
+                Sí, dar acceso de Admin
               </button>
             </div>
           </div>
