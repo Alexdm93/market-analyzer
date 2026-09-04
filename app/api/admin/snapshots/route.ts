@@ -120,9 +120,10 @@ async function rebuildRelationalWorkspace(
       snapshotId: true,
       status: true,
       processedAt: true,
+      submittedAt: true,
     },
   });
-  const statusBySnapshotId = new Map(existingStatuses.map((snapshot) => [snapshot.snapshotId, { status: snapshot.status, processedAt: snapshot.processedAt }]));
+  const statusBySnapshotId = new Map(existingStatuses.map((snapshot) => [snapshot.snapshotId, { status: snapshot.status, processedAt: snapshot.processedAt, submittedAt: snapshot.submittedAt }]));
 
   await tx.userPosition.deleteMany({
     where: { userId: user.id },
@@ -142,6 +143,7 @@ async function rebuildRelationalWorkspace(
         date: resolveSnapshotDate(snapshot.date),
         status: statusBySnapshotId.get(snapshot.id)?.status ?? SnapshotProcessingStatus.IN_REVIEW,
         processedAt: statusBySnapshotId.get(snapshot.id)?.processedAt ?? null,
+        submittedAt: statusBySnapshotId.get(snapshot.id)?.submittedAt ?? null,
       },
       select: { id: true },
     });

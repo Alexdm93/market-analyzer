@@ -291,7 +291,7 @@ async function syncRelationalWorkspace(
   const [existingStatuses, existingPositions] = await Promise.all([
     tx.userSnapshot.findMany({
       where: { userId },
-      select: { snapshotId: true, status: true, processedAt: true },
+      select: { snapshotId: true, status: true, processedAt: true, submittedAt: true },
     }),
     tx.userPosition.findMany({
       where: { userId },
@@ -299,7 +299,7 @@ async function syncRelationalWorkspace(
     }),
   ]);
 
-  const statusBySnapshotId = new Map(existingStatuses.map((s) => [s.snapshotId, { status: s.status, processedAt: s.processedAt }]));
+  const statusBySnapshotId = new Map(existingStatuses.map((s) => [s.snapshotId, { status: s.status, processedAt: s.processedAt, submittedAt: s.submittedAt }]));
 
   // Build lookup: snapshotId:positionId → existing normalized data + _lastModified
   type ExistingEntry = { normalized: string; lastModified: string | undefined };
@@ -321,7 +321,7 @@ async function syncRelationalWorkspace(
 
   const snapshotInserts: {
     id: string; userId: string; companyId: string; snapshotId: string;
-    label: string; date: Date; status: SnapshotProcessingStatus; processedAt: Date | null;
+    label: string; date: Date; status: SnapshotProcessingStatus; processedAt: Date | null; submittedAt: Date | null;
   }[] = [];
   const positionInserts: {
     userId: string; companyId: string; userSnapshotId: string; snapshotId: string;
@@ -340,6 +340,7 @@ async function syncRelationalWorkspace(
       date: resolveSnapshotDate(snapshot.date),
       status: statusBySnapshotId.get(snapshot.id)?.status ?? SnapshotProcessingStatus.IN_REVIEW,
       processedAt: statusBySnapshotId.get(snapshot.id)?.processedAt ?? null,
+      submittedAt: statusBySnapshotId.get(snapshot.id)?.submittedAt ?? null,
     });
 
     for (const row of snapshot.rows ?? []) {
