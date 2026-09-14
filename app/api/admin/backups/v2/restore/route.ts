@@ -21,6 +21,11 @@ type Body = {
   hideFromCompanies?: boolean;
 };
 
+// Restaurar un corte completo son varios cientos de consultas en una sola
+// transacción. El tiempo por defecto de una función en Vercel puede ser de 10 s;
+// 60 s es el máximo que admite cualquier plan, así que no rompe el deploy.
+export const maxDuration = 60;
+
 function preRestoreKey(snapshotId: string) {
   return `snapshot-prerestore-${snapshotId}`;
 }

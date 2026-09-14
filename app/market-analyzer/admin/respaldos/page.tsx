@@ -85,6 +85,41 @@ async function postRestore(payload: unknown): Promise<Response> {
   });
 }
 
+type ParsedResponse<T> = {
+  ok: boolean;
+  data: (T & { message?: string }) | null;
+  errorMessage: string;
+  timedOut: boolean;
+};
+
+/**
+ * Lee la respuesta sin asumir que es JSON. Cuando Vercel corta una función por
+ * tiempo responde con una página de error, no con JSON, y un res.json() directo
+ * terminaba mostrando "Unexpected token… is not valid JSON".
+ */
+async function readResponse<T>(res: Response, fallback: string): Promise<ParsedResponse<T>> {
+  const raw = await res.text();
+  let data: (T & { message?: string }) | null = null;
+  try {
+    data = JSON.parse(raw) as T & { message?: string };
+  } catch {
+    data = null;
+  }
+
+  if (res.ok && data) return { ok: true, data, errorMessage: "", timedOut: false };
+
+  const timedOut = res.status === 504 || /FUNCTION_INVOCATION_TIMEOUT/i.test(raw);
+  let errorMessage: string;
+  if (timedOut) errorMessage = "El servidor tardó demasiado y cortó la operación.";
+  else if (res.status === 413) errorMessage = "El archivo es demasiado grande para enviarlo al servidor.";
+  else if (data?.message) errorMessage = data.message;
+  else errorMessage = `${fallback} (error ${res.status}).`;
+
+  return { ok: false, data, errorMessage, timedOut };
+}
+
+type ApplyResult = { empresas: number; posiciones: number; oculto: boolean; respaldoPrevio: boolean };
+
 export default function RespaldosPage() {
   const [snapshots, setSnapshots] = useState<AdminSnapshot[]>([]);
   const [notification, setNotification] = useState("");
@@ -109,6 +144,9 @@ export default function RespaldosPage() {
   const [busyRestore, setBusyRestore] = useState<"" | "analyze" | "apply">("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [hideFromCompanies, setHideFromCompanies] = useState(true);
+  const [applyError, setApplyError] = useState<{ message: string; timedOut: boolean } | null>(null);
+  const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
+  const [analyzeError, setAnalyzeError] = useState("");
 
   function notify(msg: string) {
     setError("");
@@ -215,8 +253,9 @@ export default function RespaldosPage() {
   const effectiveTarget = targetIsNew ? newTargetId : targetSnapshotId;
 
   async function analyze() {
-    if (!uploaded && !storedSourceId) { fail("Sube un archivo o elige un respaldo guardado."); return; }
-    if (targetIsNew && !newTargetId) { fail("Indica la fecha del corte nuevo."); return; }
+    setAnalyzeError("");
+    if (!uploaded && !storedSourceId) { setAnalyzeError("Sube un archivo o elige un respaldo guardado."); return; }
+    if (targetIsNew && !newTargetId) { setAnalyzeError("Indica la fecha del corte nuevo."); return; }
     setBusyRestore("analyze");
     setAnalysis(null);
     try {
@@ -226,13 +265,17 @@ export default function RespaldosPage() {
         fromStoredSnapshotId: uploaded ? undefined : storedSourceId,
         targetSnapshotId: effectiveTarget || undefined,
       });
-      const data = (await res.json()) as RestoreAnalysis & { message?: string };
-      if (!res.ok) throw new Error(data.message ?? "No se pudo analizar el respaldo.");
+      const parsed = await readResponse<RestoreAnalysis>(res, "No se pudo analizar el respaldo");
+      if (!parsed.ok || !parsed.data) {
+        setAnalyzeError(parsed.timedOut ? "El servidor tardó demasiado en analizar el respaldo. Intenta de nuevo." : parsed.errorMessage);
+        return;
+      }
+      const data = parsed.data;
       setAnalysis(data);
       setSelected(new Set(data.empresas.filter((e) => e.restorable).map((e) => e.companyId)));
       if (!targetIsNew && !targetSnapshotId) setTargetSnapshotId(data.destino.snapshotId);
-    } catch (e) {
-      fail(e instanceof Error ? e.message : "Error al analizar.");
+    } catch {
+      setAnalyzeError("No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setBusyRestore("");
     }
@@ -241,7 +284,8 @@ export default function RespaldosPage() {
   async function apply() {
     if (!analysis) return;
     setBusyRestore("apply");
-    setConfirmOpen(false);
+    setApplyError(null);
+    setApplyResult(null);
     try {
       const res = await postRestore({
         mode: "apply",
@@ -254,15 +298,44 @@ export default function RespaldosPage() {
         restoreConfig,
         hideFromCompanies,
       });
-      const data = (await res.json()) as { message?: string; respaldoPrevioGuardado?: boolean };
-      if (!res.ok) throw new Error(data.message ?? "No se pudo restaurar.");
-      notify(`${data.message}${data.respaldoPrevioGuardado ? " Se guardó un respaldo del estado previo por si necesitas deshacer." : ""}`);
-      setAnalysis(null);
-    } catch (e) {
-      fail(e instanceof Error ? e.message : "Error al restaurar.");
+      const parsed = await readResponse<{
+        empresasRestauradas?: number;
+        posicionesRestauradas?: number;
+        respaldoPrevioGuardado?: boolean;
+      }>(res, "No se pudo restaurar");
+
+      if (!parsed.ok || !parsed.data) {
+        setApplyError({ message: parsed.errorMessage, timedOut: parsed.timedOut });
+        return;
+      }
+      setApplyResult({
+        empresas: parsed.data.empresasRestauradas ?? 0,
+        posiciones: parsed.data.posicionesRestauradas ?? 0,
+        oculto: hideFromCompanies,
+        respaldoPrevio: parsed.data.respaldoPrevioGuardado === true,
+      });
+    } catch {
+      setApplyError({
+        message: "Se perdió la conexión con el servidor antes de recibir respuesta.",
+        timedOut: true,
+      });
     } finally {
       setBusyRestore("");
     }
+  }
+
+  function closeConfirm() {
+    if (busyRestore === "apply") return; // no se cierra mientras escribe
+    if (applyResult) setAnalysis(null); // terminó bien: se limpia el análisis ya aplicado
+    setConfirmOpen(false);
+    setApplyError(null);
+    setApplyResult(null);
+  }
+
+  function reanalyzeAfterError() {
+    setConfirmOpen(false);
+    setApplyError(null);
+    void analyze();
   }
 
   function toggle(companyId: string) {
@@ -492,6 +565,12 @@ export default function RespaldosPage() {
             Analizar respaldo
           </button>
           <p className="mt-2 text-xs text-slate-500">El análisis es solo de lectura — no modifica nada.</p>
+          {analyzeError && (
+            <div className="mt-3 flex items-start gap-2 rounded-[1rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{analyzeError}</span>
+            </div>
+          )}
 
           {/* Resultado del análisis */}
           {analysis && (
@@ -599,7 +678,7 @@ export default function RespaldosPage() {
 
               <button
                 type="button"
-                onClick={() => { setHideFromCompanies(!analysis.destino.existe); setConfirmOpen(true); }}
+                onClick={() => { setHideFromCompanies(!analysis.destino.existe); setApplyError(null); setApplyResult(null); setConfirmOpen(true); }}
                 disabled={busyRestore !== "" || selected.size === 0}
                 className="btn btn-danger mt-5"
               >
@@ -611,60 +690,152 @@ export default function RespaldosPage() {
         </section>
       </div>
 
-      {/* Confirmación */}
+      {/* Confirmación, progreso y resultado de la restauración */}
       {confirmOpen && analysis && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="surface-card w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl">
+          <div role="dialog" aria-modal="true" className="surface-card w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
-                <div className="eyebrow mb-0.5">Confirmar</div>
+                <div className="eyebrow mb-0.5">
+                  {busyRestore === "apply" ? "En curso" : applyResult ? "Listo" : applyError ? "Error" : "Confirmar"}
+                </div>
                 <h2 className="font-display text-lg font-bold text-slate-900">Restaurar respaldo</h2>
               </div>
-              <button type="button" onClick={() => setConfirmOpen(false)} className="rounded-full p-1.5 hover:bg-slate-100">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="space-y-3 px-6 py-5">
-              <p className="text-sm text-slate-700">
-                Vas a restaurar <strong>{selected.size} empresa{selected.size === 1 ? "" : "s"}</strong> con{" "}
-                <strong>{posicionesSeleccionadas} posiciones</strong> en el corte{" "}
-                <strong>{analysis.destino.label ?? analysis.destino.snapshotId}</strong>.
-              </p>
-              {posicionesAReemplazar > 0 && (
-                <div className="rounded-[1rem] border border-red-100 bg-red-50/70 px-4 py-3 text-xs text-red-800">
-                  Esto <strong>reemplaza {posicionesAReemplazar} posiciones</strong> que hay actualmente en ese corte.
-                  Se guardará un respaldo del estado previo antes de escribir.
-                </div>
+              {busyRestore !== "apply" && (
+                <button type="button" onClick={closeConfirm} className="rounded-full p-1.5 hover:bg-slate-100" aria-label="Cerrar">
+                  <X size={18} />
+                </button>
               )}
-              {analysis.destino.estaPublicado && (
-                <div className="rounded-[1rem] border border-amber-100 bg-amber-50/70 px-4 py-3 text-xs text-amber-900">
-                  El corte destino está <strong>publicado</strong> — las empresas ya están viendo estos resultados.
+            </div>
+
+            {/* Restaurando */}
+            {busyRestore === "apply" && (
+              <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+                <p className="text-sm font-semibold text-slate-800">
+                  Restaurando {selected.size} empresa{selected.size === 1 ? "" : "s"}…
+                </p>
+                <p className="text-xs leading-5 text-slate-500">
+                  Puede tardar hasta un minuto. No cierres ni recargues esta pestaña.
+                </p>
+              </div>
+            )}
+
+            {/* Terminó bien */}
+            {busyRestore !== "apply" && applyResult && (
+              <>
+                <div className="space-y-3 px-6 py-5">
+                  <div className="flex items-start gap-2.5 rounded-[1rem] border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      Se restauraron <strong>{applyResult.empresas} empresas</strong> y{" "}
+                      <strong>{applyResult.posiciones} posiciones</strong> en el corte{" "}
+                      <strong>{analysis.destino.label ?? (targetIsNew && newTargetLabel ? newTargetLabel : analysis.destino.snapshotId)}</strong>.
+                    </span>
+                  </div>
+                  {applyResult.oculto && (
+                    <p className="text-xs leading-5 text-slate-600">
+                      El corte quedó <strong>oculto para las empresas</strong>. Para habilitarlo: Admin → Crear cortes → Empresas.
+                    </p>
+                  )}
+                  {applyResult.respaldoPrevio && (
+                    <p className="text-xs leading-5 text-slate-600">
+                      Se guardó un respaldo del estado previo del corte por si necesitas deshacer.
+                    </p>
+                  )}
                 </div>
-              )}
-              <label className="flex cursor-pointer items-start gap-2.5 rounded-[1rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={hideFromCompanies}
-                  onChange={(e) => setHideFromCompanies(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0"
-                />
-                <span>
-                  <strong>Ocultar este corte a las empresas</strong> (solo lo ve el admin)
-                  <span className="mt-1 block text-xs text-slate-500">
-                    {analysis.destino.existe
-                      ? "Ojo: este corte ya existe. Si lo ocultas, las empresas que hoy lo ven dejarán de verlo."
-                      : "Recomendado para pruebas. Después puedes habilitarlo desde Admin → Crear cortes → Empresas."}
-                  </span>
-                </span>
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <button type="button" onClick={() => setConfirmOpen(false)} className="btn btn-secondary">Cancelar</button>
-              <button type="button" onClick={() => void apply()} className="btn btn-danger">
-                <RotateCcw className="h-4 w-4" />
-                Sí, restaurar
-              </button>
-            </div>
+                <div className="flex justify-end border-t border-slate-100 px-6 py-4">
+                  <button type="button" onClick={closeConfirm} className="btn btn-primary">
+                    <Check className="h-4 w-4" />
+                    Listo
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Falló */}
+            {busyRestore !== "apply" && applyError && (
+              <>
+                <div className="space-y-3 px-6 py-5">
+                  <div className="flex items-start gap-2.5 rounded-[1rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{applyError.message}</span>
+                  </div>
+                  {applyError.timedOut ? (
+                    <p className="text-xs leading-5 text-slate-600">
+                      La restauración es <strong>todo o nada</strong>, así que no quedó a medias: o se aplicó
+                      completa, o no se aplicó nada. Para saber cuál de las dos pasó, vuelve a analizar el
+                      respaldo contra el mismo destino — si el destino aparece como corte existente, se aplicó.
+                    </p>
+                  ) : (
+                    <p className="text-xs leading-5 text-slate-600">
+                      No se escribió nada: la restauración se revierte completa si algo falla.
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+                  <button type="button" onClick={closeConfirm} className="btn btn-secondary">Cerrar</button>
+                  {applyError.timedOut ? (
+                    <button type="button" onClick={reanalyzeAfterError} className="btn btn-primary">
+                      <Upload className="h-4 w-4" />
+                      Volver a analizar
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => void apply()} className="btn btn-danger">
+                      <RotateCcw className="h-4 w-4" />
+                      Reintentar
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Confirmar */}
+            {busyRestore !== "apply" && !applyResult && !applyError && (
+              <>
+                <div className="space-y-3 px-6 py-5">
+                  <p className="text-sm text-slate-700">
+                    Vas a restaurar <strong>{selected.size} empresa{selected.size === 1 ? "" : "s"}</strong> con{" "}
+                    <strong>{posicionesSeleccionadas} posiciones</strong> en el corte{" "}
+                    <strong>{analysis.destino.label ?? (targetIsNew && newTargetLabel ? newTargetLabel : analysis.destino.snapshotId)}</strong>.
+                  </p>
+                  {posicionesAReemplazar > 0 && (
+                    <div className="rounded-[1rem] border border-red-100 bg-red-50/70 px-4 py-3 text-xs text-red-800">
+                      Esto <strong>reemplaza {posicionesAReemplazar} posiciones</strong> que hay actualmente en ese corte.
+                      Se guardará un respaldo del estado previo antes de escribir.
+                    </div>
+                  )}
+                  {analysis.destino.estaPublicado && (
+                    <div className="rounded-[1rem] border border-amber-100 bg-amber-50/70 px-4 py-3 text-xs text-amber-900">
+                      El corte destino está <strong>publicado</strong> — las empresas ya están viendo estos resultados.
+                    </div>
+                  )}
+                  <label className="flex cursor-pointer items-start gap-2.5 rounded-[1rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={hideFromCompanies}
+                      onChange={(e) => setHideFromCompanies(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                    />
+                    <span>
+                      <strong>Ocultar este corte a las empresas</strong> (solo lo ve el admin)
+                      <span className="mt-1 block text-xs text-slate-500">
+                        {analysis.destino.existe
+                          ? "Ojo: este corte ya existe. Si lo ocultas, las empresas que hoy lo ven dejarán de verlo."
+                          : "Recomendado para pruebas. Después puedes habilitarlo desde Admin → Crear cortes → Empresas."}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+                <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+                  <button type="button" onClick={closeConfirm} className="btn btn-secondary">Cancelar</button>
+                  <button type="button" onClick={() => void apply()} className="btn btn-danger">
+                    <RotateCcw className="h-4 w-4" />
+                    Sí, restaurar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
