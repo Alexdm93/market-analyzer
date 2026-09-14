@@ -257,15 +257,24 @@ export async function applyRestore(
     if (!newestUserByCompany.has(u.companyId)) newestUserByCompany.set(u.companyId, u.id);
   }
 
-  const snapshotDate = new Date(backup.userSnapshots[0]?.date ?? `${backup.source.date}T00:00:00.000Z`);
-
-  // Restaurar no debe renombrar un corte que ya existe: se respeta su nombre
-  // salvo que se pida uno explícito.
+  // Restaurar no debe renombrar ni cambiarle la fecha a un corte que ya existe.
   const existingTarget = await prisma.userSnapshot.findFirst({
     where: { snapshotId: targetSnapshotId },
-    select: { label: true },
+    select: { label: true, date: true },
   });
   const label = targetLabel?.trim() || existingTarget?.label || backup.source.label;
+
+  // La fecha es la del corte DESTINO. Antes se tomaba la del respaldo, así que
+  // restaurar en un corte nuevo lo dejaba fechado como el corte original.
+  // Orden: la del corte existente → la que codifica su id (YYYY-MM-DD) → la del respaldo.
+  const dateFromTargetId = /^\d{4}-\d{2}-\d{2}$/.test(targetSnapshotId)
+    ? new Date(`${targetSnapshotId}T00:00:00.000Z`)
+    : null;
+  const snapshotDate =
+    existingTarget?.date ??
+    (dateFromTargetId && !Number.isNaN(dateFromTargetId.getTime()) ? dateFromTargetId : null) ??
+    new Date(backup.userSnapshots[0]?.date ?? `${backup.source.date}T00:00:00.000Z`);
+  const snapshotDateStr = snapshotDate.toISOString().split("T")[0];
 
   await prisma.$transaction(async (tx) => {
     for (const company of backup.companies) {
@@ -335,7 +344,14 @@ export async function applyRestore(
 
       const snaps = safeParseSnapshots(current?.snapshotsJson ?? "{}");
       if (backupWorkspace?.snapshotFragment) {
-        snaps[targetSnapshotId] = backupWorkspace.snapshotFragment as never;
+        // Las filas vienen del respaldo, pero id, nombre y fecha son del destino:
+        // el fragmento traía los del corte original.
+        snaps[targetSnapshotId] = {
+          ...(backupWorkspace.snapshotFragment as Record<string, unknown>),
+          id: targetSnapshotId,
+          label,
+          date: snapshotDateStr,
+        } as never;
       }
 
       await tx.userWorkspace.upsert({
