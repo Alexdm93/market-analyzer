@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Check, Eye, EyeOff, ImageIcon, Loader2, Megaphone, Pencil, Plus, Trash2, Video, X } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 type Announcement = {
   id: string;
@@ -59,6 +60,7 @@ const EMPTY_FORM: FormState = { title: "", content: "", type: "aviso", mediaType
 
 export default function AdminAnunciosPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [confirm, confirmDialog] = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState("");
@@ -199,7 +201,11 @@ export default function AdminAnunciosPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("¿Eliminar este anuncio permanentemente?")) return;
+    const confirmedDelete = await confirm({
+      title: "Eliminar anuncio",
+      message: "El anuncio se eliminará permanentemente y dejará de verse en el inicio de los usuarios.",
+    });
+    if (!confirmedDelete) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/admin/announcements?id=${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -467,6 +473,7 @@ export default function AdminAnunciosPage() {
           </section>
         )}
       </div>
+      {confirmDialog}
     </main>
   );
 }

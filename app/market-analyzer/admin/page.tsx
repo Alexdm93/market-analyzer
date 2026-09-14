@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, Download, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
+import { useConfirm, type ConfirmOptions } from "@/components/ConfirmDialog";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
 const adminActions = [
@@ -125,6 +126,22 @@ export default function AdminPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteSnapshotError, setDeleteSnapshotError] = useState("");
   const [isDownloadingDeleteBackup, setIsDownloadingDeleteBackup] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
+
+  function adminPromotionOptions(name: string): ConfirmOptions {
+    return {
+      tone: "warning",
+      eyebrow: "Acceso total",
+      title: "Dar rol de Admin",
+      message: (
+        <>
+          Vas a otorgar permisos de administrador a <strong>{name}</strong>. Un Admin puede ver y editar la data
+          salarial de todas las empresas, y gestionar cortes, usuarios y respaldos.
+        </>
+      ),
+      confirmLabel: "Sí, dar acceso de Admin",
+    };
+  }
   const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
   const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
   const [userCompanyFilter, setUserCompanyFilter] = useState("");
@@ -377,8 +394,12 @@ export default function AdminPage() {
     void saveSectors(next);
   }
 
-  function removeSector(name: string) {
-    if (!window.confirm(`¿Eliminar el sector "${name}" y todas sus clasificaciones?`)) return;
+  async function removeSector(name: string) {
+    const confirmedSector = await confirm({
+      title: "Eliminar sector",
+      message: <>Se eliminará el sector <strong>{name}</strong> y todas sus clasificaciones.</>,
+    });
+    if (!confirmedSector) return;
     void saveSectors(sectors.filter((s) => s.name !== name));
   }
 
@@ -471,8 +492,12 @@ export default function AdminPage() {
     void saveCargos([...masterCargos, { departamento: name, cargos: [] }]);
   }
 
-  function removeDept(dept: string) {
-    if (!window.confirm(`¿Eliminar el departamento "${dept}" y todos sus cargos?`)) return;
+  async function removeDept(dept: string) {
+    const confirmedDept = await confirm({
+      title: "Eliminar departamento",
+      message: <>Se eliminará el departamento <strong>{dept}</strong> y todos sus cargos.</>,
+    });
+    if (!confirmedDept) return;
     void saveCargos(masterCargos.filter((d) => d.departamento !== dept));
   }
 
@@ -853,7 +878,7 @@ export default function AdminPage() {
       return;
     }
     if (draft.role !== user.role && draft.role === "ADMIN" &&
-      !window.confirm(`Vas a otorgar permisos de administrador a ${user.name}. ¿Deseas continuar?`)) return;
+      !(await confirm(adminPromotionOptions(user.name)))) return;
     setIsSavingUserChanges(true);
     setErrorMessage("");
     setStatusMessage("");
@@ -921,7 +946,7 @@ export default function AdminPage() {
 
     const adminPromotion = updates.find((update) => update.currentRole !== "ADMIN" && update.role === "ADMIN");
 
-    if (adminPromotion && !window.confirm(`Vas a otorgar permisos de administrador a ${adminPromotion.name}. ¿Deseas continuar?`)) {
+    if (adminPromotion && !(await confirm(adminPromotionOptions(adminPromotion.name)))) {
       return;
     }
 
@@ -955,7 +980,15 @@ export default function AdminPage() {
   }
 
   async function handleDeleteUser(user: AdminUser) {
-    if (!window.confirm(`¿Eliminar al usuario "${user.name}" (${user.email})?\n\nEsta acción no se puede deshacer.`)) return;
+    const confirmedDeleteUser = await confirm({
+      title: "Eliminar usuario",
+      message: (
+        <>
+          Se eliminará al usuario <strong>{user.name}</strong> ({user.email}). Esta acción no se puede deshacer.
+        </>
+      ),
+    });
+    if (!confirmedDeleteUser) return;
 
     setErrorMessage("");
     setStatusMessage("");
@@ -2559,6 +2592,8 @@ export default function AdminPage() {
       
 
       
+
+      {confirmDialog}
 
       {/* Eliminar corte */}
       {deleteSnapshotTarget && (() => {
