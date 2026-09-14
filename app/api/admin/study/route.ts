@@ -8,7 +8,7 @@ import { safeParseCompanyInfo } from "@/lib/workspace";
 import { computeRowTotals } from "@/lib/compensation";
 import { getBcvRate } from "@/lib/bcv";
 import type { ExtendedMarketPosition } from "@/types/salary";
-import { createSnapshotBackup } from "@/lib/snapshot-backup";
+import { buildSnapshotBackup } from "@/lib/snapshot-backup-v2";
 
 function gradeToNivel(grade: number | undefined, family: string | undefined): string {
   if (!grade) return "";
@@ -264,10 +264,39 @@ export async function PATCH(request: Request) {
       return Response.json({ message: "El corte no existe." }, { status: 404 });
     }
     if (body.publish) {
+      // El respaldo se crea ANTES de publicar y se ESPERA. Antes era
+      // fire-and-forget con el error silenciado: si fallaba, nadie se enteraba, y
+      // en serverless podía ni siquiera terminar de ejecutarse antes de que la
+      // función devolviera la respuesta.
+      let backupOk = false;
+      let backupError: string | null = null;
+      try {
+        const backup = await buildSnapshotBackup(snapshotId);
+        if (backup) {
+          await prisma.globalConfig.upsert({
+            where: { key: `snapshot-backup-v2-${snapshotId}` },
+            create: { key: `snapshot-backup-v2-${snapshotId}`, value: JSON.stringify(backup) },
+            update: { value: JSON.stringify(backup) },
+          });
+          backupOk = true;
+        } else {
+          backupError = "El corte no tiene data para respaldar.";
+        }
+      } catch (error) {
+        backupError = error instanceof Error ? error.message : "Error desconocido al respaldar.";
+      }
+
       await publishSnapshot(snapshotId);
-      // Fire-and-forget backup — don't block the publish response if it fails.
-      void createSnapshotBackup(snapshotId).catch(() => null);
-      return Response.json({ message: `Corte ${snapshotId} publicado.`, snapshotId, published: true });
+
+      return Response.json({
+        message: backupOk
+          ? `Corte ${snapshotId} publicado. Respaldo creado correctamente.`
+          : `Corte ${snapshotId} publicado, PERO EL RESPALDO FALLÓ: ${backupError}`,
+        snapshotId,
+        published: true,
+        backupOk,
+        backupError,
+      });
     } else {
       await unpublishSnapshot(snapshotId);
       return Response.json({ message: `Corte ${snapshotId} despublicado.`, snapshotId, published: false });

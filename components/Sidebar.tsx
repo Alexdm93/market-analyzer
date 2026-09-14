@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChartBar, ClipboardCheck, Database, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, ChartBar, ClipboardCheck, Database, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
@@ -36,6 +36,7 @@ const adminMenuItems = [
   { name: "Admin", href: `${BASE}/admin`, icon: Shield, hint: "Vista administrativa" },
   { name: "Empresas", href: `${BASE}/empresas`, icon: Building2, hint: "Catálogo disponible" },
   { name: "Aprobaciones", href: `${BASE}/admin/aprobaciones`, icon: ClipboardCheck, hint: "Solicitudes de edición" },
+  { name: "Respaldos", href: `${BASE}/admin/respaldos`, icon: HardDrive, hint: "Respaldar y restaurar cortes" },
   { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
   { name: "Valoración", href: `${BASE}/valoracion`, icon: Layers, hint: "CAPRI por cargo" },
 ];
