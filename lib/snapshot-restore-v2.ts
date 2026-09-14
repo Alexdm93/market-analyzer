@@ -212,6 +212,9 @@ export async function analyzeRestore(
 
 export type RestoreOptions = {
   targetSnapshotId: string;
+  /** Nombre para el corte destino. Si no viene: se conserva el del corte
+   *  existente, y si el corte es nuevo se usa el del respaldo. */
+  targetLabel?: string;
   /** Qué empresas restaurar. Si viene vacío, no se restaura nada. */
   companyIds: string[];
   /** Restaurar también el perfil de la empresa y su companyInfo. Por defecto false. */
@@ -234,7 +237,7 @@ export async function applyRestore(
   backup: SnapshotBackupV2,
   options: RestoreOptions
 ): Promise<RestoreResult> {
-  const { targetSnapshotId, companyIds, restoreCompanyProfile, restoreConfig } = options;
+  const { targetSnapshotId, targetLabel, companyIds, restoreCompanyProfile, restoreConfig } = options;
 
   const selected = new Set(companyIds);
   const detalle: RestoreResult["detalle"] = [];
@@ -253,7 +256,14 @@ export async function applyRestore(
   }
 
   const snapshotDate = new Date(backup.userSnapshots[0]?.date ?? `${backup.source.date}T00:00:00.000Z`);
-  const label = backup.source.label;
+
+  // Restaurar no debe renombrar un corte que ya existe: se respeta su nombre
+  // salvo que se pida uno explícito.
+  const existingTarget = await prisma.userSnapshot.findFirst({
+    where: { snapshotId: targetSnapshotId },
+    select: { label: true },
+  });
+  const label = targetLabel?.trim() || existingTarget?.label || backup.source.label;
 
   await prisma.$transaction(async (tx) => {
     for (const company of backup.companies) {

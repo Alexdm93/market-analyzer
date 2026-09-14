@@ -101,6 +101,7 @@ export default function RespaldosPage() {
   const [targetSnapshotId, setTargetSnapshotId] = useState("");
   const [targetIsNew, setTargetIsNew] = useState(false);
   const [newTargetId, setNewTargetId] = useState("");
+  const [newTargetLabel, setNewTargetLabel] = useState("");
   const [analysis, setAnalysis] = useState<RestoreAnalysis | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [restoreProfile, setRestoreProfile] = useState(false);
@@ -246,6 +247,7 @@ export default function RespaldosPage() {
         backup: uploaded?.data,
         fromStoredSnapshotId: uploaded ? undefined : storedSourceId,
         targetSnapshotId: analysis.destino.snapshotId,
+        targetLabel: targetIsNew ? newTargetLabel : undefined,
         companyIds: [...selected],
         restoreCompanyProfile: restoreProfile,
         restoreConfig,
@@ -441,17 +443,31 @@ export default function RespaldosPage() {
             </select>
 
             {targetIsNew && (
-              <div className="mt-3">
-                <label htmlFor="restore-new-target" className="field-label">Fecha del corte nuevo</label>
-                <input
-                  id="restore-new-target"
-                  type="date"
-                  value={newTargetId}
-                  onChange={(e) => { setNewTargetId(e.target.value); setAnalysis(null); }}
-                  className="field"
-                />
-                <p className="mt-1.5 text-xs text-slate-500">
-                  El corte se crea con la data del respaldo. No hace falta asignarle empresas antes.
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="restore-new-target" className="field-label">Fecha del corte nuevo</label>
+                  <input
+                    id="restore-new-target"
+                    type="date"
+                    value={newTargetId}
+                    onChange={(e) => { setNewTargetId(e.target.value); setAnalysis(null); }}
+                    className="field"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="restore-new-label" className="field-label">Nombre del corte</label>
+                  <input
+                    id="restore-new-label"
+                    type="text"
+                    value={newTargetLabel}
+                    onChange={(e) => setNewTargetLabel(e.target.value)}
+                    className="field"
+                    placeholder="Ej. Prueba de restauración"
+                  />
+                </div>
+                <p className="text-xs text-slate-500 sm:col-span-2">
+                  El corte se crea con la data del respaldo — no hace falta asignarle empresas antes.
+                  Si dejas el nombre vacío, se usa el del respaldo.
                 </p>
               </div>
             )}

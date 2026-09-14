@@ -14,6 +14,7 @@ type Body = {
   /** O bien: cargar el respaldo guardado de este corte */
   fromStoredSnapshotId?: string;
   targetSnapshotId?: string;
+  targetLabel?: string;
   companyIds?: string[];
   restoreCompanyProfile?: boolean;
   restoreConfig?: boolean;
@@ -125,6 +126,7 @@ export async function POST(request: Request) {
 
   const result = await applyRestore(backup, {
     targetSnapshotId,
+    targetLabel: body?.targetLabel,
     companyIds,
     restoreCompanyProfile: body?.restoreCompanyProfile === true,
     restoreConfig: body?.restoreConfig !== false,
