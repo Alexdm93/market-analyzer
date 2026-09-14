@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getLockedSnapshotsForUser } from "@/lib/snapshot-lock";
 
 async function requireUserSession() {
   const session = await getServerSession(authOptions);
@@ -25,6 +26,16 @@ export async function POST(request: Request) {
   }
 
   const userId = auth.session.user.id;
+
+  // Candado: un corte ya publicado no admite envíos nuevos — entrarían al
+  // cálculo y moverían los percentiles de un estudio que las empresas ya ven.
+  const { locked } = await getLockedSnapshotsForUser(userId!, auth.session.user.role);
+  if (locked.has(snapshotId)) {
+    return Response.json(
+      { message: "Este corte ya fue publicado y no admite cambios. Solicita una edición al administrador si necesitas corregir algo." },
+      { status: 409 }
+    );
+  }
 
   const result = await prisma.userSnapshot.updateMany({
     where: { userId, snapshotId },

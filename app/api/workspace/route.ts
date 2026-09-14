@@ -16,6 +16,7 @@ import {
 import { getBcvRate, getBcvEuroRate, getBinanceRate, buildBcvTasa, buildBcvEurTasa } from "@/lib/bcv";
 import { computeRowTotals } from "@/lib/compensation";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
+import { getLockedSnapshotsForUser } from "@/lib/snapshot-lock";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -830,6 +831,8 @@ export async function GET(request: Request) {
   let positionDescriptions: Record<string, string> = {};
   try { if (posDescConfig?.value) positionDescriptions = JSON.parse(posDescConfig.value) as Record<string, string>; } catch {}
 
+  const { locked: lockedForUser } = await getLockedSnapshotsForUser(userId, session.user.role);
+
   const publishedSet = new Set(publishedIds);
   const publishedParticipatedSnapshotIds = Object.entries(payload.snapshots)
     .filter(([id, snap]) => publishedSet.has(id) && snap.submittedAt && snap.rows?.some((row) => !row._carried))
@@ -838,6 +841,8 @@ export async function GET(request: Request) {
   return Response.json({
     ...injectSystemTasas(payload, bcv, bcvEur),
     publishedParticipatedSnapshotIds,
+    // Cortes publicados que este usuario ya no puede editar
+    lockedSnapshotIds: [...lockedForUser],
     positionDescriptions,
   });
 }
@@ -968,7 +973,33 @@ export async function PUT(request: Request) {
     );
   }
 
-  const snapshotsJson = JSON.stringify(nextSnapshots);
+  // ── Candado de publicación ──────────────────────────────────────────────
+  // El cliente siempre manda TODOS sus cortes al guardar, no solo el que está
+  // editando. Por eso no se rechaza el guardado completo: se preservan los
+  // cortes publicados con lo que ya hay en la base y se ignora lo que mandó el
+  // cliente para ellos. Así el usuario puede seguir guardando los demás cortes.
+  const { locked: lockedSnapshotIds } = await getLockedSnapshotsForUser(userId, session.user.role);
+  const snapshotsFromDb = safeParseSnapshots(existingWorkspace.snapshotsJson);
+
+  const snapshotsForJson: Record<string, Snapshot> = { ...nextSnapshots };
+  const snapshotsForSync: Record<string, Snapshot> = { ...nextSnapshots };
+  const ignoredLockedIds: string[] = [];
+
+  for (const snapshotId of Object.keys(nextSnapshots)) {
+    if (!lockedSnapshotIds.has(snapshotId)) continue;
+
+    ignoredLockedIds.push(snapshotId);
+    // Nunca se toca en la parte relacional
+    delete snapshotsForSync[snapshotId];
+    // Y en el blob se deja la versión de la base, no la del cliente
+    if (snapshotsFromDb[snapshotId]) {
+      snapshotsForJson[snapshotId] = snapshotsFromDb[snapshotId];
+    } else {
+      delete snapshotsForJson[snapshotId];
+    }
+  }
+
+  const snapshotsJson = JSON.stringify(snapshotsForJson);
   const companyInfoJson = JSON.stringify(requestedCompanyInfo);
 
   const workspace = await prisma.$transaction(async (tx) => {
@@ -985,7 +1016,7 @@ export async function PUT(request: Request) {
       },
     });
 
-    await syncRelationalWorkspace(tx, userId, companyId, nextSnapshots);
+    await syncRelationalWorkspace(tx, userId, companyId, snapshotsForSync);
     await cleanupUnusedCompany(tx, previousCompanyId);
 
     return updatedWorkspace;
@@ -993,5 +1024,10 @@ export async function PUT(request: Request) {
 
   const updatedCompany = await getCompanyIdentity(userId);
 
-  return Response.json(toPayload(workspace, updatedCompany));
+  return Response.json({
+    ...toPayload(workspace, updatedCompany),
+    ...(ignoredLockedIds.length > 0
+      ? { lockedSnapshotIds: ignoredLockedIds, lockedMessage: "Uno o más cortes ya fueron publicados y no se modificaron." }
+      : {}),
+  });
 }

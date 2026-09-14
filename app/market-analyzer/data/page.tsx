@@ -142,6 +142,7 @@ export default function DataPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [editRequestStatus, setEditRequestStatus] = useState<"PENDING" | "APPROVED" | "REJECTED" | null>(null);
+  const [lockedSnapshotIds, setLockedSnapshotIds] = useState<string[]>([]);
   const [isRequestingEdit, setIsRequestingEdit] = useState(false);
   const [editRequestReason, setEditRequestReason] = useState("");
 
@@ -163,6 +164,11 @@ export default function DataPage() {
 
   // start with no snapshot selected by default (user asked that "-- seleccionar --" shows nothing)
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
+
+  // Un corte publicado queda congelado: su data alimenta un estudio que las
+  // demás empresas ya están viendo.
+  const isLockedByPublication = isRegularUser && lockedSnapshotIds.includes(selectedSnapshotId);
+  const isLocked = isLockedBySubmission || isLockedByPublication;
 
   // cargos configured by admin for the selected snapshot
   const [snapshotCargos, setSnapshotCargos] = useState<{ departamento: string; tituloCargo: string }[] | null>(null);
@@ -216,6 +222,7 @@ export default function DataPage() {
       setCompanyInfo(workspace.companyInfo ?? EMPTY_COMPANY_INFO);
       setIsSubmitted(selectedId ? Boolean(filtered[selectedId]?.submittedAt) : false);
       setPositionDescriptions((workspace as Record<string, unknown>).positionDescriptions as Record<string, string> ?? {});
+      setLockedSnapshotIds(((workspace as Record<string, unknown>).lockedSnapshotIds as string[]) ?? []);
 
       if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
         setRows(filtered[selectedId].rows);
@@ -1160,12 +1167,14 @@ export default function DataPage() {
                         : "Guardado en la base de datos"}
                 </div>
               ) : null}
-              {isLockedBySubmission && (
-                <div className={`mt-2 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${editRequestStatus === "PENDING" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"}`}>
+              {isLocked && (
+                <div className={`mt-2 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${editRequestStatus === "PENDING" ? "bg-amber-50 text-amber-700" : isLockedByPublication ? "bg-slate-100 text-slate-700" : "bg-blue-50 text-blue-700"}`}>
                   <Lock size={14} aria-hidden />
                   {editRequestStatus === "PENDING"
                     ? "Solicitud de edición enviada — esperando aprobación del administrador"
-                    : "Data enviada — en espera del coordinador"}
+                    : isLockedByPublication
+                      ? "Corte publicado — la data quedó congelada"
+                      : "Data enviada — en espera del coordinador"}
                 </div>
               )}
 
@@ -1244,7 +1253,7 @@ export default function DataPage() {
                     <Check className="h-3.5 w-3.5" />
                     Exportar a Excel
                   </button>
-                  {!isReadOnlyDataView && !isLockedBySubmission ? (
+                  {!isReadOnlyDataView && !isLocked ? (
                     <>
                       <button
                         onClick={() => {
@@ -1265,7 +1274,7 @@ export default function DataPage() {
                       </button>
                     </>
                   ) : null}
-                  {isRegularUser && selectedSnapshotId && !isSubmitted && (
+                  {isRegularUser && selectedSnapshotId && !isSubmitted && !isLockedByPublication && (
                     <button
                       onClick={() => setModal({ type: 'confirm-submit' })}
                       className="btn btn-primary sm:col-span-2"
@@ -1275,7 +1284,7 @@ export default function DataPage() {
                       {isSubmitting ? "Enviando..." : "Enviar data"}
                     </button>
                   )}
-                  {isRegularUser && isSubmitted && (
+                  {isRegularUser && (isSubmitted || isLockedByPublication) && (
                     <button
                       onClick={() => setModal({ type: 'request-edit' })}
                       className="btn btn-secondary sm:col-span-2"
@@ -1382,7 +1391,7 @@ export default function DataPage() {
                       <Edit className="h-3 w-3" />
                       {expanded[r.id] ? "Cerrar cargo" : isReadOnlyDataView ? "Ver detalle" : "Editar cargo"}
                     </button>
-                    {!isReadOnlyDataView && !isLockedBySubmission ? (
+                    {!isReadOnlyDataView && !isLocked ? (
                       <button type="button" onClick={() => setModal({ type: "confirm-delete", id: r.id })} className="btn btn-danger btn-xs">
                         <Trash2 className="h-3 w-3" />
                         Eliminar
@@ -1411,7 +1420,7 @@ export default function DataPage() {
                       })}
                     </div>
 
-                    <fieldset disabled={isReadOnlyDataView || isLockedBySubmission} className="disabled:opacity-90">
+                    <fieldset disabled={isReadOnlyDataView || isLocked} className="disabled:opacity-90">
                       <div className="p-4 md:p-5">
 
                         {/* Tab: Identidad */}
