@@ -108,6 +108,7 @@ export default function RespaldosPage() {
   const [restoreConfig, setRestoreConfig] = useState(true);
   const [busyRestore, setBusyRestore] = useState<"" | "analyze" | "apply">("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [hideFromCompanies, setHideFromCompanies] = useState(true);
 
   function notify(msg: string) {
     setError("");
@@ -251,6 +252,7 @@ export default function RespaldosPage() {
         companyIds: [...selected],
         restoreCompanyProfile: restoreProfile,
         restoreConfig,
+        hideFromCompanies,
       });
       const data = (await res.json()) as { message?: string; respaldoPrevioGuardado?: boolean };
       if (!res.ok) throw new Error(data.message ?? "No se pudo restaurar.");
@@ -269,6 +271,13 @@ export default function RespaldosPage() {
       if (next.has(companyId)) next.delete(companyId); else next.add(companyId);
       return next;
     });
+  }
+
+  const restorableIds = analysis?.empresas.filter((e) => e.restorable).map((e) => e.companyId) ?? [];
+  const allSelected = restorableIds.length > 0 && restorableIds.every((id) => selected.has(id));
+  const someSelected = restorableIds.some((id) => selected.has(id));
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(restorableIds));
   }
 
   const seleccionadas = analysis?.empresas.filter((e) => selected.has(e.companyId)) ?? [];
@@ -520,7 +529,19 @@ export default function RespaldosPage() {
                 <table className="w-full min-w-[640px] text-sm">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-slate-50 text-left text-[0.68rem] uppercase tracking-[0.12em] text-slate-500 shadow-[0_1px_0_rgb(226_232_240)]">
-                      <th className="px-4 py-2.5 font-bold">Restaurar</th>
+                      <th className="px-4 py-2.5 font-bold">
+                        <label className="inline-flex cursor-pointer items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                            onChange={toggleAll}
+                            aria-label="Seleccionar todas las empresas"
+                            className="h-4 w-4"
+                          />
+                          Todas
+                        </label>
+                      </th>
                       <th className="px-4 py-2.5 font-bold">Empresa</th>
                       <th className="px-4 py-2.5 font-bold">Estado</th>
                       <th className="px-4 py-2.5 text-right font-bold">En respaldo</th>
@@ -578,7 +599,7 @@ export default function RespaldosPage() {
 
               <button
                 type="button"
-                onClick={() => setConfirmOpen(true)}
+                onClick={() => { setHideFromCompanies(!analysis.destino.existe); setConfirmOpen(true); }}
                 disabled={busyRestore !== "" || selected.size === 0}
                 className="btn btn-danger mt-5"
               >
@@ -620,6 +641,22 @@ export default function RespaldosPage() {
                   El corte destino está <strong>publicado</strong> — las empresas ya están viendo estos resultados.
                 </div>
               )}
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-[1rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={hideFromCompanies}
+                  onChange={(e) => setHideFromCompanies(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                />
+                <span>
+                  <strong>Ocultar este corte a las empresas</strong> (solo lo ve el admin)
+                  <span className="mt-1 block text-xs text-slate-500">
+                    {analysis.destino.existe
+                      ? "Ojo: este corte ya existe. Si lo ocultas, las empresas que hoy lo ven dejarán de verlo."
+                      : "Recomendado para pruebas. Después puedes habilitarlo desde Admin → Crear cortes → Empresas."}
+                  </span>
+                </span>
+              </label>
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
               <button type="button" onClick={() => setConfirmOpen(false)} className="btn btn-secondary">Cancelar</button>

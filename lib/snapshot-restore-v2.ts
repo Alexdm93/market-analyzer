@@ -221,6 +221,8 @@ export type RestoreOptions = {
   restoreCompanyProfile: boolean;
   /** Restaurar las claves de configuración del corte (catálogo, accesos, rangos). */
   restoreConfig: boolean;
+  /** Dejar el corte invisible para las empresas: solo lo ve el admin. */
+  hideFromCompanies?: boolean;
 };
 
 export type RestoreResult = {
@@ -237,7 +239,7 @@ export async function applyRestore(
   backup: SnapshotBackupV2,
   options: RestoreOptions
 ): Promise<RestoreResult> {
-  const { targetSnapshotId, targetLabel, companyIds, restoreCompanyProfile, restoreConfig } = options;
+  const { targetSnapshotId, targetLabel, companyIds, restoreCompanyProfile, restoreConfig, hideFromCompanies } = options;
 
   const selected = new Set(companyIds);
   const detalle: RestoreResult["detalle"] = [];
@@ -384,6 +386,16 @@ export async function applyRestore(
           update: { value: JSON.stringify(value) },
         });
       }
+    }
+    // Ocultar el corte a las empresas con una lista de acceso explícitamente
+    // vacía. Va después de restaurar la configuración para tener la última palabra.
+    if (hideFromCompanies) {
+      const key = `snapshot-companies-${targetSnapshotId}`;
+      await tx.globalConfig.upsert({
+        where: { key },
+        create: { key, value: JSON.stringify({ companyIds: [] }) },
+        update: { value: JSON.stringify({ companyIds: [] }) },
+      });
     }
   }, { timeout: 120_000 });
 

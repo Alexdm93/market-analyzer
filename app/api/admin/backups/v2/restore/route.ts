@@ -18,6 +18,7 @@ type Body = {
   companyIds?: string[];
   restoreCompanyProfile?: boolean;
   restoreConfig?: boolean;
+  hideFromCompanies?: boolean;
 };
 
 function preRestoreKey(snapshotId: string) {
@@ -130,6 +131,7 @@ export async function POST(request: Request) {
     companyIds,
     restoreCompanyProfile: body?.restoreCompanyProfile === true,
     restoreConfig: body?.restoreConfig !== false,
+    hideFromCompanies: body?.hideFromCompanies === true,
   });
 
   return Response.json({
