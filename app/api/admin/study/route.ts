@@ -121,6 +121,10 @@ function collectConceptValues(row: Record<string, unknown>) {
   return Object.fromEntries(concepts.entries());
 }
 
+// Publicar espera a que se genere el respaldo del corte (varios MB) antes de
+// responder. 60 s es el máximo que admite cualquier plan de Vercel.
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   const auth = await requireAdminSession();
 

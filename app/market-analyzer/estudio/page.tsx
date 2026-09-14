@@ -1,5 +1,5 @@
 "use client";
-import { ChevronDown, Database, Layers3, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Database, Layers3, Loader2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -273,6 +273,13 @@ export default function EstudioPage() {
   const [availableUserCompanies, setAvailableUserCompanies] = useState<string[]>([]);
   const [adminPublishStatus, setAdminPublishStatus] = useState<"idle" | "working">("idle");
   const [publishModal, setPublishModal] = useState<"publish" | "unpublish" | null>(null);
+  const [publishOutcome, setPublishOutcome] = useState<{
+    ok: boolean;
+    published: boolean;
+    message: string;
+    backupOk?: boolean;
+    backupError?: string | null;
+  } | null>(null);
   const [nivelMin, setNivelMin] = useState<Record<string, number>>({});
   const [nivelMax, setNivelMax] = useState<Record<string, number>>({});
   const [rangosDraft, setRangosDraft] = useState<{ min: Record<string, string>; max: Record<string, string> } | null>(null);
@@ -823,23 +830,55 @@ export default function EstudioPage() {
     if (!selectedSnapshotId) return;
     setAdminPublishStatus("working");
     setAdminMessage("");
+    setPublishOutcome(null);
     try {
       const response = await fetch("/api/admin/study", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ snapshotId: selectedSnapshotId, publish }),
       });
-      const payload = (await response.json().catch(() => null)) as { message?: string; published?: boolean } | null;
-      if (!response.ok) throw new Error(payload?.message ?? "No fue posible actualizar la visibilidad del corte.");
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string;
+        published?: boolean;
+        backupOk?: boolean;
+        backupError?: string | null;
+      } | null;
+
+      if (!response.ok) {
+        const message = response.status === 504
+          ? "El servidor tardó demasiado y cortó la operación. Recarga la página para ver si el corte quedó publicado."
+          : payload?.message ?? "No fue posible actualizar la visibilidad del corte.";
+        setAdminMessage(message);
+        setPublishOutcome({ ok: false, published: false, message });
+        return;
+      }
+
+      const published = payload?.published ?? publish;
       setAdminSnapshots((current) =>
-        current.map((s) => (s.id === selectedSnapshotId ? { ...s, published: payload?.published ?? publish } : s)),
+        current.map((s) => (s.id === selectedSnapshotId ? { ...s, published } : s)),
       );
-      setAdminMessage(payload?.message ?? (publish ? "Corte publicado." : "Corte despublicado."));
-    } catch (error) {
-      setAdminMessage(error instanceof Error ? error.message : "No fue posible actualizar la visibilidad del corte.");
+      const message = payload?.message ?? (publish ? "Corte publicado." : "Corte despublicado.");
+      setAdminMessage(message);
+      setPublishOutcome({
+        ok: true,
+        published,
+        message,
+        backupOk: payload?.backupOk,
+        backupError: payload?.backupError ?? null,
+      });
+    } catch {
+      const message = "Se perdió la conexión con el servidor. Recarga la página para ver si el cambio se aplicó.";
+      setAdminMessage(message);
+      setPublishOutcome({ ok: false, published: false, message });
     } finally {
       setAdminPublishStatus("idle");
     }
+  }
+
+  function closePublishModal() {
+    if (adminPublishStatus === "working") return; // no se cierra mientras publica
+    setPublishModal(null);
+    setPublishOutcome(null);
   }
 
   async function handleRevertToReview() {
@@ -1355,7 +1394,7 @@ export default function EstudioPage() {
                 {selectedAdminSnapshot?.status === "PROCESSED" && (
                   <button
                     type="button"
-                    onClick={() => setPublishModal(selectedAdminSnapshot.published ? "unpublish" : "publish")}
+                    onClick={() => { setPublishOutcome(null); setPublishModal(selectedAdminSnapshot.published ? "unpublish" : "publish"); }}
                     className={`mt-3 w-full rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
                       selectedAdminSnapshot.published
                         ? "bg-rose-50 text-rose-700 hover:bg-rose-100"
@@ -2371,9 +2410,59 @@ export default function EstudioPage() {
 
       {publishModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
-          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={() => setPublishModal(null)} />
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={closePublishModal} />
           <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md rounded-[1.75rem] bg-white p-6 shadow-xl">
-            {publishModal === "publish" ? (() => {
+            {adminPublishStatus === "working" ? (
+              /* En curso */
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+                <p className="text-sm font-semibold text-slate-800">
+                  {publishModal === "publish" ? "Respaldando y publicando el corte…" : "Despublicando el corte…"}
+                </p>
+                {publishModal === "publish" && (
+                  <p className="text-xs leading-5 text-slate-500">
+                    Primero se genera el respaldo del corte. Puede tardar unos segundos — no cierres esta pestaña.
+                  </p>
+                )}
+              </div>
+            ) : publishOutcome ? (
+              /* Resultado */
+              <>
+                {!publishOutcome.ok ? (
+                  <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{publishOutcome.message}</span>
+                  </div>
+                ) : publishOutcome.published ? (
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span><strong>Corte publicado.</strong> Las empresas que enviaron data ya pueden ver sus resultados.</span>
+                    </div>
+                    {publishOutcome.backupOk ? (
+                      <p className="text-xs leading-5 text-slate-600">Se generó el respaldo del corte correctamente.</p>
+                    ) : (
+                      <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                          <strong>El respaldo automático falló</strong>
+                          {publishOutcome.backupError ? `: ${publishOutcome.backupError}` : "."} Genera uno a mano desde
+                          Admin → Respaldos antes de seguir.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span><strong>Corte despublicado.</strong> Las empresas dejaron de ver sus resultados.</span>
+                  </div>
+                )}
+                <div className="mt-6 flex justify-end">
+                  <button type="button" onClick={closePublishModal} className="btn btn-primary">Listo</button>
+                </div>
+              </>
+            ) : publishModal === "publish" ? (() => {
               const submittedCompanies = [...new Set(adminPositions.map((p) => p.companyName))].sort((a, b) => a.localeCompare(b, "es"));
               return (
                 <>
@@ -2403,12 +2492,21 @@ export default function EstudioPage() {
                       No hay empresas con data enviada en este corte.
                     </div>
                   )}
+                  <div className="mt-4 flex items-start gap-2.5 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      <strong>Publicar congela la data del corte.</strong> Desde ese momento ninguna empresa podrá guardar
+                      ni enviar data en este corte — tampoco las que todavía no enviaron. Solo podrás reabrirlo para una
+                      empresa aprobándole una solicitud de edición.
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">Antes de publicar se genera automáticamente un respaldo del corte.</p>
                   <div className="mt-6 flex justify-end gap-3">
-                    <button type="button" onClick={() => setPublishModal(null)} className="btn btn-secondary">Cancelar</button>
+                    <button type="button" onClick={closePublishModal} className="btn btn-secondary">Cancelar</button>
                     <button
                       type="button"
-                      disabled={submittedCompanies.length === 0 || adminPublishStatus === "working"}
-                      onClick={() => { setPublishModal(null); void handleTogglePublish(true); }}
+                      disabled={submittedCompanies.length === 0}
+                      onClick={() => void handleTogglePublish(true)}
                       className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
                     >
                       Confirmar publicación
@@ -2426,10 +2524,10 @@ export default function EstudioPage() {
                   Las empresas dejarán de ver los resultados de este corte hasta que sea publicado nuevamente.
                 </p>
                 <div className="mt-6 flex justify-end gap-3">
-                  <button type="button" onClick={() => setPublishModal(null)} className="btn btn-secondary">Cancelar</button>
+                  <button type="button" onClick={closePublishModal} className="btn btn-secondary">Cancelar</button>
                   <button
                     type="button"
-                    onClick={() => { setPublishModal(null); void handleTogglePublish(false); }}
+                    onClick={() => void handleTogglePublish(false)}
                     className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
                   >
                     Sí, despublicar
