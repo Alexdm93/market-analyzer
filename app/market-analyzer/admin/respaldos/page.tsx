@@ -71,6 +71,8 @@ export default function RespaldosPage() {
   const [uploaded, setUploaded] = useState<{ data: unknown; name: string; size: number } | null>(null);
   const [storedSourceId, setStoredSourceId] = useState("");
   const [targetSnapshotId, setTargetSnapshotId] = useState("");
+  const [targetIsNew, setTargetIsNew] = useState(false);
+  const [newTargetId, setNewTargetId] = useState("");
   const [analysis, setAnalysis] = useState<RestoreAnalysis | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [restoreProfile, setRestoreProfile] = useState(false);
@@ -180,8 +182,11 @@ export default function RespaldosPage() {
     reader.readAsText(file);
   }
 
+  const effectiveTarget = targetIsNew ? newTargetId : targetSnapshotId;
+
   async function analyze() {
     if (!uploaded && !storedSourceId) { fail("Sube un archivo o elige un respaldo guardado."); return; }
+    if (targetIsNew && !newTargetId) { fail("Indica la fecha del corte nuevo."); return; }
     setBusyRestore("analyze");
     setAnalysis(null);
     try {
@@ -192,14 +197,14 @@ export default function RespaldosPage() {
           mode: "analyze",
           backup: uploaded?.data,
           fromStoredSnapshotId: uploaded ? undefined : storedSourceId,
-          targetSnapshotId: targetSnapshotId || undefined,
+          targetSnapshotId: effectiveTarget || undefined,
         }),
       });
       const data = (await res.json()) as RestoreAnalysis & { message?: string };
       if (!res.ok) throw new Error(data.message ?? "No se pudo analizar el respaldo.");
       setAnalysis(data);
       setSelected(new Set(data.empresas.filter((e) => e.restorable).map((e) => e.companyId)));
-      if (!targetSnapshotId) setTargetSnapshotId(data.destino.snapshotId);
+      if (!targetIsNew && !targetSnapshotId) setTargetSnapshotId(data.destino.snapshotId);
     } catch (e) {
       fail(e instanceof Error ? e.message : "Error al analizar.");
     } finally {
@@ -399,21 +404,43 @@ export default function RespaldosPage() {
             <label htmlFor="restore-target" className="field-label">Restaurar en el corte</label>
             <select
               id="restore-target"
-              value={targetSnapshotId}
-              onChange={(e) => { setTargetSnapshotId(e.target.value); setAnalysis(null); }}
+              value={targetIsNew ? "__nuevo__" : targetSnapshotId}
+              onChange={(e) => {
+                const v = e.target.value;
+                setAnalysis(null);
+                if (v === "__nuevo__") { setTargetIsNew(true); setTargetSnapshotId(""); }
+                else { setTargetIsNew(false); setTargetSnapshotId(v); }
+              }}
               className="field-select"
             >
               <option value="">El mismo del respaldo</option>
               {snapshots.map((s) => (
                 <option key={s.id} value={s.id}>{s.label} — {s.date}</option>
               ))}
+              <option value="__nuevo__">Un corte nuevo (escribir fecha)…</option>
             </select>
+
+            {targetIsNew && (
+              <div className="mt-3">
+                <label htmlFor="restore-new-target" className="field-label">Fecha del corte nuevo</label>
+                <input
+                  id="restore-new-target"
+                  type="date"
+                  value={newTargetId}
+                  onChange={(e) => { setNewTargetId(e.target.value); setAnalysis(null); }}
+                  className="field"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  El corte se crea con la data del respaldo. No hace falta asignarle empresas antes.
+                </p>
+              </div>
+            )}
           </div>
 
           <button
             type="button"
             onClick={() => void analyze()}
-            disabled={busyRestore !== "" || (!uploaded && !storedSourceId)}
+            disabled={busyRestore !== "" || (!uploaded && !storedSourceId) || (targetIsNew && !newTargetId)}
             className="btn btn-secondary mt-5"
           >
             {busyRestore === "analyze" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
