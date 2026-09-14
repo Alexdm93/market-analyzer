@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, Download, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
@@ -119,6 +119,12 @@ export default function AdminPage() {
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
   const [pendingAdminCreation, setPendingAdminCreation] = useState<UserRegistrationValues | null>(null);
+  const [deleteSnapshotTarget, setDeleteSnapshotTarget] = useState<AdminSnapshot | null>(null);
+  const [deleteSnapshotSummary, setDeleteSnapshotSummary] = useState<{ companies: number; submitted: number; positions: number } | null>(null);
+  const [deleteSummaryStatus, setDeleteSummaryStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteSnapshotError, setDeleteSnapshotError] = useState("");
+  const [isDownloadingDeleteBackup, setIsDownloadingDeleteBackup] = useState(false);
   const [pendingUserEdits, setPendingUserEdits] = useState<Record<string, PendingUserEdit>>({});
   const [isSavingUserChanges, setIsSavingUserChanges] = useState(false);
   const [userCompanyFilter, setUserCompanyFilter] = useState("");
@@ -1056,24 +1062,69 @@ export default function AdminPage() {
     }
   }
 
+  // Abre el modal de eliminación y cuenta la data del corte (solo lectura).
   async function handleDeleteSnapshot(snapshotId: string) {
     const snap = snapshots.find((s) => s.id === snapshotId);
-    const label = snap?.label || snapshotId;
-    const confirmed = window.confirm(
-      `¿Eliminar el corte "${label}"?\n\nToda la data que las empresas hayan ingresado para este corte se perderá permanentemente. Esta acción no se puede deshacer.`
-    );
-    if (!confirmed) return;
+    setDeleteSnapshotTarget(snap ?? { id: snapshotId, label: snapshotId, date: snapshotId });
+    setDeleteSnapshotSummary(null);
+    setDeleteSummaryStatus("loading");
+    setDeleteConfirmText("");
+    setDeleteSnapshotError("");
+    try {
+      const res = await fetch(`/api/admin/backups/v2?snapshotId=${encodeURIComponent(snapshotId)}&summary=1`, { cache: "no-store" });
+      const data = (await res.json().catch(() => null)) as {
+        counts?: { companies?: number; submittedCompanies?: number; positions?: number };
+      } | null;
+      if (!res.ok || !data?.counts) throw new Error("sin conteo");
+      setDeleteSnapshotSummary({
+        companies: data.counts.companies ?? 0,
+        submitted: data.counts.submittedCompanies ?? 0,
+        positions: data.counts.positions ?? 0,
+      });
+      setDeleteSummaryStatus("idle");
+    } catch {
+      setDeleteSummaryStatus("error");
+    }
+  }
 
+  function closeDeleteSnapshotModal() {
+    if (isMutatingSnapshot) return; // no se cierra mientras borra
+    setDeleteSnapshotTarget(null);
+  }
+
+  async function downloadBackupBeforeDelete() {
+    if (!deleteSnapshotTarget) return;
+    setIsDownloadingDeleteBackup(true);
+    setDeleteSnapshotError("");
+    try {
+      const res = await fetch(`/api/admin/backups/v2?snapshotId=${encodeURIComponent(deleteSnapshotTarget.id)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("descarga fallida");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `respaldo-${deleteSnapshotTarget.id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setDeleteSnapshotError("No se pudo descargar el respaldo. Intenta de nuevo antes de eliminar.");
+    } finally {
+      setIsDownloadingDeleteBackup(false);
+    }
+  }
+
+  async function performDeleteSnapshot() {
+    if (!deleteSnapshotTarget) return;
+    const snapshotId = deleteSnapshotTarget.id;
     setErrorMessage("");
     setStatusMessage("");
+    setDeleteSnapshotError("");
     setIsMutatingSnapshot(true);
 
     try {
       const response = await fetch("/api/admin/snapshots", {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ snapshotId }),
       });
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -1087,9 +1138,11 @@ export default function AdminPage() {
         setRenamingSnapshotId("");
         setRenameSnapshotLabel("");
       }
+      setDeleteSnapshotTarget(null);
       await reloadSnapshots();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No fue posible eliminar el corte.");
+      // El error se muestra dentro del modal, que queda abierto
+      setDeleteSnapshotError(error instanceof Error ? error.message : "No fue posible eliminar el corte.");
     } finally {
       setIsMutatingSnapshot(false);
     }
@@ -2506,6 +2559,106 @@ export default function AdminPage() {
       
 
       
+
+      {/* Eliminar corte */}
+      {deleteSnapshotTarget && (() => {
+        // Si el corte tiene data (o no se pudo contar), se exige escribir su nombre
+        const requiresTyping = deleteSummaryStatus !== "idle" || (deleteSnapshotSummary?.positions ?? 0) > 0;
+        const typedOk = deleteConfirmText.trim() === deleteSnapshotTarget.label.trim();
+        const canDelete = !isMutatingSnapshot && (!requiresTyping || typedOk);
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div role="dialog" aria-modal="true" className="surface-card w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                <div>
+                  <div className="eyebrow mb-0.5 text-red-700">Acción irreversible</div>
+                  <h2 className="font-display text-lg font-bold text-slate-900">Eliminar corte</h2>
+                </div>
+                {!isMutatingSnapshot && (
+                  <button type="button" onClick={closeDeleteSnapshotModal} className="rounded-full p-1.5 hover:bg-slate-100" aria-label="Cerrar">
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3 px-6 py-5">
+                <div className="rounded-[1rem] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <div className="font-semibold text-slate-900">{deleteSnapshotTarget.label}</div>
+                  <div className="text-xs text-slate-500">{deleteSnapshotTarget.date} · id {deleteSnapshotTarget.id}</div>
+                </div>
+
+                {deleteSummaryStatus === "loading" && (
+                  <p className="flex items-center gap-2 text-xs text-slate-500">
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> Contando la data del corte…
+                  </p>
+                )}
+                {deleteSnapshotSummary && (
+                  <div className="rounded-[1rem] border border-red-100 bg-red-50/70 px-4 py-3 text-xs leading-5 text-red-800">
+                    Se van a borrar <strong>{deleteSnapshotSummary.positions} posiciones</strong> de{" "}
+                    <strong>{deleteSnapshotSummary.companies} empresas</strong> ({deleteSnapshotSummary.submitted} enviaron su data).
+                    Esta acción no se puede deshacer.
+                  </div>
+                )}
+                {deleteSummaryStatus === "error" && (
+                  <div className="flex items-start gap-2 rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>No se pudo contar la data del corte. Asume que tiene data y descarga el respaldo antes de eliminar.</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => void downloadBackupBeforeDelete()}
+                  disabled={isDownloadingDeleteBackup || isMutatingSnapshot}
+                  className="btn btn-secondary w-full"
+                >
+                  {isDownloadingDeleteBackup ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Descargar respaldo antes de eliminar
+                </button>
+
+                {requiresTyping && (
+                  <div>
+                    <label htmlFor="delete-snapshot-confirm" className="field-label">
+                      Escribe <strong className="text-slate-900">{deleteSnapshotTarget.label}</strong> para confirmar
+                    </label>
+                    <input
+                      id="delete-snapshot-confirm"
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                      className="field"
+                      autoComplete="off"
+                      disabled={isMutatingSnapshot}
+                    />
+                  </div>
+                )}
+
+                {deleteSnapshotError && (
+                  <div className="flex items-start gap-2 rounded-[1rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{deleteSnapshotError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+                <button type="button" onClick={closeDeleteSnapshotModal} disabled={isMutatingSnapshot} className="btn btn-secondary">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void performDeleteSnapshot()}
+                  disabled={!canDelete}
+                  className="btn btn-danger disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isMutatingSnapshot ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  {isMutatingSnapshot ? "Eliminando…" : "Eliminar corte"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Confirmar creación de un usuario ADMIN */}
       {pendingAdminCreation && (
