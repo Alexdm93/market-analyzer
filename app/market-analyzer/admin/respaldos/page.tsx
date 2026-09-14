@@ -57,6 +57,34 @@ function formatDateTime(raw: string | null | undefined) {
   return new Date(raw).toLocaleString("es-VE", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * Un respaldo real pesa varios MB y Vercel corta los cuerpos cerca de 4,5 MB,
+ * así que el cuerpo se manda comprimido cuando el navegador lo soporta.
+ */
+async function postRestore(payload: unknown): Promise<Response> {
+  const json = JSON.stringify(payload);
+
+  if (typeof CompressionStream !== "undefined") {
+    try {
+      const gz = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
+      const blob = await new Response(gz).blob();
+      return fetch("/api/admin/backups/v2/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: blob,
+      });
+    } catch {
+      // si algo falla al comprimir, se intenta sin comprimir
+    }
+  }
+
+  return fetch("/api/admin/backups/v2/restore", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: json,
+  });
+}
+
 export default function RespaldosPage() {
   const [snapshots, setSnapshots] = useState<AdminSnapshot[]>([]);
   const [notification, setNotification] = useState("");
@@ -190,15 +218,11 @@ export default function RespaldosPage() {
     setBusyRestore("analyze");
     setAnalysis(null);
     try {
-      const res = await fetch("/api/admin/backups/v2/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "analyze",
-          backup: uploaded?.data,
-          fromStoredSnapshotId: uploaded ? undefined : storedSourceId,
-          targetSnapshotId: effectiveTarget || undefined,
-        }),
+      const res = await postRestore({
+        mode: "analyze",
+        backup: uploaded?.data,
+        fromStoredSnapshotId: uploaded ? undefined : storedSourceId,
+        targetSnapshotId: effectiveTarget || undefined,
       });
       const data = (await res.json()) as RestoreAnalysis & { message?: string };
       if (!res.ok) throw new Error(data.message ?? "No se pudo analizar el respaldo.");
@@ -217,18 +241,14 @@ export default function RespaldosPage() {
     setBusyRestore("apply");
     setConfirmOpen(false);
     try {
-      const res = await fetch("/api/admin/backups/v2/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "apply",
-          backup: uploaded?.data,
-          fromStoredSnapshotId: uploaded ? undefined : storedSourceId,
-          targetSnapshotId: analysis.destino.snapshotId,
-          companyIds: [...selected],
-          restoreCompanyProfile: restoreProfile,
-          restoreConfig,
-        }),
+      const res = await postRestore({
+        mode: "apply",
+        backup: uploaded?.data,
+        fromStoredSnapshotId: uploaded ? undefined : storedSourceId,
+        targetSnapshotId: analysis.destino.snapshotId,
+        companyIds: [...selected],
+        restoreCompanyProfile: restoreProfile,
+        restoreConfig,
       });
       const data = (await res.json()) as { message?: string; respaldoPrevioGuardado?: boolean };
       if (!res.ok) throw new Error(data.message ?? "No se pudo restaurar.");
@@ -322,10 +342,10 @@ export default function RespaldosPage() {
                 ))}
               </div>
 
-              <div className="mt-5 overflow-x-auto rounded-[1.1rem] border border-slate-200">
+              <div className="mt-5 max-h-[22rem] overflow-auto rounded-[1.1rem] border border-slate-200">
                 <table className="w-full min-w-[420px] text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-left text-[0.68rem] uppercase tracking-[0.12em] text-slate-500">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-50 text-left text-[0.68rem] uppercase tracking-[0.12em] text-slate-500 shadow-[0_1px_0_rgb(226_232_240)]">
                       <th className="px-4 py-2.5 font-bold">Empresa</th>
                       <th className="px-4 py-2.5 text-right font-bold">Posiciones</th>
                       <th className="px-4 py-2.5 font-bold">Envió</th>
@@ -480,10 +500,10 @@ export default function RespaldosPage() {
                 </div>
               )}
 
-              <div className="mt-5 overflow-x-auto rounded-[1.1rem] border border-slate-200">
+              <div className="mt-5 max-h-[26rem] overflow-auto rounded-[1.1rem] border border-slate-200">
                 <table className="w-full min-w-[640px] text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-left text-[0.68rem] uppercase tracking-[0.12em] text-slate-500">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-50 text-left text-[0.68rem] uppercase tracking-[0.12em] text-slate-500 shadow-[0_1px_0_rgb(226_232_240)]">
                       <th className="px-4 py-2.5 font-bold">Restaurar</th>
                       <th className="px-4 py-2.5 font-bold">Empresa</th>
                       <th className="px-4 py-2.5 font-bold">Estado</th>

@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, HardDrive, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, RotateCcw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
-import type { BackupSummary, SnapshotBackup } from "@/app/api/admin/backups/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
 
@@ -176,18 +175,6 @@ export default function AdminPage() {
   const [isSavingDescriptions, setIsSavingDescriptions] = useState(false);
   const [editingDescCargo, setEditingDescCargo] = useState<string | null>(null);
   // Backups
-  const [backups, setBackups] = useState<BackupSummary[]>([]);
-  const [isLoadingBackups, setIsLoadingBackups] = useState(true);
-  const [openBackups, setOpenBackups] = useState(false);
-  const [restoreModal, setRestoreModal] = useState<BackupSummary | null>(null);
-  const [restoreLabel, setRestoreLabel] = useState("");
-  const [restoreSource, setRestoreSource] = useState<"db" | "file">("db");
-  const [restoreFileData, setRestoreFileData] = useState<SnapshotBackup | null>(null);
-  const [restoreFileError, setRestoreFileError] = useState("");
-  const [restoreConfirmStep, setRestoreConfirmStep] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [backingUpSnapshotId, setBackingUpSnapshotId] = useState("");
-  const [backupConfirmSnapshot, setBackupConfirmSnapshot] = useState<{ id: string; label: string } | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -304,18 +291,6 @@ export default function AdminPage() {
     }
 
     void loadConfig();
-    return () => { ignore = true; };
-  }, []);
-
-  useEffect(() => {
-    let ignore = false;
-    fetch("/api/admin/backups", { cache: "no-store" })
-      .then((r) => r.json().catch(() => null))
-      .then((body: { backups?: BackupSummary[] } | null) => {
-        if (!ignore) setBackups(Array.isArray(body?.backups) ? body.backups : []);
-      })
-      .catch(() => {})
-      .finally(() => { if (!ignore) setIsLoadingBackups(false); });
     return () => { ignore = true; };
   }, []);
 
@@ -1120,74 +1095,6 @@ export default function AdminPage() {
     }
   }
 
-  async function handleCreateBackup(snapshotId: string) {
-    if (backingUpSnapshotId) return;
-    setBackingUpSnapshotId(snapshotId);
-    setErrorMessage("");
-    setStatusMessage("");
-    try {
-      const response = await fetch("/api/admin/backups", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshotId }),
-      });
-      const payload = (await response.json().catch(() => null)) as { message?: string; backup?: unknown } | null;
-      if (!response.ok) throw new Error(payload?.message ?? "No fue posible crear el respaldo.");
-
-      // Trigger browser download of the JSON file
-      if (payload?.backup) {
-        const blob = new Blob([JSON.stringify(payload.backup, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `respaldo-${snapshotId}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-
-      setStatusMessage(payload?.message ?? "Respaldo creado correctamente.");
-      // Reload backups list so the new entry appears immediately
-      const backupsRes = await fetch("/api/admin/backups", { cache: "no-store" });
-      const backupsPayload = (await backupsRes.json().catch(() => null)) as { backups?: BackupSummary[] } | null;
-      if (Array.isArray(backupsPayload?.backups)) setBackups(backupsPayload.backups);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No fue posible crear el respaldo.");
-    } finally {
-      setBackingUpSnapshotId("");
-    }
-  }
-
-  async function handleRestoreBackup() {
-    if (!restoreModal) return;
-    if (restoreSource === "file" && !restoreFileData) {
-      setRestoreFileError("Selecciona un archivo JSON de respaldo.");
-      return;
-    }
-    setIsRestoring(true);
-    setErrorMessage("");
-    setStatusMessage("");
-    try {
-      const bodyPayload =
-        restoreSource === "file" && restoreFileData
-          ? { backup: restoreFileData, label: restoreLabel.trim() || undefined }
-          : { snapshotId: restoreModal.snapshotId, label: restoreLabel.trim() || restoreModal.snapshotLabel };
-      const response = await fetch("/api/admin/backups", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyPayload),
-      });
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-      if (!response.ok) throw new Error(payload?.message ?? "No fue posible restaurar el respaldo.");
-      setStatusMessage(payload?.message ?? "Corte restaurado correctamente.");
-      setRestoreModal(null);
-      await reloadSnapshots();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No fue posible restaurar el respaldo.");
-    } finally {
-      setIsRestoring(false);
-    }
-  }
-
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
@@ -1743,18 +1650,6 @@ export default function AdminPage() {
                           <Building2 className="h-4 w-4" />
                           Empresas
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setBackupConfirmSnapshot({ id: snapshot.id, label: snapshot.label })}
-                          className="btn btn-secondary"
-                          disabled={isMutatingSnapshot || Boolean(backingUpSnapshotId)}
-                          title="Crea un respaldo de toda la data enviada por las empresas en este corte"
-                        >
-                          {backingUpSnapshotId === snapshot.id
-                            ? <LoaderCircle className="h-4 w-4 animate-spin" />
-                            : <HardDrive className="h-4 w-4" />}
-                          {backingUpSnapshotId === snapshot.id ? "Respaldando..." : "Respaldar"}
-                        </button>
                         <button type="button" onClick={() => void handleDeleteSnapshot(snapshot.id)} className="btn btn-danger" disabled={isMutatingSnapshot}>
                           <Trash2 className="h-4 w-4" />
                           Eliminar
@@ -1770,88 +1665,7 @@ export default function AdminPage() {
           )}
         </section>
 
-        {/* Snapshot backups */}
-        <section className="surface-card overflow-hidden rounded-[1.75rem]">
-          <button
-            type="button"
-            onClick={() => setOpenBackups((v) => !v)}
-            className="flex w-full items-center justify-between gap-3 p-4 text-left md:p-5"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="rounded-full bg-violet-50 p-2.5 text-violet-700">
-                <HardDrive size={16} aria-hidden />
-              </div>
-              <h2 className="font-display text-base font-bold text-slate-900">Respaldos de cortes</h2>
-              {backups.length > 0 && (
-                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[0.65rem] font-bold text-violet-800">{backups.length}</span>
-              )}
-            </div>
-            {openBackups ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
-          </button>
-
-          {openBackups && (
-            <div className="border-t border-slate-200/60 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-              <p className="mb-3 text-xs text-slate-500">
-                Se genera un respaldo automáticamente cada vez que se publica un corte. Contiene toda la data enviada por las empresas y puede usarse para recuperar un corte perdido.
-              </p>
-              {isLoadingBackups ? (
-                <div className="text-xs text-slate-500">Cargando respaldos...</div>
-              ) : backups.length === 0 ? (
-                <div className="rounded-[1.25rem] border border-dashed border-slate-300 bg-white/70 px-4 py-5 text-xs text-slate-500">
-                  No hay respaldos aún. Se crean automáticamente al publicar un corte.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {backups.map((backup) => (
-                    <div key={backup.snapshotId} className="rounded-[1.1rem] border border-slate-200/80 bg-white/90 px-4 py-3">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-slate-900">{backup.snapshotLabel}</div>
-                          <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
-                            <span className="uppercase tracking-[0.12em]">{backup.snapshotDate}</span>
-                            <span>{backup.totalCompanies} empresa{backup.totalCompanies !== 1 ? "s" : ""}</span>
-                            <span>{backup.totalPositions} posicion{backup.totalPositions !== 1 ? "es" : ""}</span>
-                            <span>Respaldado {new Date(backup.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })} {new Date(backup.publishedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}</span>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 gap-2">
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={async () => {
-                              const res = await fetch(`/api/admin/backups?snapshotId=${encodeURIComponent(backup.snapshotId)}`, { cache: "no-store" });
-                              const data = (await res.json().catch(() => null)) as { backup?: unknown } | null;
-                              if (data?.backup) {
-                                const blob = new Blob([JSON.stringify(data.backup, null, 2)], { type: "application/json" });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement("a");
-                                a.href = url;
-                                a.download = `respaldo-${backup.snapshotId}.json`;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              }
-                            }}
-                          >
-                            <Save className="h-4 w-4" />
-                            Descargar
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => { setRestoreModal(backup); setRestoreLabel(backup.snapshotLabel); setRestoreSource("db"); setRestoreFileData(null); setRestoreFileError(""); setRestoreConfirmStep(false); }}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                            Restaurar
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+        
 
         {/* Sector / classification management */}
         <section className="surface-card overflow-hidden rounded-[1.75rem]">
@@ -2689,186 +2503,9 @@ export default function AdminPage() {
       ) : null}
 
       {/* Restore backup modal */}
-      {restoreModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="surface-card w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <div>
-                <div className="eyebrow mb-0.5">Respaldo</div>
-                <h2 className="font-display text-lg font-bold text-slate-900">Restaurar corte</h2>
-              </div>
-              <button type="button" onClick={() => setRestoreModal(null)} className="rounded-full p-1.5 hover:bg-slate-100">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              {/* Info del respaldo */}
-              <div className="rounded-[1.1rem] border border-violet-100 bg-violet-50/60 px-4 py-3 space-y-1.5">
-                <div className="flex gap-3 text-xs text-slate-500">
-                  <span>{restoreModal.totalCompanies} empresas</span>
-                  <span>·</span>
-                  <span>{restoreModal.totalPositions} posiciones</span>
-                  <span>·</span>
-                  <span>Respaldado {new Date(restoreModal.publishedAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })} {new Date(restoreModal.publishedAt).toLocaleTimeString("es-VE", { hour: "numeric", minute: "2-digit" })}</span>
-                </div>
-                <p className="text-xs text-slate-500"><strong>ID del corte:</strong> {restoreModal.snapshotId}</p>
-              </div>
+      
 
-              {/* Toggle de fuente */}
-              <div>
-                <p className="field-label mb-2">Fuente del respaldo</p>
-                <div className="flex rounded-xl border border-slate-200 overflow-hidden text-sm">
-                  <button
-                    type="button"
-                    className={`flex-1 px-4 py-2 font-medium transition-colors ${restoreSource === "db" ? "bg-violet-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
-                    onClick={() => { setRestoreSource("db"); setRestoreFileData(null); setRestoreFileError(""); }}
-                    disabled={isRestoring}
-                  >
-                    Desde BD
-                  </button>
-                  <button
-                    type="button"
-                    className={`flex-1 px-4 py-2 font-medium transition-colors ${restoreSource === "file" ? "bg-violet-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
-                    onClick={() => { setRestoreSource("file"); setRestoreFileData(null); setRestoreFileError(""); }}
-                    disabled={isRestoring}
-                  >
-                    Desde archivo JSON
-                  </button>
-                </div>
-                {restoreSource === "db" && (
-                  <p className="mt-1.5 text-xs text-slate-400">Se usa el último respaldo guardado en la base de datos para este corte.</p>
-                )}
-              </div>
-
-              {/* File input (solo cuando fuente = archivo) */}
-              {restoreSource === "file" && (
-                <div>
-                  <label htmlFor="restoreFile" className="field-label">Archivo JSON de respaldo</label>
-                  <input
-                    id="restoreFile"
-                    type="file"
-                    accept="application/json,.json"
-                    disabled={isRestoring}
-                    className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-violet-700 hover:file:bg-violet-100 cursor-pointer"
-                    onChange={(e) => {
-                      setRestoreFileError("");
-                      setRestoreFileData(null);
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = (ev) => {
-                        try {
-                          const parsed = JSON.parse(ev.target?.result as string) as SnapshotBackup;
-                          if (!parsed.version || !parsed.snapshotId || !Array.isArray(parsed.companies)) {
-                            setRestoreFileError("El archivo no tiene el formato esperado de respaldo.");
-                            return;
-                          }
-                          setRestoreFileData(parsed);
-                        } catch {
-                          setRestoreFileError("No se pudo leer el archivo JSON.");
-                        }
-                      };
-                      reader.readAsText(file);
-                    }}
-                  />
-                  {restoreFileData && (
-                    <p className="mt-1.5 text-xs text-emerald-600">
-                      Archivo válido — {restoreFileData.totalCompanies} empresas, {restoreFileData.totalPositions} posiciones · corte {restoreFileData.snapshotId}
-                    </p>
-                  )}
-                  {restoreFileError && (
-                    <p className="mt-1.5 text-xs text-red-600">{restoreFileError}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Renombrar corte */}
-              <div>
-                <label htmlFor="restoreLabel" className="field-label">Renombrar corte <span className="font-normal text-slate-400">(opcional)</span></label>
-                <input
-                  id="restoreLabel"
-                  type="text"
-                  value={restoreLabel}
-                  onChange={(e) => setRestoreLabel(e.target.value)}
-                  className="field"
-                  placeholder={restoreModal.snapshotLabel}
-                  disabled={isRestoring}
-                />
-                <p className="mt-1 text-xs text-slate-400">Deja vacío para conservar el nombre original: <em>{restoreModal.snapshotLabel}</em></p>
-              </div>
-            </div>
-            {restoreConfirmStep ? (
-              <div className="border-t border-red-100 bg-red-50/60 px-6 py-4 space-y-3">
-                <p className="text-sm font-medium text-red-700">
-                  ¿Seguro que quieres restaurar? Se sobreescribirán todas las posiciones enviadas del corte <strong>{restoreModal.snapshotId}</strong>. Esta acción no se puede deshacer.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <button type="button" onClick={() => setRestoreConfirmStep(false)} className="btn btn-secondary" disabled={isRestoring}>
-                    Volver
-                  </button>
-                  <button type="button" onClick={() => void handleRestoreBackup()} className="btn btn-danger" disabled={isRestoring}>
-                    {isRestoring ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                    {isRestoring ? "Restaurando..." : "Sí, sobreescribir y restaurar"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
-                <button type="button" onClick={() => setRestoreModal(null)} className="btn btn-secondary">
-                  Cancelar
-                </button>
-                <button type="button" onClick={() => setRestoreConfirmStep(true)} className="btn btn-primary" disabled={restoreSource === "file" && !restoreFileData}>
-                  <RotateCcw className="h-4 w-4" />
-                  Restaurar corte
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {backupConfirmSnapshot && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="surface-card w-full max-w-md overflow-hidden rounded-[2rem] shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <div>
-                <div className="eyebrow mb-0.5">Respaldo</div>
-                <h2 className="font-display text-lg font-bold text-slate-900">Confirmar respaldo</h2>
-              </div>
-              <button type="button" onClick={() => setBackupConfirmSnapshot(null)} className="rounded-full p-1.5 hover:bg-slate-100">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-3">
-              <p className="text-sm text-slate-700">
-                Se creará un respaldo del corte <strong>{backupConfirmSnapshot.label}</strong> y se guardará en la base de datos.
-              </p>
-              <div className="rounded-[1rem] border border-amber-100 bg-amber-50/60 px-4 py-3 text-xs text-amber-800 space-y-1">
-                <p><strong>ID del corte:</strong> {backupConfirmSnapshot.id}</p>
-                <p>El archivo JSON se descargará automáticamente en tu equipo.</p>
-                <p>Si ya existe un respaldo anterior para este corte, será reemplazado.</p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <button type="button" onClick={() => setBackupConfirmSnapshot(null)} className="btn btn-secondary">
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const snap = backupConfirmSnapshot;
-                  setBackupConfirmSnapshot(null);
-                  void handleCreateBackup(snap.id);
-                }}
-                className="btn btn-primary"
-              >
-                <HardDrive className="h-4 w-4" />
-                Crear respaldo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      
 
       {/* Confirmar creación de un usuario ADMIN */}
       {pendingAdminCreation && (

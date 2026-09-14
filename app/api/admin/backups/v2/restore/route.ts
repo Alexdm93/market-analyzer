@@ -1,3 +1,5 @@
+import { gunzipSync } from "node:zlib";
+
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
@@ -30,7 +32,23 @@ export async function POST(request: Request) {
     return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
   }
 
-  const body = (await request.json().catch(() => null)) as Body | null;
+  // Un respaldo real pesa bastante (13 MB en un corte de ~2.500 posiciones) y
+  // Vercel corta los cuerpos de petición cerca de los 4,5 MB. Por eso el cliente
+  // puede mandar el cuerpo comprimido: lo detectamos por el content-type.
+  let body: Body | null = null;
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/octet-stream")) {
+    try {
+      const buf = Buffer.from(await request.arrayBuffer());
+      body = JSON.parse(gunzipSync(buf).toString("utf8")) as Body;
+    } catch {
+      return Response.json({ message: "No se pudo leer el respaldo comprimido." }, { status: 400 });
+    }
+  } else {
+    body = (await request.json().catch(() => null)) as Body | null;
+  }
+
   const mode = body?.mode ?? "analyze";
 
   // ── Resolver de dónde sale el respaldo ────────────────────────────────────
