@@ -272,6 +272,9 @@ async function cleanupUnusedCompany(tx: TransactionClient, companyId: string | n
   }
 }
 
+/** Tope de tasas propias por empresa, igual que el formulario de Empresa. */
+const MAX_TASAS_POR_EMPRESA = 5;
+
 // Fields that change automatically on every save and should not trigger a _lastModified update
 const VOLATILE_FIELDS = new Set([
   "_carried", "_lastModified",
@@ -955,6 +958,46 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Tasas declaradas en una carga masiva. Es deliberadamente ADITIVO: solo se
+    // agregan las que la empresa no tiene, nunca se modifica ni se borra una
+    // suya, porque el admin está escribiendo sobre configuración que mantiene
+    // ella. El tope es el mismo del formulario de Empresa.
+    const tasasPedidas = (body.companyInfo as CompanyInfo | undefined)?.tasas;
+    let companyInfoJsonActualizado: string | null = null;
+
+    if (Array.isArray(tasasPedidas) && tasasPedidas.length > 0) {
+      const normalizar = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+      const actuales = (companyInfoGuardada.tasas ?? []).filter((t: ExchangeRate) => !t.isSystem);
+      const vistas = new Set(actuales.map((t: ExchangeRate) => normalizar(t.nombre || t.referencia)));
+      const agregadas: ExchangeRate[] = [];
+
+      for (const tasa of tasasPedidas) {
+        if (!tasa || tasa.isSystem) continue;
+        const nombre = String(tasa.nombre ?? "").trim();
+        const valor = Number(tasa.valor);
+        if (!nombre || !Number.isFinite(valor) || valor <= 0) continue;
+
+        const clave = normalizar(nombre);
+        if (vistas.has(clave)) continue;
+        if (actuales.length + agregadas.length >= MAX_TASAS_POR_EMPRESA) break;
+
+        vistas.add(clave);
+        agregadas.push({
+          id: String(tasa.id ?? `t-${Date.now()}-${agregadas.length}`),
+          nombre,
+          referencia: String(tasa.referencia ?? ""),
+          valor: String(valor),
+        });
+      }
+
+      if (agregadas.length > 0) {
+        companyInfoJsonActualizado = JSON.stringify({
+          ...companyInfoGuardada,
+          tasas: [...actuales, ...agregadas],
+        });
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
       // Los estados se leen ANTES de borrar: si no, el corte pierde su
       // `submittedAt` cada vez que el admin guarda a nombre de la empresa.
@@ -970,7 +1013,10 @@ export async function PUT(request: Request) {
       await syncRelationalWorkspace(tx, companyUser.id, targetCompanyId, nextSnapshots, estadosPrevios);
       await tx.userWorkspace.updateMany({
         where: { userId: companyUser.id },
-        data: { snapshotsJson: JSON.stringify(nextSnapshots) },
+        data: {
+          snapshotsJson: JSON.stringify(nextSnapshots),
+          ...(companyInfoJsonActualizado ? { companyInfoJson: companyInfoJsonActualizado } : {}),
+        },
       });
     });
 

@@ -48,6 +48,8 @@ export type ParsedImport = {
   /** Filas del catálogo que venían en la plantilla y la empresa no llenó. */
   filasSinLlenar: number;
   filasDescartadas: number;
+  /** Tasas declaradas en el archivo que la empresa todavía no tiene registradas. */
+  tasasNuevas: ExchangeRate[];
 };
 
 export const SHEET_CARGOS = "Cargos";
@@ -112,6 +114,11 @@ export const CARGOS_HEADERS: string[] = [
   ...BLOQUES.flatMap((b) => [b.prefijo, col(b.prefijo, SUF.cuenta), col(b.prefijo, SUF.pago), col(b.prefijo, SUF.tasa)]),
 ];
 
+export const TASAS_HEADERS = ["Nombre de la tasa", "Referencia", "Valor (Bs por 1 USD)"];
+
+/** Tope de tasas propias por empresa, igual que el formulario de Empresa. */
+export const MAX_TASAS_EMPRESA = 5;
+
 export const ADICIONALES_HEADERS = [
   "Cargo", "Clase", "Concepto", "Monto", "Frecuencia",
   "Moneda del monto", "Moneda de pago", "Tasa", "Impacta prestaciones", "Tipo de variable",
@@ -123,6 +130,7 @@ export const OPCIONES = {
   clase: ["Fijo", "Variable"],
   tipoVariable: ["Desempeño", "Comisión"],
   familia: ["IC", "LO", "GE", "EJ"],
+  referencia: ["Tasa BCV (Bs./USD)", "Tasa BCV (Bs./EUR)", "Tasa de Referencia Externa"],
   siNo: ["Sí", "No"],
   /** El concepto fijo no admite quincenal; el variable sí. */
   frecuenciaFija: ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"],
@@ -304,6 +312,80 @@ function buildTasaIndex(tasas: ExchangeRate[]): Map<string, ExchangeRate> {
   return map;
 }
 
+/**
+ * Lee la hoja de tasas. Es aditiva a propósito: si la empresa ya tiene una tasa
+ * con ese nombre, se respeta la suya y solo se avisa cuando el valor difiere.
+ * Nunca se le pisa un número que ella cargó.
+ */
+function parseTasasSheet(
+  workbook: XLSX.WorkBook,
+  existentes: ExchangeRate[],
+  issues: ImportIssue[],
+): ExchangeRate[] {
+  const hoja = workbook.Sheets[SHEET_TASAS];
+  if (!hoja) return [];
+
+  const porNombre = new Map(existentes.map((t) => [norm(t.nombre || t.referencia), t]));
+  const nuevas: ExchangeRate[] = [];
+  let cupo = MAX_TASAS_EMPRESA - existentes.length;
+
+  sheetToObjects(hoja).forEach((registro, idx) => {
+    const fila = Number(registro.__fila) || idx + 2;
+    if (esFilaVacia(registro)) return;
+
+    const nombre = text(pick(registro, "Nombre de la tasa"));
+    const valorTexto = text(pick(registro, "Valor (Bs por 1 USD)"));
+    if (!nombre && !valorTexto) return;
+
+    if (!nombre) {
+      issues.push({ fila, hoja: SHEET_TASAS, nivel: "error", mensaje: "La tasa no tiene nombre; se descarta." });
+      return;
+    }
+
+    const { valor } = parseAmount(pick(registro, "Valor (Bs por 1 USD)"));
+    if (valor <= 0) {
+      issues.push({ fila, hoja: SHEET_TASAS, nivel: "error", mensaje: `La tasa "${nombre}" no tiene un valor mayor que cero; se descarta.` });
+      return;
+    }
+
+    const clave = norm(nombre);
+    const yaExiste = porNombre.get(clave);
+    if (yaExiste) {
+      if (Number(yaExiste.valor) !== valor) {
+        issues.push({
+          fila, hoja: SHEET_TASAS, nivel: "aviso",
+          mensaje: `La empresa ya tiene la tasa "${nombre}" en ${yaExiste.valor}; se respeta la suya y se ignora el ${valor} del archivo.`,
+        });
+      }
+      return;
+    }
+
+    if (nuevas.some((t) => norm(t.nombre) === clave)) {
+      issues.push({ fila, hoja: SHEET_TASAS, nivel: "aviso", mensaje: `La tasa "${nombre}" viene repetida; se usa la primera.` });
+      return;
+    }
+
+    if (cupo <= 0) {
+      issues.push({
+        fila, hoja: SHEET_TASAS, nivel: "error",
+        mensaje: `La empresa no puede tener más de ${MAX_TASAS_EMPRESA} tasas propias; "${nombre}" no se crea.`,
+      });
+      return;
+    }
+
+    const referenciaTexto = text(pick(registro, "Referencia"));
+    const referencia = OPCIONES.referencia.find((r) => norm(r) === norm(referenciaTexto)) ?? "Tasa de Referencia Externa";
+    if (referenciaTexto && norm(referencia) !== norm(referenciaTexto)) {
+      issues.push({ fila, hoja: SHEET_TASAS, nivel: "aviso", mensaje: `Referencia "${referenciaTexto}" no reconocida en "${nombre}"; se usa "${referencia}".` });
+    }
+
+    nuevas.push({ id: `t-${Date.now()}-${idx}`, nombre, referencia, valor: String(valor) });
+    cupo--;
+  });
+
+  return nuevas;
+}
+
 export function parseCargosWorkbook(
   workbook: XLSX.WorkBook,
   catalogo: CatalogCargo[],
@@ -315,13 +397,16 @@ export function parseCargosWorkbook(
   const hojaCargos = workbook.Sheets[SHEET_CARGOS] ?? workbook.Sheets[workbook.SheetNames[0]];
   if (!hojaCargos) {
     return {
-      rows: [], filasLeidas: 0, filasVacias: 0, filasSinLlenar: 0, filasDescartadas: 0,
+      rows: [], filasLeidas: 0, filasVacias: 0, filasSinLlenar: 0, filasDescartadas: 0, tasasNuevas: [],
       issues: [{ fila: null, hoja: SHEET_CARGOS, nivel: "error", mensaje: "El archivo no tiene ninguna hoja que se pueda leer." }],
     };
   }
 
   const catalogIndex = buildCatalogIndex(catalogo);
-  const tasaIndex = buildTasaIndex(tasas);
+  // Las tasas del archivo se leen primero: un concepto puede apuntar a una que
+  // todavía no existe en la plataforma y que esta misma carga va a crear.
+  const tasasNuevas = parseTasasSheet(workbook, tasas, issues);
+  const tasaIndex = buildTasaIndex([...tasas, ...tasasNuevas]);
   const registros = sheetToObjects(hojaCargos);
 
   const vistos = new Map<string, number>();
@@ -571,5 +656,6 @@ export function parseCargosWorkbook(
     rows, issues,
     filasLeidas: registros.length - filasVacias - sinLlenar,
     filasVacias, filasSinLlenar: sinLlenar, filasDescartadas: descartadas,
+    tasasNuevas,
   };
 }

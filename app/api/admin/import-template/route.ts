@@ -21,7 +21,10 @@ import {
   SHEET_CATALOGO,
   SHEET_INSTRUCCIONES,
   SHEET_LISTAS,
+  SHEET_TASAS,
   SUF,
+  TASAS_HEADERS,
+  MAX_TASAS_EMPRESA,
   col,
   type CatalogCargo,
 } from "@/lib/import-cargos";
@@ -140,7 +143,13 @@ export async function GET(request: Request) {
     ["Moneda y tasa, concepto por concepto", ""],
     [SUF.cuenta, "La moneda en la que está escrito el número: USD o VES."],
     [SUF.pago, "La moneda en la que la persona efectivamente cobra: USD o VES."],
-    [SUF.tasa, `Solo hace falta cuando las dos monedas son distintas. Escribe el nombre exacto de una tasa que la empresa tenga registrada en la plataforma (Empresa → Tasas). Si se deja vacía, se usa el BCV del día de la carga.`],
+    [SUF.tasa, `Solo hace falta cuando las dos monedas son distintas. Escribe el nombre exacto de una tasa: puede ser una que la empresa ya tenga en la plataforma, o una que declares en la hoja "${SHEET_TASAS}". Si se deja vacía, se usa el BCV del día de la carga.`],
+    ["", ""],
+    [`Hoja "${SHEET_TASAS}"`, ""],
+    ["", "Sirve para declarar las tasas propias de la empresa cuando todavía no las tiene cargadas en la plataforma. Se crean al importar."],
+    ["", `Nunca se pisa una tasa existente: si la empresa ya tiene una con ese nombre, se respeta su valor y el del archivo se ignora (queda avisado en el análisis).`],
+    ["", `Una empresa puede tener como máximo ${MAX_TASAS_EMPRESA} tasas propias. Las tasas BCV del sistema no cuentan y no hay que declararlas.`],
+    ["", "El valor va en bolívares por 1 dólar."],
     ["", ""],
     ["Grado y familia CAPRI", ""],
     [COL.grado, "Número entero del 8 al 25."],
@@ -214,6 +223,11 @@ export async function GET(request: Request) {
   aplicarLista(hojaOtros, "Moneda de pago", ADICIONALES_HEADERS, listaFija(OPCIONES.moneda), "Usa USD o VES.");
   aplicarLista(hojaOtros, "Impacta prestaciones", ADICIONALES_HEADERS, listaFija(OPCIONES.siNo), "Usa Sí o No.");
   aplicarLista(hojaOtros, "Tipo de variable", ADICIONALES_HEADERS, listaFija(OPCIONES.tipoVariable), "Usa Desempeño o Comisión.");
+
+  // ── Tasas ─────────────────────────────────────────────────────────────────
+  const hojaTasas = wb.addWorksheet(SHEET_TASAS);
+  encabezar(hojaTasas, TASAS_HEADERS, [38, 30, 24]);
+  aplicarLista(hojaTasas, "Referencia", TASAS_HEADERS, listaFija(OPCIONES.referencia), "Usa una de las referencias de la lista.");
 
   // ── Catálogo del corte ────────────────────────────────────────────────────
   const hojaCatalogo = wb.addWorksheet(SHEET_CATALOGO);

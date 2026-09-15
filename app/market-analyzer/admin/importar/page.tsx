@@ -29,6 +29,8 @@ type FileEntry = {
   mensaje: string;
   filasActuales: number;
   gradosHeredados: number;
+  /** Tasas del archivo que la empresa todavía no tiene registradas. */
+  tasasNuevas: number;
   yaEnviado: boolean;
   abierto: boolean;
 };
@@ -145,7 +147,7 @@ export default function ImportarDataPage() {
     setCatalogo(null);
     setAviso("");
     setEntries((prev) => prev.map((e) => ({
-      ...e, estado: "sin_analizar", parsed: null, mensaje: "", filasActuales: 0, gradosHeredados: 0, yaEnviado: false, abierto: false,
+      ...e, estado: "sin_analizar", parsed: null, mensaje: "", filasActuales: 0, gradosHeredados: 0, tasasNuevas: 0, yaEnviado: false, abierto: false,
     })));
   }
 
@@ -164,6 +166,7 @@ export default function ImportarDataPage() {
       mensaje: "",
       filasActuales: 0,
       gradosHeredados: 0,
+      tasasNuevas: 0,
       yaEnviado: false,
       abierto: false,
     }));
@@ -213,6 +216,7 @@ export default function ImportarDataPage() {
           parsed,
           filasActuales: existente?.rows?.length ?? 0,
           gradosHeredados,
+          tasasNuevas: parsed.tasasNuevas.length,
           yaEnviado: Boolean(existente?.submittedAt),
           mensaje: "",
         });
@@ -238,6 +242,7 @@ export default function ImportarDataPage() {
     const reemplaza = listos.reduce((acc, e) => acc + (modo === "reemplazar" ? e.filasActuales : 0), 0);
     const enviados = listos.filter((e) => e.yaEnviado).length;
     const heredados = listos.reduce((acc, e) => acc + e.gradosHeredados, 0);
+    const tasas = listos.reduce((acc, e) => acc + e.tasasNuevas, 0);
 
     const lineas = [
       `Se van a cargar ${totalCargos} cargos en ${listos.length} ${listos.length === 1 ? "empresa" : "empresas"} del corte ${corte.label}.`,
@@ -246,6 +251,9 @@ export default function ImportarDataPage() {
         : "",
       heredados > 0
         ? `${heredados} cargos conservan el grado CAPRI que ya tenían en la plataforma, porque el archivo no lo trae.`
+        : "",
+      tasas > 0
+        ? `Se crean ${tasas} ${tasas === 1 ? "tasa de cambio" : "tasas de cambio"} que esas empresas no tenían. Ninguna tasa existente se modifica.`
         : "",
       enviados > 0
         ? `${enviados} de esas empresas ya habían enviado este corte; su data queda modificada y sigue contando como enviada.`
@@ -298,8 +306,25 @@ export default function ImportarDataPage() {
           [corte.id]: { ...base, rows: filas },
         };
 
-        await updateWorkspace({ snapshots: siguientes, selectedSnapshotId: corte.id }, entry.companyId);
-        actualizar(entry.key, { estado: "importado", mensaje: `${importadas.length} cargos cargados.` });
+        // Las tasas declaradas en el archivo se mandan junto con la data. El
+        // servidor solo agrega las que falten: nunca pisa una que la empresa ya
+        // tenga cargada.
+        const tasasNuevas = entry.parsed?.tasasNuevas ?? [];
+        const patch: Parameters<typeof updateWorkspace>[0] = { snapshots: siguientes, selectedSnapshotId: corte.id };
+        if (tasasNuevas.length > 0) {
+          patch.companyInfo = {
+            ...workspace.companyInfo,
+            tasas: [...(workspace.companyInfo.tasas ?? []).filter((t) => !t.isSystem), ...tasasNuevas],
+          };
+        }
+
+        await updateWorkspace(patch, entry.companyId);
+        actualizar(entry.key, {
+          estado: "importado",
+          mensaje: tasasNuevas.length > 0
+            ? `${importadas.length} cargos cargados y ${tasasNuevas.length} ${tasasNuevas.length === 1 ? "tasa creada" : "tasas creadas"}.`
+            : `${importadas.length} cargos cargados.`,
+        });
       } catch (error) {
         actualizar(entry.key, {
           estado: "fallido",
@@ -481,7 +506,7 @@ export default function ImportarDataPage() {
                               <select
                                 aria-label={`Empresa para ${entry.file.name}`}
                                 value={entry.companyId}
-                                onChange={(e) => actualizar(entry.key, { companyId: e.target.value, estado: "sin_analizar", parsed: null, mensaje: "", gradosHeredados: 0 })}
+                                onChange={(e) => actualizar(entry.key, { companyId: e.target.value, estado: "sin_analizar", parsed: null, mensaje: "", gradosHeredados: 0, tasasNuevas: 0 })}
                                 className="field-select text-sm"
                                 disabled={trabajando || entry.estado === "importado"}
                               >
@@ -548,6 +573,7 @@ export default function ImportarDataPage() {
                                   {entry.parsed.filasSinLlenar} filas del catálogo sin llenar ·{" "}
                                   {entry.filasActuales} ya cargados en este corte
                                   {entry.gradosHeredados > 0 ? ` · ${entry.gradosHeredados} conservan el grado CAPRI que ya tenían` : ""}
+                                  {entry.tasasNuevas > 0 ? ` · ${entry.tasasNuevas} ${entry.tasasNuevas === 1 ? "tasa nueva" : "tasas nuevas"}` : ""}
                                   {entry.yaEnviado ? " · la empresa ya envió este corte" : ""}
                                 </p>
                                 {entry.parsed.issues.length > 0 && (
