@@ -283,24 +283,54 @@ function stripVolatile(obj: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(obj).filter(([k]) => !VOLATILE_FIELDS.has(k)));
 }
 
+type SnapshotStatusRow = {
+  snapshotId: string;
+  status: SnapshotProcessingStatus;
+  processedAt: Date | null;
+  submittedAt: Date | null;
+};
+
+/**
+ * Construye el mapa de estados dando prioridad a la fila que ya tiene un envío
+ * registrado: una empresa puede tener varios usuarios y solo uno de ellos haber
+ * enviado el corte.
+ */
+function buildStatusMap(rows: SnapshotStatusRow[]) {
+  const map = new Map<string, { status: SnapshotProcessingStatus; processedAt: Date | null; submittedAt: Date | null }>();
+  for (const row of rows) {
+    const previous = map.get(row.snapshotId);
+    if (previous && previous.submittedAt && !row.submittedAt) continue;
+    map.set(row.snapshotId, { status: row.status, processedAt: row.processedAt, submittedAt: row.submittedAt });
+  }
+  return map;
+}
+
 async function syncRelationalWorkspace(
   tx: TransactionClient,
   userId: string,
   companyId: string,
-  snapshots: Record<string, Snapshot>
+  snapshots: Record<string, Snapshot>,
+  /**
+   * Estados leídos por quien llama ANTES de borrar nada. El guardado del admin a
+   * nombre de una empresa borra sus snapshots antes de llegar aquí, así que sin
+   * esto la consulta de abajo salía vacía y el corte perdía su `submittedAt`.
+   */
+  statusesAntesDeBorrar?: SnapshotStatusRow[],
 ) {
   const [existingStatuses, existingPositions] = await Promise.all([
-    tx.userSnapshot.findMany({
-      where: { userId },
-      select: { snapshotId: true, status: true, processedAt: true, submittedAt: true },
-    }),
+    statusesAntesDeBorrar
+      ? Promise.resolve(statusesAntesDeBorrar)
+      : tx.userSnapshot.findMany({
+          where: { userId },
+          select: { snapshotId: true, status: true, processedAt: true, submittedAt: true },
+        }),
     tx.userPosition.findMany({
       where: { userId },
       select: { snapshotId: true, positionId: true, dataJson: true },
     }),
   ]);
 
-  const statusBySnapshotId = new Map(existingStatuses.map((s) => [s.snapshotId, { status: s.status, processedAt: s.processedAt, submittedAt: s.submittedAt }]));
+  const statusBySnapshotId = buildStatusMap(existingStatuses);
 
   // Build lookup: snapshotId:positionId → existing normalized data + _lastModified
   type ExistingEntry = { normalized: string; lastModified: string | undefined };
@@ -888,12 +918,56 @@ export async function PUT(request: Request) {
       return Response.json({ message: "No se encontró usuario para esta empresa." }, { status: 404 });
     }
 
+    // El guardado del admin no pasaba por el resellado de totales del camino
+    // normal, así que las filas quedaban con el `_cachedTotal*` que trajera el
+    // cliente. Se recalcula aquí con la tasa viva, igual que en el otro camino.
+    const [companyRecord, companyWorkspace, currentBcv] = await Promise.all([
+      prisma.company.findUnique({
+        where: { id: targetCompanyId },
+        select: { minVacationDays: true, minUtilityDays: true },
+      }),
+      prisma.userWorkspace.findFirst({
+        where: { userId: companyUser.id },
+        select: { companyInfoJson: true },
+      }),
+      getBcvRate(),
+    ]);
+
+    const companyInfoGuardada = safeParseCompanyInfo(companyWorkspace?.companyInfoJson ?? "");
+    const liveBcvUsd = currentBcv.rate;
+
+    if (liveBcvUsd) {
+      const tasas = (companyInfoGuardada.tasas ?? []).filter((t: ExchangeRate) => !t.isSystem);
+      const diasVac = Number(companyRecord?.minVacationDays ?? companyInfoGuardada.minVacationDays) || 0;
+      const diasUtil = Number(companyRecord?.minUtilityDays ?? companyInfoGuardada.minUtilityDays) || 0;
+
+      for (const snapshot of Object.values(nextSnapshots)) {
+        snapshot.rows = (snapshot.rows ?? []).map((row) => {
+          const totals = computeRowTotals(row, tasas, liveBcvUsd, diasVac, diasUtil);
+          return {
+            ...row,
+            _cachedTotalSinPasivosMensual:   totals.totalSinPasivosMensual,
+            _cachedTotalConPasivosMensual:    totals.totalConPasivosMensual,
+            _cachedTotalConPasivosAnual:      totals.totalConPasivosAnual,
+            _cachedTotalDirectoMensualizado:  totals.totalDirectoMensualizado,
+          };
+        });
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
+      // Los estados se leen ANTES de borrar: si no, el corte pierde su
+      // `submittedAt` cada vez que el admin guarda a nombre de la empresa.
+      const estadosPrevios = await tx.userSnapshot.findMany({
+        where: { companyId: targetCompanyId },
+        select: { snapshotId: true, status: true, processedAt: true, submittedAt: true },
+      });
+
       // Borrar todas las posiciones y snapshots de la empresa (todos los usuarios)
       // para que el save del admin sea la fuente de verdad sin residuos de otros usuarios
       await tx.userPosition.deleteMany({ where: { companyId: targetCompanyId } });
       await tx.userSnapshot.deleteMany({ where: { companyId: targetCompanyId } });
-      await syncRelationalWorkspace(tx, companyUser.id, targetCompanyId, nextSnapshots);
+      await syncRelationalWorkspace(tx, companyUser.id, targetCompanyId, nextSnapshots, estadosPrevios);
       await tx.userWorkspace.updateMany({
         where: { userId: companyUser.id },
         data: { snapshotsJson: JSON.stringify(nextSnapshots) },
