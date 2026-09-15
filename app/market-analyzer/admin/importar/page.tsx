@@ -7,6 +7,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import {
   SHEET_ADICIONALES,
   SHEET_CARGOS,
+  leerEmpresaDeclarada,
   parseCargosWorkbook,
   type CatalogCargo,
   type ImportIssue,
@@ -31,6 +32,8 @@ type FileEntry = {
   gradosHeredados: number;
   /** Tasas del archivo que la empresa todavía no tiene registradas. */
   tasasNuevas: number;
+  /** Nombre que la empresa escribió dentro del archivo. */
+  empresaDeclarada: string | null;
   yaEnviado: boolean;
   abierto: boolean;
 };
@@ -55,6 +58,35 @@ function adivinarEmpresa(nombreArchivo: string, empresas: CompanyOption[]): stri
     }
   }
   return mejor;
+}
+
+/** Empareja el nombre que la empresa escribió en el archivo con una registrada. */
+function buscarEmpresaPorNombre(nombre: string, empresas: CompanyOption[]): string {
+  const objetivo = norm(nombre);
+  if (!objetivo) return "";
+
+  const exacta = empresas.find((e) => norm(e.name) === objetivo);
+  if (exacta) return exacta.id;
+
+  let mejor = "";
+  let mejorLargo = 0;
+  for (const empresa of empresas) {
+    const candidato = norm(empresa.name);
+    if (candidato.length < 3) continue;
+    if ((objetivo.includes(candidato) || candidato.includes(objetivo)) && candidato.length > mejorLargo) {
+      mejor = empresa.id;
+      mejorLargo = candidato.length;
+    }
+  }
+  return mejor;
+}
+
+/** ¿El nombre escrito en el archivo se corresponde con el de la empresa elegida? */
+function coincideEmpresa(declarada: string, nombreEmpresa: string): boolean {
+  const a = norm(declarada);
+  const b = norm(nombreEmpresa);
+  if (!a || !b) return true;
+  return a === b || a.includes(b) || b.includes(a);
 }
 
 function contarPorNivel(issues: ImportIssue[], nivel: ImportIssue["nivel"]) {
@@ -147,7 +179,7 @@ export default function ImportarDataPage() {
     setCatalogo(null);
     setAviso("");
     setEntries((prev) => prev.map((e) => ({
-      ...e, estado: "sin_analizar", parsed: null, mensaje: "", filasActuales: 0, gradosHeredados: 0, tasasNuevas: 0, yaEnviado: false, abierto: false,
+      ...e, estado: "sin_analizar", parsed: null, mensaje: "", filasActuales: 0, gradosHeredados: 0, tasasNuevas: 0, empresaDeclarada: null, yaEnviado: false, abierto: false,
     })));
   }
 
@@ -167,6 +199,7 @@ export default function ImportarDataPage() {
       filasActuales: 0,
       gradosHeredados: 0,
       tasasNuevas: 0,
+      empresaDeclarada: null,
       yaEnviado: false,
       abierto: false,
     }));
@@ -188,24 +221,36 @@ export default function ImportarDataPage() {
 
   async function analizar() {
     if (!corte || !catalogo || catalogo.length === 0) return;
-
-    const pendientes = entries.filter((e) => e.companyId);
-    if (pendientes.length === 0) {
-      setAviso("Asigna una empresa a cada archivo antes de analizar.");
-      return;
-    }
+    if (entries.length === 0) return;
 
     setTrabajando(true);
     setAviso("");
 
-    for (const entry of pendientes) {
+    for (const entry of entries) {
       actualizar(entry.key, { estado: "analizando", mensaje: "" });
       try {
-        const [buffer, workspace] = await Promise.all([
-          entry.file.arrayBuffer(),
-          fetchWorkspace(entry.companyId),
-        ]);
+        const buffer = await entry.file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: "array" });
+
+        // Primero el nombre que la empresa escribió dentro del archivo: es una
+        // señal mucho más confiable que el nombre del archivo, que cualquiera
+        // renombra.
+        const empresaDeclarada = leerEmpresaDeclarada(workbook);
+        const companyId = entry.companyId || (empresaDeclarada ? buscarEmpresaPorNombre(empresaDeclarada, empresas) : "");
+
+        if (!companyId) {
+          actualizar(entry.key, {
+            estado: "fallido",
+            parsed: null,
+            empresaDeclarada,
+            mensaje: empresaDeclarada
+              ? `El archivo dice que es de "${empresaDeclarada}", que no coincide con ninguna empresa registrada. Elígela a mano.`
+              : "El archivo no dice de qué empresa es y el nombre del archivo no lo aclara. Elígela a mano.",
+          });
+          continue;
+        }
+
+        const workspace = await fetchWorkspace(companyId);
         const tasas = (workspace.companyInfo.tasas ?? []).filter((t) => !t.isSystem);
         const parsed = parseCargosWorkbook(workbook, catalogo, tasas);
         const existente = workspace.snapshots[corte.id];
@@ -214,6 +259,8 @@ export default function ImportarDataPage() {
         actualizar(entry.key, {
           estado: "analizado",
           parsed,
+          companyId,
+          empresaDeclarada,
           filasActuales: existente?.rows?.length ?? 0,
           gradosHeredados,
           tasasNuevas: parsed.tasasNuevas.length,
@@ -349,6 +396,16 @@ export default function ImportarDataPage() {
   }, [entries]);
 
   const sinEmpresa = entries.filter((e) => !e.companyId).length;
+
+  /** Archivos cuyo nombre de empresa interno no cuadra con la empresa elegida. */
+  const discrepancias = useMemo(() => {
+    return entries.flatMap((e) => {
+      if (!e.empresaDeclarada || !e.companyId) return [];
+      const empresa = empresas.find((c) => c.id === e.companyId);
+      if (!empresa || coincideEmpresa(e.empresaDeclarada, empresa.name)) return [];
+      return [{ archivo: e.file.name, dice: e.empresaDeclarada, elegida: empresa.name }];
+    });
+  }, [entries, empresas]);
   const empresasRepetidas = useMemo(() => {
     const cuenta = new Map<string, number>();
     entries.forEach((e) => { if (e.companyId) cuenta.set(e.companyId, (cuenta.get(e.companyId) ?? 0) + 1); });
@@ -356,7 +413,9 @@ export default function ImportarDataPage() {
   }, [entries, empresas]);
 
   const puedeAnalizar = Boolean(corte) && (catalogo?.length ?? 0) > 0 && entries.length > 0 && !trabajando;
-  const puedeImportar = resumen.cargos > 0 && !trabajando && empresasRepetidas.length === 0;
+  // Una discrepancia de empresa bloquea: cargar el archivo de una empresa en
+  // otra le borraría los sueldos buenos en modo Reemplazar.
+  const puedeImportar = resumen.cargos > 0 && !trabajando && empresasRepetidas.length === 0 && discrepancias.length === 0;
 
   return (
     <main className="page-wrap">
@@ -574,6 +633,7 @@ export default function ImportarDataPage() {
                                   {entry.filasActuales} ya cargados en este corte
                                   {entry.gradosHeredados > 0 ? ` · ${entry.gradosHeredados} conservan el grado CAPRI que ya tenían` : ""}
                                   {entry.tasasNuevas > 0 ? ` · ${entry.tasasNuevas} ${entry.tasasNuevas === 1 ? "tasa nueva" : "tasas nuevas"}` : ""}
+                                  {entry.empresaDeclarada ? ` · el archivo dice ser de “${entry.empresaDeclarada}”` : ""}
                                   {entry.yaEnviado ? " · la empresa ya envió este corte" : ""}
                                 </p>
                                 {entry.parsed.issues.length > 0 && (
@@ -607,6 +667,25 @@ export default function ImportarDataPage() {
               <AlertTriangle className="h-3.5 w-3.5" /> {sinEmpresa} {sinEmpresa === 1 ? "archivo sin empresa asignada" : "archivos sin empresa asignada"}.
             </p>
           )}
+          {discrepancias.length > 0 && (
+            <div className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-xs text-red-700">
+              <p className="flex items-center gap-1.5 font-semibold">
+                <AlertTriangle className="h-3.5 w-3.5" /> El archivo no coincide con la empresa elegida
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {discrepancias.map((d) => (
+                  <li key={d.archivo}>
+                    <strong>{d.archivo}</strong> dice ser de “{d.dice}”, pero está asignado a “{d.elegida}”.
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2">
+                Corrige la empresa en la lista, o corrige el nombre dentro del archivo. No se puede cargar hasta
+                resolverlo: cargar los sueldos de una empresa en otra le borraría los suyos.
+              </p>
+            </div>
+          )}
+
           {empresasRepetidas.length > 0 && (
             <p className="mt-3 flex items-center gap-1.5 text-xs text-red-600">
               <AlertTriangle className="h-3.5 w-3.5" /> Hay más de un archivo para {empresasRepetidas.join(", ")}. El segundo pisaría al primero.

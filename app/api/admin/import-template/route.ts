@@ -122,6 +122,8 @@ export async function GET(request: Request) {
   const bloques: Array<[string, string]> = [
     ["Carga de data salarial", ""],
     ["Corte", `${nombreCorte} — ${fechaCorte}`],
+    ["Empresa", "ESCRIBE AQUÍ EL NOMBRE DE LA EMPRESA"],
+    ["", "Es lo primero que hay que llenar. Sin eso, quien cargue el archivo no tiene forma de saber de quién es, y los sueldos podrían terminar cargados en otra empresa."],
     ["", ""],
     ["Las cuatro hojas", ""],
     [SHEET_CARGOS, "Una fila por cargo. El sueldo básico y el bono de alimentación."],
@@ -227,6 +229,18 @@ export async function GET(request: Request) {
     const fila = instrucciones.addRow([a, b]);
     if (b === "" && a !== "") fila.getCell(1).font = { bold: true, size: 11 };
     fila.getCell(2).alignment = { wrapText: true, vertical: "top" };
+
+    // La celda de la empresa se resalta: es la única de esta hoja que se llena,
+    // y es lo que evita que un archivo termine cargado en la empresa equivocada.
+    if (a === "Empresa") {
+      fila.getCell(1).font = { bold: true, size: 11 };
+      fila.getCell(2).font = { bold: true, size: 11 };
+      fila.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF3C4" } };
+      fila.getCell(2).border = {
+        top: { style: "thin" }, left: { style: "thin" },
+        bottom: { style: "thin" }, right: { style: "thin" },
+      };
+    }
   });
 
   // ── Cargos ────────────────────────────────────────────────────────────────

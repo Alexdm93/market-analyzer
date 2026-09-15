@@ -50,6 +50,8 @@ export type ParsedImport = {
   filasDescartadas: number;
   /** Tasas declaradas en el archivo que la empresa todavía no tiene registradas. */
   tasasNuevas: ExchangeRate[];
+  /** Nombre que la empresa escribió en la hoja de instrucciones, si lo escribió. */
+  empresaDeclarada: string | null;
 };
 
 export const SHEET_CARGOS = "Cargos";
@@ -312,6 +314,31 @@ function buildTasaIndex(tasas: ExchangeRate[]): Map<string, ExchangeRate> {
   return map;
 }
 
+/** Texto de relleno que trae la plantilla; no es un nombre de empresa. */
+const PLACEHOLDER_EMPRESA = "escribe aqui el nombre de la empresa";
+
+/**
+ * Busca el nombre de la empresa en la hoja de instrucciones.
+ *
+ * Se localiza por la etiqueta de la primera columna y no por una celda fija,
+ * para que siga funcionando si esa hoja se reordena. Es la única defensa contra
+ * cargar el archivo de una empresa en otra: el nombre del archivo no sirve,
+ * cualquiera lo renombra.
+ */
+export function leerEmpresaDeclarada(workbook: XLSX.WorkBook): string | null {
+  const hoja = workbook.Sheets[SHEET_INSTRUCCIONES];
+  if (!hoja) return null;
+
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, blankrows: false, defval: "" });
+  for (const filaArr of matrix) {
+    if (norm(filaArr?.[0]) !== "empresa") continue;
+    const valor = text(filaArr?.[1]);
+    if (!valor || norm(valor) === PLACEHOLDER_EMPRESA) return null;
+    return valor;
+  }
+  return null;
+}
+
 /**
  * Lee la hoja de tasas. Es aditiva a propósito: si la empresa ya tiene una tasa
  * con ese nombre, se respeta la suya y solo se avisa cuando el valor difiere.
@@ -398,6 +425,7 @@ export function parseCargosWorkbook(
   if (!hojaCargos) {
     return {
       rows: [], filasLeidas: 0, filasVacias: 0, filasSinLlenar: 0, filasDescartadas: 0, tasasNuevas: [],
+      empresaDeclarada: leerEmpresaDeclarada(workbook),
       issues: [{ fila: null, hoja: SHEET_CARGOS, nivel: "error", mensaje: "El archivo no tiene ninguna hoja que se pueda leer." }],
     };
   }
@@ -657,5 +685,6 @@ export function parseCargosWorkbook(
     filasLeidas: registros.length - filasVacias - sinLlenar,
     filasVacias, filasSinLlenar: sinLlenar, filasDescartadas: descartadas,
     tasasNuevas,
+    empresaDeclarada: leerEmpresaDeclarada(workbook),
   };
 }
