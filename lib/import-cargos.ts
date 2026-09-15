@@ -49,7 +49,6 @@ const COL = {
   cargo: "Cargo",
   grado: "Grado CAPRI",
   familia: "Familia CAPRI",
-  descripcion: "Descripción",
 } as const;
 
 /** Un bloque de columnas por concepto: monto, frecuencia, monedas, tasa e impacto. */
@@ -124,7 +123,7 @@ function col(prefijo: string, sufijo: string) {
 }
 
 export const CARGOS_HEADERS: string[] = [
-  COL.departamento, COL.cargo, COL.grado, COL.familia, COL.descripcion,
+  COL.departamento, COL.cargo, COL.grado, COL.familia,
   ...BLOQUES.flatMap((b) => [
     b.prefijo,
     col(b.prefijo, SUF.frecuencia),
@@ -408,9 +407,6 @@ export function parseCargosWorkbook(
       additionalVariablePayments: [],
     };
 
-    const descripcion = text(pick(registro, COL.descripcion));
-    if (descripcion) row.descripcion = descripcion;
-
     // Grado y familia CAPRI
     const gradoRaw = pick(registro, COL.grado);
     const gradoTexto = text(gradoRaw);
@@ -595,6 +591,11 @@ export function buildTemplateWorkbook(options: {
     ["3", "Borra las filas de los cargos que la empresa no tiene. Las filas sin montos se ignoran."],
     ["4", "No repitas el mismo cargo dos veces."],
     ["5", "Los montos van como número, sin símbolos de moneda ni texto."],
+    [],
+    ["Qué pasa con una celda en blanco"],
+    ["", "Una celda vacía NO conserva lo que la empresa ya tenga cargado en la plataforma: se toma el valor por defecto."],
+    ["", "Un monto en blanco es cero. Una frecuencia en blanco es Mensual. Una moneda en blanco es USD."],
+    ["", "La única excepción es el grado CAPRI: si la columna va vacía y el cargo ya estaba clasificado en la plataforma, se conserva la clasificación que tenía."],
     [],
     ["Qué hace falta para que el corte se pueda enviar"],
     ["", "Cargo del catálogo · Grado CAPRI (8 a 25) · Sueldo básico mayor que cero."],

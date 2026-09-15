@@ -13,6 +13,7 @@ import {
   type ParsedImport,
 } from "@/lib/import-cargos";
 import type { Snapshot } from "@/lib/workspace";
+import type { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 type AdminSnapshot = { id: string; label: string; date: string; published?: boolean };
@@ -27,6 +28,7 @@ type FileEntry = {
   parsed: ParsedImport | null;
   mensaje: string;
   filasActuales: number;
+  gradosHeredados: number;
   yaEnviado: boolean;
   abierto: boolean;
 };
@@ -55,6 +57,41 @@ function adivinarEmpresa(nombreArchivo: string, empresas: CompanyOption[]): stri
 
 function contarPorNivel(issues: ImportIssue[], nivel: ImportIssue["nivel"]) {
   return issues.filter((i) => i.nivel === nivel).length;
+}
+
+/**
+ * Una celda en blanco deja el valor por defecto, no conserva lo que la empresa
+ * ya tuviera cargado. Con el grado CAPRI eso sería destructivo: muchas empresas
+ * ya clasificaron sus cargos dentro de la plataforma y su Excel no trae el
+ * grado. Así que el grado y su familia se heredan del cargo que ya existía
+ * cuando el archivo no los trae. La descripción se hereda siempre, porque la
+ * plantilla ya no la pide.
+ */
+function heredarDeExistentes(
+  importadas: ExtendedMarketPosition[],
+  existentes: ExtendedMarketPosition[],
+): { filas: ExtendedMarketPosition[]; gradosHeredados: number } {
+  const previas = new Map(existentes.map((r) => [norm(r.tituloCargo ?? ""), r]));
+  let gradosHeredados = 0;
+
+  const filas = importadas.map((fila) => {
+    const previa = previas.get(norm(fila.tituloCargo));
+    if (!previa) return fila;
+
+    const heredaGrado = fila.hayGrade === undefined && previa.hayGrade !== undefined;
+    if (heredaGrado) gradosHeredados++;
+
+    // La familia solo viaja junto al grado: heredarla sobre un grado distinto
+    // podría dejar una combinación que el propio asistente CAPRI no permite.
+    return {
+      ...fila,
+      hayGrade: fila.hayGrade ?? previa.hayGrade,
+      capriFamily: heredaGrado ? previa.capriFamily : fila.capriFamily,
+      descripcion: fila.descripcion ?? previa.descripcion,
+    };
+  });
+
+  return { filas, gradosHeredados };
 }
 
 export default function ImportarDataPage() {
@@ -108,7 +145,7 @@ export default function ImportarDataPage() {
     setCatalogo(null);
     setAviso("");
     setEntries((prev) => prev.map((e) => ({
-      ...e, estado: "sin_analizar", parsed: null, mensaje: "", filasActuales: 0, yaEnviado: false, abierto: false,
+      ...e, estado: "sin_analizar", parsed: null, mensaje: "", filasActuales: 0, gradosHeredados: 0, yaEnviado: false, abierto: false,
     })));
   }
 
@@ -126,6 +163,7 @@ export default function ImportarDataPage() {
       parsed: null,
       mensaje: "",
       filasActuales: 0,
+      gradosHeredados: 0,
       yaEnviado: false,
       abierto: false,
     }));
@@ -169,11 +207,13 @@ export default function ImportarDataPage() {
         const tasas = (workspace.companyInfo.tasas ?? []).filter((t) => !t.isSystem);
         const parsed = parseCargosWorkbook(workbook, catalogo, tasas);
         const existente = workspace.snapshots[corte.id];
+        const { gradosHeredados } = heredarDeExistentes(parsed.rows, existente?.rows ?? []);
 
         actualizar(entry.key, {
           estado: "analizado",
           parsed,
           filasActuales: existente?.rows?.length ?? 0,
+          gradosHeredados,
           yaEnviado: Boolean(existente?.submittedAt),
           mensaje: "",
         });
@@ -198,11 +238,15 @@ export default function ImportarDataPage() {
     const totalCargos = listos.reduce((acc, e) => acc + (e.parsed?.rows.length ?? 0), 0);
     const reemplaza = listos.reduce((acc, e) => acc + (modo === "reemplazar" ? e.filasActuales : 0), 0);
     const enviados = listos.filter((e) => e.yaEnviado).length;
+    const heredados = listos.reduce((acc, e) => acc + e.gradosHeredados, 0);
 
     const lineas = [
       `Se van a cargar ${totalCargos} cargos en ${listos.length} ${listos.length === 1 ? "empresa" : "empresas"} del corte ${corte.label}.`,
       modo === "reemplazar" && reemplaza > 0
         ? `Se reemplazan ${reemplaza} cargos que esas empresas ya tenían cargados en este corte.`
+        : "",
+      heredados > 0
+        ? `${heredados} cargos conservan el grado CAPRI que ya tenían en la plataforma, porque el archivo no lo trae.`
         : "",
       enviados > 0
         ? `${enviados} de esas empresas ya habían enviado este corte; su data queda modificada y sigue contando como enviada.`
@@ -242,10 +286,12 @@ export default function ImportarDataPage() {
           rows: [],
         };
 
-        let filas = importadas;
+        const { filas: conHerencia } = heredarDeExistentes(importadas, base.rows ?? []);
+
+        let filas = conHerencia;
         if (modo === "completar") {
-          const nuevas = new Set(importadas.map((r) => norm(r.tituloCargo)));
-          filas = [...(base.rows ?? []).filter((r) => !nuevas.has(norm(r.tituloCargo ?? ""))), ...importadas];
+          const nuevas = new Set(conHerencia.map((r) => norm(r.tituloCargo)));
+          filas = [...(base.rows ?? []).filter((r) => !nuevas.has(norm(r.tituloCargo ?? ""))), ...conHerencia];
         }
 
         const siguientes: Record<string, Snapshot> = {
@@ -371,6 +417,12 @@ export default function ImportarDataPage() {
               completar después dentro de la plataforma. Un cargo que no esté en el catálogo del corte no se carga:
               la plataforma lo borraría en cuanto la empresa abriera su Data.
             </p>
+            <p className="mt-3">
+              Una celda vacía <strong>no conserva</strong> lo que la empresa ya tenga cargado: se toma el valor por
+              defecto (monto en cero, frecuencia mensual, moneda USD). La excepción es el grado CAPRI, que se conserva
+              cuando el archivo no lo trae y el cargo ya estaba clasificado. La descripción del cargo no va en el
+              archivo: sale del catálogo que mantiene el admin, igual para todas las empresas.
+            </p>
           </div>
         </section>
 
@@ -424,7 +476,7 @@ export default function ImportarDataPage() {
                               <select
                                 aria-label={`Empresa para ${entry.file.name}`}
                                 value={entry.companyId}
-                                onChange={(e) => actualizar(entry.key, { companyId: e.target.value, estado: "sin_analizar", parsed: null, mensaje: "" })}
+                                onChange={(e) => actualizar(entry.key, { companyId: e.target.value, estado: "sin_analizar", parsed: null, mensaje: "", gradosHeredados: 0 })}
                                 className="field-select text-sm"
                                 disabled={trabajando || entry.estado === "importado"}
                               >
@@ -489,6 +541,7 @@ export default function ImportarDataPage() {
                                 <p className="text-xs text-slate-600">
                                   {entry.parsed.rows.length} cargos válidos · {entry.parsed.filasDescartadas} descartados ·{" "}
                                   {entry.filasActuales} ya cargados en este corte
+                                  {entry.gradosHeredados > 0 ? ` · ${entry.gradosHeredados} conservan el grado CAPRI que ya tenían` : ""}
                                   {entry.yaEnviado ? " · la empresa ya envió este corte" : ""}
                                 </p>
                                 {entry.parsed.issues.length > 0 && (
