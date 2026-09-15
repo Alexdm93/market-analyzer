@@ -5,8 +5,8 @@ import { AlertTriangle, ArrowRight, Check, Download, FileSpreadsheet, Info, Load
 
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
+  SHEET_ADICIONALES,
   SHEET_CARGOS,
-  buildTemplateWorkbook,
   parseCargosWorkbook,
   type CatalogCargo,
   type ImportIssue,
@@ -172,16 +172,15 @@ export default function ImportarDataPage() {
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  async function descargarPlantilla() {
-    if (!corte || !catalogo) return;
-    const wb = buildTemplateWorkbook({
-      catalogo,
-      tasas: [],
-      nombreCorte: `${corte.label} (${corte.date})`,
-      nombreEmpresa: "",
-      prellenarCatalogo: prellenar,
-    });
-    XLSX.writeFile(wb, `Plantilla data salarial - ${corte.label}.xlsx`);
+  /**
+   * La plantilla se arma en el servidor: exceljs sabe escribir los desplegables
+   * de Excel y xlsx no, y así tampoco entra al bundle de esta pantalla.
+   */
+  function urlPlantilla() {
+    if (!corte) return "#";
+    const params = new URLSearchParams({ snapshotId: corte.id });
+    if (!prellenar) params.set("prellenar", "0");
+    return `/api/admin/import-template?${params.toString()}`;
   }
 
   async function analizar() {
@@ -387,14 +386,15 @@ export default function ImportarDataPage() {
 
             <div>
               <span className="field-label">Plantilla</span>
-              <button
-                type="button"
-                onClick={() => void descargarPlantilla()}
-                disabled={!corte || !catalogo || catalogo.length === 0}
-                className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Download size={16} /> Descargar plantilla del corte
-              </button>
+              {corte && catalogo && catalogo.length > 0 ? (
+                <a href={urlPlantilla()} className="btn-secondary w-full justify-center">
+                  <Download size={16} /> Descargar plantilla del corte
+                </a>
+              ) : (
+                <span className="btn-secondary w-full cursor-not-allowed justify-center opacity-50">
+                  <Download size={16} /> Descargar plantilla del corte
+                </span>
+              )}
               <label className="mt-3 flex items-start gap-2 text-xs text-slate-600">
                 <input
                   type="checkbox"
@@ -419,9 +419,14 @@ export default function ImportarDataPage() {
             </p>
             <p className="mt-3">
               Una celda vacía <strong>no conserva</strong> lo que la empresa ya tenga cargado: se toma el valor por
-              defecto (monto en cero, frecuencia mensual, moneda USD). La excepción es el grado CAPRI, que se conserva
-              cuando el archivo no lo trae y el cargo ya estaba clasificado. La descripción del cargo no va en el
-              archivo: sale del catálogo que mantiene el admin, igual para todas las empresas.
+              defecto (monto en cero, moneda USD). La excepción es el grado CAPRI, que se conserva cuando el archivo no
+              lo trae y el cargo ya estaba clasificado.
+            </p>
+            <p className="mt-3">
+              La plantilla solo pide lo que la pantalla de Data deja editar por cargo. La descripción sale del catálogo
+              que mantenés vos, y la frecuencia y el impacto en prestaciones del sueldo y del bono de alimentación están
+              fijos en la plataforma. Cualquier otro concepto —movilización, desempeño, comisiones, primas— va en la
+              hoja <strong>{SHEET_ADICIONALES}</strong>, que sí se ve y se edita cargo por cargo.
             </p>
           </div>
         </section>
@@ -540,6 +545,7 @@ export default function ImportarDataPage() {
                               <td colSpan={5} className="bg-slate-50 px-4 py-3">
                                 <p className="text-xs text-slate-600">
                                   {entry.parsed.rows.length} cargos válidos · {entry.parsed.filasDescartadas} descartados ·{" "}
+                                  {entry.parsed.filasSinLlenar} filas del catálogo sin llenar ·{" "}
                                   {entry.filasActuales} ya cargados en este corte
                                   {entry.gradosHeredados > 0 ? ` · ${entry.gradosHeredados} conservan el grado CAPRI que ya tenían` : ""}
                                   {entry.yaEnviado ? " · la empresa ya envió este corte" : ""}

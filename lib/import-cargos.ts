@@ -1,13 +1,23 @@
 /**
  * Carga masiva de cargos desde Excel.
  *
- * Todo ocurre en el navegador: se genera la plantilla, se lee el archivo que
- * devuelve la empresa y se arma un `ExtendedMarketPosition` por fila. La
- * escritura se hace después con el mismo `PUT /api/workspace?companyId=…` que
- * usa la pantalla de Data, así que no hay una ruta nueva que pueda dejar la
- * data en un estado que el resto de la aplicación no entienda.
+ * La plantilla se genera en el servidor (`/api/admin/import-template`) y el
+ * archivo que devuelve la empresa se lee aquí, en el navegador. La escritura
+ * reutiliza `PUT /api/workspace?companyId=…`, el mismo camino que usa la
+ * pantalla de Data, así que no hay una ruta nueva que pueda dejar la data en un
+ * estado que el resto de la aplicación no entienda.
  *
- * Reglas que no son negociables (las impone el resto del sistema):
+ * La plantilla solo pide lo que la pantalla de Data deja editar por cargo. Todo
+ * lo que la página fija o no muestra se quedó fuera a propósito:
+ *
+ *  - La frecuencia del sueldo y del bono de alimentación es siempre mensual, y
+ *    su impacto en prestaciones está fijo (sí para el sueldo, no para el bono).
+ *  - `bonoMovilizacion`, `bonoDesempeno`, `comisiones` y `pagoVariableOtros`
+ *    suman en los totales pero NO tienen interfaz: cargarlos ahí dejaría dinero
+ *    que la empresa no puede ver ni corregir. Esos conceptos van por la hoja de
+ *    pagos adicionales, que sí se ve y se edita.
+ *
+ * Reglas que impone el resto del sistema:
  *  - El par (departamento, cargo) tiene que existir en el catálogo del corte.
  *    Si no existe, la pantalla de Data borra la fila la próxima vez que la
  *    empresa entra — ver el efecto de `snapshot-cargos` en data/page.tsx.
@@ -35,34 +45,49 @@ export type ParsedImport = {
   issues: ImportIssue[];
   filasLeidas: number;
   filasVacias: number;
+  /** Filas del catálogo que venían en la plantilla y la empresa no llenó. */
+  filasSinLlenar: number;
   filasDescartadas: number;
 };
 
 export const SHEET_CARGOS = "Cargos";
-export const SHEET_ADICIONALES = "Pagos adicionales";
+export const SHEET_ADICIONALES = "Otros pagos";
 export const SHEET_TASAS = "Tasas";
 export const SHEET_CATALOGO = "Catálogo del corte";
 export const SHEET_INSTRUCCIONES = "Instrucciones";
+export const SHEET_LISTAS = "Listas";
 
-const COL = {
+export const COL = {
   departamento: "Departamento",
   cargo: "Cargo",
   grado: "Grado CAPRI",
   familia: "Familia CAPRI",
 } as const;
 
-/** Un bloque de columnas por concepto: monto, frecuencia, monedas, tasa e impacto. */
+export const SUF = {
+  cuenta: "Moneda del monto",
+  pago: "Moneda de pago",
+  tasa: "Tasa",
+} as const;
+
+export function col(prefijo: string, sufijo: string) {
+  return `${prefijo} - ${sufijo}`;
+}
+
+/**
+ * Los dos únicos conceptos con columnas propias, porque son los dos que la
+ * pantalla de Data muestra fijos para cada cargo. Su frecuencia y su impacto
+ * en prestaciones no se piden: la página los tiene bloqueados.
+ */
 type ConceptBlock = {
   prefijo: string;
-  campoMonto: keyof ExtendedMarketPosition;
-  campoFreq: keyof ExtendedMarketPosition;
-  campoCuenta: keyof ExtendedMarketPosition;
-  campoPago: keyof ExtendedMarketPosition;
-  campoImpacto: keyof ExtendedMarketPosition;
-  /** Solo el sueldo y el bono de alimentación guardan una tasa propia. */
-  campoTasa: keyof ExtendedMarketPosition | null;
-  freqPorDefecto: PaymentFrequency;
-  impactoPorDefecto: boolean;
+  campoMonto: "sueldoBasico" | "bonoAlimentacion";
+  campoFreq: "sueldoBasicoFreq" | "bonoAlimentacionFreq";
+  campoCuenta: "sueldoBasicoCuentaMoneda" | "bonoAlimentacionCuentaMoneda";
+  campoPago: "sueldoBasicoMonedaPago" | "bonoAlimentacionMonedaPago";
+  campoImpacto: "sueldoBasicoImpacto" | "bonoAlimentacionImpacto";
+  campoTasa: "sueldoBasicoTasaId" | "bonoAlimentacionTasaId";
+  impactoFijo: boolean;
 };
 
 const BLOQUES: ConceptBlock[] = [
@@ -71,73 +96,38 @@ const BLOQUES: ConceptBlock[] = [
     campoMonto: "sueldoBasico", campoFreq: "sueldoBasicoFreq",
     campoCuenta: "sueldoBasicoCuentaMoneda", campoPago: "sueldoBasicoMonedaPago",
     campoImpacto: "sueldoBasicoImpacto", campoTasa: "sueldoBasicoTasaId",
-    freqPorDefecto: "monthly", impactoPorDefecto: true,
+    impactoFijo: true,
   },
   {
     prefijo: "Bono alimentación",
     campoMonto: "bonoAlimentacion", campoFreq: "bonoAlimentacionFreq",
     campoCuenta: "bonoAlimentacionCuentaMoneda", campoPago: "bonoAlimentacionMonedaPago",
     campoImpacto: "bonoAlimentacionImpacto", campoTasa: "bonoAlimentacionTasaId",
-    freqPorDefecto: "monthly", impactoPorDefecto: false,
-  },
-  {
-    prefijo: "Bono movilización",
-    campoMonto: "bonoMovilizacion", campoFreq: "bonoMovilizacionFreq",
-    campoCuenta: "bonoMovilizacionCuentaMoneda", campoPago: "bonoMovilizacionMonedaPago",
-    campoImpacto: "bonoMovilizacionImpacto", campoTasa: null,
-    freqPorDefecto: "monthly", impactoPorDefecto: true,
-  },
-  {
-    prefijo: "Bono desempeño",
-    campoMonto: "bonoDesempeno", campoFreq: "bonoDesempenoFreq",
-    campoCuenta: "bonoDesempenoCuentaMoneda", campoPago: "bonoDesempenoMonedaPago",
-    campoImpacto: "bonoDesempenoImpacto", campoTasa: null,
-    freqPorDefecto: "monthly", impactoPorDefecto: true,
-  },
-  {
-    prefijo: "Comisiones",
-    campoMonto: "comisiones", campoFreq: "comisionesFreq",
-    campoCuenta: "comisionesCuentaMoneda", campoPago: "comisionesMonedaPago",
-    campoImpacto: "comisionesImpacto", campoTasa: null,
-    freqPorDefecto: "monthly", impactoPorDefecto: true,
-  },
-  {
-    prefijo: "Otros pagos variables",
-    campoMonto: "pagoVariableOtros", campoFreq: "pagoVariableOtrosFreq",
-    campoCuenta: "pagoVariableOtrosCuentaMoneda", campoPago: "pagoVariableOtrosMonedaPago",
-    campoImpacto: "pagoVariableOtrosImpacto", campoTasa: null,
-    freqPorDefecto: "monthly", impactoPorDefecto: true,
+    impactoFijo: false,
   },
 ];
 
-const SUF = {
-  frecuencia: "Frecuencia",
-  cuenta: "Moneda del monto",
-  pago: "Moneda de pago",
-  tasa: "Tasa",
-  impacto: "Impacta prestaciones",
-} as const;
-
-function col(prefijo: string, sufijo: string) {
-  return `${prefijo} - ${sufijo}`;
-}
-
 export const CARGOS_HEADERS: string[] = [
   COL.departamento, COL.cargo, COL.grado, COL.familia,
-  ...BLOQUES.flatMap((b) => [
-    b.prefijo,
-    col(b.prefijo, SUF.frecuencia),
-    col(b.prefijo, SUF.cuenta),
-    col(b.prefijo, SUF.pago),
-    ...(b.campoTasa ? [col(b.prefijo, SUF.tasa)] : []),
-    col(b.prefijo, SUF.impacto),
-  ]),
+  ...BLOQUES.flatMap((b) => [b.prefijo, col(b.prefijo, SUF.cuenta), col(b.prefijo, SUF.pago), col(b.prefijo, SUF.tasa)]),
 ];
 
 export const ADICIONALES_HEADERS = [
   "Cargo", "Clase", "Concepto", "Monto", "Frecuencia",
   "Moneda del monto", "Moneda de pago", "Tasa", "Impacta prestaciones", "Tipo de variable",
 ];
+
+/** Listas que la plantilla ofrece como desplegable. */
+export const OPCIONES = {
+  moneda: ["USD", "VES"],
+  clase: ["Fijo", "Variable"],
+  tipoVariable: ["Desempeño", "Comisión"],
+  familia: ["IC", "LO", "GE", "EJ"],
+  siNo: ["Sí", "No"],
+  /** El concepto fijo no admite quincenal; el variable sí. */
+  frecuenciaFija: ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"],
+  frecuenciaVariable: ["Quincenal", "Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"],
+} as const;
 
 // ── Normalización de valores ────────────────────────────────────────────────
 
@@ -292,10 +282,8 @@ function esFilaVacia(row: Record<string, unknown>): boolean {
   return Object.entries(row).every(([k, v]) => k === "__fila" || text(v).length === 0);
 }
 
-type CatalogIndex = Map<string, CatalogCargo[]>;
-
-function buildCatalogIndex(catalogo: CatalogCargo[]): CatalogIndex {
-  const map: CatalogIndex = new Map();
+function buildCatalogIndex(catalogo: CatalogCargo[]): Map<string, CatalogCargo[]> {
+  const map = new Map<string, CatalogCargo[]>();
   for (const c of catalogo) {
     const key = norm(c.tituloCargo);
     if (!key) continue;
@@ -327,7 +315,7 @@ export function parseCargosWorkbook(
   const hojaCargos = workbook.Sheets[SHEET_CARGOS] ?? workbook.Sheets[workbook.SheetNames[0]];
   if (!hojaCargos) {
     return {
-      rows: [], filasLeidas: 0, filasVacias: 0, filasDescartadas: 0,
+      rows: [], filasLeidas: 0, filasVacias: 0, filasSinLlenar: 0, filasDescartadas: 0,
       issues: [{ fila: null, hoja: SHEET_CARGOS, nivel: "error", mensaje: "El archivo no tiene ninguna hoja que se pueda leer." }],
     };
   }
@@ -339,6 +327,7 @@ export function parseCargosWorkbook(
   const vistos = new Map<string, number>();
   const porCargo = new Map<string, ExtendedMarketPosition>();
   let filasVacias = 0;
+  let sinLlenar = 0;
   let descartadas = 0;
 
   registros.forEach((registro, idx) => {
@@ -348,10 +337,16 @@ export function parseCargosWorkbook(
 
     const tituloArchivo = text(pick(registro, COL.cargo));
     const deptArchivo = text(pick(registro, COL.departamento));
+    const gradoRaw = pick(registro, COL.grado);
+    const gradoTexto = text(gradoRaw);
+    const tieneMontos = BLOQUES.some((b) => parseAmount(pick(registro, b.prefijo)).valor !== 0);
+
+    // La plantilla se descarga con los cargos del catálogo ya escritos. Las que
+    // la empresa no llenó traen departamento y cargo pero nada más: son filas
+    // que sobraron, no cargos en cero.
+    if (tituloArchivo && !tieneMontos && !gradoTexto) { sinLlenar++; return; }
 
     if (!tituloArchivo) {
-      // Una fila del catálogo que quedó sin llenar no es un error: se ignora.
-      const tieneMontos = BLOQUES.some((b) => parseAmount(pick(registro, b.prefijo)).valor !== 0);
       if (!tieneMontos) { filasVacias++; return; }
       issues.push({ fila, hoja: SHEET_CARGOS, nivel: "error", mensaje: "Tiene montos pero no dice a qué cargo pertenece." });
       descartadas++;
@@ -408,12 +403,10 @@ export function parseCargosWorkbook(
     };
 
     // Grado y familia CAPRI
-    const gradoRaw = pick(registro, COL.grado);
-    const gradoTexto = text(gradoRaw);
     if (gradoTexto) {
       const grado = Math.round(parseAmount(gradoRaw).valor);
       if (!Number.isFinite(grado) || grado < 8 || grado > 25) {
-        issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `Grado CAPRI "${gradoTexto}" fuera del rango 8-25; la fila queda sin clasificar.` });
+        issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `Grado CAPRI "${gradoTexto}" fuera del rango 8-25; se ignora.` });
       } else {
         row.hayGrade = grado;
         const familiaTexto = norm(pick(registro, COL.familia));
@@ -433,13 +426,10 @@ export function parseCargosWorkbook(
           });
         }
       }
-    } else {
-      issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: "Sin grado CAPRI: la fila se carga, pero el corte no se puede enviar hasta clasificarla." });
     }
 
     const campos = row as unknown as Record<string, unknown>;
 
-    // Conceptos
     for (const bloque of BLOQUES) {
       const montoRaw = pick(registro, bloque.prefijo);
       const { valor: monto, ambiguo } = parseAmount(montoRaw);
@@ -450,48 +440,35 @@ export function parseCargosWorkbook(
         });
       }
 
-      const freq = parseFrequency(pick(registro, col(bloque.prefijo, SUF.frecuencia)), bloque.freqPorDefecto);
       const cuenta = parseCurrency(pick(registro, col(bloque.prefijo, SUF.cuenta)), "USD");
       const pago = parseCurrency(pick(registro, col(bloque.prefijo, SUF.pago)), cuenta.valor);
-      const impacto = parseBool(pick(registro, col(bloque.prefijo, SUF.impacto)), bloque.impactoPorDefecto);
 
       if (monto !== 0) {
-        if (!freq.reconocido) issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `Frecuencia no reconocida en ${bloque.prefijo}; se usa Mensual.` });
         if (!cuenta.reconocido) issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `Moneda del monto no reconocida en ${bloque.prefijo}; se usa USD.` });
         if (!pago.reconocido) issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `Moneda de pago no reconocida en ${bloque.prefijo}; se usa la del monto.` });
-        if (!impacto.reconocido) issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `"Impacta prestaciones" no reconocido en ${bloque.prefijo}; se usa el valor por defecto.` });
       }
 
       campos[bloque.campoMonto] = monto;
-      campos[bloque.campoFreq] = freq.valor;
       campos[bloque.campoCuenta] = cuenta.valor;
       campos[bloque.campoPago] = pago.valor;
-      campos[bloque.campoImpacto] = impacto.valor;
+      // La página tiene estos dos bloqueados; se escriben igual que ella.
+      campos[bloque.campoFreq] = "monthly" satisfies PaymentFrequency;
+      campos[bloque.campoImpacto] = bloque.impactoFijo;
 
-      if (bloque.campoTasa) {
-        const tasaTexto = text(pick(registro, col(bloque.prefijo, SUF.tasa)));
-        let tasaId = "";
-        if (tasaTexto) {
-          const tasa = tasaIndex.get(norm(tasaTexto));
-          if (tasa) {
-            tasaId = tasa.id;
-          } else if (monto !== 0) {
-            issues.push({
-              fila, hoja: SHEET_CARGOS, nivel: "aviso",
-              mensaje: `La tasa "${tasaTexto}" no está registrada en la empresa; ${bloque.prefijo} se convierte con el BCV.`,
-            });
-          }
+      const tasaTexto = text(pick(registro, col(bloque.prefijo, SUF.tasa)));
+      let tasaId = "";
+      if (tasaTexto) {
+        const tasa = tasaIndex.get(norm(tasaTexto));
+        if (tasa) {
+          tasaId = tasa.id;
+        } else if (monto !== 0) {
+          issues.push({
+            fila, hoja: SHEET_CARGOS, nivel: "aviso",
+            mensaje: `La tasa "${tasaTexto}" no está registrada en la empresa; ${bloque.prefijo} se convierte con el BCV.`,
+          });
         }
-        campos[bloque.campoTasa] = tasaId;
       }
-
-      // La tasa solo se aplica cuando el monto y el pago van en monedas distintas.
-      if (monto !== 0 && cuenta.valor !== pago.valor && bloque.campoTasa === null) {
-        issues.push({
-          fila, hoja: SHEET_CARGOS, nivel: "aviso",
-          mensaje: `${bloque.prefijo} tiene monedas distintas; la plataforma solo guarda tasa propia para el sueldo y el bono de alimentación, así que se convierte con el BCV.`,
-        });
-      }
+      campos[bloque.campoTasa] = tasaId;
     }
 
     if ((row.sueldoBasico ?? 0) <= 0) {
@@ -502,7 +479,7 @@ export function parseCargosWorkbook(
     porCargo.set(clave, row);
   });
 
-  // ── Pagos adicionales ─────────────────────────────────────────────────────
+  // ── Otros pagos ───────────────────────────────────────────────────────────
   const hojaAdicionales = workbook.Sheets[SHEET_ADICIONALES];
   if (hojaAdicionales) {
     sheetToObjects(hojaAdicionales).forEach((registro, idx) => {
@@ -515,22 +492,29 @@ export function parseCargosWorkbook(
 
       const destino = porCargo.get(norm(cargoTexto));
       if (!destino) {
-        issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "error", mensaje: `No hay ninguna fila cargada para el cargo "${cargoTexto}"; el pago adicional se descarta.` });
+        issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "error", mensaje: `No hay ninguna fila cargada para el cargo "${cargoTexto}"; el pago se descarta.` });
         return;
       }
       if (!concepto) {
-        issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "error", mensaje: "El pago adicional no tiene nombre de concepto." });
+        issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "error", mensaje: "El pago no tiene nombre de concepto." });
         return;
       }
 
-      const { valor: monto } = parseAmount(pick(registro, "Monto"));
+      const { valor: monto, ambiguo } = parseAmount(pick(registro, "Monto"));
       if (monto === 0) {
         issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "aviso", mensaje: `"${concepto}" viene en 0; se descarta.` });
         return;
       }
+      if (ambiguo) {
+        issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "aviso", mensaje: `El monto de "${concepto}" se leyó como ${monto}. Verifica si eran decimales.` });
+      }
 
-      const clase = norm(pick(registro, "Clase"));
-      const esVariable = clase.startsWith("var");
+      const claseTexto = norm(pick(registro, "Clase"));
+      const esVariable = claseTexto.startsWith("var");
+      if (claseTexto && !esVariable && !claseTexto.startsWith("fij")) {
+        issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "aviso", mensaje: `Clase "${text(pick(registro, "Clase"))}" no reconocida en "${concepto}"; se toma como Fijo.` });
+      }
+
       const cuenta = parseCurrency(pick(registro, "Moneda del monto"), "USD");
       const pago = parseCurrency(pick(registro, "Moneda de pago"), cuenta.valor);
       const tasaTexto = text(pick(registro, "Tasa"));
@@ -539,125 +523,53 @@ export function parseCargosWorkbook(
         issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "aviso", mensaje: `La tasa "${tasaTexto}" no está registrada; "${concepto}" se convierte con el BCV.` });
       }
 
-      const tipoVariable = norm(pick(registro, "Tipo de variable"));
-      const concepto_: CompensationConcept = {
+      const freq = parseFrequency(pick(registro, "Frecuencia"), "monthly");
+      if (!freq.reconocido) {
+        issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "aviso", mensaje: `Frecuencia no reconocida en "${concepto}"; se usa Mensual.` });
+      }
+      // La página no ofrece quincenal para los conceptos fijos.
+      let frecuencia = freq.valor;
+      if (!esVariable && frecuencia === "biweekly") {
+        frecuencia = "monthly";
+        issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "aviso", mensaje: `"${concepto}" es un pago fijo y la plataforma no admite frecuencia quincenal ahí; se usa Mensual.` });
+      }
+
+      const nuevo: CompensationConcept = {
         id: `imp-add-${Date.now()}-${idx}`,
         concept: concepto,
         amount: monto,
-        freq: parseFrequency(pick(registro, "Frecuencia"), "monthly").valor,
+        freq: frecuencia,
         accountCurrency: cuenta.valor,
         paymentCurrency: pago.valor,
-        impacto: parseBool(pick(registro, "Impacta prestaciones"), !esVariable).valor,
+        impacto: parseBool(pick(registro, "Impacta prestaciones"), false).valor,
         tasaId: tasa?.id ?? "",
       };
 
       if (esVariable) {
-        concepto_.variableType = tipoVariable.startsWith("comis") ? "commission" : "performance";
-        destino.additionalVariablePayments = [...(destino.additionalVariablePayments ?? []), concepto_];
+        const tipoTexto = norm(pick(registro, "Tipo de variable"));
+        if (tipoTexto.startsWith("comis")) {
+          nuevo.variableType = "commission";
+          nuevo.commissionType = "simple";
+          nuevo.calculationDetail = "sale_value";
+          nuevo.goalsTarget = "sales_quota";
+        } else {
+          nuevo.variableType = "performance";
+          if (!tipoTexto) {
+            issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "aviso", mensaje: `"${concepto}" es variable y no dice si es por desempeño o por comisión; se toma como Desempeño.` });
+          } else if (!tipoTexto.startsWith("desemp")) {
+            issues.push({ fila, hoja: SHEET_ADICIONALES, nivel: "aviso", mensaje: `Tipo de variable "${text(pick(registro, "Tipo de variable"))}" no reconocido en "${concepto}"; se toma como Desempeño.` });
+          }
+        }
+        destino.additionalVariablePayments = [...(destino.additionalVariablePayments ?? []), nuevo];
       } else {
-        destino.additionalFixedPayments = [...(destino.additionalFixedPayments ?? []), concepto_];
+        destino.additionalFixedPayments = [...(destino.additionalFixedPayments ?? []), nuevo];
       }
     });
   }
 
-  return { rows, issues, filasLeidas: registros.length - filasVacias, filasVacias, filasDescartadas: descartadas };
-}
-
-// ── Generación de la plantilla ──────────────────────────────────────────────
-
-function autoWidths(headers: string[], extra = 4): XLSX.ColInfo[] {
-  return headers.map((h) => ({ wch: Math.min(38, Math.max(12, h.length + extra)) }));
-}
-
-export function buildTemplateWorkbook(options: {
-  catalogo: CatalogCargo[];
-  tasas: ExchangeRate[];
-  nombreCorte: string;
-  nombreEmpresa: string;
-  prellenarCatalogo: boolean;
-}): XLSX.WorkBook {
-  const { catalogo, tasas, nombreCorte, nombreEmpresa, prellenarCatalogo } = options;
-  const wb = XLSX.utils.book_new();
-
-  const instrucciones: string[][] = [
-    ["Carga de data salarial"],
-    [],
-    ["Corte", nombreCorte],
-    ["Empresa", nombreEmpresa || "(indicar)"],
-    [],
-    ["Cómo se llena"],
-    ["1", `Una fila por cargo en la hoja "${SHEET_CARGOS}".`],
-    ["2", `El nombre del cargo debe ser exactamente uno de la hoja "${SHEET_CATALOGO}". Si no coincide, la fila no se carga.`],
-    ["3", "Borra las filas de los cargos que la empresa no tiene. Las filas sin montos se ignoran."],
-    ["4", "No repitas el mismo cargo dos veces."],
-    ["5", "Los montos van como número, sin símbolos de moneda ni texto."],
-    [],
-    ["Qué pasa con una celda en blanco"],
-    ["", "Una celda vacía NO conserva lo que la empresa ya tenga cargado en la plataforma: se toma el valor por defecto."],
-    ["", "Un monto en blanco es cero. Una frecuencia en blanco es Mensual. Una moneda en blanco es USD."],
-    ["", "La única excepción es el grado CAPRI: si la columna va vacía y el cargo ya estaba clasificado en la plataforma, se conserva la clasificación que tenía."],
-    [],
-    ["Qué hace falta para que el corte se pueda enviar"],
-    ["", "Cargo del catálogo · Grado CAPRI (8 a 25) · Sueldo básico mayor que cero."],
-    ["", "Todo lo demás es opcional: si falta, se carga igual y se completa después en la plataforma."],
-    [],
-    ["Moneda y tasa, concepto por concepto"],
-    ["Moneda del monto", "La moneda en la que está escrito el número: USD o VES."],
-    ["Moneda de pago", "La moneda en la que la persona efectivamente cobra: USD o VES."],
-    ["Tasa", `Solo hace falta cuando las dos monedas son distintas. Escribe el nombre exacto de una tasa de la hoja "${SHEET_TASAS}". Si se deja vacía, se usa el BCV.`],
-    ["", "Sueldo básico y bono de alimentación son los únicos conceptos que guardan tasa propia; el resto siempre se convierte con el BCV."],
-    [],
-    ["Impacta prestaciones"],
-    ["", 'Sí / No. Indica si el concepto entra en el cálculo de prestaciones sociales.'],
-    [],
-    ["Valores admitidos"],
-    ["Frecuencia", "Quincenal · Mensual · Bimestral · Trimestral · Semestral · Anual"],
-    ["Moneda", "USD · VES"],
-    ["Grado CAPRI", "Número entero del 8 al 25"],
-    ["Familia CAPRI", "IC (individual, 8-19) · LO (liderazgo operativo, 14-16) · GE (liderazgo táctico/estratégico, 17-22) · EJ (ejecutiva, 23-25)"],
-    ["", "La familia solo hace falta cuando el grado cae en un rango compartido (14-16 y 17-19). En el resto se deduce sola."],
-    [],
-    ["Pagos adicionales"],
-    ["", `Conceptos fuera de los que ya trae la hoja "${SHEET_CARGOS}" (por ejemplo una prima de profesionalización) van en la hoja "${SHEET_ADICIONALES}", una fila por concepto, repitiendo el nombre del cargo.`],
-    ["", 'La columna "Clase" dice si es Fijo o Variable.'],
-  ];
-  const wsInstrucciones = XLSX.utils.aoa_to_sheet(instrucciones);
-  wsInstrucciones["!cols"] = [{ wch: 22 }, { wch: 110 }];
-  XLSX.utils.book_append_sheet(wb, wsInstrucciones, SHEET_INSTRUCCIONES);
-
-  const cuerpo = prellenarCatalogo
-    ? catalogo.map((c) => {
-        const fila: Record<string, string | number> = { [COL.departamento]: c.departamento, [COL.cargo]: c.tituloCargo };
-        CARGOS_HEADERS.forEach((h) => { if (!(h in fila)) fila[h] = ""; });
-        return CARGOS_HEADERS.map((h) => fila[h]);
-      })
-    : [];
-  const wsCargos = XLSX.utils.aoa_to_sheet([CARGOS_HEADERS, ...cuerpo]);
-  wsCargos["!cols"] = autoWidths(CARGOS_HEADERS);
-  wsCargos["!freeze"] = { xSplit: "2", ySplit: "1" };
-  XLSX.utils.book_append_sheet(wb, wsCargos, SHEET_CARGOS);
-
-  const wsAdicionales = XLSX.utils.aoa_to_sheet([ADICIONALES_HEADERS]);
-  wsAdicionales["!cols"] = autoWidths(ADICIONALES_HEADERS);
-  XLSX.utils.book_append_sheet(wb, wsAdicionales, SHEET_ADICIONALES);
-
-  const filasTasas = tasas.length > 0
-    ? tasas.map((t) => [t.nombre || t.referencia || t.id, t.referencia, t.valor])
-    : [[
-        "Cada empresa define sus tasas en la plataforma, en Empresa → Tasas.",
-        "",
-        "Si la columna Tasa se deja vacía, la conversión se hace con el BCV del día del guardado.",
-      ]];
-  const wsTasas = XLSX.utils.aoa_to_sheet([["Nombre de la tasa", "Referencia", "Valor (Bs por 1 USD)"], ...filasTasas]);
-  wsTasas["!cols"] = [{ wch: 62 }, { wch: 24 }, { wch: 78 }];
-  XLSX.utils.book_append_sheet(wb, wsTasas, SHEET_TASAS);
-
-  const wsCatalogo = XLSX.utils.aoa_to_sheet([
-    ["Departamento", "Cargo"],
-    ...catalogo.map((c) => [c.departamento, c.tituloCargo]),
-  ]);
-  wsCatalogo["!cols"] = [{ wch: 34 }, { wch: 52 }];
-  XLSX.utils.book_append_sheet(wb, wsCatalogo, SHEET_CATALOGO);
-
-  return wb;
+  return {
+    rows, issues,
+    filasLeidas: registros.length - filasVacias - sinLlenar,
+    filasVacias, filasSinLlenar: sinLlenar, filasDescartadas: descartadas,
+  };
 }
