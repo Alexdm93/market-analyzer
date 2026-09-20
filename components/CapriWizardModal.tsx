@@ -164,26 +164,10 @@ const EQUIPO_OPTS: Partial<Record<Familia, { value: string; title: string }[]>> 
   ],
 };
 
-export const ROLES: Record<number, { rol: string; mirrors: string[] }> = {
-  8:  { rol: "Trabajo Simple y Rutinario",             mirrors: ["Operario de Limpieza", "Empacador", "Mensajero"] },
-  9:  { rol: "Trabajo Semi-Complejo",                  mirrors: ["Operador de Maquinaria", "Recepcionista", "Cajero"] },
-  10: { rol: "Trabajo Técnico Variado",                mirrors: ["Técnico Junior", "Asistente Sr"] },
-  11: { rol: "Trabajo Técnico Especializado",          mirrors: ["Técnico de Mantenimiento"] },
-  12: { rol: "Trabajo Técnico Especializado Superior", mirrors: ["Técnico Senior"] },
-  13: { rol: "Trabajo Profesional Básico",             mirrors: ["Ingeniero Junior", "Analista Jr"] },
-  14: { rol: "Profesional con Experiencia / Supervisor Inicial",  mirrors: ["Analista", "Supervisor de turno"] },
-  15: { rol: "Especialista Técnico Inicial / Supervisor Técnico", mirrors: ["Supervisor de área"] },
-  16: { rol: "Especialista Semi Senior / Supervisor Senior",      mirrors: ["Coordinador", "Ingeniero de procesos"] },
-  17: { rol: "Especialista Senior / Gerencia Media Inicial",      mirrors: ["Jefe de área"] },
-  18: { rol: "Gerencia Media Intermedia",              mirrors: ["Gerente de departamento"] },
-  19: { rol: "Gerencia Media Avanzada",                mirrors: ["Gerente Senior"] },
-  20: { rol: "Gerencia Alta Inicial",                  mirrors: ["GM startup"] },
-  21: { rol: "Gerencia Alta Intermedia",               mirrors: ["GM empresa familiar"] },
-  22: { rol: "Gerencia Alta Avanzada",                 mirrors: ["Director Unidad de Negocio"] },
-  23: { rol: "Gerencia Ejecutiva Inicial",             mirrors: ["VP Operaciones", "CFO"] },
-  24: { rol: "Gerencia Ejecutiva Intermedia",          mirrors: ["CEO empresa nacional"] },
-  25: { rol: "Gerencia Ejecutiva Avanzada",            mirrors: ["CEO multinacional"] },
-};
+// El componente usa ROLES internamente y además lo reexporta, porque
+// app/market-analyzer/data/page.tsx lo importa desde aquí.
+import { CAPRI_ROLES as ROLES } from "@/lib/capri";
+export { ROLES };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

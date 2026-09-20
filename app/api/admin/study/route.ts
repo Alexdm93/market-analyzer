@@ -5,36 +5,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getPublishedSnapshotIds, publishSnapshot, unpublishSnapshot } from "@/lib/published-snapshots";
 import { safeParseCompanyInfo } from "@/lib/workspace";
+import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals } from "@/lib/compensation";
 import { getBcvRate } from "@/lib/bcv";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { buildSnapshotBackup } from "@/lib/snapshot-backup-v2";
 
-function gradeToNivel(grade: number | undefined, family: string | undefined): string {
-  if (!grade) return "";
-  const f = family ?? "";
-  if (f === "IC") {
-    if (grade >= 8  && grade <= 12) return "Operativo";
-    if (grade >= 13 && grade <= 19) return "Profesional";
-  }
-  if (f === "LO") {
-    if (grade >= 14 && grade <= 16) return "Supervisor";
-  }
-  if (f === "GE") {
-    if (grade >= 17 && grade <= 19) return "Gerencia Media";
-    if (grade >= 20 && grade <= 23) return "Gerencia Alta";
-  }
-  if (f === "EJ") {
-    if (grade >= 23 && grade <= 25) return "Ejecutivo";
-  }
-  // Fallback without family: simple range mapping
-  if (grade >= 8  && grade <= 12) return "Operativo";
-  if (grade >= 13 && grade <= 16) return "Profesional";
-  if (grade >= 17 && grade <= 19) return "Gerencia Media";
-  if (grade >= 20 && grade <= 22) return "Gerencia Alta";
-  if (grade >= 23 && grade <= 25) return "Ejecutivo";
-  return "";
-}
+// gradeToNivel vive en lib/capri.ts, compartido con los reportes de revisión.
 
 function forbiddenResponse() {
   return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
