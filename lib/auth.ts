@@ -34,7 +34,7 @@ export const authOptions: NextAuthOptions = {
           xForwardedFor?.split(",").map((part) => part.trim()).filter(Boolean).pop() ??
           "unknown";
 
-        const { allowed } = checkRateLimit(ip);
+        const { allowed } = await checkRateLimit(ip);
         if (!allowed) {
           throw new Error("Demasiados intentos fallidos. Intenta de nuevo en 15 minutos.");
         }
@@ -63,7 +63,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Login exitoso — liberar rate limit de este IP e invalidar sesiones anteriores
-        resetRateLimit(ip);
+        await resetRateLimit(ip);
 
         const updated = await prisma.user.update({
           where: { id: user.id },

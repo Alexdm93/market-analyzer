@@ -73,6 +73,8 @@ export type CompanyInfo = {
 };
 
 export type UserWorkspacePayload = {
+  /** Marca de versión del workspace, para la concurrencia optimista del admin. */
+  workspaceUpdatedAt?: string | null;
   inflation: number;
   snapshots: Record<string, Snapshot>;
   selectedSnapshotId: string;

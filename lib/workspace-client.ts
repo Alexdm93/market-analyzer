@@ -1,6 +1,11 @@
 import type { UserWorkspacePayload } from "@/lib/workspace";
 
-type WorkspacePatch = Partial<UserWorkspacePayload>;
+/**
+ * `baseUpdatedAt` solo lo usa el guardado del admin a nombre de una empresa: es
+ * la marca de versión que leyó, y el servidor rechaza si la empresa guardó
+ * mientras tanto.
+ */
+type WorkspacePatch = Partial<UserWorkspacePayload> & { baseUpdatedAt?: string | null };
 
 async function parseWorkspaceResponse(response: Response) {
   const payload = (await response.json().catch(() => null)) as

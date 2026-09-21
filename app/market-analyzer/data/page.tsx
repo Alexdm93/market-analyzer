@@ -180,6 +180,7 @@ export default function DataPage() {
   const snapshotsRef = useRef<Record<string, Snapshot>>({});
   const rowsRef = useRef<ExtendedMarketPosition[]>([]);
   const selectedCompanyIdRef = useRef(selectedCompanyId);
+  const baseUpdatedAtRef = useRef<string | null>(null);
   const isAdminRef = useRef(isAdmin);
 
   function getDuplicateCargoMessage(nextRows: ExtendedMarketPosition[]) {
@@ -223,6 +224,8 @@ export default function DataPage() {
       setIsSubmitted(selectedId ? Boolean(filtered[selectedId]?.submittedAt) : false);
       setPositionDescriptions((workspace as Record<string, unknown>).positionDescriptions as Record<string, string> ?? {});
       setLockedSnapshotIds(((workspace as Record<string, unknown>).lockedSnapshotIds as string[]) ?? []);
+      // Marca de versión: solo la usa el guardado del admin a nombre de la empresa.
+      baseUpdatedAtRef.current = workspace.workspaceUpdatedAt ?? null;
 
       if (selectedId && filtered[selectedId] && Array.isArray(filtered[selectedId].rows)) {
         setRows(filtered[selectedId].rows);
@@ -334,10 +337,23 @@ export default function DataPage() {
     setSaveState("pending");
 
     try {
-      await updateWorkspace(
-        { snapshots: next, selectedSnapshotId: nextSelectedSnapshotId },
-        isAdmin && selectedCompanyId ? selectedCompanyId : undefined
+      const esAdminSobreEmpresa = isAdmin && Boolean(selectedCompanyId);
+      const respuesta = await updateWorkspace(
+        {
+          snapshots: next,
+          selectedSnapshotId: nextSelectedSnapshotId,
+          // Solo cuando el admin escribe por la empresa: si ella guardó en el
+          // medio, el servidor rechaza en vez de pisarle lo que editó.
+          ...(esAdminSobreEmpresa ? { baseUpdatedAt: baseUpdatedAtRef.current } : {}),
+        },
+        esAdminSobreEmpresa ? selectedCompanyId : undefined
       );
+
+      // Se adopta la marca que devolvió el servidor, para poder guardar otra vez.
+      if (esAdminSobreEmpresa) {
+        const nueva = (respuesta as unknown as { workspaceUpdatedAt?: string | null })?.workspaceUpdatedAt;
+        if (nueva !== undefined) baseUpdatedAtRef.current = nueva;
+      }
 
       setSaveState(nextSelectedSnapshotId ? "saved" : "idle");
       setLastSavedAt(nextSelectedSnapshotId ? new Date() : null);

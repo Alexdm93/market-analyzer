@@ -365,6 +365,10 @@ export default function ImportarDataPage() {
           };
         }
 
+        // Marca de versión: si la empresa guardó entre la lectura de arriba y
+        // esta escritura, el servidor rechaza en vez de pisarle la data.
+        patch.baseUpdatedAt = workspace.workspaceUpdatedAt ?? null;
+
         await updateWorkspace(patch, entry.companyId);
         actualizar(entry.key, {
           estado: "importado",
@@ -373,9 +377,11 @@ export default function ImportarDataPage() {
             : `${importadas.length} cargos cargados.`,
         });
       } catch (error) {
+        const mensaje = error instanceof Error ? error.message : "No se pudo guardar la data.";
         actualizar(entry.key, {
           estado: "fallido",
-          mensaje: error instanceof Error ? error.message : "No se pudo guardar la data.",
+          // El mensaje del conflicto ya explica qué hacer; se pasa tal cual.
+          mensaje,
         });
       }
     }

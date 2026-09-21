@@ -434,6 +434,8 @@ async function backfillRelationalWorkspace(userId: string, companyInfoJson: stri
 }
 
 type UpdateWorkspaceBody = Partial<{
+  /** Marca de versión que leyó el admin; si no coincide, el guardado se rechaza. */
+  baseUpdatedAt: string;
   inflation: number;
   snapshots: Record<string, Snapshot>;
   selectedSnapshotId: string;
@@ -677,6 +679,7 @@ async function buildCompanyPayload(companyId: string) {
         updatedAt: "desc",
       },
       select: {
+        updatedAt: true,
         inflation: true,
         selectedSnapshotId: true,
         companyInfoJson: true,
@@ -766,6 +769,8 @@ async function buildCompanyPayload(companyId: string) {
   const parsedCompanyInfo = safeParseCompanyInfo(workspace?.companyInfoJson);
 
   return {
+    // Marca de versión para la concurrencia optimista del guardado del admin.
+    workspaceUpdatedAt: workspace?.updatedAt?.toISOString() ?? null,
     inflation: workspace?.inflation ?? DEFAULT_WORKSPACE.inflation,
     snapshots: companySnapshots,
     selectedSnapshotId:
@@ -958,6 +963,28 @@ export async function PUT(request: Request) {
       }
     }
 
+    // ── Concurrencia optimista ──────────────────────────────────────────
+    // El admin arma su payload sobre una lectura que puede tener minutos: si la
+    // empresa guardó en el medio, escribir acá le pisaría lo que acaba de
+    // editar. Se compara la marca de versión y se rechaza en vez de sobrescribir.
+    const baseUpdatedAt = typeof body.baseUpdatedAt === "string" ? body.baseUpdatedAt : "";
+    if (baseUpdatedAt) {
+      const actual = await prisma.userWorkspace.findFirst({
+        where: { user: { companyId: targetCompanyId } },
+        select: { updatedAt: true },
+      });
+      const enBase = actual?.updatedAt?.toISOString() ?? null;
+      if (enBase && enBase !== baseUpdatedAt) {
+        return Response.json(
+          {
+            message: "La empresa guardó su data mientras editabas. Recarga para ver lo último y vuelve a intentarlo.",
+            conflicto: true,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     // Tasas declaradas en una carga masiva. Es deliberadamente ADITIVO: solo se
     // agregan las que la empresa no tiene, nunca se modifica ni se borra una
     // suya, porque el admin está escribiendo sobre configuración que mantiene
@@ -1020,7 +1047,17 @@ export async function PUT(request: Request) {
       });
     });
 
-    return Response.json({ message: "Guardado correctamente." });
+    // Se devuelve la marca nueva para que el admin pueda volver a guardar sin
+    // recargar: si no, su segundo guardado chocaría contra el primero.
+    const traslaEscritura = await prisma.userWorkspace.findFirst({
+      where: { user: { companyId: targetCompanyId } },
+      select: { updatedAt: true },
+    });
+
+    return Response.json({
+      message: "Guardado correctamente.",
+      workspaceUpdatedAt: traslaEscritura?.updatedAt?.toISOString() ?? null,
+    });
   }
   const existingWorkspace = await getOrCreateWorkspace(userId);
 

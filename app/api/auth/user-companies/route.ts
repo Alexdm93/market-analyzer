@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 
   // Prefijo distinto al que usa el login — esta búsqueda se dispara automáticamente
   // (autofill, onBlur) y no debe consumir el mismo cupo que los intentos de login real.
-  const { allowed } = checkRateLimit(`lookup:${ip}`);
+  const { allowed } = await checkRateLimit(`lookup:${ip}`);
   if (!allowed) {
     return Response.json({ message: "Demasiadas solicitudes. Intenta de nuevo en unos minutos." }, { status: 429 });
   }
