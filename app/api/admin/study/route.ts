@@ -245,37 +245,41 @@ export async function PATCH(request: Request) {
       return Response.json({ message: "El corte no existe." }, { status: 404 });
     }
     if (body.publish) {
-      // El respaldo se crea ANTES de publicar y se ESPERA. Antes era
-      // fire-and-forget con el error silenciado: si fallaba, nadie se enteraba, y
-      // en serverless podía ni siquiera terminar de ejecutarse antes de que la
-      // función devolviera la respuesta.
-      let backupOk = false;
-      let backupError: string | null = null;
-      try {
-        const backup = await buildSnapshotBackup(snapshotId);
-        if (backup) {
-          await prisma.globalConfig.upsert({
-            where: { key: `snapshot-backup-v2-${snapshotId}` },
-            create: { key: `snapshot-backup-v2-${snapshotId}`, value: JSON.stringify(backup) },
-            update: { value: JSON.stringify(backup) },
-          });
-          backupOk = true;
-        } else {
-          backupError = "El corte no tiene data para respaldar.";
-        }
-      } catch (error) {
-        backupError = error instanceof Error ? error.message : "Error desconocido al respaldar.";
-      }
-
+      // Publicar es escribir un id en una lista: instantáneo. El respaldo lee
+      // el workspace de todas las empresas del corte y puede tardar, así que va
+      // DESPUÉS: un paso de seguridad no debe impedir el paso esencial.
       await publishSnapshot(snapshotId);
+
+      // El automático no pisa una copia que ya exista. Si no, republicar
+      // después de un accidente reemplazaría el respaldo bueno por el malo.
+      const clave = `snapshot-backup-v2-${snapshotId}`;
+      const yaHabia = await prisma.globalConfig.findUnique({ where: { key: clave }, select: { key: true } });
+
+      let backupOk = Boolean(yaHabia);
+      let backupError: string | null = null;
+
+      if (!yaHabia) {
+        try {
+          const backup = await buildSnapshotBackup(snapshotId);
+          if (backup) {
+            await prisma.globalConfig.create({ data: { key: clave, value: JSON.stringify(backup) } });
+            backupOk = true;
+          } else {
+            backupError = "El corte no tiene data para respaldar.";
+          }
+        } catch (error) {
+          backupError = error instanceof Error ? error.message : "Error desconocido al respaldar.";
+        }
+      }
 
       return Response.json({
         message: backupOk
-          ? `Corte ${snapshotId} publicado. Respaldo creado correctamente.`
+          ? `Corte ${snapshotId} publicado.`
           : `Corte ${snapshotId} publicado, PERO EL RESPALDO FALLÓ: ${backupError}`,
         snapshotId,
         published: true,
         backupOk,
+        backupYaExistia: Boolean(yaHabia),
         backupError,
       });
     } else {

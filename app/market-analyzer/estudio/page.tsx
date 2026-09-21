@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, Check, ChevronDown, Database, Layers3, Loader2, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Database, Download, Layers3, Loader2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -274,11 +274,13 @@ export default function EstudioPage() {
   const [availableUserCompanies, setAvailableUserCompanies] = useState<string[]>([]);
   const [adminPublishStatus, setAdminPublishStatus] = useState<"idle" | "working">("idle");
   const [publishModal, setPublishModal] = useState<"publish" | "unpublish" | null>(null);
+  const [bajandoRespaldo, setBajandoRespaldo] = useState(false);
   const [publishOutcome, setPublishOutcome] = useState<{
     ok: boolean;
     published: boolean;
     message: string;
     backupOk?: boolean;
+    backupYaExistia?: boolean;
     backupError?: string | null;
   } | null>(null);
   const [nivelMin, setNivelMin] = useState<Record<string, number>>({});
@@ -842,6 +844,7 @@ export default function EstudioPage() {
         message?: string;
         published?: boolean;
         backupOk?: boolean;
+        backupYaExistia?: boolean;
         backupError?: string | null;
       } | null;
 
@@ -865,6 +868,7 @@ export default function EstudioPage() {
         published,
         message,
         backupOk: payload?.backupOk,
+        backupYaExistia: payload?.backupYaExistia,
         backupError: payload?.backupError ?? null,
       });
     } catch {
@@ -873,6 +877,36 @@ export default function EstudioPage() {
       setPublishOutcome({ ok: false, published: false, message });
     } finally {
       setAdminPublishStatus("idle");
+    }
+  }
+
+  /**
+   * El respaldo automático queda DENTRO de la base. Si se pierde la base, se
+   * pierde con ella, así que la única copia de verdad es este archivo.
+   */
+  async function descargarRespaldo() {
+    if (!selectedSnapshotId) return;
+    setBajandoRespaldo(true);
+    try {
+      const res = await fetch(`/api/admin/backups/v2?snapshotId=${encodeURIComponent(selectedSnapshotId)}`, { cache: "no-store" });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { message?: string } | null;
+        setAdminMessage(d?.message ?? "No se pudo descargar el respaldo.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `respaldo-${selectedSnapshotId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setAdminMessage("No se pudo descargar el respaldo.");
+    } finally {
+      setBajandoRespaldo(false);
     }
   }
 
@@ -1985,17 +2019,32 @@ export default function EstudioPage() {
                       <span><strong>Corte publicado.</strong> Las empresas que enviaron data ya pueden ver sus resultados.</span>
                     </div>
                     {publishOutcome.backupOk ? (
-                      <p className="text-xs leading-5 text-slate-600">Se generó el respaldo del corte correctamente.</p>
+                      <p className="text-xs leading-5 text-slate-600">
+                        {publishOutcome.backupYaExistia
+                          ? "Este corte ya tenía un respaldo guardado y no se tocó."
+                          : "Se guardó un respaldo del corte."}{" "}
+                        Está <strong>dentro de la base de datos</strong>: sirve si alguien sobrescribe la data, pero se
+                        pierde con ella. La copia de verdad es el archivo.
+                      </p>
                     ) : (
                       <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>
                           <strong>El respaldo automático falló</strong>
-                          {publishOutcome.backupError ? `: ${publishOutcome.backupError}` : "."} Genera uno a mano desde
-                          Admin → Respaldos antes de seguir.
+                          {publishOutcome.backupError ? `: ${publishOutcome.backupError}` : "."} El corte sí quedó
+                          publicado. Descarga el archivo aquí abajo o genera uno desde Admin → Respaldos.
                         </span>
                       </div>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => void descargarRespaldo()}
+                      disabled={bajandoRespaldo}
+                      className="btn btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {bajandoRespaldo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      {bajandoRespaldo ? "Generando el archivo…" : "Descargar el respaldo a tu equipo"}
+                    </button>
                   </div>
                 ) : (
                   <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
