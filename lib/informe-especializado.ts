@@ -36,6 +36,8 @@ export const HOJAS = {
   mercado: "Data Mercado General",
   simulador: "Simulador de Ajuste Salarial",
   mapeo: "Mapeo de cargos",
+  dataEmpresa: "Data Empresa",
+  contenido: "F - Contenido",
 } as const;
 
 /** Primera fila de datos de cada hoja, tomadas de la plantilla real. */
@@ -48,7 +50,19 @@ const PRIMERA_FILA = {
   mercado: 8,
   // Las filas 15 y 16 son la leyenda de desempeño, no datos.
   simulador: 17,
+  dataEmpresa: 19,
 } as const;
+
+/** La hoja de data de la empresa llega hasta la columna BJ. */
+const COLS_DATA_EMPRESA = (() => {
+  const cols: string[] = [];
+  for (let i = 1; i <= 62; i++) {
+    let n = i, s = "";
+    while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+    cols.push(s);
+  }
+  return cols;
+})();
 
 export type CargoMapeado = {
   grado: number;
@@ -69,6 +83,8 @@ export type DatosEspecializado = {
   configSimulador: ConfigSimulador;
   /** Contra qué grupo de mercado se comparó: "Transversales", un sector, etc. */
   grupoComparacion: string;
+  /** Los parámetros con los que se calculó, para la hoja de data de la empresa. */
+  parametros: { diasVacaciones: number; diasUtilidades: number; bcv: number | null };
   dispersion: FilaAnalisis[];
   equidad: { filas: FilaEquidad[]; indiceGlobal: number | null };
   competitividad: FilaCompetitividad[];
@@ -359,6 +375,28 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   // ── Mapeo de cargos ──
   const mapeo = wb.hoja(HOJAS.mapeo);
   if (mapeo && datos.mapeo.length > 0) escribirMapeo(mapeo, datos.mapeo);
+
+  // ── Data de la empresa ──
+  // La plantilla trae la nómina completa del cliente de ejemplo. Hay que
+  // vaciarla: si no, cada informe entregaría los sueldos de ese otro cliente.
+  const dataEmpresa = wb.hoja(HOJAS.dataEmpresa);
+  if (dataEmpresa) {
+    set(dataEmpresa, "B5", datos.parametros.diasVacaciones || null);
+    set(dataEmpresa, "B6", datos.parametros.diasUtilidades || null);
+    set(dataEmpresa, "B7", datos.config.incluirComisiones ? "Sí" : "No");
+    set(dataEmpresa, "B10", datos.parametros.bcv);
+    set(dataEmpresa, "B13", datos.fechaData);
+    // Las tasas del cliente de ejemplo no son las de esta empresa.
+    for (const celda of ["B8", "C8", "B9", "B11", "B12"]) set(dataEmpresa, celda, null);
+    limpiarDesde(dataEmpresa, PRIMERA_FILA.dataEmpresa, COLS_DATA_EMPRESA, 980);
+  }
+
+  // El título de esta hoja es un cuadro de texto, no una celda.
+  wb.reemplazarEnFormas("DATA SALARIAL: TEALCA", `DATA SALARIAL: ${datos.cliente || "—"}`);
+
+  // El índice también nombra al cliente de ejemplo.
+  const contenido = wb.hoja(HOJAS.contenido);
+  if (contenido) set(contenido, "C9", `DATA ${(datos.cliente || "—").toUpperCase()}`);
 
   return wb.aBuffer();
 }

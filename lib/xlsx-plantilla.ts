@@ -325,6 +325,25 @@ export class LibroPlantilla {
     return hoja;
   }
 
+  /**
+   * Cambia el texto de los cuadros de texto del libro.
+   *
+   * Los títulos de varias hojas no son celdas sino formas del dibujo, así que
+   * no se pueden tocar escribiendo en una celda. Es el caso de "DATA SALARIAL:
+   * <cliente>", que si no se cambia deja en el informe el nombre del cliente de
+   * ejemplo de la plantilla.
+   */
+  reemplazarEnFormas(de: string, a: string): void {
+    const destino = escapar(a);
+    for (const entrada of [...this.entradas]) {
+      if (!entrada.nombre.startsWith("xl/drawings/drawing") || !entrada.nombre.endsWith(".xml")) continue;
+      const xml = contenido(entrada).toString("utf8");
+      if (!xml.includes(de)) continue;
+      this.reemplazar(entrada.nombre, xml.replace(/<a:t>([^<]*)<\/a:t>/g, (todo, texto: string) =>
+        texto.includes(de) ? `<a:t>${texto.split(de).join(destino)}</a:t>` : todo));
+    }
+  }
+
   /** Quita el proyecto VBA para poder entregar un .xlsx sin aviso de macros. */
   sinMacros(): void {
     this.entradas = this.entradas.filter((e) => e.nombre !== "xl/vbaProject.bin");

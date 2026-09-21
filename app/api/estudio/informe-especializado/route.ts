@@ -122,6 +122,7 @@ export async function POST(request: Request) {
       .sort((a, b) => a.localeCompare(b, "es")),
     config,
     configSimulador,
+    parametros: { diasVacaciones: diasVac, diasUtilidades: diasUtil, bcv },
     grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Transversales",
     dispersion: filas,
     equidad: analizarEquidad(filas, config.aperturaBandas),
