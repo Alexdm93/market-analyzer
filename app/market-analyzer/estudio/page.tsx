@@ -2094,7 +2094,7 @@ export default function EstudioPage() {
                       empresa aprobándole una solicitud de edición.
                     </span>
                   </div>
-                  <p className="mt-3 text-xs text-slate-500">Antes de publicar se genera automáticamente un respaldo del corte.</p>
+                  <p className="mt-3 text-xs text-slate-500">Al publicar se guarda un respaldo del corte y podrás descargarlo a tu equipo.</p>
                   <div className="mt-6 flex justify-end gap-3">
                     <button type="button" onClick={closePublishModal} className="btn btn-secondary">Cancelar</button>
                     <button

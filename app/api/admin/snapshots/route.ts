@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_WORKSPACE, type Snapshot, safeParseSnapshots } from "@/lib/workspace";
+import { unpublishSnapshot } from "@/lib/published-snapshots";
 
 type SnapshotMutationBody = {
   snapshotId?: string;
@@ -345,6 +346,10 @@ async function deleteSnapshotForAllUsers(snapshotId: string) {
       },
     });
   });
+
+  // Y sacarlo de la lista de publicados. Si no, el id queda ahí colgando y un
+  // corte nuevo con la misma fecha nacería publicado sin que nadie lo publique.
+  await unpublishSnapshot(snapshotId);
 
   return deletedSnapshots.count;
 }
