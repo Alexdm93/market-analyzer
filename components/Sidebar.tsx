@@ -36,15 +36,24 @@ const itemsBaseAdmin: MenuItem[] = [
 const estudiosItem: MenuItem = { name: "Estudios", href: `${BASE}/estudios`, icon: ChartBar, hint: "Participación por corte" };
 
 /**
- * Dos destinos distintos que antes se confundían.
+ * `/estudio` son dos pantallas distintas según quién entre, así que el nombre
+ * del menú también cambia.
  *
- * "Posicionamiento" analiza los cargos del ESTUDIO DE MERCADO por grado CAPRI
- * y TCR: es de la familia de Resultados, no del Estudio Especializado.
+ * El admin ve la consola donde procesa y publica un corte — su propio título es
+ * "Procesamiento de data de mercado". La empresa ve su compensación frente al
+ * mercado por grado CAPRI y TCR, que es posicionamiento.
  *
- * "Estudio especializado" es la entrada al recorrido (Mis cargos →
- * Comparación, y el Historial aparte), que se hace con la barra de pasos
- * dentro de la propia pantalla en vez de con entradas sueltas en el menú.
+ * Ninguna de las dos es el Estudio Especializado: esa es la entrada al
+ * recorrido (Mis cargos → Comparación, con el Historial aparte), que se hace
+ * con la barra de pasos dentro de la propia pantalla.
  */
+const procesamientoItem: MenuItem = {
+  name: "Procesamiento",
+  href: `${BASE}/estudio`,
+  icon: BookOpen,
+  hint: "Procesar y publicar cortes",
+};
+
 const posicionamientoItem: MenuItem = {
   name: "Posicionamiento",
   href: `${BASE}/estudio`,
@@ -112,7 +121,9 @@ export default function Sidebar() {
     return null;
   }
 
-  const itemsEstudio = canSeeEstudio ? [posicionamientoItem, especializadoItem] : [];
+  const itemsEstudio = canSeeEstudio
+    ? [isAdmin ? procesamientoItem : posicionamientoItem, especializadoItem]
+    : [];
 
   const itemsPlanos = isAdmin
     ? [...itemsBaseAdmin, ...itemsEstudio]
