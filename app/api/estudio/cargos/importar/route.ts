@@ -13,7 +13,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { asegurarCorte, catalogoDelCorte, normalizarTitulo, resolverAcceso } from "@/lib/estudio-cargos";
+import { asegurarCorte, homologarPorNombre, normalizarTitulo, resolverAcceso } from "@/lib/estudio-cargos";
 import { prisma } from "@/lib/prisma";
 import type { ExtendedMarketPosition } from "@/types/salary";
 
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     })),
   });
 
-  const homologados = await homologarConElCatalogo(acceso.companyId, snapshotId, nuevos);
+  const homologados = await homologarPorNombre(acceso.companyId, snapshotId, nuevos);
 
   return Response.json({
     message: `${nuevos.length} ${nuevos.length === 1 ? "cargo importado" : "cargos importados"}`
@@ -124,52 +124,4 @@ export async function POST(request: Request) {
     homologados,
     yaEnLaLista: repetidos.length,
   });
-}
-
-/**
- * Los cargos importados vienen del catálogo de ese mismo corte, así que su
- * equivalencia se conoce: es su propio título. Guardarla aquí le ahorra al
- * cliente ir uno por uno eligiendo en "Equivale a" el cargo que ya es.
- *
- * Si el título existe en varios departamentos del catálogo se usa el que
- * coincida con el del cargo; si ninguno coincide se deja sin homologar, porque
- * adivinar el departamento cambiaría contra qué se compara.
- */
-async function homologarConElCatalogo(
-  companyId: string,
-  snapshotId: string,
-  cargos: Array<{ departamento: string; tituloCargo: string }>,
-): Promise<number> {
-  const catalogo = await catalogoDelCorte(snapshotId);
-  if (catalogo.length === 0) return 0;
-
-  const porTitulo = new Map<string, Array<{ departamento: string; tituloCargo: string }>>();
-  for (const entrada of catalogo) {
-    const clave = normalizarTitulo(entrada.tituloCargo);
-    porTitulo.set(clave, [...(porTitulo.get(clave) ?? []), entrada]);
-  }
-
-  const equivalencias = cargos.flatMap((cargo) => {
-    const clave = normalizarTitulo(cargo.tituloCargo);
-    const opciones = porTitulo.get(clave) ?? [];
-    const elegido = opciones.length === 1
-      ? opciones[0]
-      : opciones.find((o) => o.departamento.trim().toLowerCase() === cargo.departamento.trim().toLowerCase());
-    if (!elegido) return [];
-    return [{
-      companyId,
-      tituloCargoKey: clave,
-      snapshotId,
-      departamento: elegido.departamento,
-      tituloCatalogo: elegido.tituloCargo,
-    }];
-  });
-
-  if (equivalencias.length === 0) return 0;
-
-  const { count } = await prisma.estudioEquivalencia.createMany({
-    data: equivalencias,
-    skipDuplicates: true,
-  });
-  return count;
 }

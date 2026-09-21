@@ -250,3 +250,59 @@ export async function limpiarEquivalenciasHuerfanas(companyId: string, tituloCar
   const { count } = await prisma.estudioEquivalencia.deleteMany({ where: { companyId, tituloCargoKey: clave } });
   return count;
 }
+
+/**
+ * Crea las equivalencias que se pueden deducir del nombre.
+ *
+ * Un cargo cuyo título calza exacto con uno del catálogo del corte se homologa
+ * solo: no hay nada que decidir. Si el título existe en varios departamentos se
+ * usa el que coincida con el del cargo, y si ninguno coincide se deja sin
+ * homologar, porque adivinar el departamento cambiaría contra qué se compara.
+ *
+ * Las que ya existían no se tocan: `skipDuplicates` respeta lo que el cliente
+ * haya elegido a mano.
+ */
+export async function homologarPorNombre(
+  companyId: string,
+  snapshotId: string,
+  cargos: Array<{ departamento: string; tituloCargo: string }>,
+): Promise<number> {
+  const catalogo = await catalogoDelCorte(snapshotId);
+  if (catalogo.length === 0 || cargos.length === 0) return 0;
+
+  const porTitulo = new Map<string, CatalogoCargo[]>();
+  for (const entrada of catalogo) {
+    const clave = normalizarTitulo(entrada.tituloCargo);
+    porTitulo.set(clave, [...(porTitulo.get(clave) ?? []), entrada]);
+  }
+
+  const vistos = new Set<string>();
+  const equivalencias = cargos.flatMap((cargo) => {
+    const clave = normalizarTitulo(cargo.tituloCargo);
+    // Varios ocupantes comparten cargo, y la equivalencia va por cargo.
+    if (vistos.has(clave)) return [];
+
+    const opciones = porTitulo.get(clave) ?? [];
+    const elegido = opciones.length === 1
+      ? opciones[0]
+      : opciones.find((o) => o.departamento.trim().toLowerCase() === cargo.departamento.trim().toLowerCase());
+    if (!elegido) return [];
+
+    vistos.add(clave);
+    return [{
+      companyId,
+      tituloCargoKey: clave,
+      snapshotId,
+      departamento: elegido.departamento,
+      tituloCatalogo: elegido.tituloCargo,
+    }];
+  });
+
+  if (equivalencias.length === 0) return 0;
+
+  const { count } = await prisma.estudioEquivalencia.createMany({
+    data: equivalencias,
+    skipDuplicates: true,
+  });
+  return count;
+}

@@ -201,7 +201,10 @@ export default function MisCargosPage() {
       if (!ok) { setError(mensaje); return; }
       setBorrador(null);
       setAviso(mensaje);
-      await cargar();
+      // Un cargo nuevo cuyo nombre calce con el catálogo queda homologado solo,
+      // igual que los importados.
+      if (esNuevo && snapshotId) await homologarTodo(snapshotId);
+      else await cargar();
     } finally {
       setGuardando(false);
     }
@@ -289,6 +292,24 @@ export default function MisCargosPage() {
     }
   }
 
+  /**
+   * Al elegir un corte se rellenan las equivalencias que no tienen nada que
+   * decidir: las que calzan exacto por nombre con el catálogo de ese corte.
+   * Lo ambiguo queda sin homologar para que el cliente lo resuelva.
+   */
+  async function homologarTodo(corte: string) {
+    if (!corte || !puedeOperar) return;
+    const res = await fetch("/api/estudio/equivalencias/auto", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...cuerpoBase(), snapshotId: corte }),
+    });
+    const { ok, data, mensaje } = await leerRespuesta(res);
+    if (!ok) { setError(mensaje); return; }
+    if (Number(data?.homologados ?? 0) > 0) setAviso(mensaje);
+    await cargar();
+  }
+
   async function homologar(cargo: CargoDTO, tituloCatalogo: string) {
     const elegido = catalogo.find((c) => c.tituloCargo === tituloCatalogo);
     const res = await fetch("/api/estudio/equivalencias", {
@@ -369,7 +390,7 @@ export default function MisCargosPage() {
               <select
                 id="mc-corte"
                 value={snapshotId}
-                onChange={(e) => setSnapshotId(e.target.value)}
+                onChange={(e) => { setSnapshotId(e.target.value); void homologarTodo(e.target.value); }}
                 className="field-select"
                 disabled={!puedeOperar}
               >
