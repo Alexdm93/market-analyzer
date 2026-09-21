@@ -96,9 +96,9 @@ export default function Sidebar() {
   const { hasUnread } = useAnnouncements();
   const { hasUnreadResultados, hasUnreadData } = useWorkspaceNotification();
   const [pendingEditRequests, setPendingEditRequests] = useState(0);
-  // Los grupos arrancan abiertos: agrupar es para ordenar la vista, no para
-  // esconder destinos. Quien quiera menos ruido los pliega.
-  const [gruposCerrados, setGruposCerrados] = useState<Record<string, boolean>>({});
+  // Los grupos arrancan cerrados, salvo el que contiene la pantalla en la que
+  // estás: así el menú abre corto y aun así se ve dónde estás parado.
+  const [gruposAbiertos, setGruposAbiertos] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -193,23 +193,23 @@ export default function Sidebar() {
           {itemsPlanos.map(renderItem)}
 
           {grupos.map((grupo) => {
-            const cerrado = gruposCerrados[grupo.key] === true;
+            const abierto = gruposAbiertos[grupo.key] ?? grupo.items.some((i) => i.href === pathname);
             return (
               <Fragment key={grupo.key}>
                 <button
                   type="button"
-                  onClick={() => setGruposCerrados((v) => ({ ...v, [grupo.key]: !cerrado }))}
-                  aria-expanded={!cerrado}
+                  onClick={() => setGruposAbiertos((v) => ({ ...v, [grupo.key]: !abierto }))}
+                  aria-expanded={abierto}
                   className="mt-2 flex shrink-0 items-center justify-between gap-2 rounded-[0.9rem] px-2.5 py-1.5 text-left transition hover:bg-white/60"
                 >
                   <span className="eyebrow eyebrow-xs truncate">{grupo.label}</span>
                   <ChevronDown
                     size={13}
                     aria-hidden
-                    className={`shrink-0 text-slate-400 transition-transform ${cerrado ? "-rotate-90" : ""}`}
+                    className={`shrink-0 text-slate-400 transition-transform ${abierto ? "" : "-rotate-90"}`}
                   />
                 </button>
-                {!cerrado && grupo.items.map(renderItem)}
+                {abierto && grupo.items.map(renderItem)}
               </Fragment>
             );
           })}
