@@ -603,6 +603,19 @@ export default function ComparacionPage() {
             </div>
           )}
 
+          {/* Cuando falta algo se dice cuál es, en vez de esconder el bloque:
+              antes desaparecía sin explicación y parecía que no existía. */}
+          {empresaActiva && (!snapshotId || cargos.length === 0) && (
+            <div className="mt-6 rounded-2xl border border-dashed border-slate-200 p-5">
+              <h3 className="font-display text-base font-bold text-slate-500">Generar un informe</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {cargos.length === 0
+                  ? <>Esta empresa todavía no tiene cargos en su lista. Cárgalos en <strong>Mis cargos</strong> y vuelve.</>
+                  : <>Elige arriba el <strong>estudio</strong> contra el que comparar y aparecerán aquí las opciones para guardar y descargar el informe.</>}
+              </p>
+            </div>
+          )}
+
           {snapshotId && cargos.length > 0 && (
             <div className="mt-6 rounded-2xl border border-slate-200 p-5">
               <h3 className="font-display text-base font-bold text-slate-900">Generar un informe</h3>
