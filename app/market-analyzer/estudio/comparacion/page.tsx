@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, BarChart3, FileText, Loader2 } from "lucide-react";
+import { AlertTriangle, BarChart3, Download, FileText, Loader2 } from "lucide-react";
 
 import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals } from "@/lib/compensation";
@@ -20,7 +20,7 @@ const METRICAS: Array<{ value: Metrica; label: string; sigla: string }> = [
   { value: "conPasivosAnual",     label: "Paquete de Compensación Total Anual", sigla: "PCTA" },
 ];
 
-type Percentiles = { n: number; min: number | null; max: number | null; p25: number | null; p50: number | null; p75: number | null; promedio: number | null };
+type Percentiles = { n: number; min: number | null; max: number | null; p10?: number | null; p25: number | null; p50: number | null; p75: number | null; p90?: number | null; promedio: number | null };
 type GrupoCargo = { tituloCargo: string; n: number } & Record<Metrica, Percentiles>;
 type GrupoGrado = { grade: number; n: number } & Record<Metrica, Percentiles>;
 
@@ -67,6 +67,8 @@ export default function ComparacionPage() {
   const [nombreInforme, setNombreInforme] = useState("");
   const [generando, setGenerando] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [comisiones, setComisiones] = useState(false);
+  const [bajandoExcel, setBajandoExcel] = useState(false);
 
   const empresaActiva = esAdmin ? companyId : (session?.user?.companyId ?? "");
 
@@ -224,6 +226,59 @@ export default function ComparacionPage() {
     }
   }
 
+  /**
+   * El documento completo en Excel. Va acá y no en Informes porque el corte y
+   * la métrica ya están elegidos en esta pantalla: pedirlos de nuevo en otra
+   * obligaba a elegir lo mismo dos veces.
+   */
+  async function descargarExcel() {
+    if (!snapshotId) return;
+    setBajandoExcel(true);
+    setError("");
+    try {
+      const resPct = await fetch(`/api/percentiles-by-grade?snapshotId=${encodeURIComponent(snapshotId)}`, { cache: "no-store" });
+      const pct = (await resPct.json().catch(() => null)) as
+        | { grupos?: Array<{ grade: number } & Record<string, Percentiles>>; message?: string } | null;
+      if (!resPct.ok) { setError(pct?.message ?? "No se pudieron obtener los percentiles por grado."); return; }
+
+      const mercadoPorGrado = (pct?.grupos ?? []).map((g) => {
+        const m = g[metrica];
+        return { grade: g.grade, p90: m?.p90 ?? null, p75: m?.p75 ?? null, p50: m?.p50 ?? null, p25: m?.p25 ?? null, p10: m?.p10 ?? null };
+      });
+
+      const res = await fetch("/api/estudio/informe-especializado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(esAdmin && companyId ? { companyId } : {}),
+          snapshotId,
+          config: { concepto: metrica, incluirComisiones: comisiones },
+          mercadoPorGrado,
+        }),
+      });
+
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(d?.message ?? `No se pudo generar el informe (error ${res.status}).`);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Informe especializado.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el informe.");
+    } finally {
+      setBajandoExcel(false);
+    }
+  }
+
   const conComparacion = filas.filter((f) => f.percentiles && f.percentiles.n > 0).length;
   const sigla = METRICAS.find((m) => m.value === metrica)?.sigla ?? "";
 
@@ -254,7 +309,7 @@ export default function ComparacionPage() {
         </section>
 
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
             {esAdmin && (
               <div>
                 <label htmlFor="cmp-empresa" className="field-label">Empresa</label>
@@ -277,6 +332,12 @@ export default function ComparacionPage() {
                 <option value="cargo">Por cargo homologado</option>
                 <option value="grado">Por grado CAPRI</option>
               </select>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={comisiones} onChange={(e) => setComisiones(e.target.checked)} className="mt-1" />
+                <span>Incluir comisiones</span>
+              </label>
             </div>
             <div>
               <label htmlFor="cmp-metrica" className="field-label">Métrica</label>
@@ -392,8 +453,10 @@ export default function ComparacionPage() {
             <div className="mt-6 rounded-2xl border border-slate-200 p-5">
               <h3 className="font-display text-base font-bold text-slate-900">Generar un informe</h3>
               <p className="mt-1 text-sm text-slate-600">
-                Marca los cargos que quieres incluir y ponle un nombre. El informe queda congelado con estos números:
-                si después cambia la data, este seguirá igual.
+                <strong>Guardar</strong> deja el informe dentro de la plataforma, congelado con estos números: si
+                después cambia la data, seguirá igual. <strong>Descargar</strong> baja el documento completo en Excel
+                —dispersión, equidad interna, competitividad, mapa de calor y simulador— con el estudio y la métrica
+                de arriba.
               </p>
               <div className="mt-3 flex flex-wrap items-end gap-3">
                 <div className="min-w-[16rem] flex-1">
@@ -413,7 +476,16 @@ export default function ComparacionPage() {
                   className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {generando ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-                  Generar con {seleccionados.length} {seleccionados.length === 1 ? "cargo" : "cargos"}
+                  Guardar con {seleccionados.length} {seleccionados.length === 1 ? "cargo" : "cargos"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void descargarExcel()}
+                  disabled={bajandoExcel}
+                  className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {bajandoExcel ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                  Descargar el informe completo
                 </button>
               </div>
               {aviso && (
