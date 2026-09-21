@@ -20,12 +20,14 @@ export function NumericInput({
   onChange,
   className,
   placeholder,
+  disabled,
   "aria-label": ariaLabel,
 }: {
   value: number;
   onChange: (n: number) => void;
   className?: string;
   placeholder?: string;
+  disabled?: boolean;
   "aria-label"?: string;
 }) {
   const [focused, setFocused] = useState(false);
@@ -41,6 +43,7 @@ export function NumericInput({
       inputMode="decimal"
       aria-label={ariaLabel}
       placeholder={placeholder}
+      disabled={disabled}
       value={focused ? raw : fmt(value)}
       className={className}
       onFocus={() => { setFocused(true); setRaw(value ? String(value) : ""); }}

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChartBar, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, ChartBar, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
@@ -30,6 +30,7 @@ const menuItemsAdmin = [
 ];
 
 const estudioItem = { name: "Estudio", href: `${BASE}/estudio`, icon: BookOpen, hint: "Estudio especializado" };
+const misCargosItem = { name: "Mis cargos", href: `${BASE}/estudio/cargos`, icon: ListChecks, hint: "Lista propia de cargos" };
 const estudiosItem = { name: "Estudios", href: `${BASE}/estudios`, icon: ChartBar, hint: "Participación por corte" };
 
 const adminMenuItems = [
@@ -38,6 +39,7 @@ const adminMenuItems = [
   { name: "Aprobaciones", href: `${BASE}/admin/aprobaciones`, icon: ClipboardCheck, hint: "Solicitudes de edición" },
   { name: "Importar data", href: `${BASE}/admin/importar`, icon: FileSpreadsheet, hint: "Cargar Excel de las empresas" },
   { name: "Reportes", href: `${BASE}/admin/reportes`, icon: ClipboardList, hint: "Excel para revisar la data" },
+  { name: "Mis cargos", href: `${BASE}/estudio/cargos`, icon: ListChecks, hint: "Lista propia de cargos" },
   { name: "Respaldos", href: `${BASE}/admin/respaldos`, icon: HardDrive, hint: "Respaldar y restaurar cortes" },
   { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
   { name: "Valoración", href: `${BASE}/valoracion`, icon: Layers, hint: "CAPRI por cargo" },
@@ -97,7 +99,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex min-w-0 min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-1 pr-0.5">
-          {[...(isAdmin ? menuItemsAdmin : [...menuItems, ...(canSeeEstudio ? [estudioItem] : []), ...(isCoordinator ? [estudiosItem] : [])]), ...(isAdmin ? adminMenuItems : [])].map((item) => {
+          {[...(isAdmin ? menuItemsAdmin : [...menuItems, ...(canSeeEstudio ? [estudioItem, misCargosItem] : []), ...(isCoordinator ? [estudiosItem] : [])]), ...(isAdmin ? adminMenuItems : [])].map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
