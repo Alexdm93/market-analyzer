@@ -8,9 +8,10 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import {
+  limpiarEquivalenciasHuerfanas,
   listarCargos,
+  ocupanteYaExiste,
   resolverAcceso,
-  tituloYaExiste,
   validarCargo,
   type EntradaCargo,
 } from "@/lib/estudio-cargos";
@@ -43,9 +44,9 @@ export async function POST(request: Request) {
   const validacion = validarCargo(body ?? {});
   if (!validacion.ok) return Response.json({ message: validacion.mensaje }, { status: 400 });
 
-  if (await tituloYaExiste(acceso.companyId, validacion.valor.tituloCargo)) {
+  if (await ocupanteYaExiste(acceso.companyId, validacion.valor.ocupanteId)) {
     return Response.json(
-      { message: `Ya tienes un cargo llamado "${validacion.valor.tituloCargo}".` },
+      { message: `Ya usaste el identificador "${validacion.valor.ocupanteId}" en otro ocupante.` },
       { status: 409 },
     );
   }
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
   const creado = await prisma.estudioCargo.create({
     data: {
       companyId: acceso.companyId,
+      ocupanteId: validacion.valor.ocupanteId || null,
       departamento: validacion.valor.departamento,
       tituloCargo: validacion.valor.tituloCargo,
       descripcion: validacion.valor.descripcion,
@@ -86,9 +88,9 @@ export async function PUT(request: Request) {
   const validacion = validarCargo(body ?? {});
   if (!validacion.ok) return Response.json({ message: validacion.mensaje }, { status: 400 });
 
-  if (await tituloYaExiste(acceso.companyId, validacion.valor.tituloCargo, id)) {
+  if (await ocupanteYaExiste(acceso.companyId, validacion.valor.ocupanteId, id)) {
     return Response.json(
-      { message: `Ya tienes otro cargo llamado "${validacion.valor.tituloCargo}".` },
+      { message: `Ya usaste el identificador "${validacion.valor.ocupanteId}" en otro ocupante.` },
       { status: 409 },
     );
   }
@@ -96,6 +98,7 @@ export async function PUT(request: Request) {
   await prisma.estudioCargo.update({
     where: { id },
     data: {
+      ocupanteId: validacion.valor.ocupanteId || null,
       departamento: validacion.valor.departamento,
       tituloCargo: validacion.valor.tituloCargo,
       descripcion: validacion.valor.descripcion,
@@ -118,18 +121,17 @@ export async function DELETE(request: Request) {
 
   const actual = await prisma.estudioCargo.findUnique({
     where: { id },
-    select: { companyId: true, _count: { select: { equivalencias: true } } },
+    select: { companyId: true, tituloCargo: true },
   });
   if (!actual || actual.companyId !== acceso.companyId) {
-    return Response.json({ message: "Ese cargo no existe en esta empresa." }, { status: 404 });
+    return Response.json({ message: "Ese ocupante no existe en esta empresa." }, { status: 404 });
   }
 
-  // Las equivalencias caen con el cargo (ON DELETE CASCADE); se informa cuántas
-  // se pierden para que la pantalla pueda avisarlo.
   await prisma.estudioCargo.delete({ where: { id } });
 
-  return Response.json({
-    message: "Cargo eliminado.",
-    equivalenciasPerdidas: actual._count.equivalencias,
-  });
+  // La homologación es del cargo, no de la persona: solo se pierde si este era
+  // el último ocupante de ese cargo.
+  const equivalenciasPerdidas = await limpiarEquivalenciasHuerfanas(acceso.companyId, actual.tituloCargo);
+
+  return Response.json({ message: "Ocupante eliminado.", equivalenciasPerdidas });
 }

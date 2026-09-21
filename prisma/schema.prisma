@@ -48,6 +48,7 @@ model Company {
   positions       UserPosition[]
   editRequests    EditRequest[]
   estudioCargos   EstudioCargo[]
+  estudioEquivalencias EstudioEquivalencia[]
   estudioInformes EstudioInforme[]
   estudioEnabled      Boolean @default(false)
   estudioSnapshotIds  String  @default("[]")
@@ -171,14 +172,21 @@ model Announcement {
 }
 
 
-/// Lista de cargos propia de una empresa para el Estudio Especializado.
-/// Es independiente de la data que la empresa le reporta al mercado
-/// (UserPosition): esa es por corte y con el catálogo cerrado del corte; esta es
-/// una sola por empresa, con sus propios nombres, y persiste entre estudios.
+/// Un ocupante de la lista propia de una empresa para el Estudio Especializado.
+///
+/// La fila es la PERSONA, no el cargo: en el estudio especializado una empresa
+/// puede tener tres analistas con sueldos distintos, y el Análisis de Equidad
+/// Interna existe justamente para compararlos entre sí. En el estudio de
+/// mercado eso no pasa — ahí va un cargo por empresa, y de eso se encarga
+/// `UserPosition`, que sí rechaza títulos repetidos.
 model EstudioCargo {
   id               String   @id @default(cuid())
   companyId        String
   company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Identificador del ocupante que usa el cliente (p. ej. "TEALCA-001").
+  /// Opcional: si no lo trae, la fila igual vale. Es nulo y no cadena vacía
+  /// porque en Postgres los nulos no chocan entre sí en un índice único.
+  ocupanteId       String?
   departamento     String   @default("")
   tituloCargo      String
   descripcion      String   @default("")
@@ -187,35 +195,38 @@ model EstudioCargo {
   /// Estructura de compensación, con la misma forma que UserPosition.dataJson,
   /// para poder reusar la pantalla de compensación y computeRowTotals sin cambios.
   dataJson         String   @default("{}")
-  /// manual | importado — de dónde salió el cargo. Un importado es una copia
-  /// editable: tocarlo no afecta la data enviada del corte de origen.
+  /// manual | importado — de dónde salió. Un importado es una copia editable:
+  /// tocarlo no afecta la data enviada del corte de origen.
   origen           String   @default("manual")
   origenSnapshotId String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  equivalencias    EstudioEquivalencia[]
-
-  @@unique([companyId, tituloCargo])
+  @@unique([companyId, ocupanteId])
   @@index([companyId])
+  @@index([companyId, tituloCargo])
 }
 
-/// A qué cargo del catálogo equivale un cargo del cliente, POR CORTE: cada corte
-/// tiene su propio catálogo, así que la equivalencia se guarda por (cargo × corte).
+/// A qué cargo del catálogo equivale un cargo del cliente, POR CORTE.
+///
+/// Va por CARGO y no por ocupante: los tres analistas de una empresa comparan
+/// todos contra el mismo cargo del catálogo. Guardarla por persona obligaría a
+/// homologar tres veces y dejaría que quedaran distintas entre sí.
 model EstudioEquivalencia {
-  id             String       @id @default(cuid())
-  estudioCargoId String
-  estudioCargo   EstudioCargo @relation(fields: [estudioCargoId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Título del cargo del cliente, normalizado (sin acentos, en minúsculas).
+  tituloCargoKey String
   snapshotId     String
-  departamento   String       @default("")
+  departamento   String   @default("")
   tituloCatalogo String
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@unique([estudioCargoId, snapshotId])
+  @@unique([companyId, tituloCargoKey, snapshotId])
   @@index([snapshotId])
 }
-
 
 /// Un informe generado por el cliente para un estudio.
 ///

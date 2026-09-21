@@ -15,6 +15,7 @@ import type { ExtendedMarketPosition } from "@/types/salary";
 
 type CargoDTO = {
   id: string;
+  ocupanteId: string;
   departamento: string;
   tituloCargo: string;
   descripcion: string;
@@ -33,6 +34,7 @@ type CatalogoCargo = { departamento: string; tituloCargo: string };
 
 type Borrador = {
   id: string | null;
+  ocupanteId: string;
   departamento: string;
   tituloCargo: string;
   descripcion: string;
@@ -42,7 +44,7 @@ type Borrador = {
 };
 
 const BORRADOR_VACIO: Borrador = {
-  id: null, departamento: "", tituloCargo: "", descripcion: "",
+  id: null, ocupanteId: "", departamento: "", tituloCargo: "", descripcion: "",
   hayGrade: null, capriFamily: null,
   data: {
     sueldoBasico: 0, sueldoBasicoFreq: "monthly", sueldoBasicoCuentaMoneda: "USD",
@@ -171,6 +173,7 @@ export default function MisCargosPage() {
         body: JSON.stringify({
           ...cuerpoBase(),
           ...(esNuevo ? {} : { id: borrador.id }),
+          ocupanteId: borrador.ocupanteId,
           departamento: borrador.departamento,
           tituloCargo: borrador.tituloCargo,
           descripcion: borrador.descripcion,
@@ -190,16 +193,22 @@ export default function MisCargosPage() {
   }
 
   async function borrar(cargo: CargoDTO) {
+    const otros = cargos.filter((c) => c.id !== cargo.id && c.tituloCargo === cargo.tituloCargo).length;
     const cuantas = Object.keys(cargo.equivalencias).length;
+    const esElUltimo = otros === 0;
     const ok = await confirm({
-      title: `Eliminar "${cargo.tituloCargo}"`,
+      title: `Eliminar "${cargo.tituloCargo}"${cargo.ocupanteId ? ` (${cargo.ocupanteId})` : ""}`,
       message: (
         <span className="space-y-2">
-          <span className="block">Se elimina el cargo y toda su estructura de compensación.</span>
-          {cuantas > 0 && (
+          <span className="block">Se elimina este ocupante y toda su estructura de compensación.</span>
+          {otros > 0 && (
             <span className="block">
-              También pierde {cuantas === 1 ? "la homologación que tenía con 1 estudio" : `las homologaciones que tenía con ${cuantas} estudios`}.
-              Si vuelves a crearlo, hay que homologarlo de nuevo.
+              Quedan otros {otros} {otros === 1 ? "ocupante" : "ocupantes"} en el mismo cargo, y su homologación no se toca.
+            </span>
+          )}
+          {esElUltimo && cuantas > 0 && (
+            <span className="block">
+              Era el último ocupante de este cargo, así que también se pierde{cuantas === 1 ? " su homologación" : `n sus ${cuantas} homologaciones`}.
             </span>
           )}
         </span>
@@ -271,7 +280,7 @@ export default function MisCargosPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...cuerpoBase(),
-        estudioCargoId: cargo.id,
+        tituloCargo: cargo.tituloCargo,
         snapshotId,
         tituloCatalogo,
         departamento: elegido?.departamento ?? "",
@@ -402,7 +411,17 @@ export default function MisCargosPage() {
               </button>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
+              <div>
+                <label htmlFor="mc-ocupante" className="field-label">Ocupante / ID</label>
+                <input
+                  id="mc-ocupante"
+                  value={borrador.ocupanteId}
+                  onChange={(e) => setBorrador({ ...borrador, ocupanteId: e.target.value })}
+                  className="field"
+                  placeholder="Ej. TEALCA-001 (opcional)"
+                />
+              </div>
               <div>
                 <label htmlFor="mc-dept" className="field-label">Unidad funcional</label>
                 <input id="mc-dept" value={borrador.departamento} onChange={(e) => setBorrador({ ...borrador, departamento: e.target.value })} className="field" placeholder="Ej. Finanzas" />
@@ -424,7 +443,7 @@ export default function MisCargosPage() {
                     : <span className="text-slate-400">Clasificar con CAPRI</span>}
                 </button>
               </div>
-              <div className="md:col-span-3">
+              <div className="md:col-span-4">
                 <label htmlFor="mc-desc" className="field-label">Descripción (opcional)</label>
                 <textarea id="mc-desc" value={borrador.descripcion} onChange={(e) => setBorrador({ ...borrador, descripcion: e.target.value })} className="field-textarea" rows={2} />
               </div>
@@ -454,7 +473,7 @@ export default function MisCargosPage() {
         {/* ── Lista ─────────────────────────────────────────────────────── */}
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <h2 className="mb-5 font-display text-xl font-bold text-slate-900">
-            {cargos.length} {cargos.length === 1 ? "cargo" : "cargos"} en la lista
+            {cargos.length} {cargos.length === 1 ? "ocupante" : "ocupantes"} en la lista
           </h2>
 
           {!puedeOperar && <p className="text-sm text-slate-500">Elige una empresa para ver su lista.</p>}
@@ -474,6 +493,7 @@ export default function MisCargosPage() {
                     <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                       <tr>
                         <th className="px-4 py-2.5 font-semibold">Cargo</th>
+                        <th className="px-4 py-2.5 font-semibold">Ocupante</th>
                         <th className="px-4 py-2.5 font-semibold">Grado</th>
                         <th className="px-4 py-2.5 font-semibold">Nivel</th>
                         <th className="px-4 py-2.5 text-right font-semibold">TEM</th>
@@ -486,6 +506,7 @@ export default function MisCargosPage() {
                       {lista.map((c) => (
                         <tr key={c.id}>
                           <td className="px-4 py-2.5 text-slate-800">{c.tituloCargo}</td>
+                          <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{c.ocupanteId || "—"}</td>
                           <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-slate-600">{c.hayGrade ?? "—"}</td>
                           <td className="px-4 py-2.5 text-xs text-slate-600">{gradeToNivel(c.hayGrade ?? undefined, c.capriFamily ?? undefined) || "—"}</td>
                           <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-700">
@@ -518,7 +539,7 @@ export default function MisCargosPage() {
                               <button
                                 type="button"
                                 aria-label={`Editar ${c.tituloCargo}`}
-                                onClick={() => { setBorrador({ id: c.id, departamento: c.departamento, tituloCargo: c.tituloCargo, descripcion: c.descripcion, hayGrade: c.hayGrade, capriFamily: c.capriFamily, data: c.data }); setError(""); }}
+                                onClick={() => { setBorrador({ id: c.id, ocupanteId: c.ocupanteId, departamento: c.departamento, tituloCargo: c.tituloCargo, descripcion: c.descripcion, hayGrade: c.hayGrade, capriFamily: c.capriFamily, data: c.data }); setError(""); }}
                                 className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
                               >
                                 <Pencil size={14} />

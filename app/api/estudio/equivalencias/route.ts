@@ -2,13 +2,15 @@
  * F4 — Equivalencia entre un cargo del cliente y uno del catálogo, POR CORTE.
  *
  * Cada corte tiene su propio catálogo (`snapshot-cargos-{snapshotId}`), así que
- * la equivalencia se guarda por el par (cargo × corte). Dos cargos del cliente
- * pueden apuntar al mismo cargo del catálogo: eso está permitido a propósito.
+ * la equivalencia se guarda por el par (cargo × corte). Va por CARGO y no por
+ * ocupante: los tres analistas de una empresa comparan todos contra el mismo
+ * cargo del catálogo. Dos cargos distintos del cliente sí pueden apuntar al
+ * mismo del catálogo: eso está permitido a propósito.
  */
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { resolverAcceso } from "@/lib/estudio-cargos";
+import { normalizarTitulo, resolverAcceso } from "@/lib/estudio-cargos";
 import { prisma } from "@/lib/prisma";
 
 type CatalogoCargo = { departamento: string; tituloCargo: string };
@@ -44,7 +46,8 @@ export async function GET(request: Request) {
 
 type Cuerpo = {
   companyId?: string;
-  estudioCargoId?: string;
+  /** El título del cargo del cliente, no el id de un ocupante. */
+  tituloCargo?: string;
   snapshotId?: string;
   departamento?: string;
   tituloCatalogo?: string;
@@ -55,25 +58,29 @@ export async function PUT(request: Request) {
   const acceso = resolverAcceso(await getServerSession(authOptions).catch(() => null), body?.companyId?.trim() ?? "");
   if (!acceso.ok) return acceso.response;
 
-  const estudioCargoId = body?.estudioCargoId?.trim() ?? "";
+  const tituloCargo = (body?.tituloCargo ?? "").replace(/\s+/g, " ").trim();
   const snapshotId = body?.snapshotId?.trim() ?? "";
   const tituloCatalogo = (body?.tituloCatalogo ?? "").replace(/\s+/g, " ").trim();
 
-  if (!estudioCargoId || !snapshotId) {
+  if (!tituloCargo || !snapshotId) {
     return Response.json({ message: "Indica el cargo y el corte." }, { status: 400 });
   }
 
-  const cargo = await prisma.estudioCargo.findUnique({
-    where: { id: estudioCargoId },
-    select: { companyId: true },
+  const tituloCargoKey = normalizarTitulo(tituloCargo);
+
+  // El cargo tiene que existir en la lista de la empresa: el título viene del
+  // cliente y no se homologa algo que no se cargó.
+  const existe = await prisma.estudioCargo.findFirst({
+    where: { companyId: acceso.companyId, tituloCargo },
+    select: { id: true },
   });
-  if (!cargo || cargo.companyId !== acceso.companyId) {
-    return Response.json({ message: "Ese cargo no existe en esta empresa." }, { status: 404 });
+  if (!existe) {
+    return Response.json({ message: `"${tituloCargo}" no está en la lista de esta empresa.` }, { status: 404 });
   }
 
   // Sin título: se entiende como "quitar la equivalencia de este corte".
   if (!tituloCatalogo) {
-    await prisma.estudioEquivalencia.deleteMany({ where: { estudioCargoId, snapshotId } });
+    await prisma.estudioEquivalencia.deleteMany({ where: { companyId: acceso.companyId, tituloCargoKey, snapshotId } });
     return Response.json({ message: "Equivalencia quitada." });
   }
 
@@ -105,9 +112,11 @@ export async function PUT(request: Request) {
   }
 
   await prisma.estudioEquivalencia.upsert({
-    where: { estudioCargoId_snapshotId: { estudioCargoId, snapshotId } },
+    where: {
+      companyId_tituloCargoKey_snapshotId: { companyId: acceso.companyId, tituloCargoKey, snapshotId },
+    },
     create: {
-      estudioCargoId, snapshotId,
+      companyId: acceso.companyId, tituloCargoKey, snapshotId,
       departamento: elegido.departamento,
       tituloCatalogo: elegido.tituloCargo,
     },

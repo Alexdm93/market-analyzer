@@ -1,10 +1,14 @@
 /**
- * Lista de cargos propia de una empresa para el Estudio Especializado.
+ * Lista de ocupantes de una empresa para el Estudio Especializado.
  *
- * Es deliberadamente independiente de `UserPosition`, que es lo que la empresa
- * le reporta al mercado: esa va por corte y contra el catálogo cerrado del
- * corte. Esta es una sola lista por empresa, con sus propios nombres, y
- * persiste entre estudios.
+ * La fila es la PERSONA, no el cargo: una empresa puede tener tres analistas
+ * con sueldos distintos, y el Análisis de Equidad Interna existe para
+ * compararlos entre sí. Eso solo pasa en el especializado — en el estudio de
+ * mercado va un cargo por empresa, y de eso se encarga `UserPosition`.
+ *
+ * Es independiente de `UserPosition` también en el tiempo: esa va por corte y
+ * contra el catálogo cerrado; esta es una sola lista por empresa, con sus
+ * propios nombres, y persiste entre estudios.
  */
 import type { Session } from "next-auth";
 
@@ -13,6 +17,7 @@ import type { ExtendedMarketPosition } from "@/types/salary";
 
 export type EstudioCargoDTO = {
   id: string;
+  ocupanteId: string;
   departamento: string;
   tituloCargo: string;
   descripcion: string;
@@ -86,14 +91,26 @@ function parseData(dataJson: string): Partial<ExtendedMarketPosition> {
 }
 
 export async function listarCargos(companyId: string): Promise<EstudioCargoDTO[]> {
-  const filas = await prisma.estudioCargo.findMany({
-    where: { companyId },
-    include: { equivalencias: true },
-    orderBy: [{ departamento: "asc" }, { tituloCargo: "asc" }],
-  });
+  // Las equivalencias van por cargo, no por ocupante: se traen aparte y se
+  // reparten entre todos los ocupantes que comparten título.
+  const [filas, equivalencias] = await Promise.all([
+    prisma.estudioCargo.findMany({
+      where: { companyId },
+      orderBy: [{ departamento: "asc" }, { tituloCargo: "asc" }, { ocupanteId: "asc" }],
+    }),
+    prisma.estudioEquivalencia.findMany({ where: { companyId } }),
+  ]);
+
+  const porTitulo = new Map<string, Record<string, { departamento: string; tituloCatalogo: string }>>();
+  for (const e of equivalencias) {
+    const actual = porTitulo.get(e.tituloCargoKey) ?? {};
+    actual[e.snapshotId] = { departamento: e.departamento, tituloCatalogo: e.tituloCatalogo };
+    porTitulo.set(e.tituloCargoKey, actual);
+  }
 
   return filas.map((f) => ({
     id: f.id,
+    ocupanteId: f.ocupanteId ?? "",
     departamento: f.departamento,
     tituloCargo: f.tituloCargo,
     descripcion: f.descripcion,
@@ -102,14 +119,13 @@ export async function listarCargos(companyId: string): Promise<EstudioCargoDTO[]
     data: parseData(f.dataJson),
     origen: f.origen,
     origenSnapshotId: f.origenSnapshotId,
-    equivalencias: Object.fromEntries(
-      f.equivalencias.map((e) => [e.snapshotId, { departamento: e.departamento, tituloCatalogo: e.tituloCatalogo }]),
-    ),
+    equivalencias: porTitulo.get(normalizarTitulo(f.tituloCargo)) ?? {},
     updatedAt: f.updatedAt.toISOString(),
   }));
 }
 
 export type EntradaCargo = {
+  ocupanteId?: string;
   departamento?: string;
   tituloCargo?: string;
   descripcion?: string;
@@ -143,6 +159,7 @@ export function validarCargo(entrada: EntradaCargo): Validacion {
   return {
     ok: true,
     valor: {
+      ocupanteId: (entrada.ocupanteId ?? "").replace(/\s+/g, " ").trim(),
       departamento: (entrada.departamento ?? "").replace(/\s+/g, " ").trim(),
       tituloCargo,
       descripcion: (entrada.descripcion ?? "").trim(),
@@ -154,15 +171,25 @@ export function validarCargo(entrada: EntradaCargo): Validacion {
 }
 
 /**
- * El índice único de la base es sensible a mayúsculas y acentos, así que el
- * choque real se comprueba acá, con el mismo criterio que usa el resto del
- * sistema para los títulos de cargo.
+ * El identificador de ocupante, si se usa, no puede repetirse dentro de la
+ * empresa. El título del cargo SÍ puede repetirse: son personas distintas en el
+ * mismo cargo, que es exactamente lo que el estudio especializado necesita ver.
  */
-export async function tituloYaExiste(companyId: string, titulo: string, excluirId?: string): Promise<boolean> {
-  const existentes = await prisma.estudioCargo.findMany({
-    where: { companyId, ...(excluirId ? { id: { not: excluirId } } : {}) },
-    select: { tituloCargo: true },
+export async function ocupanteYaExiste(companyId: string, ocupanteId: string, excluirId?: string): Promise<boolean> {
+  const limpio = ocupanteId.trim();
+  if (!limpio) return false;
+  const encontrado = await prisma.estudioCargo.findFirst({
+    where: { companyId, ocupanteId: limpio, ...(excluirId ? { id: { not: excluirId } } : {}) },
+    select: { id: true },
   });
-  const objetivo = normalizarTitulo(titulo);
-  return existentes.some((e) => normalizarTitulo(e.tituloCargo) === objetivo);
+  return Boolean(encontrado);
+}
+
+/** Quita las equivalencias de un título que ya no tiene ningún ocupante. */
+export async function limpiarEquivalenciasHuerfanas(companyId: string, tituloCargo: string): Promise<number> {
+  const clave = normalizarTitulo(tituloCargo);
+  const quedan = await prisma.estudioCargo.count({ where: { companyId, tituloCargo } });
+  if (quedan > 0) return 0;
+  const { count } = await prisma.estudioEquivalencia.deleteMany({ where: { companyId, tituloCargoKey: clave } });
+  return count;
 }

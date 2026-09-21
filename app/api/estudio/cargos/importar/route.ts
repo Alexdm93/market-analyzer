@@ -4,6 +4,11 @@
  * Lo importado es una COPIA editable: se guarda `origen: "importado"` y de qué
  * corte salió, pero a partir de ahí vive por su cuenta. Editarla no toca la data
  * que la empresa envió a ese corte.
+ *
+ * El corte trae un cargo por empresa, así que cada cargo importado entra como
+ * un ocupante. Se saltan los títulos que ya están en la lista para que importar
+ * dos veces no duplique; si la empresa necesita varias personas en el mismo
+ * cargo, las agrega a mano.
  */
 import { getServerSession } from "next-auth";
 
@@ -39,7 +44,7 @@ export async function POST(request: Request) {
   const vistosEnElCorte = new Set<string>();
 
   const nuevos: Array<{
-    departamento: string; tituloCargo: string; descripcion: string;
+    ocupanteId: string | null; departamento: string; tituloCargo: string; descripcion: string;
     hayGrade: number | null; capriFamily: string | null; dataJson: string;
   }> = [];
   const repetidos: string[] = [];
@@ -67,6 +72,9 @@ export async function POST(request: Request) {
 
     const familia = typeof fila.capriFamily === "string" ? fila.capriFamily : null;
     nuevos.push({
+      // El corte no trae identificador de ocupante: se deja vacío y el cliente
+      // lo completa si lo usa.
+      ocupanteId: null,
       departamento: (fila.departamento ?? "").trim(),
       tituloCargo: titulo,
       descripcion: (fila.descripcion ?? "").trim(),
