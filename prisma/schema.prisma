@@ -48,6 +48,7 @@ model Company {
   positions       UserPosition[]
   editRequests    EditRequest[]
   estudioCargos   EstudioCargo[]
+  estudioInformes EstudioInforme[]
   estudioEnabled      Boolean @default(false)
   estudioSnapshotIds  String  @default("[]")
   createdAt       DateTime @default(now())
@@ -213,4 +214,28 @@ model EstudioEquivalencia {
 
   @@unique([estudioCargoId, snapshotId])
   @@index([snapshotId])
+}
+
+
+/// Un informe generado por el cliente para un estudio.
+///
+/// Guarda una FOTO CONGELADA: los cargos con sus montos y los percentiles del
+/// mercado tal como estaban al generarlo. Un informe entregado nunca cambia
+/// solo — si el cliente corrige un sueldo o se republica el corte, genera uno
+/// nuevo, el viejo sigue diciendo lo mismo.
+model EstudioInforme {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  nombre        String
+  snapshotId    String
+  snapshotLabel String   @default("")
+  /// La foto: filas con montos propios y percentiles de mercado, más con qué
+  /// criterio se armó (modo y métrica).
+  datosJson     String
+  generadoPor   String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([companyId, createdAt])
 }

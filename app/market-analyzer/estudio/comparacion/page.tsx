@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, BarChart3, Loader2 } from "lucide-react";
+import { AlertTriangle, BarChart3, FileText, Loader2 } from "lucide-react";
 
 import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals } from "@/lib/compensation";
+import { posicionEnMercado } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
@@ -40,17 +41,6 @@ function norm(v: string) {
   return v.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 }
 
-/** Dónde cae el cargo del cliente respecto al mercado. */
-function posicion(propio: number, p: Percentiles): { texto: string; clase: string } {
-  if (!propio || p.p25 === null || p.p50 === null || p.p75 === null) {
-    return { texto: "—", clase: "bg-slate-100 text-slate-500" };
-  }
-  if (propio < p.p25) return { texto: "Bajo P25", clase: "bg-red-50 text-red-700" };
-  if (propio < p.p50) return { texto: "P25 – P50", clase: "bg-amber-50 text-amber-700" };
-  if (propio < p.p75) return { texto: "P50 – P75", clase: "bg-sky-50 text-sky-700" };
-  return { texto: "Sobre P75", clase: "bg-teal-50 text-teal-700" };
-}
-
 function money(v: number | null | undefined) {
   if (v === null || v === undefined || !Number.isFinite(v) || v === 0) return "—";
   return Math.round(v).toLocaleString("es-VE");
@@ -73,6 +63,10 @@ export default function ComparacionPage() {
   const [porGrado, setPorGrado] = useState<GrupoGrado[]>([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [seleccionados, setSeleccionados] = useState<string[]>([]);
+  const [nombreInforme, setNombreInforme] = useState("");
+  const [generando, setGenerando] = useState(false);
+  const [aviso, setAviso] = useState("");
 
   const empresaActiva = esAdmin ? companyId : (session?.user?.companyId ?? "");
 
@@ -182,6 +176,54 @@ export default function ComparacionPage() {
     });
   }, [cargos, tasas, bcv, companyInfo, metrica, modo, snapshotId, mercadoPorTitulo, mercadoPorGrado]);
 
+  /**
+   * Congela lo que la pantalla está mostrando. Se mandan los números ya
+   * calculados a propósito: un informe es la foto de lo que el cliente vio, así
+   * que recalcularlos al guardar sería justamente lo contrario de congelar.
+   */
+  async function generarInforme() {
+    const elegidas = filas.filter((f) => seleccionados.includes(f.cargo.id));
+    if (elegidas.length === 0) { setError("Elige al menos un cargo para el informe."); return; }
+    if (!nombreInforme.trim()) { setError("Ponle un nombre al informe."); return; }
+
+    setGenerando(true);
+    setError("");
+    setAviso("");
+    try {
+      const corte = snapshots.find((x) => x.id === snapshotId);
+      const res = await fetch("/api/estudio/informes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(esAdmin && companyId ? { companyId } : {}),
+          nombre: nombreInforme.trim(),
+          snapshotId,
+          snapshotLabel: corte ? `${corte.label} — ${corte.date}` : "",
+          modo,
+          metrica,
+          filas: elegidas.map((f) => ({
+            cargoId: f.cargo.id,
+            departamento: f.cargo.departamento,
+            tituloCargo: f.cargo.tituloCargo,
+            hayGrade: f.cargo.hayGrade,
+            capriFamily: f.cargo.capriFamily,
+            nivel: gradeToNivel(f.cargo.hayGrade ?? undefined, f.cargo.capriFamily ?? undefined),
+            equivalencia: f.equivalencia,
+            propio: f.propio,
+            percentiles: f.percentiles ?? null,
+          })),
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      if (!res.ok) { setError(data?.message ?? "No se pudo guardar el informe."); return; }
+      setAviso(data?.message ?? "Informe guardado.");
+      setNombreInforme("");
+      setSeleccionados([]);
+    } finally {
+      setGenerando(false);
+    }
+  }
+
   const conComparacion = filas.filter((f) => f.percentiles && f.percentiles.n > 0).length;
   const sigla = METRICAS.find((m) => m.value === metrica)?.sigla ?? "";
 
@@ -282,6 +324,15 @@ export default function ComparacionPage() {
               <table className="w-full min-w-[54rem] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
+                    <th className="w-10 px-4 py-2.5">
+                      <input
+                        type="checkbox"
+                        aria-label="Seleccionar todos los cargos"
+                        checked={seleccionados.length > 0 && seleccionados.length === filas.length}
+                        ref={(el) => { if (el) el.indeterminate = seleccionados.length > 0 && seleccionados.length < filas.length; }}
+                        onChange={(e) => setSeleccionados(e.target.checked ? filas.map((f) => f.cargo.id) : [])}
+                      />
+                    </th>
                     <th className="px-4 py-2.5 font-semibold">Cargo</th>
                     <th className="px-4 py-2.5 font-semibold">{modo === "cargo" ? "Equivale a" : "Grado"}</th>
                     <th className="px-4 py-2.5 text-right font-semibold">Tuyo</th>
@@ -295,9 +346,17 @@ export default function ComparacionPage() {
                 <tbody className="divide-y divide-slate-100">
                   {filas.map((f) => {
                     const hayMercado = Boolean(f.percentiles && f.percentiles.n > 0);
-                    const pos = hayMercado ? posicion(f.propio, f.percentiles!) : null;
+                    const pos = posicionEnMercado(f.propio, f.percentiles ?? null);
                     return (
                       <tr key={f.cargo.id}>
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="checkbox"
+                            aria-label={`Incluir ${f.cargo.tituloCargo} en el informe`}
+                            checked={seleccionados.includes(f.cargo.id)}
+                            onChange={() => setSeleccionados((prev) => prev.includes(f.cargo.id) ? prev.filter((x) => x !== f.cargo.id) : [...prev, f.cargo.id])}
+                          />
+                        </td>
                         <td className="px-4 py-2.5">
                           <span className="block text-slate-800">{f.cargo.tituloCargo}</span>
                           {f.cargo.departamento && <span className="block text-xs text-slate-500">{f.cargo.departamento}</span>}
@@ -316,7 +375,7 @@ export default function ComparacionPage() {
                             <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-900">{money(f.percentiles!.p50)}</td>
                             <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p75)}</td>
                             <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-500">{f.observaciones}</td>
-                            <td className="px-4 py-2.5"><span className={`pill ${pos!.clase}`}>{pos!.texto}</span></td>
+                            <td className="px-4 py-2.5"><span className={`pill ${pos.clase}`}>{pos.texto}</span></td>
                           </>
                         ) : (
                           <td colSpan={5} className="px-4 py-2.5 text-xs text-slate-500">Sin comparación disponible</td>
@@ -326,6 +385,42 @@ export default function ComparacionPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {snapshotId && cargos.length > 0 && (
+            <div className="mt-6 rounded-2xl border border-slate-200 p-5">
+              <h3 className="font-display text-base font-bold text-slate-900">Generar un informe</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Marca los cargos que quieres incluir y ponle un nombre. El informe queda congelado con estos números:
+                si después cambia la data, este seguirá igual.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <div className="min-w-[16rem] flex-1">
+                  <label htmlFor="cmp-nombre" className="field-label">Nombre del informe</label>
+                  <input
+                    id="cmp-nombre"
+                    value={nombreInforme}
+                    onChange={(e) => setNombreInforme(e.target.value)}
+                    className="field"
+                    placeholder="Ej. Posicionamiento gerencial 2026"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void generarInforme()}
+                  disabled={generando || seleccionados.length === 0}
+                  className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {generando ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                  Generar con {seleccionados.length} {seleccionados.length === 1 ? "cargo" : "cargos"}
+                </button>
+              </div>
+              {aviso && (
+                <p className="mt-3 rounded-2xl bg-teal-50 px-4 py-3 text-sm text-teal-800">
+                  {aviso} Lo encuentras en <strong>Informes</strong>.
+                </p>
+              )}
             </div>
           )}
 
