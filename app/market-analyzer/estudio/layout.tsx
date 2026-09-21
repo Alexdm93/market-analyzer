@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
-import { EstudioEmpresaProvider } from "@/contexts/EstudioEmpresaContext";
+import { EstudioProvider } from "@/contexts/EstudioContext";
 
 /**
- * Mantiene viva la empresa seleccionada mientras se recorre el flujo del
- * Estudio Especializado, que son tres rutas distintas pero un solo proceso.
+ * Mantiene viva la empresa y el corte elegidos mientras se recorre el Estudio
+ * Especializado, que son rutas distintas pero un solo trabajo.
  */
 export default function EstudioLayout({ children }: { children: ReactNode }) {
-  return <EstudioEmpresaProvider>{children}</EstudioEmpresaProvider>;
+  return <EstudioProvider>{children}</EstudioProvider>;
 }

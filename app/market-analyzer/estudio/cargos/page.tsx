@@ -14,7 +14,7 @@ import { isAdminRole } from "@/lib/roles";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
 import { SelectorBuscador } from "@/components/SelectorBuscador";
-import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
+import { useEstudio } from "@/contexts/EstudioContext";
 
 type CargoDTO = {
   id: string;
@@ -74,12 +74,11 @@ export default function MisCargosPage() {
   const [confirm, confirmDialog] = useConfirm();
 
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
-  const { companyId, setCompanyId } = useEstudioEmpresa();
+  const { companyId, setCompanyId, snapshotId, setSnapshotId } = useEstudio();
   const [cargos, setCargos] = useState<CargoDTO[]>([]);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
 
   const [snapshots, setSnapshots] = useState<AdminSnapshot[]>([]);
-  const [snapshotId, setSnapshotId] = useState("");
   const [catalogo, setCatalogo] = useState<CatalogoCargo[]>([]);
 
   const [borrador, setBorrador] = useState<Borrador | null>(null);
@@ -386,7 +385,7 @@ export default function MisCargosPage() {
             )}
 
             <div>
-              <label htmlFor="mc-corte" className="field-label">Estudio contra el que homologar</label>
+              <label htmlFor="mc-corte" className="field-label">Estudio</label>
               <select
                 id="mc-corte"
                 value={snapshotId}
@@ -398,7 +397,8 @@ export default function MisCargosPage() {
                 {snapshots.map((s) => <option key={s.id} value={s.id}>{s.label} — {s.date}</option>)}
               </select>
               <p className="mt-1.5 text-xs text-slate-500">
-                La equivalencia se guarda por estudio: cada corte tiene su propio catálogo.
+                Contra el que homologas y contra el que vas a comparar: es el mismo, y te acompaña al
+                siguiente paso. Cada corte tiene su propio catálogo, así que la equivalencia se guarda por estudio.
               </p>
             </div>
           </div>

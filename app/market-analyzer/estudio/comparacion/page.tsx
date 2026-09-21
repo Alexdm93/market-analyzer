@@ -12,7 +12,7 @@ import { fetchWorkspace } from "@/lib/workspace-client";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
 import { SelectorBuscador } from "@/components/SelectorBuscador";
-import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
+import { useEstudio } from "@/contexts/EstudioContext";
 
 type Metrica = "sinPasivosMensual" | "directoMensualizado" | "conPasivosMensual" | "conPasivosAnual";
 
@@ -54,9 +54,8 @@ export default function ComparacionPage() {
   const esAdmin = isAdminRole(session?.user?.role);
 
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
-  const { companyId, setCompanyId } = useEstudioEmpresa();
+  const { companyId, setCompanyId, snapshotId, setSnapshotId } = useEstudio();
   const [snapshots, setSnapshots] = useState<SnapshotOption[]>([]);
-  const [snapshotId, setSnapshotId] = useState("");
   const [modo, setModo] = useState<"cargo" | "grado">("cargo");
   const [metrica, setMetrica] = useState<Metrica>("sinPasivosMensual");
 
@@ -380,6 +379,8 @@ export default function ComparacionPage() {
             )}
             <div>
               <label htmlFor="cmp-corte" className="field-label">Estudio</label>
+              {/* El mismo que se eligió en Mis cargos: viene del contexto del
+                  recorrido, no se vuelve a preguntar desde cero. */}
               <select id="cmp-corte" value={snapshotId} onChange={(e) => setSnapshotId(e.target.value)} className="field-select">
                 <option value="">Selecciona un estudio</option>
                 {snapshots.map((s) => <option key={s.id} value={s.id}>{s.label} — {s.date}</option>)}

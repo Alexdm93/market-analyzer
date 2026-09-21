@@ -10,7 +10,7 @@ import { METRICAS_INFORME, posicionEnMercado, type DatosInforme } from "@/lib/es
 import { isAdminRole } from "@/lib/roles";
 import { PasosEstudio } from "@/components/PasosEstudio";
 import { SelectorBuscador } from "@/components/SelectorBuscador";
-import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
+import { useEstudio } from "@/contexts/EstudioContext";
 
 type CompanyOption = { id: string; name: string };
 
@@ -40,7 +40,7 @@ export default function InformesPage() {
   const [confirm, confirmDialog] = useConfirm();
 
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
-  const { companyId, setCompanyId } = useEstudioEmpresa();
+  const { companyId, setCompanyId } = useEstudio();
   const [informes, setInformes] = useState<InformeResumen[]>([]);
   const [abierto, setAbierto] = useState<InformeCompleto | null>(null);
   const [cargando, setCargando] = useState(false);
