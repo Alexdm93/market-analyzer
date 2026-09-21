@@ -19,6 +19,7 @@ type CargoDTO = {
   departamento: string;
   tituloCargo: string;
   descripcion: string;
+  reportaA: string;
   hayGrade: number | null;
   capriFamily: string | null;
   data: Partial<ExtendedMarketPosition>;
@@ -38,13 +39,14 @@ type Borrador = {
   departamento: string;
   tituloCargo: string;
   descripcion: string;
+  reportaA: string;
   hayGrade: number | null;
   capriFamily: string | null;
   data: Partial<ExtendedMarketPosition>;
 };
 
 const BORRADOR_VACIO: Borrador = {
-  id: null, ocupanteId: "", departamento: "", tituloCargo: "", descripcion: "",
+  id: null, ocupanteId: "", departamento: "", tituloCargo: "", descripcion: "", reportaA: "",
   hayGrade: null, capriFamily: null,
   data: {
     sueldoBasico: 0, sueldoBasicoFreq: "monthly", sueldoBasicoCuentaMoneda: "USD",
@@ -177,6 +179,7 @@ export default function MisCargosPage() {
           departamento: borrador.departamento,
           tituloCargo: borrador.tituloCargo,
           descripcion: borrador.descripcion,
+          reportaA: borrador.reportaA,
           hayGrade: borrador.hayGrade,
           capriFamily: borrador.capriFamily,
           data: borrador.data,
@@ -443,7 +446,17 @@ export default function MisCargosPage() {
                     : <span className="text-slate-400">Clasificar con CAPRI</span>}
                 </button>
               </div>
-              <div className="md:col-span-4">
+              <div className="md:col-span-2">
+                <label htmlFor="mc-reporta" className="field-label">Reporta a</label>
+                <input
+                  id="mc-reporta"
+                  value={borrador.reportaA}
+                  onChange={(e) => setBorrador({ ...borrador, reportaA: e.target.value })}
+                  className="field"
+                  placeholder="Cargo al que reporta"
+                />
+              </div>
+              <div className="md:col-span-2">
                 <label htmlFor="mc-desc" className="field-label">Descripción (opcional)</label>
                 <textarea id="mc-desc" value={borrador.descripcion} onChange={(e) => setBorrador({ ...borrador, descripcion: e.target.value })} className="field-textarea" rows={2} />
               </div>
@@ -539,7 +552,7 @@ export default function MisCargosPage() {
                               <button
                                 type="button"
                                 aria-label={`Editar ${c.tituloCargo}`}
-                                onClick={() => { setBorrador({ id: c.id, ocupanteId: c.ocupanteId, departamento: c.departamento, tituloCargo: c.tituloCargo, descripcion: c.descripcion, hayGrade: c.hayGrade, capriFamily: c.capriFamily, data: c.data }); setError(""); }}
+                                onClick={() => { setBorrador({ id: c.id, ocupanteId: c.ocupanteId, departamento: c.departamento, tituloCargo: c.tituloCargo, descripcion: c.descripcion, reportaA: c.reportaA, hayGrade: c.hayGrade, capriFamily: c.capriFamily, data: c.data }); setError(""); }}
                                 className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
                               >
                                 <Pencil size={14} />

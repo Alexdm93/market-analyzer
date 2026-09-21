@@ -21,6 +21,7 @@ export type EstudioCargoDTO = {
   departamento: string;
   tituloCargo: string;
   descripcion: string;
+  reportaA: string;
   hayGrade: number | null;
   capriFamily: string | null;
   data: Partial<ExtendedMarketPosition>;
@@ -114,6 +115,7 @@ export async function listarCargos(companyId: string): Promise<EstudioCargoDTO[]
     departamento: f.departamento,
     tituloCargo: f.tituloCargo,
     descripcion: f.descripcion,
+    reportaA: f.reportaA,
     hayGrade: f.hayGrade,
     capriFamily: f.capriFamily,
     data: parseData(f.dataJson),
@@ -129,6 +131,7 @@ export type EntradaCargo = {
   departamento?: string;
   tituloCargo?: string;
   descripcion?: string;
+  reportaA?: string;
   hayGrade?: number | null;
   capriFamily?: string | null;
   data?: Partial<ExtendedMarketPosition>;
@@ -163,6 +166,7 @@ export function validarCargo(entrada: EntradaCargo): Validacion {
       departamento: (entrada.departamento ?? "").replace(/\s+/g, " ").trim(),
       tituloCargo,
       descripcion: (entrada.descripcion ?? "").trim(),
+      reportaA: (entrada.reportaA ?? "").replace(/\s+/g, " ").trim(),
       hayGrade,
       capriFamily,
       data: entrada.data && typeof entrada.data === "object" ? entrada.data : {},

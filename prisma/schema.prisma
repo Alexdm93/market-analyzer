@@ -190,6 +190,9 @@ model EstudioCargo {
   departamento     String   @default("")
   tituloCargo      String
   descripcion      String   @default("")
+  /// A qué cargo reporta. Lo pide el informe especializado para armar el mapeo
+  /// de cargos; solo aplica a este estudio, no a la captura del mercado.
+  reportaA         String   @default("")
   hayGrade         Int?
   capriFamily      String?
   /// Estructura de compensación, con la misma forma que UserPosition.dataJson,

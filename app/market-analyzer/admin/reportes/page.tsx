@@ -122,17 +122,24 @@ export default function ReportesPage() {
         return;
       }
 
-      // "Total Compensación en Moneda Dura (mensualizado)", que en el sistema
-      // es la Compensación Integral Mensualizada.
-      const cargos = (pct.grupos as unknown as Array<{ tituloCargo: string; n: number; conPasivosMensual: GrupoMetrica }>)
-        .map((g) => ({
-          tituloCargo: g.tituloCargo,
-          n: g.n,
-          p50: g.conPasivosMensual?.p50 ?? null,
-          promedio: g.conPasivosMensual?.promedio ?? null,
-          min: g.conPasivosMensual?.min ?? null,
-          max: g.conPasivosMensual?.max ?? null,
-        }));
+      // El CEO pidió las cuatro métricas, no una: TEM, TEMz, CIM y PCTA.
+      type GrupoPct = {
+        tituloCargo: string; n: number;
+        sinPasivosMensual: GrupoMetrica; directoMensualizado: GrupoMetrica;
+        conPasivosMensual: GrupoMetrica; conPasivosAnual: GrupoMetrica;
+      };
+      const stat = (m: GrupoMetrica | undefined) => ({
+        p50: m?.p50 ?? null, promedio: m?.promedio ?? null,
+        min: m?.min ?? null, max: m?.max ?? null,
+      });
+      const cargos = (pct.grupos as unknown as GrupoPct[]).map((g) => ({
+        tituloCargo: g.tituloCargo,
+        n: g.n,
+        tem:  stat(g.sinPasivosMensual),
+        temz: stat(g.directoMensualizado),
+        cim:  stat(g.conPasivosMensual),
+        pcta: stat(g.conPasivosAnual),
+      }));
 
       const res = await fetch("/api/estudio/informe-cortesia", {
         method: "POST",
@@ -397,8 +404,9 @@ export default function ReportesPage() {
             <h3 className="font-display text-base font-bold text-slate-900">3 · Informe de cortesía</h3>
             <p className="mt-1.5 text-sm text-slate-600">
               El documento que recibe toda empresa que participó y envió su data. Se arma rellenando la plantilla
-              del estudio: conserva portada, agradecimiento, páginas institucionales y diseño, y se completan la
-              portada, las empresas participantes y la tabla de Market Analyzer.
+              del estudio: conserva portada, agradecimiento, páginas institucionales y diseño. Se completan la
+              portada, las empresas participantes, la distribución de compensación por nivel y la tabla de Market
+              Analyzer con las cuatro métricas (TEM, TEMz, CIM y PCTA).
             </p>
             <button
               type="button"

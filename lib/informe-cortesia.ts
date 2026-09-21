@@ -17,6 +17,8 @@ import ExcelJS from "exceljs";
 export const HOJA_INICIO = "Inicio";
 export const HOJA_EMPRESAS = "Empresas Participantes";
 export const HOJA_MARKET = "Market Analyzer";
+export const HOJA_DISTRIBUCION = "Distribución de Compensación";
+export const HOJA_CONTENIDO = "F - Contenido";
 
 /** Direcciones tomadas de la plantilla real, no inventadas. */
 const CELDA = {
@@ -29,13 +31,33 @@ const CELDA = {
   filaCargos: 7,
 } as const;
 
-export type GrupoMercado = {
-  tituloCargo: string;
-  n: number;
+export type EstadisticaMercado = {
   p50: number | null;
   promedio: number | null;
   min: number | null;
   max: number | null;
+};
+
+export type GrupoMercado = {
+  tituloCargo: string;
+  n: number;
+  tem: EstadisticaMercado;
+  temz: EstadisticaMercado;
+  cim: EstadisticaMercado;
+  pcta: EstadisticaMercado;
+};
+
+/** Las cuatro métricas que pidió el CEO, en el orden en que van en el informe. */
+export const METRICAS_CORTESIA = [
+  { clave: "tem"  as const, titulo: "TEM — Total Efectivo Mensual" },
+  { clave: "temz" as const, titulo: "TEMz — Total Efectivo Mensualizado" },
+  { clave: "cim"  as const, titulo: "CIM — Compensación Integral Mensualizada" },
+  { clave: "pcta" as const, titulo: "PCTA — Paquete de Compensación Total Anual" },
+];
+
+export type FilaDistribucionInforme = {
+  nivel: string;
+  valores: number[];
 };
 
 export type DatosCortesia = {
@@ -44,6 +66,10 @@ export type DatosCortesia = {
   fechaData: string;
   empresas: string[];
   cargos: GrupoMercado[];
+  distribucion: FilaDistribucionInforme[];
+  categoriasDistribucion: string[];
+  /** Secciones que realmente lleva el informe, para reescribir el índice. */
+  secciones: string[];
 };
 
 const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
@@ -104,21 +130,88 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Exce
   }
 
   // ── Market Analyzer ──
+  // La hoja está diseñada para UNA métrica y ahora van cuatro. Se apilan en
+  // bloques dentro del mismo ancho de columnas (A a F) en vez de crecer a lo
+  // ancho, que dejaría las columnas nuevas fuera del área con formato.
   const hojaMarket = wb.getWorksheet(HOJA_MARKET);
   if (hojaMarket) {
-    datos.cargos.forEach((c, i) => {
-      const fila = CELDA.filaCargos + i;
-      escribir(hojaMarket, `A${fila}`, c.tituloCargo);
-      escribir(hojaMarket, `B${fila}`, c.p50);
-      escribir(hojaMarket, `C${fila}`, c.promedio);
-      escribir(hojaMarket, `D${fila}`, c.min);
-      escribir(hojaMarket, `E${fila}`, c.max);
-      escribir(hojaMarket, `F${fila}`, c.n);
+    const estiloTitulo = hojaMarket.getCell("A6").style;
+    let fila = CELDA.filaCargos;
+
+    for (const metrica of METRICAS_CORTESIA) {
+      const filaTitulo = fila - 1;
+      const celdaTitulo = hojaMarket.getCell(`A${filaTitulo}`);
+      celdaTitulo.value = metrica.titulo;
+      celdaTitulo.style = { ...estiloTitulo };
+      for (const col of ["B", "C", "D", "E", "F"]) {
+        const c = hojaMarket.getCell(`${col}${filaTitulo}`);
+        c.value = { tem: "P50 (Mediana)", temz: "P50 (Mediana)", cim: "P50 (Mediana)", pcta: "P50 (Mediana)" }[metrica.clave] && col === "B"
+          ? "P50 (Mediana)"
+          : col === "C" ? "Promedio" : col === "D" ? "Minimo" : col === "E" ? "Maximo" : col === "F" ? "Participantes" : null;
+        c.style = { ...estiloTitulo };
+      }
+
+      datos.cargos.forEach((cargo, i) => {
+        const f = fila + i;
+        const e = cargo[metrica.clave];
+        escribir(hojaMarket, `A${f}`, cargo.tituloCargo);
+        escribir(hojaMarket, `B${f}`, e.p50);
+        escribir(hojaMarket, `C${f}`, e.promedio);
+        escribir(hojaMarket, `D${f}`, e.min);
+        escribir(hojaMarket, `E${f}`, e.max);
+        escribir(hojaMarket, `F${f}`, cargo.n);
+      });
+
+      fila += datos.cargos.length + 3; // hueco entre bloques
+    }
+
+    // La plantilla trae ~113 cargos de ejemplo: se borra lo que quede debajo.
+    for (let i = 0; i < 160; i++) {
+      const f = fila + i;
+      for (const col of ["A", "B", "C", "D", "E", "F"]) escribir(hojaMarket, `${col}${f}`, null);
+    }
+  }
+
+  // ── Distribución de compensación ──
+  const hojaDist = wb.getWorksheet(HOJA_DISTRIBUCION);
+  if (hojaDist) {
+    const estiloCabecera = hojaDist.getCell("A8").style;
+    const columnas = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
+
+    // Cabecera: "Niveles" más las ocho categorías del CEO.
+    ["Niveles", ...datos.categoriasDistribucion].forEach((titulo, i) => {
+      const c = hojaDist.getCell(`${columnas[i]}8`);
+      c.value = titulo;
+      c.style = { ...estiloCabecera };
     });
-    // La plantilla trae ~113 cargos de ejemplo; se borra lo que sobre.
-    for (let i = datos.cargos.length; i < datos.cargos.length + 150; i++) {
-      const fila = CELDA.filaCargos + i;
-      for (const col of ["A", "B", "C", "D", "E", "F"]) escribir(hojaMarket, `${col}${fila}`, null);
+    // Se limpian las columnas que sobran de la cabecera vieja.
+    for (let i = datos.categoriasDistribucion.length + 1; i < 12; i++) {
+      escribir(hojaDist, `${String.fromCharCode(65 + i)}8`, null);
+    }
+
+    datos.distribucion.forEach((f, idx) => {
+      const fila = 9 + idx;
+      escribir(hojaDist, `A${fila}`, f.nivel);
+      f.valores.forEach((v, i) => escribir(hojaDist, `${columnas[i + 1]}${fila}`, v));
+      for (let i = f.valores.length + 1; i < 12; i++) {
+        escribir(hojaDist, `${String.fromCharCode(65 + i)}${fila}`, null);
+      }
+    });
+    // La plantilla traía siete niveles y ahora son seis.
+    for (let i = datos.distribucion.length; i < datos.distribucion.length + 4; i++) {
+      const fila = 9 + i;
+      for (let c = 0; c < 12; c++) escribir(hojaDist, `${String.fromCharCode(65 + c)}${fila}`, null);
+    }
+  }
+
+  // ── Índice ──
+  // El CEO sacó del índice las secciones que se publicarán como informe aparte.
+  const hojaContenido = wb.getWorksheet(HOJA_CONTENIDO);
+  if (hojaContenido) {
+    const primeraFila = 3;
+    datos.secciones.forEach((seccion, i) => escribir(hojaContenido, `B${primeraFila + i}`, seccion));
+    for (let i = datos.secciones.length; i < datos.secciones.length + 10; i++) {
+      escribir(hojaContenido, `B${primeraFila + i}`, null);
     }
   }
 
