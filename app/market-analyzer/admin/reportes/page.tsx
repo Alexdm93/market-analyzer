@@ -36,6 +36,7 @@ export default function ReportesPage() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [generandoCortesia, setGenerandoCortesia] = useState(false);
+  const [empresaCortesia, setEmpresaCortesia] = useState("");
 
   useEffect(() => {
     void fetch("/api/admin/study", { cache: "no-store" })
@@ -144,7 +145,7 @@ export default function ReportesPage() {
       const res = await fetch("/api/estudio/informe-cortesia", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshotId, cargos }),
+        body: JSON.stringify({ snapshotId, companyId: empresaCortesia || undefined, cargos }),
       });
 
       if (!res.ok) {
@@ -408,6 +409,23 @@ export default function ReportesPage() {
               portada, las empresas participantes, la distribución de compensación por nivel y la tabla de Market
               Analyzer con las cuatro métricas (TEM, TEMz, CIM y PCTA).
             </p>
+            <div className="mt-3">
+              <label htmlFor="rep-cortesia-empresa" className="field-label">Empresa de la portada</label>
+              <select
+                id="rep-cortesia-empresa"
+                value={empresaCortesia}
+                onChange={(e) => setEmpresaCortesia(e.target.value)}
+                className="field-select"
+              >
+                <option value="">Sin empresa (documento genérico)</option>
+                {empresas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <p className="mt-1.5 text-xs text-slate-500">
+                El contenido es el mismo para todas; esto solo pone su nombre en la portada. Cada empresa también
+                puede descargarlo sola desde Resultados una vez publicado el corte.
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={() => void generarCortesia()}

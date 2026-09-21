@@ -81,6 +81,8 @@ export default function ResultadosPage() {
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
   const [percentileData, setPercentileData] = useState<PercentilesPayload | null>(null);
   const [percentilesLoading, setPercentilesLoading] = useState(false);
+  const [bajandoInforme, setBajandoInforme] = useState(false);
+  const [errorInforme, setErrorInforme] = useState("");
 
   const rows = useMemo<ExtendedMarketPosition[]>(() => {
     if (selectedSnapshotId && snapshots[selectedSnapshotId]) {
@@ -175,6 +177,57 @@ export default function ResultadosPage() {
       })
       .sort((a, b) => b.count - a.count);
   }, [rows, percentileData, selectedSnapshotId, isAdmin, isPublished]);
+
+  /**
+   * El informe de cortesía de esta empresa. El servidor comprueba que el corte
+   * esté publicado y que la empresa haya enviado su data: son las dos
+   * condiciones que dan derecho al informe.
+   */
+  async function descargarInformeCortesia() {
+    if (!selectedSnapshotId || !percentileData) return;
+    setBajandoInforme(true);
+    setErrorInforme("");
+    try {
+      type Metrica = { n: number; min: number | null; max: number | null; p50: number | null; promedio: number | null };
+      const stat = (m: Metrica | undefined) => ({
+        p50: m?.p50 ?? null, promedio: m?.promedio ?? null, min: m?.min ?? null, max: m?.max ?? null,
+      });
+      const cargos = (percentileData.grupos ?? []).map((g) => ({
+        tituloCargo: g.tituloCargo,
+        n: g.n,
+        tem: stat(g.sinPasivosMensual as Metrica),
+        temz: stat(g.directoMensualizado as Metrica),
+        cim: stat(g.conPasivosMensual as Metrica),
+        pcta: stat(g.conPasivosAnual as Metrica),
+      }));
+
+      const res = await fetch("/api/estudio/informe-cortesia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId: selectedSnapshotId, cargos }),
+      });
+
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { message?: string } | null;
+        setErrorInforme(d?.message ?? `No se pudo generar el informe (error ${res.status}).`);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Informe de cortesia.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErrorInforme(e instanceof Error ? e.message : "No se pudo generar el informe.");
+    } finally {
+      setBajandoInforme(false);
+    }
+  }
 
   async function exportExcel() {
     const selectedSnapshot = selectedSnapshotId ? snapshots[selectedSnapshotId] : undefined;
@@ -274,6 +327,23 @@ export default function ResultadosPage() {
                   <FileSpreadsheet className="h-4 w-4" />
                   Exportar a Excel
                 </button>
+              )}
+
+              {groups.length > 0 && isPublished && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void descargarInformeCortesia()}
+                    disabled={bajandoInforme}
+                    className="btn btn-primary mt-2 w-full disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    {bajandoInforme ? "Generando…" : "Descargar informe del estudio"}
+                  </button>
+                  {errorInforme && (
+                    <p className="mt-2 rounded-[1.1rem] bg-red-50 px-3 py-2.5 text-xs text-red-700">{errorInforme}</p>
+                  )}
+                </>
               )}
 
               {isAdmin && (

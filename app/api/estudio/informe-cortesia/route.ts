@@ -21,6 +21,7 @@ import {
   type GrupoMercado,
 } from "@/lib/informe-cortesia";
 import { prisma } from "@/lib/prisma";
+import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 import { safeParseCompanyInfo } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
 
@@ -35,7 +36,7 @@ const SECCIONES = [
   "PORTAFOLIO DE PRODUCTOS",
 ];
 
-type Cuerpo = { snapshotId?: string; cargos?: Array<Record<string, unknown>> };
+type Cuerpo = { snapshotId?: string; companyId?: string; cargos?: Array<Record<string, unknown>> };
 
 function numeroONulo(v: unknown): number | null {
   const n = Number(v);
@@ -52,13 +53,43 @@ function estadistica(v: unknown): EstadisticaMercado {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions).catch(() => null);
-  if (!session?.user?.id || session.user.role !== "ADMIN") {
-    return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
+  if (!session?.user?.id) {
+    return Response.json({ message: "No autorizado." }, { status: 401 });
   }
 
   const body = (await request.json().catch(() => null)) as Cuerpo | null;
   const snapshotId = body?.snapshotId?.trim() ?? "";
   if (!snapshotId) return Response.json({ message: "Indica el corte." }, { status: 400 });
+
+  const esAdmin = session.user.role === "ADMIN";
+
+  // El admin puede generarlo para cualquier empresa, o genérico sin ninguna.
+  // Una empresa solo descarga el suyo, y solo si se lo ganó: el corte tiene que
+  // estar publicado y ella tiene que haber enviado su data. Son las dos mismas
+  // condiciones que dan derecho al informe.
+  const companyIdCliente = esAdmin ? (body?.companyId?.trim() ?? "") : (session.user.companyId ?? "");
+
+  if (!esAdmin) {
+    if (!companyIdCliente) {
+      return Response.json({ message: "Tu usuario no tiene empresa asignada." }, { status: 400 });
+    }
+    const [publicados, envio] = await Promise.all([
+      getPublishedSnapshotIds(),
+      prisma.userSnapshot.findFirst({
+        where: { snapshotId, companyId: companyIdCliente, submittedAt: { not: null } },
+        select: { id: true },
+      }),
+    ]);
+    if (!publicados.includes(snapshotId)) {
+      return Response.json({ message: "Ese corte todavía no está publicado." }, { status: 403 });
+    }
+    if (!envio) {
+      return Response.json(
+        { message: "El informe es para las empresas que enviaron su data en este corte." },
+        { status: 403 },
+      );
+    }
+  }
   if (!Array.isArray(body?.cargos) || body.cargos.length === 0) {
     return Response.json({ message: "El informe no trae cargos." }, { status: 400 });
   }
@@ -127,8 +158,13 @@ export async function POST(request: Request) {
   const snapshot = enviados[0];
   const etiqueta = snapshot?.label ?? snapshotId;
 
+  const cliente = companyIdCliente
+    ? (await prisma.company.findUnique({ where: { id: companyIdCliente }, select: { name: true } }))?.name ?? ""
+    : "";
+
   const buffer = await generarInformeCortesia({
     tituloEstudio: `RESULTADOS ${etiqueta.toUpperCase()}`,
+    cliente,
     fechaInforme: mesYAnio(new Date()),
     fechaData: mesYAnio(snapshot?.date ?? new Date()),
     empresas,
@@ -138,7 +174,9 @@ export async function POST(request: Request) {
     secciones: SECCIONES,
   });
 
-  const nombre = `Informe de cortesía - ${etiqueta}.xlsx`;
+  const nombre = cliente
+    ? `Informe de cortesía - ${cliente} - ${etiqueta}.xlsx`
+    : `Informe de cortesía - ${etiqueta}.xlsx`;
 
   return new Response(buffer as ArrayBuffer, {
     headers: {

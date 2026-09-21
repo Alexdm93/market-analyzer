@@ -25,6 +25,11 @@ const CELDA = {
   titulo: "A12",
   fechaInforme: "B14",
   fechaData: "B16",
+  // La plantilla del cortesía no traía cliente. Se agrega en A18/B18, las
+  // mismas celdas donde lo lleva la del informe especializado, para que las dos
+  // portadas queden iguales.
+  etiquetaCliente: "A18",
+  cliente: "B18",
   totalEmpresas: "I28",
   primeraEmpresaCol1: 30,
   primeraEmpresaCol2: 30,
@@ -62,6 +67,8 @@ export type FilaDistribucionInforme = {
 
 export type DatosCortesia = {
   tituloEstudio: string;
+  /** Vacío genera el informe genérico, sin empresa en la portada. */
+  cliente: string;
   fechaInforme: string;
   fechaData: string;
   empresas: string[];
@@ -102,6 +109,8 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Exce
     escribir(inicio, CELDA.titulo, datos.tituloEstudio);
     escribir(inicio, CELDA.fechaInforme, datos.fechaInforme);
     escribir(inicio, CELDA.fechaData, datos.fechaData);
+    escribir(inicio, CELDA.etiquetaCliente, datos.cliente ? "CLIENTE:" : null);
+    escribir(inicio, CELDA.cliente, datos.cliente || null);
   }
 
   // ── Empresas participantes ──
