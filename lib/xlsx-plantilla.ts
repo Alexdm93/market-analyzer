@@ -218,6 +218,10 @@ export class HojaPlantilla {
     for (const [ref, { valor, estiloDe }] of ordenados) {
       const { fila: numero } = partesRef(ref);
       const { columna } = partesRef(ref);
+      // Vaciar una celda que la plantilla no trae no es nada: crearla solo
+      // alargaría el rango usado de la hoja con filas en blanco.
+      if (valor === null && !filas.get(numero)?.celdas.has(ref)) continue;
+
       let fila = filas.get(numero);
       if (!fila) {
         fila = { atributos: atributosHeredados(filas, numero), celdas: new Map() };

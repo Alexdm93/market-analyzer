@@ -11,6 +11,7 @@
  */
 import path from "node:path";
 
+import type { FilaDataEmpresa, Monto } from "@/lib/data-empresa";
 import { LibroPlantilla, type HojaPlantilla } from "@/lib/xlsx-plantilla";
 
 import {
@@ -38,6 +39,7 @@ export const HOJAS = {
   mapeo: "Mapeo de cargos",
   dataEmpresa: "Data Empresa",
   contenido: "F - Contenido",
+  listas: "Listas desplegables",
 } as const;
 
 /** Primera fila de datos de cada hoja, tomadas de la plantilla real. */
@@ -53,16 +55,24 @@ const PRIMERA_FILA = {
   dataEmpresa: 19,
 } as const;
 
-/** La hoja de data de la empresa llega hasta la columna BJ. */
+/** La hoja de data de la empresa llega hasta la columna BK. */
 const COLS_DATA_EMPRESA = (() => {
   const cols: string[] = [];
-  for (let i = 1; i <= 62; i++) {
+  for (let i = 1; i <= 63; i++) {
     let n = i, s = "";
     while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
     cols.push(s);
   }
   return cols;
 })();
+
+/**
+ * Las columnas que la hoja calcula sola. En las filas que llevan data no se
+ * tocan, para que la fórmula siga ahí y Excel la recalcule; en las filas que
+ * sobran sí se borran, porque sin entradas mostrarían ceros.
+ */
+const COLS_CALCULADAS = new Set(["Z", "AA", "AB", "BA", "BB", "BC", "BD", "BE", "BF", "BG", "BH", "BI", "BJ"]);
+const COLS_ENTRADA_DATA = COLS_DATA_EMPRESA.filter((c) => !COLS_CALCULADAS.has(c));
 
 export type CargoMapeado = {
   grado: number;
@@ -85,6 +95,7 @@ export type DatosEspecializado = {
   grupoComparacion: string;
   /** Los parámetros con los que se calculó, para la hoja de data de la empresa. */
   parametros: { diasVacaciones: number; diasUtilidades: number; bcv: number | null };
+  dataEmpresa: FilaDataEmpresa[];
   dispersion: FilaAnalisis[];
   equidad: { filas: FilaEquidad[]; indiceGlobal: number | null };
   competitividad: FilaCompetitividad[];
@@ -118,6 +129,24 @@ function limpiarDesde(ws: HojaPlantilla, desde: number, columnas: string[], cuan
 }
 
 const COLS_ID = ["A", "B", "C", "D", "E", "F"];
+
+/**
+ * Un importe de la hoja de data ocupa tres columnas seguidas: monto, moneda de
+ * cuenta y moneda de pago.
+ */
+function monto(primera: string, valor: Monto): Array<[string, string | number | null]> {
+  const i = primera.split("").reduce((n, c) => n * 26 + (c.charCodeAt(0) - 64), 0);
+  const letras = (n: number) => {
+    let x = n, s = "";
+    while (x > 0) { const r = (x - 1) % 26; s = String.fromCharCode(65 + r) + s; x = Math.floor((x - 1) / 26); }
+    return s;
+  };
+  return [
+    [primera, valor.monto],
+    [letras(i + 1), valor.cuenta],
+    [letras(i + 2), valor.pago],
+  ];
+}
 
 function etiquetaConcepto(c: ConfiguracionInforme["concepto"]) {
   return CONCEPTOS.find((x) => x.clave === c)?.etiqueta ?? "";
@@ -377,18 +406,62 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   if (mapeo && datos.mapeo.length > 0) escribirMapeo(mapeo, datos.mapeo);
 
   // ── Data de la empresa ──
-  // La plantilla trae la nómina completa del cliente de ejemplo. Hay que
-  // vaciarla: si no, cada informe entregaría los sueldos de ese otro cliente.
+  // Solo se escriben las ENTRADAS: las columnas de totales llevan las fórmulas
+  // de la plantilla y Excel las recalcula al abrir. La nómina del cliente de
+  // ejemplo se borra entera, incluidas sus fórmulas, en las filas sobrantes.
   const dataEmpresa = wb.hoja(HOJAS.dataEmpresa);
   if (dataEmpresa) {
-    set(dataEmpresa, "B5", datos.parametros.diasVacaciones || null);
-    set(dataEmpresa, "B6", datos.parametros.diasUtilidades || null);
+    const { diasVacaciones, diasUtilidades, bcv } = datos.parametros;
+    set(dataEmpresa, "B5", diasVacaciones || null);
+    set(dataEmpresa, "B6", diasUtilidades || null);
     set(dataEmpresa, "B7", datos.config.incluirComisiones ? "Sí" : "No");
-    set(dataEmpresa, "B10", datos.parametros.bcv);
+    set(dataEmpresa, "B8", "TCR-BCV USD");
+    set(dataEmpresa, "C8", bcv);
+    // Las fórmulas de la hoja convierten con B9; usamos la misma tasa con la
+    // que se calculó el resto del informe para que no digan cosas distintas.
+    set(dataEmpresa, "B9", bcv);
+    set(dataEmpresa, "B10", bcv);
+    set(dataEmpresa, "B11", null);
+    set(dataEmpresa, "B12", bcv);
     set(dataEmpresa, "B13", datos.fechaData);
-    // Las tasas del cliente de ejemplo no son las de esta empresa.
-    for (const celda of ["B8", "C8", "B9", "B11", "B12"]) set(dataEmpresa, celda, null);
-    limpiarDesde(dataEmpresa, PRIMERA_FILA.dataEmpresa, COLS_DATA_EMPRESA, 980);
+
+    // En las filas que van a llevar data se vacían solo las entradas, para no
+    // borrarles la fórmula; de la última en adelante se borra todo.
+    const primera = PRIMERA_FILA.dataEmpresa;
+    limpiarDesde(dataEmpresa, primera, COLS_ENTRADA_DATA, datos.dataEmpresa.length);
+    limpiarDesde(dataEmpresa, primera + datos.dataEmpresa.length, COLS_DATA_EMPRESA, 980);
+
+    datos.dataEmpresa.forEach((f, i) => {
+      const fila = PRIMERA_FILA.dataEmpresa + i;
+      setFila(dataEmpresa, fila, [
+        ["A", f.empresa], ["B", f.ocupanteId], ["C", f.unidadFuncional],
+        ["D", f.tituloCargo], ["E", f.grado],
+        ...monto("F", f.sueldoBasico),
+        ...monto("I", f.bonoAlimentacion),
+        ...monto("L", f.bonoSalud),
+        ...monto("O", f.bonoTransporte),
+        ...monto("R", f.fijosMensualesConImpacto),
+        ...monto("U", f.fijosMensualesSinImpacto),
+        ["X", f.duraMensualConImpacto], ["Y", f.duraMensualSinImpacto],
+        ...monto("AC", f.otrosAnualesConImpacto),
+        ...monto("AF", f.otrosAnualesSinImpacto),
+        ...monto("AI", f.fondoAhorros),
+        ["AL", f.duraAnualConImpacto], ["AM", f.duraAnualSinImpacto],
+        ...monto("AN", f.desempeno),
+        ["AQ", f.desempeno.impacto], ["AR", f.desempeno.frecuencia],
+        ...monto("AS", f.comisiones),
+        ["AV", f.comisiones.impacto], ["AW", f.comisiones.frecuencia],
+        ["AX", f.comisiones.tipo], ["AY", f.comisiones.detalle], ["AZ", f.comisiones.objetivos],
+      ]);
+    });
+  }
+
+  // La lista del desplegable de "Compañía / Unidad" trae los grupos de
+  // comparación del cliente de ejemplo, con nombres de empresas reales.
+  const listas = wb.hoja(HOJAS.listas);
+  if (listas) {
+    set(listas, "D3", datos.grupoComparacion || "Transversales");
+    for (const fila of [4, 5, 6, 7, 8]) set(listas, `D${fila}`, null);
   }
 
   // El título de esta hoja es un cuadro de texto, no una celda.

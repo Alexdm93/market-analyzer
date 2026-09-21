@@ -28,6 +28,7 @@ import { generarInformeEspecializado, mesYAnioEsp } from "@/lib/informe-especial
 import { prisma } from "@/lib/prisma";
 import { safeParseCompanyInfo } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
+import { construirDataEmpresa } from "@/lib/data-empresa";
 
 export const maxDuration = 60;
 
@@ -123,6 +124,7 @@ export async function POST(request: Request) {
     config,
     configSimulador,
     parametros: { diasVacaciones: diasVac, diasUtilidades: diasUtil, bcv },
+    dataEmpresa: construirDataEmpresa(ocupantes, nombreEmpresa, tasas, bcv),
     grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Transversales",
     dispersion: filas,
     equidad: analizarEquidad(filas, config.aperturaBandas),
