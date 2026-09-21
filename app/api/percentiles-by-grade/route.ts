@@ -46,10 +46,9 @@ export async function GET(request: Request) {
     return Response.json({ message: "Indica el corte." }, { status: 400 });
   }
 
+  const isAdmin = session.user.role === "ADMIN";
+
   const publishedIds = await getPublishedSnapshotIds();
-  if (!publishedIds.includes(snapshotId)) {
-    return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
-  }
 
   const [{ rate: bcvRate }, workspaces] = await Promise.all([
     getBcvRate(),
@@ -58,13 +57,20 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  // Verify the requesting user participated
-  const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
-  const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
-  const requestingSnapshot  = requestingSnapshots[snapshotId];
-  const userParticipated    = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
-  if (!userParticipated) {
-    return Response.json({ message: "No participaste en este corte." }, { status: 403 });
+  // El admin no carga data, así que exigirle haber participado lo dejaba fuera
+  // de su propia herramienta. Mismo trato que en /api/percentiles: para
+  // cualquier otro rol las dos comprobaciones siguen igual que siempre.
+  if (!isAdmin) {
+    if (!publishedIds.includes(snapshotId)) {
+      return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
+    }
+    const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
+    const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
+    const requestingSnapshot  = requestingSnapshots[snapshotId];
+    const userParticipated    = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
+    if (!userParticipated) {
+      return Response.json({ message: "No participaste en este corte." }, { status: 403 });
+    }
   }
 
   const groups = new Map<number, GradeAccum>();
