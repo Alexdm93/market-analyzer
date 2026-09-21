@@ -10,8 +10,23 @@
 import { prisma } from "@/lib/prisma";
 
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutos
-const MAX_ATTEMPTS = 10;
 const PREFIJO = "ratelimit:";
+
+/**
+ * Dos topes distintos, porque son dos cosas distintas.
+ *
+ * Un intento de login lo hace una persona a propósito: diez en quince minutos
+ * es de sobra. La búsqueda de empresa por correo se dispara sola —autocompletar
+ * y al salir del campo, o sea dos veces por intento— y varias personas de la
+ * misma oficina comparten IP, así que con diez se quedaban afuera sin hacer
+ * nada malo. Sigue limitada, pero contra el scraping masivo, no contra el uso
+ * normal.
+ */
+const TOPES = { login: 10, lookup: 60 } as const;
+
+function topeDe(id: string): number {
+  return id.startsWith("lookup:") ? TOPES.lookup : TOPES.login;
+}
 
 type Entrada = { count: number; resetAt: number };
 
@@ -45,6 +60,7 @@ async function podarDeVezEnCuando() {
 export async function checkRateLimit(id: string): Promise<{ allowed: boolean; remaining: number }> {
   const key = clave(id);
   const ahora = Date.now();
+  const MAX_ATTEMPTS = topeDe(id);
 
   try {
     const fila = await prisma.globalConfig.findUnique({ where: { key }, select: { value: true } });
