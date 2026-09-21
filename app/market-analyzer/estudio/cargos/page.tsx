@@ -12,6 +12,8 @@ import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import { isAdminRole } from "@/lib/roles";
 import type { ExtendedMarketPosition } from "@/types/salary";
+import { PasosEstudio } from "@/components/PasosEstudio";
+import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
 
 type CargoDTO = {
   id: string;
@@ -71,7 +73,7 @@ export default function MisCargosPage() {
   const [confirm, confirmDialog] = useConfirm();
 
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState("");
+  const { companyId, setCompanyId } = useEstudioEmpresa();
   const [cargos, setCargos] = useState<CargoDTO[]>([]);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(EMPTY_COMPANY_INFO);
 
@@ -325,6 +327,7 @@ export default function MisCargosPage() {
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
+        <PasosEstudio />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio Especializado</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Mis cargos.</h1>

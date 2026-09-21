@@ -6,6 +6,8 @@ import { AlertTriangle, ArrowLeft, FileText, Loader2, Trash2 } from "lucide-reac
 import { useConfirm } from "@/components/ConfirmDialog";
 import { METRICAS_INFORME, posicionEnMercado, type DatosInforme } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
+import { PasosEstudio } from "@/components/PasosEstudio";
+import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
 
 type CompanyOption = { id: string; name: string };
 
@@ -35,7 +37,7 @@ export default function InformesPage() {
   const [confirm, confirmDialog] = useConfirm();
 
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState("");
+  const { companyId, setCompanyId } = useEstudioEmpresa();
   const [informes, setInformes] = useState<InformeResumen[]>([]);
   const [abierto, setAbierto] = useState<InformeCompleto | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -214,6 +216,7 @@ export default function InformesPage() {
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
+        <PasosEstudio />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio Especializado</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Informes.</h1>

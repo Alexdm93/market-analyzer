@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, Building2, ChartBar, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, FileText, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, ChartBar, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { Fragment, useEffect, useState } from "react";
@@ -36,18 +36,27 @@ const itemsBaseAdmin: MenuItem[] = [
 const estudiosItem: MenuItem = { name: "Estudios", href: `${BASE}/estudios`, icon: ChartBar, hint: "Participación por corte" };
 
 /**
- * El Estudio Especializado es un bloque propio: el admin lo ve completo y la
- * empresa habilitada ve exactamente los mismos cuatro destinos.
+ * Dos destinos distintos que antes se confundían.
+ *
+ * "Posicionamiento" analiza los cargos del ESTUDIO DE MERCADO por grado CAPRI
+ * y TCR: es de la familia de Resultados, no del Estudio Especializado.
+ *
+ * "Estudio especializado" es la entrada al flujo de tres pasos (Mis cargos →
+ * Comparación → Informes), que ahora se recorre con la barra de pasos dentro
+ * de la propia pantalla en vez de con tres entradas sueltas en el menú.
  */
-const grupoEstudio: MenuGroup = {
-  key: "estudio",
-  label: "Estudio especializado",
-  items: [
-    { name: "Estudio", href: `${BASE}/estudio`, icon: BookOpen, hint: "Estudio especializado" },
-    { name: "Mis cargos", href: `${BASE}/estudio/cargos`, icon: ListChecks, hint: "Lista propia de cargos" },
-    { name: "Comparación", href: `${BASE}/estudio/comparacion`, icon: BarChart3, hint: "Tus cargos contra el mercado" },
-    { name: "Informes", href: `${BASE}/estudio/informes`, icon: FileText, hint: "Informes generados" },
-  ],
+const posicionamientoItem: MenuItem = {
+  name: "Posicionamiento",
+  href: `${BASE}/estudio`,
+  icon: BookOpen,
+  hint: "Por grado CAPRI y TCR",
+};
+
+const especializadoItem: MenuItem = {
+  name: "Estudio especializado",
+  href: `${BASE}/estudio/cargos`,
+  icon: ListChecks,
+  hint: "Cargos, comparación e informes",
 };
 
 const grupoAdmin: MenuGroup = {
@@ -103,14 +112,13 @@ export default function Sidebar() {
     return null;
   }
 
-  const itemsPlanos = isAdmin
-    ? itemsBaseAdmin
-    : [...itemsBase, ...(isCoordinator ? [estudiosItem] : [])];
+  const itemsEstudio = canSeeEstudio ? [posicionamientoItem, especializadoItem] : [];
 
-  const grupos: MenuGroup[] = [
-    ...(canSeeEstudio ? [grupoEstudio] : []),
-    ...(isAdmin ? [grupoAdmin] : []),
-  ];
+  const itemsPlanos = isAdmin
+    ? [...itemsBaseAdmin, ...itemsEstudio]
+    : [...itemsBase, ...itemsEstudio, ...(isCoordinator ? [estudiosItem] : [])];
+
+  const grupos: MenuGroup[] = isAdmin ? [grupoAdmin] : [];
 
   const renderItem = (item: MenuItem) => {
     const Icon = item.icon;

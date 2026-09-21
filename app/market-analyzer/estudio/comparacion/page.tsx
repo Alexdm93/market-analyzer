@@ -10,6 +10,8 @@ import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { ExtendedMarketPosition } from "@/types/salary";
+import { PasosEstudio } from "@/components/PasosEstudio";
+import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
 
 type Metrica = "sinPasivosMensual" | "directoMensualizado" | "conPasivosMensual" | "conPasivosAnual";
 
@@ -51,7 +53,7 @@ export default function ComparacionPage() {
   const esAdmin = isAdminRole(session?.user?.role);
 
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
-  const [companyId, setCompanyId] = useState("");
+  const { companyId, setCompanyId } = useEstudioEmpresa();
   const [snapshots, setSnapshots] = useState<SnapshotOption[]>([]);
   const [snapshotId, setSnapshotId] = useState("");
   const [modo, setModo] = useState<"cargo" | "grado">("cargo");
@@ -344,6 +346,7 @@ export default function ComparacionPage() {
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
+        <PasosEstudio />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio Especializado</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Comparación.</h1>
