@@ -5,6 +5,8 @@ import { AlertTriangle, Building2, Download, FileSpreadsheet, Loader2, Search } 
 type AdminSnapshot = { id: string; label: string; date: string; published?: boolean };
 type CompanyOption = { id: string; name: string; economicSector?: string; classification?: string; headcount?: string };
 
+type GrupoMetrica = { n: number; min: number | null; max: number | null; p50: number | null; promedio: number | null };
+
 type Conteo = {
   corte: string;
   empresas: number;
@@ -33,6 +35,7 @@ export default function ReportesPage() {
   const [conteo, setConteo] = useState<Conteo | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [generandoCortesia, setGenerandoCortesia] = useState(false);
 
   useEffect(() => {
     void fetch("/api/admin/study", { cache: "no-store" })
@@ -98,6 +101,64 @@ export default function ReportesPage() {
       setError(e instanceof Error ? e.message : "No se pudo calcular el alcance.");
     } finally {
       setCargando(false);
+    }
+  }
+
+  /**
+   * El informe de cortesía se arma rellenando la plantilla del cliente. Los
+   * percentiles salen de /api/percentiles —la misma ruta que alimenta
+   * Resultados— y se le pasan al servidor ya calculados, para que el informe y
+   * la pantalla no puedan decir cosas distintas.
+   */
+  async function generarCortesia() {
+    if (!snapshotId) return;
+    setGenerandoCortesia(true);
+    setError("");
+    try {
+      const resPct = await fetch(`/api/percentiles?snapshotId=${encodeURIComponent(snapshotId)}`, { cache: "no-store" });
+      const pct = (await resPct.json().catch(() => null)) as { grupos?: Array<Record<string, GrupoMetrica>> ; message?: string } | null;
+      if (!resPct.ok || !pct?.grupos) {
+        setError((pct as { message?: string } | null)?.message ?? "No se pudieron obtener los percentiles del corte.");
+        return;
+      }
+
+      // "Total Compensación en Moneda Dura (mensualizado)", que en el sistema
+      // es la Compensación Integral Mensualizada.
+      const cargos = (pct.grupos as unknown as Array<{ tituloCargo: string; n: number; conPasivosMensual: GrupoMetrica }>)
+        .map((g) => ({
+          tituloCargo: g.tituloCargo,
+          n: g.n,
+          p50: g.conPasivosMensual?.p50 ?? null,
+          promedio: g.conPasivosMensual?.promedio ?? null,
+          min: g.conPasivosMensual?.min ?? null,
+          max: g.conPasivosMensual?.max ?? null,
+        }));
+
+      const res = await fetch("/api/estudio/informe-cortesia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId, cargos }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(data?.message ?? `No se pudo generar el informe (error ${res.status}).`);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Informe de cortesia - ${conteo?.corte ?? snapshotId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el informe.");
+    } finally {
+      setGenerandoCortesia(false);
     }
   }
 
@@ -330,6 +391,27 @@ export default function ReportesPage() {
                 </span>
               )}
             </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 p-5">
+            <h3 className="font-display text-base font-bold text-slate-900">3 · Informe de cortesía</h3>
+            <p className="mt-1.5 text-sm text-slate-600">
+              El documento que recibe toda empresa que participó y envió su data. Se arma rellenando la plantilla
+              del estudio: conserva portada, agradecimiento, páginas institucionales y diseño, y se completan la
+              portada, las empresas participantes y la tabla de Market Analyzer.
+            </p>
+            <button
+              type="button"
+              onClick={() => void generarCortesia()}
+              disabled={!snapshotId || generandoCortesia}
+              className="btn-primary mt-4 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {generandoCortesia ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Generar y descargar
+            </button>
+            <p className="mt-2 text-xs text-slate-500">
+              No depende de los filtros de arriba: el informe es del corte completo, con todas las empresas que
+              enviaron.
+            </p>
           </div>
 
           {!listo && (

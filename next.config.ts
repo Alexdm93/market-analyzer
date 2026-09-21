@@ -14,6 +14,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Las plantillas de los informes son archivos .xlsx que la ruta lee del disco.
+  // Sin esto, el rastreo de dependencias de Next no las ve (nadie las importa)
+  // y no viajan en el bundle de la función al desplegar.
+  outputFileTracingIncludes: {
+    "/api/estudio/informe-cortesia": ["./templates/**"],
+  },
+
   async headers() {
     return [
       {
