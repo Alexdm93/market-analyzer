@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
   // y no viajan en el bundle de la función al desplegar.
   outputFileTracingIncludes: {
     "/api/estudio/informe-cortesia": ["./templates/**"],
+    "/api/estudio/informe-especializado": ["./templates/**"],
   },
 
   async headers() {
