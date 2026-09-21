@@ -41,9 +41,9 @@ const estudiosItem: MenuItem = { name: "Estudios", href: `${BASE}/estudios`, ico
  * "Posicionamiento" analiza los cargos del ESTUDIO DE MERCADO por grado CAPRI
  * y TCR: es de la familia de Resultados, no del Estudio Especializado.
  *
- * "Estudio especializado" es la entrada al flujo de tres pasos (Mis cargos →
- * Comparación → Informes), que ahora se recorre con la barra de pasos dentro
- * de la propia pantalla en vez de con tres entradas sueltas en el menú.
+ * "Estudio especializado" es la entrada al recorrido (Mis cargos →
+ * Comparación, y el Historial aparte), que se hace con la barra de pasos
+ * dentro de la propia pantalla en vez de con entradas sueltas en el menú.
  */
 const posicionamientoItem: MenuItem = {
   name: "Posicionamiento",
@@ -56,7 +56,7 @@ const especializadoItem: MenuItem = {
   name: "Estudio especializado",
   href: `${BASE}/estudio/cargos`,
   icon: ListChecks,
-  hint: "Cargos, comparación e informes",
+  hint: "Cargos, comparación e historial",
 };
 
 const grupoAdmin: MenuGroup = {

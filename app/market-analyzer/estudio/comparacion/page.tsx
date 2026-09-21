@@ -620,8 +620,8 @@ export default function ComparacionPage() {
             <div className="mt-6 rounded-2xl border border-slate-200 p-5">
               <h3 className="font-display text-base font-bold text-slate-900">Generar un informe</h3>
               <p className="mt-1 text-sm text-slate-600">
-                <strong>Guardar</strong> deja el informe dentro de la plataforma, congelado con estos números: si
-                después cambia la data, seguirá igual. <strong>Descargar</strong> baja el documento completo en Excel
+                <strong>Guardar</strong> deja el informe congelado con estos números en el <strong>Historial</strong>:
+                si después cambia la data, seguirá igual. <strong>Descargar</strong> baja el documento completo en Excel
                 —dispersión, equidad interna, competitividad, mapa de calor y simulador— con el estudio y la métrica
                 de arriba.
               </p>

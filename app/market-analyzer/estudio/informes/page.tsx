@@ -123,7 +123,7 @@ export default function InformesPage() {
     return (
       <main className="page-wrap">
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <h1 className="dashboard-title font-display font-bold text-slate-900">Informes.</h1>
+          <h1 className="dashboard-title font-display font-bold text-slate-900">Historial.</h1>
           <p className="dashboard-lead mt-3 text-slate-600">Tu empresa no tiene el Estudio Especializado habilitado.</p>
         </section>
       </main>
@@ -185,7 +185,7 @@ export default function InformesPage() {
           <section className="surface-panel rounded-[2rem] p-6 md:p-8">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => setAbierto(null)} className="btn btn-secondary text-xs">
-                <ArrowLeft size={14} /> Volver a los informes
+                <ArrowLeft size={14} /> Volver al historial
               </button>
               <button type="button" onClick={() => void descargarCongelado(abierto)} className="btn btn-primary text-xs">
                 <Download size={14} /> Descargar en Excel
@@ -273,10 +273,10 @@ export default function InformesPage() {
         <PasosEstudio />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio Especializado</div>
-          <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Informes.</h1>
+          <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Historial.</h1>
           <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
-            Los informes del Estudio Especializado. Los que generas por tu cuenta quedan congelados con los números
-            del momento en que se hicieron.
+            Los informes que guardaste desde Comparación. Cada uno queda congelado con los números del momento en
+            que se hizo, así que sigue diciendo lo mismo aunque la data cambie después.
           </p>
         </section>
 
@@ -306,7 +306,7 @@ export default function InformesPage() {
           {empresaActiva && informes.length === 0 && !cargando && (
             <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center">
               <p className="text-sm text-slate-500">
-                Todavía no hay informes. Se generan desde <strong>Comparación</strong>, eligiendo qué cargos incluir.
+                El historial está vacío. Los informes se guardan desde <strong>Comparación</strong>, eligiendo qué cargos incluir.
               </p>
               <Link href="/market-analyzer/estudio/comparacion" className="btn btn-primary mt-4 text-xs">
                 Ir a Comparación <ArrowRight size={14} />
