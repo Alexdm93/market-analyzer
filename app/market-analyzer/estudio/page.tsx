@@ -1396,7 +1396,7 @@ export default function EstudioPage() {
                   <button
                     type="button"
                     onClick={() => { setPublishOutcome(null); setPublishModal(selectedAdminSnapshot.published ? "unpublish" : "publish"); }}
-                    className={`mt-3 w-full rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
+                    className={`btn mt-3 w-full ${
                       selectedAdminSnapshot.published
                         ? "bg-rose-50 text-rose-700 hover:bg-rose-100"
                         : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -1951,6 +1951,138 @@ export default function EstudioPage() {
           </div>
         </div>
       )}
+      {/* El modal vive en esta rama porque publicar es cosa del admin: antes
+          estaba en la del cliente, así que el botón existía y no abría nada. */}
+      {publishModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={closePublishModal} />
+          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md rounded-[1.75rem] bg-white p-6 shadow-xl">
+            {adminPublishStatus === "working" ? (
+              /* En curso */
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+                <p className="text-sm font-semibold text-slate-800">
+                  {publishModal === "publish" ? "Respaldando y publicando el corte…" : "Despublicando el corte…"}
+                </p>
+                {publishModal === "publish" && (
+                  <p className="text-xs leading-5 text-slate-500">
+                    Primero se genera el respaldo del corte. Puede tardar unos segundos — no cierres esta pestaña.
+                  </p>
+                )}
+              </div>
+            ) : publishOutcome ? (
+              /* Resultado */
+              <>
+                {!publishOutcome.ok ? (
+                  <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{publishOutcome.message}</span>
+                  </div>
+                ) : publishOutcome.published ? (
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span><strong>Corte publicado.</strong> Las empresas que enviaron data ya pueden ver sus resultados.</span>
+                    </div>
+                    {publishOutcome.backupOk ? (
+                      <p className="text-xs leading-5 text-slate-600">Se generó el respaldo del corte correctamente.</p>
+                    ) : (
+                      <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                          <strong>El respaldo automático falló</strong>
+                          {publishOutcome.backupError ? `: ${publishOutcome.backupError}` : "."} Genera uno a mano desde
+                          Admin → Respaldos antes de seguir.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span><strong>Corte despublicado.</strong> Las empresas dejaron de ver sus resultados.</span>
+                  </div>
+                )}
+                <div className="mt-6 flex justify-end">
+                  <button type="button" onClick={closePublishModal} className="btn btn-primary">Listo</button>
+                </div>
+              </>
+            ) : publishModal === "publish" ? (() => {
+              const submittedCompanies = [...new Set(adminPositions.map((p) => p.companyName))].sort((a, b) => a.localeCompare(b, "es"));
+              return (
+                <>
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50">
+                    <Database className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <h3 className="font-display text-center text-xl font-bold text-slate-900">Publicar corte</h3>
+                  <p className="mt-2 text-center text-sm text-slate-500">
+                    El estudio quedará visible para las empresas que enviaron su data. No podrán ver la data de otras empresas.
+                  </p>
+                  {submittedCompanies.length > 0 ? (
+                    <div className="mt-4 rounded-[1.1rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-emerald-700">
+                        {submittedCompanies.length} {submittedCompanies.length === 1 ? "empresa recibirá" : "empresas recibirán"} los resultados
+                      </p>
+                      <ul className="max-h-48 space-y-1 overflow-y-auto">
+                        {submittedCompanies.map((name) => (
+                          <li key={name} className="flex items-center gap-2 text-xs text-emerald-800">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                            {name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
+                      No hay empresas con data enviada en este corte.
+                    </div>
+                  )}
+                  <div className="mt-4 flex items-start gap-2.5 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      <strong>Publicar congela la data del corte.</strong> Desde ese momento ninguna empresa podrá guardar
+                      ni enviar data en este corte — tampoco las que todavía no enviaron. Solo podrás reabrirlo para una
+                      empresa aprobándole una solicitud de edición.
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">Antes de publicar se genera automáticamente un respaldo del corte.</p>
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button type="button" onClick={closePublishModal} className="btn btn-secondary">Cancelar</button>
+                    <button
+                      type="button"
+                      disabled={submittedCompanies.length === 0}
+                      onClick={() => void handleTogglePublish(true)}
+                      className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                      Confirmar publicación
+                    </button>
+                  </div>
+                </>
+              );
+            })() : (
+              <>
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50">
+                  <Database className="h-5 w-5 text-rose-500" />
+                </div>
+                <h3 className="font-display text-center text-xl font-bold text-slate-900">Despublicar corte</h3>
+                <p className="mt-2 text-center text-sm text-slate-500">
+                  Las empresas dejarán de ver los resultados de este corte hasta que sea publicado nuevamente.
+                </p>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={closePublishModal} className="btn btn-secondary">Cancelar</button>
+                  <button
+                    type="button"
+                    onClick={() => void handleTogglePublish(false)}
+                    className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
+                  >
+                    Sí, despublicar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       </main>
     );
   }
@@ -2403,136 +2535,6 @@ export default function EstudioPage() {
         )}
       </div>
 
-      {publishModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
-          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-sm" onClick={closePublishModal} />
-          <div role="dialog" aria-modal="true" className="relative z-10 w-full max-w-md rounded-[1.75rem] bg-white p-6 shadow-xl">
-            {adminPublishStatus === "working" ? (
-              /* En curso */
-              <div className="flex flex-col items-center gap-3 py-6 text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
-                <p className="text-sm font-semibold text-slate-800">
-                  {publishModal === "publish" ? "Respaldando y publicando el corte…" : "Despublicando el corte…"}
-                </p>
-                {publishModal === "publish" && (
-                  <p className="text-xs leading-5 text-slate-500">
-                    Primero se genera el respaldo del corte. Puede tardar unos segundos — no cierres esta pestaña.
-                  </p>
-                )}
-              </div>
-            ) : publishOutcome ? (
-              /* Resultado */
-              <>
-                {!publishOutcome.ok ? (
-                  <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{publishOutcome.message}</span>
-                  </div>
-                ) : publishOutcome.published ? (
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span><strong>Corte publicado.</strong> Las empresas que enviaron data ya pueden ver sus resultados.</span>
-                    </div>
-                    {publishOutcome.backupOk ? (
-                      <p className="text-xs leading-5 text-slate-600">Se generó el respaldo del corte correctamente.</p>
-                    ) : (
-                      <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>
-                          <strong>El respaldo automático falló</strong>
-                          {publishOutcome.backupError ? `: ${publishOutcome.backupError}` : "."} Genera uno a mano desde
-                          Admin → Respaldos antes de seguir.
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-2.5 rounded-[1.1rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span><strong>Corte despublicado.</strong> Las empresas dejaron de ver sus resultados.</span>
-                  </div>
-                )}
-                <div className="mt-6 flex justify-end">
-                  <button type="button" onClick={closePublishModal} className="btn btn-primary">Listo</button>
-                </div>
-              </>
-            ) : publishModal === "publish" ? (() => {
-              const submittedCompanies = [...new Set(adminPositions.map((p) => p.companyName))].sort((a, b) => a.localeCompare(b, "es"));
-              return (
-                <>
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50">
-                    <Database className="h-5 w-5 text-emerald-600" />
-                  </div>
-                  <h3 className="font-display text-center text-xl font-bold text-slate-900">Publicar corte</h3>
-                  <p className="mt-2 text-center text-sm text-slate-500">
-                    El estudio quedará visible para las empresas que enviaron su data. No podrán ver la data de otras empresas.
-                  </p>
-                  {submittedCompanies.length > 0 ? (
-                    <div className="mt-4 rounded-[1.1rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
-                      <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-emerald-700">
-                        {submittedCompanies.length} {submittedCompanies.length === 1 ? "empresa recibirá" : "empresas recibirán"} los resultados
-                      </p>
-                      <ul className="max-h-48 space-y-1 overflow-y-auto">
-                        {submittedCompanies.map((name) => (
-                          <li key={name} className="flex items-center gap-2 text-xs text-emerald-800">
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                            {name}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <div className="mt-4 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
-                      No hay empresas con data enviada en este corte.
-                    </div>
-                  )}
-                  <div className="mt-4 flex items-start gap-2.5 rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>
-                      <strong>Publicar congela la data del corte.</strong> Desde ese momento ninguna empresa podrá guardar
-                      ni enviar data en este corte — tampoco las que todavía no enviaron. Solo podrás reabrirlo para una
-                      empresa aprobándole una solicitud de edición.
-                    </span>
-                  </div>
-                  <p className="mt-3 text-xs text-slate-500">Antes de publicar se genera automáticamente un respaldo del corte.</p>
-                  <div className="mt-6 flex justify-end gap-3">
-                    <button type="button" onClick={closePublishModal} className="btn btn-secondary">Cancelar</button>
-                    <button
-                      type="button"
-                      disabled={submittedCompanies.length === 0}
-                      onClick={() => void handleTogglePublish(true)}
-                      className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
-                    >
-                      Confirmar publicación
-                    </button>
-                  </div>
-                </>
-              );
-            })() : (
-              <>
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50">
-                  <Database className="h-5 w-5 text-rose-500" />
-                </div>
-                <h3 className="font-display text-center text-xl font-bold text-slate-900">Despublicar corte</h3>
-                <p className="mt-2 text-center text-sm text-slate-500">
-                  Las empresas dejarán de ver los resultados de este corte hasta que sea publicado nuevamente.
-                </p>
-                <div className="mt-6 flex justify-end gap-3">
-                  <button type="button" onClick={closePublishModal} className="btn btn-secondary">Cancelar</button>
-                  <button
-                    type="button"
-                    onClick={() => void handleTogglePublish(false)}
-                    className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
-                  >
-                    Sí, despublicar
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
     </main>
   );
