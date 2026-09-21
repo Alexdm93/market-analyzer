@@ -10,24 +10,8 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { normalizarTitulo, resolverAcceso } from "@/lib/estudio-cargos";
+import { asegurarCorte, catalogoDelCorte, normalizarTitulo, resolverAcceso } from "@/lib/estudio-cargos";
 import { prisma } from "@/lib/prisma";
-
-type CatalogoCargo = { departamento: string; tituloCargo: string };
-
-async function catalogoDelCorte(snapshotId: string): Promise<CatalogoCargo[]> {
-  const fila = await prisma.globalConfig.findUnique({
-    where: { key: `snapshot-cargos-${snapshotId}` },
-    select: { value: true },
-  });
-  if (!fila?.value) return [];
-  try {
-    const parsed = JSON.parse(fila.value) as CatalogoCargo[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 /** Devuelve el catálogo del corte, para poder elegir contra qué homologar. */
 export async function GET(request: Request) {
@@ -37,6 +21,9 @@ export async function GET(request: Request) {
 
   const snapshotId = searchParams.get("snapshotId")?.trim() ?? "";
   if (!snapshotId) return Response.json({ message: "Indica el corte." }, { status: 400 });
+
+  const vetado = await asegurarCorte(acceso, snapshotId);
+  if (vetado) return vetado;
 
   // El cliente ve TODO el catálogo del estudio, no solo los cargos con data
   // suficiente: si homologa contra uno sin data, el informe dirá "sin
@@ -65,6 +52,9 @@ export async function PUT(request: Request) {
   if (!tituloCargo || !snapshotId) {
     return Response.json({ message: "Indica el cargo y el corte." }, { status: 400 });
   }
+
+  const vetado = await asegurarCorte(acceso, snapshotId);
+  if (vetado) return vetado;
 
   const tituloCargoKey = normalizarTitulo(tituloCargo);
 

@@ -82,6 +82,59 @@ export function resolverAcceso(session: Session | null, companyIdPedido: string)
   return { ok: true, companyId, esAdmin: false };
 }
 
+export type CatalogoCargo = { departamento: string; tituloCargo: string };
+
+/** El catálogo de cargos de un corte. Cada corte tiene el suyo. */
+export async function catalogoDelCorte(snapshotId: string): Promise<CatalogoCargo[]> {
+  const fila = await prisma.globalConfig.findUnique({
+    where: { key: `snapshot-cargos-${snapshotId}` },
+    select: { value: true },
+  });
+  if (!fila?.value) return [];
+  try {
+    const parsed = JSON.parse(fila.value) as CatalogoCargo[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Los cortes que el admin le habilitó a la empresa para el Estudio
+ * Especializado. Habilitar exige elegir al menos uno, así que una lista vacía
+ * significa que la empresa no tiene el estudio, no que pueda usarlos todos.
+ */
+export async function cortesPermitidos(companyId: string): Promise<string[]> {
+  const empresa = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { estudioSnapshotIds: true },
+  });
+  if (!empresa?.estudioSnapshotIds) return [];
+  try {
+    const parsed = JSON.parse(empresa.estudioSnapshotIds) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Corta si la empresa intenta trabajar sobre un corte que no tiene contratado.
+ * El admin no tiene esta restricción: opera sobre cualquiera.
+ */
+export async function asegurarCorte(
+  acceso: { companyId: string; esAdmin: boolean },
+  snapshotId: string,
+): Promise<Response | null> {
+  if (acceso.esAdmin) return null;
+  const permitidos = await cortesPermitidos(acceso.companyId);
+  if (permitidos.includes(snapshotId)) return null;
+  return Response.json(
+    { message: "Ese estudio no está incluido en tu Estudio Especializado." },
+    { status: 403 },
+  );
+}
+
 function parseData(dataJson: string): Partial<ExtendedMarketPosition> {
   try {
     const parsed = JSON.parse(dataJson) as unknown;

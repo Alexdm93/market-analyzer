@@ -23,7 +23,7 @@ import {
 } from "@/lib/analisis-especializado";
 import { authOptions } from "@/lib/auth";
 import { getBcvRate } from "@/lib/bcv";
-import { resolverAcceso } from "@/lib/estudio-cargos";
+import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { generarInformeEspecializado, mesYAnioEsp } from "@/lib/informe-especializado";
 import { prisma } from "@/lib/prisma";
 import { safeParseCompanyInfo } from "@/lib/workspace";
@@ -54,6 +54,9 @@ export async function POST(request: Request) {
 
   const snapshotId = body?.snapshotId?.trim() ?? "";
   if (!snapshotId) return Response.json({ message: "Indica el estudio." }, { status: 400 });
+
+  const vetado = await asegurarCorte(acceso, snapshotId);
+  if (vetado) return vetado;
 
   const config: ConfiguracionInforme = { ...CONFIG_POR_DEFECTO, ...(body?.config ?? {}) };
   const configSimulador: ConfigSimulador = { ...SIMULADOR_POR_DEFECTO, ...(body?.configSimulador ?? {}) };

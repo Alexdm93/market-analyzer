@@ -7,6 +7,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { METRICAS_INFORME, posicionEnMercado, type DatosInforme } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
 import { PasosEstudio } from "@/components/PasosEstudio";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
 
 type CompanyOption = { id: string; name: string };
@@ -230,10 +231,13 @@ export default function InformesPage() {
           {esAdmin && (
             <div className="mb-5 max-w-sm">
               <label htmlFor="inf-empresa" className="field-label">Empresa</label>
-              <select id="inf-empresa" value={companyId} onChange={(e) => setCompanyId(e.target.value)} className="field-select">
-                <option value="">Selecciona una empresa</option>
-                {empresas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SelectorBuscador
+                id="inf-empresa"
+                value={companyId}
+                onChange={setCompanyId}
+                opciones={empresas.map((c) => ({ value: c.id, label: c.name }))}
+                placeholder="Selecciona una empresa"
+              />
             </div>
           )}
 

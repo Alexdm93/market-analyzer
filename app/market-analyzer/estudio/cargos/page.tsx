@@ -13,6 +13,7 @@ import { fetchWorkspace } from "@/lib/workspace-client";
 import { isAdminRole } from "@/lib/roles";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
 
 type CargoDTO = {
@@ -125,9 +126,11 @@ export default function MisCargosPage() {
       if (!ok) { setError(mensaje); setCargos([]); return; }
       setCargos((data?.cargos as CargoDTO[]) ?? []);
       if (workspace) setCompanyInfo(workspace.companyInfo);
-      // Los cortes en los que la empresa participó, para las equivalencias.
-      if (!esAdmin && workspace) {
-        setSnapshots(Object.values(workspace.snapshots).map((s) => ({ id: s.id, label: s.label, date: s.date })));
+      // Solo los cortes que el admin incluyó en el estudio de esta empresa.
+      if (!esAdmin) {
+        const resCortes = await fetch("/api/estudio/cortes", { cache: "no-store" }).catch(() => null);
+        const cortes = (await resCortes?.json().catch(() => null)) as { cortes?: AdminSnapshot[] } | null;
+        setSnapshots(cortes?.cortes ?? []);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cargar la lista.");
@@ -257,7 +260,8 @@ export default function MisCargosPage() {
           <span className="space-y-2">
             <span className="block">Se agregan {aImportar} {aImportar === 1 ? "cargo" : "cargos"} a tu lista, con su compensación.</span>
             {yaEstan > 0 && <span className="block">{yaEstan} ya estaban y se omiten.</span>}
-            <span className="block">Quedan como copia editable: cambiarlos aquí no toca la data que enviaste a ese corte.</span>
+            <span className="block">Quedan homologados contra el catálogo de ese corte, listos para comparar.</span>
+            <span className="block">Son una copia editable: cambiarlos aquí no toca la data que enviaste a ese corte.</span>
           </span>
         ),
         confirmLabel: "Importar",
@@ -343,15 +347,13 @@ export default function MisCargosPage() {
             {esAdmin && (
               <div>
                 <label htmlFor="mc-empresa" className="field-label">Empresa</label>
-                <select
+                <SelectorBuscador
                   id="mc-empresa"
                   value={companyId}
-                  onChange={(e) => { setCompanyId(e.target.value); setBorrador(null); }}
-                  className="field-select"
-                >
-                  <option value="">Selecciona una empresa</option>
-                  {empresas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                  onChange={(v) => { setCompanyId(v); setBorrador(null); }}
+                  opciones={empresas.map((c) => ({ value: c.id, label: c.name }))}
+                  placeholder="Selecciona una empresa"
+                />
               </div>
             )}
 

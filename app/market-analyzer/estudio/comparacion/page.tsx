@@ -11,6 +11,7 @@ import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 import { useEstudioEmpresa } from "@/contexts/EstudioEmpresaContext";
 
 type Metrica = "sinPasivosMensual" | "directoMensualizado" | "conPasivosMensual" | "conPasivosAnual";
@@ -110,11 +111,13 @@ export default function ComparacionPage() {
       const data = (await resCargos.json().catch(() => null)) as { cargos?: CargoDTO[]; message?: string } | null;
       if (!resCargos.ok) { setError(data?.message ?? "No se pudo cargar la lista."); return; }
       setCargos(data?.cargos ?? []);
-      if (workspace) {
-        setCompanyInfo(workspace.companyInfo);
-        if (!esAdmin) {
-          setSnapshots(Object.values(workspace.snapshots).map((s) => ({ id: s.id, label: s.label, date: s.date })));
-        }
+      if (workspace) setCompanyInfo(workspace.companyInfo);
+      // Los cortes salen de la API, no del workspace: son solo los que el
+      // admin incluyó en el Estudio Especializado de esta empresa.
+      if (!esAdmin) {
+        const resCortes = await fetch("/api/estudio/cortes", { cache: "no-store" }).catch(() => null);
+        const cortes = (await resCortes?.json().catch(() => null)) as { cortes?: SnapshotOption[] } | null;
+        setSnapshots(cortes?.cortes ?? []);
       }
     } finally {
       setCargando(false);
@@ -208,7 +211,12 @@ export default function ComparacionPage() {
         : "totalConPasivosAnual"
       ];
 
-      const equivalencia = c.equivalencias[snapshotId]?.tituloCatalogo ?? "";
+      // Si no hay equivalencia guardada pero el nombre del cargo calza exacto
+      // con uno del corte, se compara igual y la tabla lo marca "por nombre",
+      // para que se vea que no es una homologación hecha a mano.
+      const registrada = c.equivalencias[snapshotId]?.tituloCatalogo ?? "";
+      const porNombre = !registrada && mercadoPorTitulo.has(norm(c.tituloCargo)) ? c.tituloCargo : "";
+      const equivalencia = registrada || porNombre;
       const mercado = modo === "cargo"
         ? (equivalencia ? mercadoPorTitulo.get(norm(equivalencia)) : undefined)
         : (c.hayGrade ? mercadoPorGrado.get(c.hayGrade) : undefined);
@@ -217,6 +225,7 @@ export default function ComparacionPage() {
         cargo: c,
         propio,
         equivalencia,
+        equivalenciaPorNombre: Boolean(porNombre),
         percentiles: mercado ? mercado[metrica] : undefined,
         observaciones: mercado?.n ?? 0,
       };
@@ -360,10 +369,13 @@ export default function ComparacionPage() {
             {esAdmin && (
               <div>
                 <label htmlFor="cmp-empresa" className="field-label">Empresa</label>
-                <select id="cmp-empresa" value={companyId} onChange={(e) => setCompanyId(e.target.value)} className="field-select">
-                  <option value="">Selecciona una empresa</option>
-                  {empresas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <SelectorBuscador
+                  id="cmp-empresa"
+                  value={companyId}
+                  onChange={setCompanyId}
+                  opciones={empresas.map((c) => ({ value: c.id, label: c.name }))}
+                  placeholder="Selecciona una empresa"
+                />
               </div>
             )}
             <div>
@@ -558,7 +570,9 @@ export default function ComparacionPage() {
                         </td>
                         <td className="px-4 py-2.5 text-xs text-slate-600">
                           {modo === "cargo"
-                            ? (f.equivalencia || <span className="text-amber-700">Sin homologar</span>)
+                            ? (f.equivalencia
+                                ? <>{f.equivalencia}{f.equivalenciaPorNombre && <span className="ml-1 text-slate-400">· por nombre</span>}</>
+                                : <span className="text-amber-700">Sin homologar</span>)
                             : (f.cargo.hayGrade
                                 ? `${f.cargo.hayGrade} · ${gradeToNivel(f.cargo.hayGrade, f.cargo.capriFamily ?? undefined)}`
                                 : <span className="text-amber-700">Sin grado</span>)}

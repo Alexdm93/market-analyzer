@@ -7,7 +7,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { resolverAcceso } from "@/lib/estudio-cargos";
+import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { parseDatosInforme, validarDatosInforme } from "@/lib/estudio-informes";
 import { prisma } from "@/lib/prisma";
 
@@ -89,6 +89,9 @@ export async function POST(request: Request) {
 
   const snapshotId = (body?.snapshotId ?? "").trim();
   if (!snapshotId) return Response.json({ message: "Indica el estudio del informe." }, { status: 400 });
+
+  const vetado = await asegurarCorte(acceso, snapshotId);
+  if (vetado) return vetado;
 
   const validacion = validarDatosInforme({ modo: body?.modo, metrica: body?.metrica, filas: body?.filas });
   if (!validacion.ok) return Response.json({ message: validacion.mensaje }, { status: 400 });
