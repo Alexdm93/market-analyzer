@@ -1,9 +1,11 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, ArrowLeft, FileText, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Download, FileText, Loader2, Trash2 } from "lucide-react";
+import Link from "next/link";
 
 import { useConfirm } from "@/components/ConfirmDialog";
+import { exportStyledExcel } from "@/lib/excel-export";
 import { METRICAS_INFORME, posicionEnMercado, type DatosInforme } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
 import { PasosEstudio } from "@/components/PasosEstudio";
@@ -128,6 +130,52 @@ export default function InformesPage() {
     );
   }
 
+  /**
+   * Baja el informe congelado tal como está guardado. No recalcula nada: son
+   * los mismos números que muestra la tabla, que es justo el sentido de haberlo
+   * congelado. El documento completo sobre la plantilla del cliente se baja
+   * desde Comparación, con la data del momento.
+   */
+  async function descargarCongelado(informe: InformeCompleto) {
+    const datos = informe.datos;
+    if (!datos) { setError("Este informe no tiene datos que exportar."); return; }
+
+    const metrica = METRICAS_INFORME.find((x) => x.value === datos.metrica);
+    await exportStyledExcel(
+      [{
+        name: "Informe",
+        columns: [
+          { header: "Unidad funcional", key: "departamento", width: 26 },
+          { header: "Cargo", key: "cargo", width: 38 },
+          { header: datos.modo === "grado" ? "Grado" : "Equivale a", key: "referencia", width: 30 },
+          { header: "Nivel", key: "nivel", width: 18 },
+          { header: `Tuyo (${metrica?.sigla ?? ""})`, key: "propio", width: 16, align: "right" },
+          { header: "P25", key: "p25", width: 14, align: "right" },
+          { header: "P50", key: "p50", width: 14, align: "right" },
+          { header: "P75", key: "p75", width: 14, align: "right" },
+          { header: "Observaciones", key: "n", width: 14, align: "right" },
+          { header: "Posición", key: "posicion", width: 20 },
+        ],
+        rows: datos.filas.map((f) => {
+          const hay = Boolean(f.percentiles && f.percentiles.n > 0);
+          return {
+            departamento: f.departamento || "—",
+            cargo: f.tituloCargo,
+            referencia: datos.modo === "grado" ? (f.hayGrade ?? "—") : (f.equivalencia || "—"),
+            nivel: f.nivel || "—",
+            propio: f.propio || null,
+            p25: hay ? f.percentiles!.p25 : null,
+            p50: hay ? f.percentiles!.p50 : null,
+            p75: hay ? f.percentiles!.p75 : null,
+            n: hay ? f.percentiles!.n : null,
+            posicion: hay ? posicionEnMercado(f.propio, f.percentiles).texto : "Sin comparación",
+          };
+        }),
+      }],
+      `${informe.nombre} — ${informe.snapshotLabel || informe.snapshotId}.xlsx`,
+    );
+  }
+
   // ── Vista de un informe ───────────────────────────────────────────────
   if (abierto) {
     const datos = abierto.datos;
@@ -135,9 +183,14 @@ export default function InformesPage() {
       <main className="page-wrap">
         <div className="flex w-full flex-col gap-6">
           <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-            <button type="button" onClick={() => setAbierto(null)} className="btn btn-secondary mb-4 text-xs">
-              <ArrowLeft size={14} /> Volver a los informes
-            </button>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => setAbierto(null)} className="btn btn-secondary text-xs">
+                <ArrowLeft size={14} /> Volver a los informes
+              </button>
+              <button type="button" onClick={() => void descargarCongelado(abierto)} className="btn btn-primary text-xs">
+                <Download size={14} /> Descargar en Excel
+              </button>
+            </div>
             <div className="eyebrow mb-3">Informe congelado</div>
             <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">{abierto.nombre}</h1>
             <p className="dashboard-lead mt-3 text-slate-600">
@@ -251,9 +304,14 @@ export default function InformesPage() {
           {aviso && !error && <p className="rounded-2xl bg-teal-50 px-4 py-3 text-sm text-teal-800">{aviso}</p>}
 
           {empresaActiva && informes.length === 0 && !cargando && (
-            <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
-              Todavía no hay informes. Se generan desde <strong>Comparación</strong>, eligiendo qué cargos incluir.
-            </p>
+            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center">
+              <p className="text-sm text-slate-500">
+                Todavía no hay informes. Se generan desde <strong>Comparación</strong>, eligiendo qué cargos incluir.
+              </p>
+              <Link href="/market-analyzer/estudio/comparacion" className="btn btn-primary mt-4 text-xs">
+                Ir a Comparación <ArrowRight size={14} />
+              </Link>
+            </div>
           )}
 
           {informes.length > 0 && (
