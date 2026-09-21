@@ -35,6 +35,7 @@ type Cuerpo = {
   companyId?: string;
   snapshotId?: string;
   version?: string;
+  grupoComparacion?: string;
   config?: Partial<ConfiguracionInforme>;
   configSimulador?: Partial<ConfigSimulador>;
   mercadoPorGrado?: Array<Record<string, unknown>>;
@@ -118,6 +119,7 @@ export async function POST(request: Request) {
       .sort((a, b) => a.localeCompare(b, "es")),
     config,
     configSimulador,
+    grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Transversales",
     dispersion: filas,
     equidad: analizarEquidad(filas, config.aperturaBandas),
     competitividad: analizarCompetitividad(filas, mercadoPorGrado),

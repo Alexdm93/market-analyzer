@@ -66,6 +66,8 @@ export type DatosEspecializado = {
   empresasParticipantes: string[];
   config: ConfiguracionInforme;
   configSimulador: ConfigSimulador;
+  /** Contra qué grupo de mercado se comparó: "Transversales", un sector, etc. */
+  grupoComparacion: string;
   dispersion: FilaAnalisis[];
   equidad: { filas: FilaEquidad[]; indiceGlobal: number | null };
   competitividad: FilaCompetitividad[];
@@ -265,6 +267,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   const comp = wb.getWorksheet(HOJAS.competitividad);
   if (comp) {
     set(comp, "B5", "Grados");
+    set(comp, "B6", datos.grupoComparacion);
     set(comp, "B7", concepto);
     set(comp, "B8", comisiones);
     datos.competitividad.forEach((f, i) => {

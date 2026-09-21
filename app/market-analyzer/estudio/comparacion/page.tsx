@@ -70,6 +70,17 @@ export default function ComparacionPage() {
   const [comisiones, setComisiones] = useState(false);
   const [bajandoExcel, setBajandoExcel] = useState(false);
 
+  // Grupo de mercado contra el que se compara. La plantilla lo llama
+  // "Compañía / Unidad" y por defecto dice "Transversales", o sea todo el corte.
+  const [filtroSector, setFiltroSector] = useState("");
+  const [filtroClasificacion, setFiltroClasificacion] = useState("");
+  const [filtroEmpresas, setFiltroEmpresas] = useState<string[]>([]);
+  const [buscaEmpresa, setBuscaEmpresa] = useState("");
+  const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; empresas: string[] }>(
+    { sectores: [], clasificaciones: [], empresas: [] },
+  );
+  const [abrirGrupo, setAbrirGrupo] = useState(false);
+
   const empresaActiva = esAdmin ? companyId : (session?.user?.companyId ?? "");
 
   useEffect(() => {
@@ -112,23 +123,55 @@ export default function ComparacionPage() {
 
   // Los percentiles salen de las rutas que ya alimentan el estudio de cortesía:
   // así la comparación da exactamente lo mismo que ve la empresa en Resultados.
+  /**
+   * Los filtros del grupo de comparación. La ruta los llama `sizes`, pero lo
+   * que filtra es la clasificación de la empresa, o sea el subsector.
+   */
+  const filtrosMercado = useCallback(() => {
+    const p = new URLSearchParams();
+    if (filtroSector) p.set("sectors", filtroSector);
+    if (filtroClasificacion) p.set("sizes", filtroClasificacion);
+    if (filtroEmpresas.length > 0) p.set("companies", filtroEmpresas.join(","));
+    return p;
+  }, [filtroSector, filtroClasificacion, filtroEmpresas]);
+
+  const descripcionGrupo = useMemo(() => {
+    const partes: string[] = [];
+    if (filtroSector) partes.push(filtroSector);
+    if (filtroClasificacion) partes.push(filtroClasificacion);
+    if (filtroEmpresas.length > 0) partes.push(`${filtroEmpresas.length} empresas`);
+    return partes.length > 0 ? partes.join(" · ") : "Transversales";
+  }, [filtroSector, filtroClasificacion, filtroEmpresas]);
+
+  const consultaFiltros = filtrosMercado().toString();
+
   useEffect(() => {
     if (!snapshotId) { setPorCargo([]); setPorGrado([]); return; }
     let ignorar = false;
-    const sid = encodeURIComponent(snapshotId);
+    const base = `snapshotId=${encodeURIComponent(snapshotId)}${consultaFiltros ? `&${consultaFiltros}` : ""}`;
 
-    void fetch(`/api/percentiles?snapshotId=${sid}`, { cache: "no-store" })
+    void fetch(`/api/percentiles?${base}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((d: { grupos?: GrupoCargo[] } | null) => { if (!ignorar) setPorCargo(d?.grupos ?? []); })
+      .then((d: { grupos?: GrupoCargo[]; availableSectors?: string[]; availableSizes?: string[]; availableCompanies?: string[] } | null) => {
+        if (ignorar) return;
+        setPorCargo(d?.grupos ?? []);
+        // Las listas se quedan con lo que devuelve el corte completo; si se
+        // recortaran al filtro activo no habría forma de volver atrás.
+        setDisponibles((prev) => ({
+          sectores: (d?.availableSectors?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSectors! : prev.sectores,
+          clasificaciones: (d?.availableSizes?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSizes! : prev.clasificaciones,
+          empresas: (d?.availableCompanies?.length ?? 0) > 0 && !consultaFiltros ? d!.availableCompanies! : prev.empresas,
+        }));
+      })
       .catch(() => { if (!ignorar) setPorCargo([]); });
 
-    void fetch(`/api/percentiles-by-grade?snapshotId=${sid}`, { cache: "no-store" })
+    void fetch(`/api/percentiles-by-grade?${base}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
       .then((d: { grupos?: GrupoGrado[] } | null) => { if (!ignorar) setPorGrado(d?.grupos ?? []); })
       .catch(() => { if (!ignorar) setPorGrado([]); });
 
     return () => { ignorar = true; };
-  }, [snapshotId]);
+  }, [snapshotId, consultaFiltros]);
 
   const tasas = useMemo(() => (companyInfo.tasas ?? []).filter((t) => !t.isSystem), [companyInfo.tasas]);
   const bcv = useMemo(() => {
@@ -236,7 +279,7 @@ export default function ComparacionPage() {
     setBajandoExcel(true);
     setError("");
     try {
-      const resPct = await fetch(`/api/percentiles-by-grade?snapshotId=${encodeURIComponent(snapshotId)}`, { cache: "no-store" });
+      const resPct = await fetch(`/api/percentiles-by-grade?snapshotId=${encodeURIComponent(snapshotId)}${consultaFiltros ? `&${consultaFiltros}` : ""}`, { cache: "no-store" });
       const pct = (await resPct.json().catch(() => null)) as
         | { grupos?: Array<{ grade: number } & Record<string, Percentiles>>; message?: string } | null;
       if (!resPct.ok) { setError(pct?.message ?? "No se pudieron obtener los percentiles por grado."); return; }
@@ -253,6 +296,7 @@ export default function ComparacionPage() {
           ...(esAdmin && companyId ? { companyId } : {}),
           snapshotId,
           config: { concepto: metrica, incluirComisiones: comisiones },
+          grupoComparacion: descripcionGrupo,
           mercadoPorGrado,
         }),
       });
@@ -345,6 +389,93 @@ export default function ComparacionPage() {
                 {METRICAS.map((m) => <option key={m.value} value={m.value}>{m.sigla} — {m.label}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* ── Grupo de comparación ──────────────────────────────────── */}
+          <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+            <button
+              type="button"
+              onClick={() => setAbrirGrupo((v) => !v)}
+              className="flex w-full items-center justify-between text-left"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">Grupo de comparación</span>
+                <span className="block text-xs text-slate-500">
+                  Contra quién se compara: <strong>{descripcionGrupo}</strong>
+                </span>
+              </span>
+              <span className="text-xs font-semibold text-teal-700">{abrirGrupo ? "Ocultar" : "Cambiar"}</span>
+            </button>
+
+            {abrirGrupo && (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label htmlFor="cmp-sector" className="field-label">Sector económico</label>
+                    <select id="cmp-sector" value={filtroSector} onChange={(e) => setFiltroSector(e.target.value)} className="field-select">
+                      <option value="">Todos</option>
+                      {disponibles.sectores.map((x) => <option key={x} value={x}>{x}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="cmp-clasif" className="field-label">Clasificación (subsector)</label>
+                    <select id="cmp-clasif" value={filtroClasificacion} onChange={(e) => setFiltroClasificacion(e.target.value)} className="field-select">
+                      <option value="">Todas</option>
+                      {disponibles.clasificaciones.map((x) => <option key={x} value={x}>{x}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="field-label mb-0">Empresas</span>
+                    <span className="text-xs text-slate-500">
+                      {filtroEmpresas.length === 0 ? "Todas las del corte" : `${filtroEmpresas.length} elegidas`}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <input
+                      type="search"
+                      value={buscaEmpresa}
+                      onChange={(e) => setBuscaEmpresa(e.target.value)}
+                      placeholder="Buscar…"
+                      aria-label="Buscar empresa"
+                      className="field max-w-xs"
+                    />
+                    {filtroEmpresas.length > 0 && (
+                      <button type="button" onClick={() => setFiltroEmpresas([])} className="btn btn-secondary btn-xs">
+                        Quitar selección
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-2 max-h-40 overflow-y-auto rounded-2xl border border-slate-200 p-3">
+                    <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                      {disponibles.empresas
+                        .filter((e) => !buscaEmpresa || norm(e).includes(norm(buscaEmpresa)))
+                        .map((e) => (
+                          <label key={e} className="flex items-start gap-2 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={filtroEmpresas.includes(e)}
+                              onChange={() => setFiltroEmpresas((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e])}
+                              className="mt-1"
+                            />
+                            <span className="truncate" title={e}>{e}</span>
+                          </label>
+                        ))}
+                      {disponibles.empresas.length === 0 && (
+                        <p className="text-xs text-slate-500">Elige un estudio para ver las empresas.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  Recortar el grupo cambia los percentiles de toda la pantalla y del informe que descargues. Con menos
+                  empresas hay menos observaciones por cargo, así que algunos pueden quedar sin comparación.
+                </p>
+              </div>
+            )}
           </div>
 
           {cargando && <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…</p>}
