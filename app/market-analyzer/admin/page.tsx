@@ -8,6 +8,7 @@ import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { useConfirm, type ConfirmOptions } from "@/components/ConfirmDialog";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 const adminActions = [
   {
@@ -1962,16 +1963,13 @@ export default function AdminPage() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="min-w-[200px] flex-1 max-w-xs">
               <label className="field-label">Filtrar por empresa</label>
-              <select
+              <SelectorBuscador
+                aria-label="Filtrar por empresa"
                 value={userCompanyFilter}
-                onChange={(e) => setUserCompanyFilter(e.target.value)}
-                className="field-select w-full"
-              >
-                <option value="">Todas las empresas</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                onChange={setUserCompanyFilter}
+                opciones={[{ value: "", label: "Todas las empresas" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
+                placeholder="Todas las empresas"
+              />
             </div>
             <button type="button" onClick={() => void handleSaveUserChanges()} className="btn btn-primary shrink-0" disabled={isSavingUserChanges || Object.keys(pendingUserEdits).length === 0}>
               {isSavingUserChanges ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
@@ -2024,18 +2022,14 @@ export default function AdminPage() {
                     <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                       <div>
                         <label className="field-label text-[0.7rem]">Empresa</label>
-                        <select
+                        <SelectorBuscador
                           aria-label={`Empresa de ${user.name}`}
-                          title={`Empresa de ${user.name}`}
                           value={draft.companyId}
-                          onChange={(e) => updatePendingUserEdit(user, { companyId: e.target.value })}
-                          className="field-select w-full"
+                          onChange={(v) => updatePendingUserEdit(user, { companyId: v })}
+                          opciones={companies.map((c) => ({ value: c.id, label: c.name }))}
+                          placeholder="Selecciona una empresa"
                           disabled={isSavingUserChanges}
-                        >
-                          {companies.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
+                        />
                       </div>
                       <div>
                         <label className="field-label text-[0.7rem]">Rol</label>

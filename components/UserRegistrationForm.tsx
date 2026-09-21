@@ -7,6 +7,7 @@ import {
   type CompanyCatalogEntry,
 } from "@/lib/company";
 import { ROLE_OPTIONS, type AppUserRole } from "@/lib/roles";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 export type CompanyOption = CompanyCatalogEntry;
 
@@ -244,21 +245,20 @@ export default function UserRegistrationForm({
       ) : (
         <div>
           <label htmlFor="registrationCompanyId" className="field-label">Empresa</label>
-          <select
+          {/* El envío ya exige la empresa, así que no hace falta el `required`
+              nativo que traía el <select>. */}
+          <SelectorBuscador
             id="registrationCompanyId"
             value={values.companyId}
-            onChange={(event) => updateValue("companyId", event.target.value)}
-            className="field-select"
+            onChange={(v) => updateValue("companyId", v)}
+            opciones={companies.map((company) => ({ value: company.id, label: company.name }))}
+            placeholder={
+              isLoadingCompanies ? "Cargando empresas..."
+              : companies.length === 0 ? "No hay empresas registradas"
+              : "Selecciona una empresa"
+            }
             disabled={isLoadingCompanies || companies.length === 0}
-            required
-          >
-            {isLoadingCompanies ? <option value="">Cargando empresas...</option> : null}
-            {!isLoadingCompanies && companies.length === 0 ? <option value="">No hay empresas registradas</option> : null}
-            {!isLoadingCompanies && companies.length > 0 ? <option value="">Selecciona una empresa</option> : null}
-            {companies.map((company) => (
-              <option key={company.id} value={company.id}>{company.name}</option>
-            ))}
-          </select>
+          />
         </div>
       )}
       <div>
@@ -276,17 +276,13 @@ export default function UserRegistrationForm({
         <div>
           <label htmlFor="registrationEconomicSector" className="field-label">Sector economico</label>
           {needsNewCompany ? (
-            <select
+            <SelectorBuscador
               id="registrationEconomicSector"
               value={values.companyEconomicSector}
-              onChange={(event) => updateEconomicSector(event.target.value)}
-              className="field-select"
-            >
-              <option value="">Seleccionar sector económico</option>
-              {ECONOMIC_SECTOR_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+              onChange={updateEconomicSector}
+              opciones={[{ value: "", label: "Seleccionar sector económico" }, ...ECONOMIC_SECTOR_OPTIONS.map((option) => ({ value: option, label: option }))]}
+              placeholder="Seleccionar sector económico"
+            />
           ) : (
             <input
               id="registrationEconomicSector"
@@ -301,18 +297,14 @@ export default function UserRegistrationForm({
         <div>
           <label htmlFor="registrationClassification" className="field-label">Clasificacion</label>
           {needsNewCompany ? (
-            <select
+            <SelectorBuscador
               id="registrationClassification"
               value={values.companyClassification}
-              onChange={(event) => updateValue("companyClassification", event.target.value)}
-              className="field-select"
+              onChange={(v) => updateValue("companyClassification", v)}
+              opciones={classificationOptions.map((option) => ({ value: option, label: option }))}
+              placeholder={values.companyEconomicSector ? "Seleccionar clasificación" : "Selecciona primero un sector"}
               disabled={!values.companyEconomicSector}
-            >
-              <option value="">{values.companyEconomicSector ? "Seleccionar clasificación" : "Selecciona primero un sector"}</option>
-              {classificationOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+            />
           ) : (
             <input
               id="registrationClassification"

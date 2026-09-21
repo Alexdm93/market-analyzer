@@ -16,6 +16,7 @@ import {
 import type { Snapshot } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 type AdminSnapshot = { id: string; label: string; date: string; published?: boolean };
 type CompanyOption = { id: string; name: string };
@@ -568,18 +569,14 @@ export default function ImportarDataPage() {
                               <span className="block max-w-[16rem] truncate text-slate-800" title={entry.file.name}>{entry.file.name}</span>
                             </td>
                             <td className="px-4 py-2.5">
-                              <select
+                              <SelectorBuscador
                                 aria-label={`Empresa para ${entry.file.name}`}
                                 value={entry.companyId}
-                                onChange={(e) => actualizar(entry.key, { companyId: e.target.value, estado: "sin_analizar", parsed: null, mensaje: "", gradosHeredados: 0, tasasNuevas: 0 })}
-                                className="field-select text-sm"
+                                onChange={(v) => actualizar(entry.key, { companyId: v, estado: "sin_analizar", parsed: null, mensaje: "", gradosHeredados: 0, tasasNuevas: 0 })}
+                                opciones={[{ value: "", label: "— elegir —" }, ...empresas.map((c) => ({ value: c.id, label: c.name }))]}
+                                placeholder="— elegir —"
                                 disabled={trabajando || entry.estado === "importado"}
-                              >
-                                <option value="">— elegir —</option>
-                                {empresas.map((c) => (
-                                  <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                              </select>
+                              />
                             </td>
                             <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-700">
                               {entry.parsed ? entry.parsed.rows.length : "—"}

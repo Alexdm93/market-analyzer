@@ -6,6 +6,7 @@ import { Building2, CheckCircle2, Download, LoaderCircle, Pencil, Plus, Search, 
 import { useSession } from "next-auth/react";
 import { type CompanyCatalogEntry } from "@/lib/company";
 import { canAccessEmpresas, isAdminRole } from "@/lib/roles";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 type Company = CompanyCatalogEntry;
 
@@ -285,17 +286,13 @@ export default function EmpresasPage() {
                   </div>
                   <div>
                     <label htmlFor="companyEconomicSector" className="field-label">Sector económico</label>
-                    <select
+                    <SelectorBuscador
                       id="companyEconomicSector"
                       value={companyEconomicSector}
-                      onChange={(event) => handleEconomicSectorChange(event.target.value)}
-                      className="field-select"
-                    >
-                      <option value="">Seleccionar sector</option>
-                      {sectors.map((s) => (
-                        <option key={s.name} value={s.name}>{s.name}</option>
-                      ))}
-                    </select>
+                      onChange={handleEconomicSectorChange}
+                      opciones={[{ value: "", label: "Seleccionar sector" }, ...sectors.map((s) => ({ value: s.name, label: s.name }))]}
+                      placeholder="Seleccionar sector"
+                    />
                   </div>
                 </div>
                 <div>
@@ -310,18 +307,14 @@ export default function EmpresasPage() {
                 </div>
                 <div>
                   <label htmlFor="companyClassification" className="field-label">Clasificación</label>
-                  <select
+                  <SelectorBuscador
                     id="companyClassification"
                     value={companyClassification}
-                    onChange={(event) => setCompanyClassification(event.target.value)}
-                    className="field-select"
+                    onChange={setCompanyClassification}
+                    opciones={classificationOptions.map((option) => ({ value: option, label: option }))}
+                    placeholder={companyEconomicSector ? "Seleccionar clasificación" : "Selecciona primero un sector"}
                     disabled={!companyEconomicSector}
-                  >
-                    <option value="">{companyEconomicSector ? "Seleccionar clasificación" : "Selecciona primero un sector"}</option>
-                    {classificationOptions.map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <button type="submit" className="btn btn-primary w-full" disabled={isPending}>
@@ -535,17 +528,24 @@ export default function EmpresasPage() {
                   </div>
                   <div>
                     <label className="field-label">Sector económico</label>
-                    <select aria-label="Sector económico" value={editSector} onChange={(e) => { setEditSector(e.target.value); setEditClassification(""); }} className="field-select w-full">
-                      <option value="">Seleccionar sector</option>
-                      {sectors.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-                    </select>
+                    <SelectorBuscador
+                      aria-label="Sector económico"
+                      value={editSector}
+                      onChange={(v) => { setEditSector(v); setEditClassification(""); }}
+                      opciones={[{ value: "", label: "Seleccionar sector" }, ...sectors.map((s) => ({ value: s.name, label: s.name }))]}
+                      placeholder="Seleccionar sector"
+                    />
                   </div>
                   <div>
                     <label className="field-label">Clasificación</label>
-                    <select aria-label="Clasificación" value={editClassification} onChange={(e) => setEditClassification(e.target.value)} className="field-select w-full" disabled={!editSector}>
-                      <option value="">Seleccionar clasificación</option>
-                      {editClassificationOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <SelectorBuscador
+                      aria-label="Clasificación"
+                      value={editClassification}
+                      onChange={setEditClassification}
+                      opciones={editClassificationOptions.map((c) => ({ value: c, label: c }))}
+                      placeholder="Seleccionar clasificación"
+                      disabled={!editSector}
+                    />
                   </div>
                 </div>
                 {modalError && <p className="mt-3 text-sm text-red-600">{modalError}</p>}

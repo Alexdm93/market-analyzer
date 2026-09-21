@@ -11,6 +11,7 @@ import { exportStyledExcel } from "@/lib/excel-export";
 import type { CargoEntry } from "@/app/api/admin/config/route";
 import type { ValoracionItem } from "@/app/api/admin/valoracion/route";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 // ─── Revenue options (same as informacion page) ───────────────────────────────
 
@@ -73,10 +74,15 @@ function CargoPicker({
               className="field pl-8 text-sm w-full"
             />
           </div>
-          <select value={dept} onChange={(e) => setDept(e.target.value)} className="field-select text-sm min-w-36">
-            <option value="">Todos</option>
-            {allCargos.map((d) => <option key={d.departamento} value={d.departamento}>{d.departamento}</option>)}
-          </select>
+          <div className="min-w-36">
+            <SelectorBuscador
+              aria-label="Departamento"
+              value={dept}
+              onChange={setDept}
+              opciones={[{ value: "", label: "Todos" }, ...allCargos.map((d) => ({ value: d.departamento, label: d.departamento }))]}
+              placeholder="Todos"
+            />
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
           {filtered.length === 0 ? (

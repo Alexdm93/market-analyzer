@@ -11,6 +11,7 @@ import { resolveRowTotals, computeTCRTotals, PERCENTILE_MIN_N, type TcrType } fr
 import type { PercentilesGradeResponse } from "@/app/api/percentiles-by-grade/route";
 import type { TcrPercentilesResponse, TcrCargoPercentiles } from "@/app/api/percentiles-tcr/route";
 import { FmtMoney, fmtMoneyStr } from "@/components/FmtMoney";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 type AdminStudySnapshot = {
   id: string;
@@ -1516,19 +1517,14 @@ export default function EstudioPage() {
                       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_15rem] md:items-end">
                         <div>
                           <label htmlFor="adminRawCargo" className="field-label">Seleccionar cargo</label>
-                          <select
+                          <SelectorBuscador
                             id="adminRawCargo"
                             value={activeAdminCargo}
-                            onChange={(event) => setSelectedAdminCargo(event.target.value)}
-                            className="field-select"
+                            onChange={setSelectedAdminCargo}
+                            opciones={availableAdminCargos.map((cargo) => ({ value: cargo, label: cargo }))}
+                            placeholder="Sin cargos fuera de rango"
                             disabled={availableAdminCargos.length === 0}
-                          >
-                            {availableAdminCargos.length === 0
-                              ? <option value="">Sin cargos fuera de rango</option>
-                              : availableAdminCargos.map((cargo) => (
-                                <option key={cargo} value={cargo}>{cargo}</option>
-                              ))}
-                          </select>
+                          />
                         </div>
                         <button
                           type="button"
@@ -1694,16 +1690,15 @@ export default function EstudioPage() {
 
                     <div className="border-b border-slate-200/70 px-4 py-4 md:px-6">
                       <label htmlFor="adminProcessedCargo" className="field-label">Seleccionar cargo</label>
-                      <select
-                        id="adminProcessedCargo"
-                        value={activeAdminProcessedCargo}
-                        onChange={(event) => setSelectedAdminProcessedCargo(event.target.value)}
-                        className="field-select mt-1.5"
-                      >
-                        {allAdminCargos.map((cargo) => (
-                          <option key={`processed-${cargo}`} value={cargo}>{cargo}</option>
-                        ))}
-                      </select>
+                      <div className="mt-1.5">
+                        <SelectorBuscador
+                          id="adminProcessedCargo"
+                          value={activeAdminProcessedCargo}
+                          onChange={setSelectedAdminProcessedCargo}
+                          opciones={allAdminCargos.map((cargo) => ({ value: cargo, label: cargo }))}
+                          placeholder="Selecciona un cargo"
+                        />
+                      </div>
                     </div>
 
                     {(() => {

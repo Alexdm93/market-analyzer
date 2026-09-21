@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building2, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 type AdminSnapshot = { id: string; label: string; date: string; published?: boolean };
 type CompanyOption = { id: string; name: string; economicSector?: string; classification?: string; headcount?: string };
@@ -213,28 +214,24 @@ export default function ReportesPage() {
 
             <div>
               <label htmlFor="rep-sector" className="field-label">Sector</label>
-              <select
+              <SelectorBuscador
                 id="rep-sector"
                 value={sector}
-                onChange={(e) => { setSector(e.target.value); setSubsector(""); setSeleccionadas([]); }}
-                className="field-select"
-              >
-                <option value="">Todos</option>
-                {sectores.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+                onChange={(v) => { setSector(v); setSubsector(""); setSeleccionadas([]); }}
+                opciones={[{ value: "", label: "Todos" }, ...sectores.map((s) => ({ value: s, label: s }))]}
+                placeholder="Todos"
+              />
             </div>
 
             <div>
               <label htmlFor="rep-subsector" className="field-label">Subsector</label>
-              <select
+              <SelectorBuscador
                 id="rep-subsector"
                 value={subsector}
-                onChange={(e) => { setSubsector(e.target.value); setSeleccionadas([]); }}
-                className="field-select"
-              >
-                <option value="">Todos</option>
-                {subsectores.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+                onChange={(v) => { setSubsector(v); setSeleccionadas([]); }}
+                opciones={[{ value: "", label: "Todos" }, ...subsectores.map((s) => ({ value: s, label: s }))]}
+                placeholder="Todos"
+              />
             </div>
 
             <div>
@@ -411,15 +408,16 @@ export default function ReportesPage() {
             </p>
             <div className="mt-3">
               <label htmlFor="rep-cortesia-empresa" className="field-label">Empresa de la portada</label>
-              <select
+              <SelectorBuscador
                 id="rep-cortesia-empresa"
                 value={empresaCortesia}
-                onChange={(e) => setEmpresaCortesia(e.target.value)}
-                className="field-select"
-              >
-                <option value="">Sin empresa (documento genérico)</option>
-                {empresas.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+                onChange={setEmpresaCortesia}
+                opciones={[
+                  { value: "", label: "Sin empresa (documento genérico)" },
+                  ...empresas.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+                placeholder="Sin empresa (documento genérico)"
+              />
               <p className="mt-1.5 text-xs text-slate-500">
                 El contenido es el mismo para todas; esto solo pone su nombre en la portada. Cada empresa también
                 puede descargarlo sola desde Resultados una vez publicado el corte.

@@ -9,7 +9,8 @@
  * dibuja aquí: altura fija, scroll propio y un campo para filtrar.
  */
 import { Check, ChevronDown, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type OpcionSelector = { value: string; label: string };
 
@@ -32,8 +33,29 @@ export function SelectorBuscador({
 }) {
   const [abierto, setAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const [caja, setCaja] = useState<{ left: number; top: number; width: number; haciaArriba: boolean } | null>(null);
   const contenedor = useRef<HTMLDivElement>(null);
+  const lista = useRef<HTMLDivElement>(null);
   const campoBusqueda = useRef<HTMLInputElement>(null);
+
+  /**
+   * La lista se dibuja en un portal con posición fija porque si no la recorta
+   * cualquier contenedor con overflow — por ejemplo la tabla de cargos, que
+   * tiene scroll horizontal. Se abre hacia arriba si abajo no cabe.
+   */
+  const ubicar = useCallback(() => {
+    const boton = contenedor.current;
+    if (!boton) return;
+    const r = boton.getBoundingClientRect();
+    const alto = 320;
+    const haciaArriba = r.bottom + alto > window.innerHeight && r.top > alto;
+    setCaja({
+      left: r.left,
+      top: haciaArriba ? r.top - 4 : r.bottom + 4,
+      width: r.width,
+      haciaArriba,
+    });
+  }, []);
 
   const seleccionada = opciones.find((o) => o.value === value);
 
@@ -48,7 +70,10 @@ export function SelectorBuscador({
     if (!abierto) return;
 
     function alClic(e: MouseEvent) {
-      if (contenedor.current && !contenedor.current.contains(e.target as Node)) setAbierto(false);
+      const objetivo = e.target as Node;
+      if (contenedor.current?.contains(objetivo)) return;
+      if (lista.current?.contains(objetivo)) return;
+      setAbierto(false);
     }
     function alTeclado(e: KeyboardEvent) {
       if (e.key === "Escape") setAbierto(false);
@@ -56,16 +81,22 @@ export function SelectorBuscador({
 
     document.addEventListener("mousedown", alClic);
     document.addEventListener("keydown", alTeclado);
+    // En captura, para enterarse también del scroll de una tabla o un modal.
+    window.addEventListener("scroll", ubicar, true);
+    window.addEventListener("resize", ubicar);
     campoBusqueda.current?.focus();
     return () => {
       document.removeEventListener("mousedown", alClic);
       document.removeEventListener("keydown", alTeclado);
+      window.removeEventListener("scroll", ubicar, true);
+      window.removeEventListener("resize", ubicar);
     };
-  }, [abierto]);
+  }, [abierto, ubicar]);
 
   function abrir() {
     if (disabled) return;
     setBusqueda("");
+    if (!abierto) ubicar();
     setAbierto((v) => !v);
   }
 
@@ -93,8 +124,16 @@ export function SelectorBuscador({
         <ChevronDown size={14} aria-hidden className="shrink-0 text-slate-500" />
       </button>
 
-      {abierto && (
-        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+      {abierto && caja && createPortal(
+        <div
+          ref={lista}
+          className="fixed z-[100] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+          style={{
+            left: caja.left,
+            width: caja.width,
+            ...(caja.haciaArriba ? { bottom: window.innerHeight - caja.top } : { top: caja.top }),
+          }}
+        >
           <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
             <Search size={14} aria-hidden className="shrink-0 text-slate-400" />
             <input
@@ -133,7 +172,8 @@ export function SelectorBuscador({
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

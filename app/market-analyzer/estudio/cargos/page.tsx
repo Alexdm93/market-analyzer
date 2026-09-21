@@ -113,6 +113,13 @@ export default function MisCargosPage() {
       .catch(() => setSnapshots([]));
   }, [esAdmin]);
 
+  // El catálogo repite un mismo título en departamentos distintos; para elegir
+  // equivalencia basta el título, así que se muestran sin repetir.
+  const titulosDelCatalogo = useMemo(
+    () => [...new Set(catalogo.map((c) => c.tituloCargo))],
+    [catalogo],
+  );
+
   const cargar = useCallback(async () => {
     if (!puedeOperar) { setCargos([]); return; }
     setCargando(true);
@@ -537,19 +544,16 @@ export default function MisCargosPage() {
                           </td>
                           {snapshotId && (
                             <td className="px-4 py-2.5">
-                              <select
+                              <SelectorBuscador
                                 aria-label={`Equivalencia de ${c.tituloCargo}`}
                                 value={c.equivalencias[snapshotId]?.tituloCatalogo ?? ""}
-                                onChange={(e) => void homologar(c, e.target.value)}
-                                className="field-select text-xs"
-                              >
-                                <option value="">Sin equivalencia</option>
-                                {catalogo.map((cc) => (
-                                  <option key={`${cc.departamento}-${cc.tituloCargo}`} value={cc.tituloCargo}>
-                                    {cc.tituloCargo}
-                                  </option>
-                                ))}
-                              </select>
+                                onChange={(v) => void homologar(c, v)}
+                                opciones={[
+                                  { value: "", label: "Sin equivalencia" },
+                                  ...titulosDelCatalogo.map((t) => ({ value: t, label: t })),
+                                ]}
+                                placeholder="Sin equivalencia"
+                              />
                             </td>
                           )}
                           <td className="px-4 py-2.5 text-right">

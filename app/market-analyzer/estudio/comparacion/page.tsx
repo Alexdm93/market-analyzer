@@ -427,17 +427,23 @@ export default function ComparacionPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="cmp-sector" className="field-label">Sector económico</label>
-                    <select id="cmp-sector" value={filtroSector} onChange={(e) => setFiltroSector(e.target.value)} className="field-select">
-                      <option value="">Todos</option>
-                      {disponibles.sectores.map((x) => <option key={x} value={x}>{x}</option>)}
-                    </select>
+                    <SelectorBuscador
+                      id="cmp-sector"
+                      value={filtroSector}
+                      onChange={setFiltroSector}
+                      opciones={[{ value: "", label: "Todos" }, ...disponibles.sectores.map((x) => ({ value: x, label: x }))]}
+                      placeholder="Todos"
+                    />
                   </div>
                   <div>
                     <label htmlFor="cmp-clasif" className="field-label">Clasificación (subsector)</label>
-                    <select id="cmp-clasif" value={filtroClasificacion} onChange={(e) => setFiltroClasificacion(e.target.value)} className="field-select">
-                      <option value="">Todas</option>
-                      {disponibles.clasificaciones.map((x) => <option key={x} value={x}>{x}</option>)}
-                    </select>
+                    <SelectorBuscador
+                      id="cmp-clasif"
+                      value={filtroClasificacion}
+                      onChange={setFiltroClasificacion}
+                      opciones={[{ value: "", label: "Todas" }, ...disponibles.clasificaciones.map((x) => ({ value: x, label: x }))]}
+                      placeholder="Todas"
+                    />
                   </div>
                 </div>
 

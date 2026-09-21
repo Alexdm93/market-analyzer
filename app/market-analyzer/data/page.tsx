@@ -12,6 +12,7 @@ import { computeRowTotals, resolveRowTotals } from "@/lib/compensation";
 import { FREQUENCY_OPTIONS, VARIABLE_BONUS_TYPES, VARIABLE_COMMISSION_TYPES, VARIABLE_CALCULATION_DETAILS, VARIABLE_GOALS_TARGETS } from "@/lib/compensation-options";
 import { FmtMoney } from "@/components/FmtMoney";
 import { NumericInput } from "@/components/NumericInput";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 type CompanyOption = {
   id: string;
@@ -1211,23 +1212,19 @@ export default function DataPage() {
                 {isAdmin && (
                   <div>
                     <label htmlFor="companyFilter" className="field-label">Empresa</label>
-                    <select
+                    <SelectorBuscador
                       id="companyFilter"
                       value={selectedCompanyId}
-                      onChange={(event) => {
-                        setSelectedCompanyId(event.target.value);
+                      onChange={(v) => {
+                        setSelectedCompanyId(v);
                         setSelectedSnapshotId("");
                         setSnapshots({});
                         setRows([]);
                       }}
-                      className="field-select"
+                      opciones={companies.map((company) => ({ value: company.id, label: company.name }))}
+                      placeholder="Seleccionar empresa"
                       disabled={isLoadingCompanies}
-                    >
-                      <option value="">Seleccionar empresa</option>
-                      {companies.map((company) => (
-                        <option key={company.id} value={company.id}>{company.name}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 )}
                 <div>
