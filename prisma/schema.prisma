@@ -47,6 +47,7 @@ model Company {
   snapshots       UserSnapshot[]
   positions       UserPosition[]
   editRequests    EditRequest[]
+  estudioCargos   EstudioCargo[]
   estudioEnabled      Boolean @default(false)
   estudioSnapshotIds  String  @default("[]")
   createdAt       DateTime @default(now())
@@ -166,4 +167,50 @@ model Announcement {
   mediaUrl    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+
+/// Lista de cargos propia de una empresa para el Estudio Especializado.
+/// Es independiente de la data que la empresa le reporta al mercado
+/// (UserPosition): esa es por corte y con el catálogo cerrado del corte; esta es
+/// una sola por empresa, con sus propios nombres, y persiste entre estudios.
+model EstudioCargo {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  departamento     String   @default("")
+  tituloCargo      String
+  descripcion      String   @default("")
+  hayGrade         Int?
+  capriFamily      String?
+  /// Estructura de compensación, con la misma forma que UserPosition.dataJson,
+  /// para poder reusar la pantalla de compensación y computeRowTotals sin cambios.
+  dataJson         String   @default("{}")
+  /// manual | importado — de dónde salió el cargo. Un importado es una copia
+  /// editable: tocarlo no afecta la data enviada del corte de origen.
+  origen           String   @default("manual")
+  origenSnapshotId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  equivalencias    EstudioEquivalencia[]
+
+  @@unique([companyId, tituloCargo])
+  @@index([companyId])
+}
+
+/// A qué cargo del catálogo equivale un cargo del cliente, POR CORTE: cada corte
+/// tiene su propio catálogo, así que la equivalencia se guarda por (cargo × corte).
+model EstudioEquivalencia {
+  id             String       @id @default(cuid())
+  estudioCargoId String
+  estudioCargo   EstudioCargo @relation(fields: [estudioCargoId], references: [id], onDelete: Cascade)
+  snapshotId     String
+  departamento   String       @default("")
+  tituloCatalogo String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([estudioCargoId, snapshotId])
+  @@index([snapshotId])
 }
