@@ -124,6 +124,17 @@ export async function POST(request: Request) {
     mapaCalor: analizarMapaCalor(filas, mercadoPorGrado),
     simulador: simularAjuste(filas, mercadoPorGrado, config.aperturaBandas, configSimulador),
     mercadoPorGrado,
+    // El mapeo solo puede armarse con los ocupantes que tienen grado: la
+    // cuadrícula es grado × área funcional.
+    mapeo: ocupantes
+      .filter((o) => o.hayGrade !== null)
+      .map((o) => ({
+        grado: o.hayGrade as number,
+        area: o.departamento || "Sin unidad",
+        tituloCargo: o.tituloCargo,
+        unidadFuncional: o.departamento,
+        reportaA: cargos.find((c) => c.id === o.id)?.reportaA ?? "",
+      })),
   });
 
   const nombre = `Informe especializado - ${nombreEmpresa} - ${snapshot?.label ?? snapshotId}.xlsx`;

@@ -34,6 +34,7 @@ export const HOJAS = {
   mapaCalor: "Mapa de Calor",
   mercado: "Data Mercado General",
   simulador: "Simulador de Ajuste Salarial",
+  mapeo: "Mapeo de cargos",
 } as const;
 
 /** Primera fila de datos de cada hoja, tomadas de la plantilla real. */
@@ -47,6 +48,14 @@ const PRIMERA_FILA = {
   // Las filas 15 y 16 son la leyenda de desempeño, no datos.
   simulador: 17,
 } as const;
+
+export type CargoMapeado = {
+  grado: number;
+  area: string;
+  tituloCargo: string;
+  unidadFuncional: string;
+  reportaA: string;
+};
 
 export type DatosEspecializado = {
   cliente: string;
@@ -63,6 +72,7 @@ export type DatosEspecializado = {
   mapaCalor: FilaMapaCalor[];
   simulador: FilaSimulador[];
   mercadoPorGrado: Map<number, PercentilesGrado>;
+  mapeo: CargoMapeado[];
 };
 
 /** "JUNIO 2026", el formato que usa la plantilla. */
@@ -92,6 +102,98 @@ const COLS_ID = ["A", "B", "C", "D", "E", "F"];
 
 function etiquetaConcepto(c: ConfiguracionInforme["concepto"]) {
   return CONCEPTOS.find((x) => x.clave === c)?.etiqueta ?? "";
+}
+
+
+/**
+ * Hoja "Mapeo de cargos": la cuadrícula de grado × área funcional.
+ *
+ * Cada cargo ocupa cuatro filas — título, unidad funcional, "Reporta a:" y el
+ * cargo padre — y los cargos de un mismo grado se apilan con una fila en
+ * blanco entre ellos. La altura de la banda de un grado la marca el área que
+ * más cargos tenga.
+ *
+ * Las áreas salen de las unidades funcionales de la propia empresa, no de las
+ * de la plantilla. Y hay que rehacer las combinaciones: las 119 que trae el
+ * archivo están atadas a la estructura del cliente del ejemplo.
+ */
+const MAPEO_PRIMERA_FILA = 6;
+const MAPEO_FILAS_POR_CARGO = 4;
+const MAPEO_COLUMNAS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
+
+function escribirMapeo(ws: ExcelJS.Worksheet, cargos: CargoMapeado[]): string[] {
+  // Las combinaciones de la plantilla no sirven para otra empresa.
+  for (const rango of [...(ws.model.merges ?? [])]) {
+    try { ws.unMergeCells(rango); } catch { /* ya no existe */ }
+  }
+
+  const areas = [...new Set(cargos.map((c) => c.area || "Sin unidad"))]
+    .sort((a, b) => a.localeCompare(b, "es"))
+    .slice(0, MAPEO_COLUMNAS.length);
+
+  // Cabecera de áreas
+  areas.forEach((area, i) => { ws.getCell(`${MAPEO_COLUMNAS[i]}4`).value = area; });
+  for (let i = areas.length; i < MAPEO_COLUMNAS.length; i++) {
+    ws.getCell(`${MAPEO_COLUMNAS[i]}4`).value = null;
+  }
+
+  const grados = [...new Set(cargos.map((c) => c.grado))].sort((a, b) => b - a);
+  let fila = MAPEO_PRIMERA_FILA;
+
+  for (const grado of grados) {
+    const delGrado = cargos.filter((c) => c.grado === grado);
+    const porArea = new Map<string, CargoMapeado[]>();
+    for (const c of delGrado) {
+      const area = c.area || "Sin unidad";
+      const lista = porArea.get(area) ?? [];
+      lista.push(c);
+      porArea.set(area, lista);
+    }
+
+    const maxApilados = Math.max(...[...porArea.values()].map((l) => l.length));
+    const alto = maxApilados * MAPEO_FILAS_POR_CARGO + (maxApilados - 1);
+
+    ws.getCell(`A${fila}`).value = grado;
+    if (alto > 1) {
+      try { ws.mergeCells(`A${fila}:A${fila + alto - 1}`); } catch { /* ya combinada */ }
+    }
+
+    areas.forEach((area, i) => {
+      const col = MAPEO_COLUMNAS[i];
+      const lista = porArea.get(area) ?? [];
+
+      lista.forEach((c, idx) => {
+        const base = fila + idx * (MAPEO_FILAS_POR_CARGO + 1);
+        ws.getCell(`${col}${base}`).value = c.tituloCargo;
+        ws.getCell(`${col}${base + 1}`).value = c.unidadFuncional;
+        ws.getCell(`${col}${base + 2}`).value = c.reportaA ? "Reporta a:" : null;
+        ws.getCell(`${col}${base + 3}`).value = c.reportaA || null;
+      });
+
+      // Lo que sobra de la banda se limpia y se combina, como en la plantilla.
+      const ocupadas = lista.length * (MAPEO_FILAS_POR_CARGO + 1) - (lista.length > 0 ? 1 : 0);
+      for (let f = fila + ocupadas; f < fila + alto; f++) ws.getCell(`${col}${f}`).value = null;
+      if (lista.length === 0 && alto > 1) {
+        try { ws.mergeCells(`${col}${fila}:${col}${fila + alto - 1}`); } catch { /* ya combinada */ }
+      }
+    });
+
+    // La fila separadora entre bandas también hay que limpiarla: si no, se
+    // asoman los datos del cliente de ejemplo que trae la plantilla.
+    const separadora = fila + alto;
+    ws.getCell(`A${separadora}`).value = null;
+    for (const col of MAPEO_COLUMNAS) ws.getCell(`${col}${separadora}`).value = null;
+
+    fila += alto + 1;
+  }
+
+  // Se borra lo que quede de la plantilla más abajo.
+  for (let f = fila; f < fila + 160; f++) {
+    ws.getCell(`A${f}`).value = null;
+    for (const col of MAPEO_COLUMNAS) ws.getCell(`${col}${f}`).value = null;
+  }
+
+  return areas;
 }
 
 export async function generarInformeEspecializado(datos: DatosEspecializado): Promise<ExcelJS.Buffer> {
@@ -252,6 +354,10 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
     limpiarDesde(sim, PRIMERA_FILA.simulador + datos.simulador.length,
       [...COLS_ID, "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"]);
   }
+
+  // ── Mapeo de cargos ──
+  const mapeo = wb.getWorksheet(HOJAS.mapeo);
+  if (mapeo && datos.mapeo.length > 0) escribirMapeo(mapeo, datos.mapeo);
 
   return wb.xlsx.writeBuffer();
 }
