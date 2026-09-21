@@ -375,7 +375,7 @@ export default function MisCargosPage() {
               type="button"
               onClick={() => { setBorrador({ ...BORRADOR_VACIO }); setError(""); }}
               disabled={!puedeOperar || guardando}
-              className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={16} /> Agregar cargo
             </button>
@@ -383,7 +383,7 @@ export default function MisCargosPage() {
               type="button"
               onClick={() => void importarDeCorte()}
               disabled={!puedeOperar || !snapshotId || guardando}
-              className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {guardando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Importar del corte
             </button>
@@ -473,10 +473,10 @@ export default function MisCargosPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
-              <button type="button" onClick={() => void guardar()} disabled={guardando} className="btn-primary disabled:opacity-50">
+              <button type="button" onClick={() => void guardar()} disabled={guardando} className="btn btn-primary disabled:opacity-50">
                 {guardando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Guardar cargo
               </button>
-              <button type="button" onClick={() => setBorrador(null)} disabled={guardando} className="btn-secondary disabled:opacity-50">
+              <button type="button" onClick={() => setBorrador(null)} disabled={guardando} className="btn btn-secondary disabled:opacity-50">
                 Cancelar
               </button>
             </div>

@@ -477,11 +477,11 @@ export default function ImportarDataPage() {
             <div>
               <span className="field-label">Plantilla</span>
               {corte && catalogo && catalogo.length > 0 ? (
-                <a href={urlPlantilla()} className="btn-secondary w-full justify-center">
+                <a href={urlPlantilla()} className="btn btn-secondary w-full justify-center">
                   <Download size={16} /> Descargar plantilla del corte
                 </a>
               ) : (
-                <span className="btn-secondary w-full cursor-not-allowed justify-center opacity-50">
+                <span className="btn btn-secondary w-full cursor-not-allowed justify-center opacity-50">
                   <Download size={16} /> Descargar plantilla del corte
                 </span>
               )}
@@ -725,7 +725,7 @@ export default function ImportarDataPage() {
               type="button"
               onClick={() => void analizar()}
               disabled={!puedeAnalizar}
-              className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {trabajando ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />} Analizar archivos
             </button>
@@ -733,7 +733,7 @@ export default function ImportarDataPage() {
               type="button"
               onClick={() => void importar()}
               disabled={!puedeImportar}
-              className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {trabajando ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} Cargar la data
             </button>

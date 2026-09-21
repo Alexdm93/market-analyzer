@@ -275,11 +275,11 @@ export default function ReportesPage() {
                 aria-label="Buscar empresa por nombre"
                 className="field max-w-xs"
               />
-              <button type="button" onClick={() => setSeleccionadas(empresasVisibles.map((e) => e.id))} className="btn-secondary text-xs">
+              <button type="button" onClick={() => setSeleccionadas(empresasVisibles.map((e) => e.id))} className="btn btn-secondary text-xs">
                 Elegir las {empresasVisibles.length} visibles
               </button>
               {seleccionadas.length > 0 && (
-                <button type="button" onClick={() => setSeleccionadas([])} className="btn-secondary text-xs">
+                <button type="button" onClick={() => setSeleccionadas([])} className="btn btn-secondary text-xs">
                   Quitar selección
                 </button>
               )}
@@ -301,7 +301,7 @@ export default function ReportesPage() {
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => void verAlcance()} disabled={!snapshotId || cargando} className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" onClick={() => void verAlcance()} disabled={!snapshotId || cargando} className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50">
               {cargando ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Ver qué entra
             </button>
             {error && <span className="flex items-center gap-1.5 text-xs text-red-600"><AlertTriangle className="h-3.5 w-3.5" /> {error}</span>}
@@ -373,11 +373,11 @@ export default function ReportesPage() {
                 su moneda, frecuencia e impacto en pasivos.
               </p>
               {listo ? (
-                <a href={urlReporte("empresas")} className="btn-primary mt-4 w-full justify-center">
+                <a href={urlReporte("empresas")} className="btn btn-primary mt-4 w-full justify-center">
                   <Download size={16} /> Descargar
                 </a>
               ) : (
-                <span className="btn-primary mt-4 w-full cursor-not-allowed justify-center opacity-50">
+                <span className="btn btn-primary mt-4 w-full cursor-not-allowed justify-center opacity-50">
                   <Download size={16} /> Descargar
                 </span>
               )}
@@ -390,11 +390,11 @@ export default function ReportesPage() {
                 familia y nivel CAPRI, y los cuatro montos (TEM, TEMz, CIM y PCTA). Viene con filtros de Excel puestos.
               </p>
               {listo ? (
-                <a href={urlReporte("grados")} className="btn-primary mt-4 w-full justify-center">
+                <a href={urlReporte("grados")} className="btn btn-primary mt-4 w-full justify-center">
                   <Download size={16} /> Descargar
                 </a>
               ) : (
-                <span className="btn-primary mt-4 w-full cursor-not-allowed justify-center opacity-50">
+                <span className="btn btn-primary mt-4 w-full cursor-not-allowed justify-center opacity-50">
                   <Download size={16} /> Descargar
                 </span>
               )}
@@ -430,7 +430,7 @@ export default function ReportesPage() {
               type="button"
               onClick={() => void generarCortesia()}
               disabled={!snapshotId || generandoCortesia}
-              className="btn-primary mt-4 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary mt-4 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
             >
               {generandoCortesia ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Generar y descargar
             </button>

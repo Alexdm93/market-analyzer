@@ -198,7 +198,7 @@ export default function InformesPage() {
       <main className="page-wrap">
         <div className="flex w-full flex-col gap-6">
           <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-            <button type="button" onClick={() => setAbierto(null)} className="btn-secondary mb-4 text-xs">
+            <button type="button" onClick={() => setAbierto(null)} className="btn btn-secondary mb-4 text-xs">
               <ArrowLeft size={14} /> Volver a los informes
             </button>
             <div className="eyebrow mb-3">Informe congelado</div>
@@ -284,7 +284,8 @@ export default function InformesPage() {
           <div className="eyebrow mb-3">Estudio Especializado</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Informes.</h1>
           <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
-            Los informes que has generado. Cada uno queda congelado con los números del momento en que se hizo.
+            Los informes del Estudio Especializado. Los que generas por tu cuenta quedan congelados con los números
+            del momento en que se hicieron.
           </p>
         </section>
 
@@ -301,10 +302,14 @@ export default function InformesPage() {
 
           {empresaActiva && (
             <div className="mb-6 rounded-2xl border border-slate-200 p-5">
-              <h2 className="font-display text-base font-bold text-slate-900">Informe completo en Excel</h2>
+              <h2 className="font-display text-base font-bold text-slate-900">Informe del Estudio Especializado</h2>
               <p className="mt-1.5 text-sm text-slate-600">
-                El documento del estudio especializado: dispersión, equidad interna, competitividad, mapa de calor,
-                simulador de ajuste y los anexos de data. Se arma sobre la plantilla del estudio.
+                El documento completo: dispersión, equidad interna, competitividad, mapa de calor, simulador de ajuste
+                y los anexos de data. Se arma sobre la plantilla del estudio, con los cargos de esta empresa.
+              </p>
+              <p className="mt-1.5 text-xs text-slate-500">
+                El <strong>informe de cortesía</strong> —el que recibe toda empresa que participó en un corte— no se
+                descarga aquí sino desde <strong>Resultados</strong>.
               </p>
               <div className="mt-3 grid gap-3 md:grid-cols-3">
                 <div>
@@ -331,7 +336,7 @@ export default function InformesPage() {
                 type="button"
                 onClick={() => void descargarExcel()}
                 disabled={!snapshotId || generandoExcel}
-                className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {generandoExcel ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Generar y descargar
               </button>

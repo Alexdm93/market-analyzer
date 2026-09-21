@@ -410,7 +410,7 @@ export default function ComparacionPage() {
                   type="button"
                   onClick={() => void generarInforme()}
                   disabled={generando || seleccionados.length === 0}
-                  className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {generando ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
                   Generar con {seleccionados.length} {seleccionados.length === 1 ? "cargo" : "cargos"}

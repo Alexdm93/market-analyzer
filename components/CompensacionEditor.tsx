@@ -304,7 +304,7 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
           type="button"
           onClick={() => agregarConcepto("additionalFixedPayments")}
           disabled={deshabilitado}
-          className="btn-secondary mt-2 text-xs disabled:opacity-40"
+          className="btn btn-secondary mt-2 text-xs disabled:opacity-40"
         >
           <Plus size={14} /> Agregar concepto fijo
         </button>
@@ -430,7 +430,7 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
           type="button"
           onClick={() => agregarConcepto("additionalVariablePayments")}
           disabled={deshabilitado}
-          className="btn-secondary mt-2 text-xs disabled:opacity-40"
+          className="btn btn-secondary mt-2 text-xs disabled:opacity-40"
         >
           <Plus size={14} /> Agregar concepto variable
         </button>
