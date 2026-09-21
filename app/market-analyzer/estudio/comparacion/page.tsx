@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, BarChart3, Download, FileText, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, Check, Download, FileText, Loader2 } from "lucide-react";
+import Link from "next/link";
 
 import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals } from "@/lib/compensation";
@@ -54,7 +55,7 @@ export default function ComparacionPage() {
   const esAdmin = isAdminRole(session?.user?.role);
 
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
-  const { companyId, setCompanyId, snapshotId, setSnapshotId } = useEstudio();
+  const { companyId, snapshotId } = useEstudio();
   const [snapshots, setSnapshots] = useState<SnapshotOption[]>([]);
   const [modo, setModo] = useState<"cargo" | "grado">("cargo");
   const [metrica, setMetrica] = useState<Metrica>("sinPasivosMensual");
@@ -84,6 +85,25 @@ export default function ComparacionPage() {
   const [abrirGrupo, setAbrirGrupo] = useState(false);
 
   const empresaActiva = esAdmin ? companyId : (session?.user?.companyId ?? "");
+
+  // Lo que quedó decidido en el paso 1, para mostrarlo hecho en vez de volver
+  // a preguntarlo.
+  const nombreEmpresa = esAdmin
+    ? (empresas.find((c) => c.id === companyId)?.name ?? "")
+    : (session?.user?.companyName ?? "Tu empresa");
+
+  const nombreCorte = (() => {
+    const corte = snapshots.find((x) => x.id === snapshotId);
+    return corte ? `${corte.label} — ${corte.date}` : "";
+  })();
+
+  const listoElPaso1 = Boolean(empresaActiva && snapshotId && cargos.length > 0);
+
+  const faltaEnElPaso1 = [
+    !empresaActiva ? "elegir la empresa" : "",
+    !snapshotId ? "elegir el estudio" : "",
+    empresaActiva && cargos.length === 0 ? "cargar los cargos" : "",
+  ].filter(Boolean).join(", ");
 
   useEffect(() => {
     if (!esAdmin) return;
@@ -363,29 +383,51 @@ export default function ComparacionPage() {
           </p>
         </section>
 
+        {/* Lo que se decidió en el paso 1 no se vuelve a preguntar: se muestra
+            hecho, con una salida para cambiarlo donde se eligió. */}
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-            {esAdmin && (
-              <div>
-                <label htmlFor="cmp-empresa" className="field-label">Empresa</label>
-                <SelectorBuscador
-                  id="cmp-empresa"
-                  value={companyId}
-                  onChange={setCompanyId}
-                  opciones={empresas.map((c) => ({ value: c.id, label: c.name }))}
-                  placeholder="Selecciona una empresa"
-                />
+          <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl bg-slate-50 p-4">
+            <div className="flex min-w-0 flex-wrap gap-x-8 gap-y-3">
+              {esAdmin && (
+                <div className="min-w-0">
+                  <div className="field-label">Empresa</div>
+                  <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                    {empresaActiva
+                      ? <><Check size={14} className="shrink-0 text-teal-600" aria-hidden /> {nombreEmpresa}</>
+                      : <span className="font-normal text-amber-700">Sin elegir</span>}
+                  </div>
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="field-label">Estudio</div>
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  {snapshotId
+                    ? <><Check size={14} className="shrink-0 text-teal-600" aria-hidden /> {nombreCorte}</>
+                    : <span className="font-normal text-amber-700">Sin elegir</span>}
+                </div>
               </div>
-            )}
-            <div>
-              <label htmlFor="cmp-corte" className="field-label">Estudio</label>
-              {/* El mismo que se eligió en Mis cargos: viene del contexto del
-                  recorrido, no se vuelve a preguntar desde cero. */}
-              <select id="cmp-corte" value={snapshotId} onChange={(e) => setSnapshotId(e.target.value)} className="field-select">
-                <option value="">Selecciona un estudio</option>
-                {snapshots.map((s) => <option key={s.id} value={s.id}>{s.label} — {s.date}</option>)}
-              </select>
+              <div className="min-w-0">
+                <div className="field-label">Cargos</div>
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  {cargos.length > 0
+                    ? <><Check size={14} className="shrink-0 text-teal-600" aria-hidden /> {cargos.length} en la lista</>
+                    : <span className="font-normal text-amber-700">Ninguno</span>}
+                </div>
+              </div>
             </div>
+            <Link href="/market-analyzer/estudio/cargos" className="btn btn-secondary text-xs">
+              <ArrowLeft size={14} /> Cambiar en Mis cargos
+            </Link>
+          </div>
+
+          {!listoElPaso1 ? (
+            <p className="mt-5 text-sm text-slate-600">
+              Falta completar el <strong>paso 1</strong>: {faltaEnElPaso1}. Vuelve a <strong>Mis cargos</strong> y
+              luego regresa aquí.
+            </p>
+          ) : (
+          <>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
             <div>
               <label htmlFor="cmp-modo" className="field-label">Comparar</label>
               <select id="cmp-modo" value={modo} onChange={(e) => setModo(e.target.value as "cargo" | "grado")} className="field-select">
@@ -393,17 +435,17 @@ export default function ComparacionPage() {
                 <option value="grado">Por grado CAPRI</option>
               </select>
             </div>
-            <div className="flex items-end">
-              <label className="flex items-start gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={comisiones} onChange={(e) => setComisiones(e.target.checked)} className="mt-1" />
-                <span>Incluir comisiones</span>
-              </label>
-            </div>
             <div>
               <label htmlFor="cmp-metrica" className="field-label">Métrica</label>
               <select id="cmp-metrica" value={metrica} onChange={(e) => setMetrica(e.target.value as Metrica)} className="field-select">
                 {METRICAS.map((m) => <option key={m.value} value={m.value}>{m.sigla} — {m.label}</option>)}
               </select>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={comisiones} onChange={(e) => setComisiones(e.target.checked)} className="mt-1" />
+                <span>Incluir comisiones</span>
+              </label>
             </div>
           </div>
 
@@ -486,7 +528,7 @@ export default function ComparacionPage() {
                           </label>
                         ))}
                       {disponibles.empresas.length === 0 && (
-                        <p className="text-xs text-slate-500">Elige un estudio para ver las empresas.</p>
+                        <p className="text-xs text-slate-500">Sin empresas que listar todavía.</p>
                       )}
                     </div>
                   </div>
@@ -517,6 +559,8 @@ export default function ComparacionPage() {
               ))}
             </dl>
           )}
+          </>
+          )}
         </section>
 
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
@@ -525,7 +569,7 @@ export default function ComparacionPage() {
             <h2 className="font-display text-xl font-bold text-slate-900">Posicionamiento · {sigla}</h2>
           </div>
 
-          {!snapshotId && <p className="text-sm text-slate-500">Elige un estudio para ver la comparación.</p>}
+          {!listoElPaso1 && <p className="text-sm text-slate-500">Completa el paso 1 para ver la comparación.</p>}
 
           {snapshotId && cargos.length === 0 && !cargando && (
             <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
