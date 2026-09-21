@@ -178,7 +178,7 @@ export async function POST(request: Request) {
     ? `Informe de cortesía - ${cliente} - ${etiqueta}.xlsx`
     : `Informe de cortesía - ${etiqueta}.xlsx`;
 
-  return new Response(buffer as ArrayBuffer, {
+  return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(nombre)}`,

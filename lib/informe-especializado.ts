@@ -1,16 +1,17 @@
 /**
  * Informe del Estudio Especializado: rellena la plantilla del cliente.
  *
- * Sale como .xlsx y no .xlsm porque exceljs no conserva las macros. El usuario
- * decidió descartarlas (eran una comodidad para propagar la configuración de
- * comisiones entre hojas, y acá la configuración se escribe ya aplicada).
+ * Se parchea el XML de la plantilla (ver `lib/xlsx-plantilla.ts`) en vez de
+ * reescribir el libro. Así llegan intactos los 81 formatos condicionales, el
+ * gráfico de la hoja de dispersión, los 21 cuadros de texto y las 18 imágenes.
  *
- * También se pierde el único gráfico nativo, que está en la hoja de dispersión.
- * Los 24 dibujos e imágenes sí se conservan.
+ * Sale como .xlsx y no .xlsm: se quita el proyecto VBA para que Excel no avise
+ * de macros. El usuario decidió descartarlas (eran una comodidad para propagar
+ * la configuración de comisiones entre hojas, y acá se escribe ya aplicada).
  */
 import path from "node:path";
 
-import ExcelJS from "exceljs";
+import { LibroPlantilla, type HojaPlantilla } from "@/lib/xlsx-plantilla";
 
 import {
   CONCEPTOS,
@@ -84,19 +85,19 @@ export function rutaPlantillaEspecializado(): string {
   return path.join(process.cwd(), "templates", "informe-especializado.xlsm");
 }
 
-function set(ws: ExcelJS.Worksheet | undefined, dir: string, valor: string | number | null) {
-  if (ws) ws.getCell(dir).value = valor;
+function set(ws: HojaPlantilla | undefined, dir: string, valor: string | number | null) {
+  ws?.set(dir, valor);
 }
 
 /** Escribe valores en columnas dadas, de una fila. */
-function setFila(ws: ExcelJS.Worksheet, fila: number, pares: Array<[string, string | number | null]>) {
-  for (const [col, valor] of pares) ws.getCell(`${col}${fila}`).value = valor;
+function setFila(ws: HojaPlantilla, fila: number, pares: Array<[string, string | number | null]>) {
+  for (const [col, valor] of pares) ws.set(`${col}${fila}`, valor);
 }
 
 /** Borra las filas de ejemplo que queden debajo de lo escrito. */
-function limpiarDesde(ws: ExcelJS.Worksheet, desde: number, columnas: string[], cuantas = 160) {
+function limpiarDesde(ws: HojaPlantilla, desde: number, columnas: string[], cuantas = 160) {
   for (let i = 0; i < cuantas; i++) {
-    for (const col of columnas) ws.getCell(`${col}${desde + i}`).value = null;
+    for (const col of columnas) ws.set(`${col}${desde + i}`, null);
   }
 }
 
@@ -123,20 +124,18 @@ const MAPEO_PRIMERA_FILA = 6;
 const MAPEO_FILAS_POR_CARGO = 4;
 const MAPEO_COLUMNAS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
 
-function escribirMapeo(ws: ExcelJS.Worksheet, cargos: CargoMapeado[]): string[] {
+function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
   // Las combinaciones de la plantilla no sirven para otra empresa.
-  for (const rango of [...(ws.model.merges ?? [])]) {
-    try { ws.unMergeCells(rango); } catch { /* ya no existe */ }
-  }
+  ws.limpiarCombinaciones();
 
   const areas = [...new Set(cargos.map((c) => c.area || "Sin unidad"))]
     .sort((a, b) => a.localeCompare(b, "es"))
     .slice(0, MAPEO_COLUMNAS.length);
 
   // Cabecera de áreas
-  areas.forEach((area, i) => { ws.getCell(`${MAPEO_COLUMNAS[i]}4`).value = area; });
+  areas.forEach((area, i) => { ws.set(`${MAPEO_COLUMNAS[i]}4`, area); });
   for (let i = areas.length; i < MAPEO_COLUMNAS.length; i++) {
-    ws.getCell(`${MAPEO_COLUMNAS[i]}4`).value = null;
+    ws.set(`${MAPEO_COLUMNAS[i]}4`, null);
   }
 
   const grados = [...new Set(cargos.map((c) => c.grado))].sort((a, b) => b - a);
@@ -155,10 +154,8 @@ function escribirMapeo(ws: ExcelJS.Worksheet, cargos: CargoMapeado[]): string[] 
     const maxApilados = Math.max(...[...porArea.values()].map((l) => l.length));
     const alto = maxApilados * MAPEO_FILAS_POR_CARGO + (maxApilados - 1);
 
-    ws.getCell(`A${fila}`).value = grado;
-    if (alto > 1) {
-      try { ws.mergeCells(`A${fila}:A${fila + alto - 1}`); } catch { /* ya combinada */ }
-    }
+    ws.set(`A${fila}`, grado);
+    if (alto > 1) ws.combinar(`A${fila}:A${fila + alto - 1}`);
 
     areas.forEach((area, i) => {
       const col = MAPEO_COLUMNAS[i];
@@ -166,47 +163,48 @@ function escribirMapeo(ws: ExcelJS.Worksheet, cargos: CargoMapeado[]): string[] 
 
       lista.forEach((c, idx) => {
         const base = fila + idx * (MAPEO_FILAS_POR_CARGO + 1);
-        ws.getCell(`${col}${base}`).value = c.tituloCargo;
-        ws.getCell(`${col}${base + 1}`).value = c.unidadFuncional;
-        ws.getCell(`${col}${base + 2}`).value = c.reportaA ? "Reporta a:" : null;
-        ws.getCell(`${col}${base + 3}`).value = c.reportaA || null;
+        ws.set(`${col}${base}`, c.tituloCargo);
+        ws.set(`${col}${base + 1}`, c.unidadFuncional);
+        ws.set(`${col}${base + 2}`, c.reportaA ? "Reporta a:" : null);
+        ws.set(`${col}${base + 3}`, c.reportaA || null);
       });
 
       // Lo que sobra de la banda se limpia y se combina, como en la plantilla.
       const ocupadas = lista.length * (MAPEO_FILAS_POR_CARGO + 1) - (lista.length > 0 ? 1 : 0);
-      for (let f = fila + ocupadas; f < fila + alto; f++) ws.getCell(`${col}${f}`).value = null;
-      if (lista.length === 0 && alto > 1) {
-        try { ws.mergeCells(`${col}${fila}:${col}${fila + alto - 1}`); } catch { /* ya combinada */ }
-      }
+      for (let f = fila + ocupadas; f < fila + alto; f++) ws.set(`${col}${f}`, null);
+      if (lista.length === 0 && alto > 1) ws.combinar(`${col}${fila}:${col}${fila + alto - 1}`);
     });
 
     // La fila separadora entre bandas también hay que limpiarla: si no, se
     // asoman los datos del cliente de ejemplo que trae la plantilla.
     const separadora = fila + alto;
-    ws.getCell(`A${separadora}`).value = null;
-    for (const col of MAPEO_COLUMNAS) ws.getCell(`${col}${separadora}`).value = null;
+    ws.set(`A${separadora}`, null);
+    for (const col of MAPEO_COLUMNAS) ws.set(`${col}${separadora}`, null);
 
     fila += alto + 1;
   }
 
   // Se borra lo que quede de la plantilla más abajo.
   for (let f = fila; f < fila + 160; f++) {
-    ws.getCell(`A${f}`).value = null;
-    for (const col of MAPEO_COLUMNAS) ws.getCell(`${col}${f}`).value = null;
+    ws.set(`A${f}`, null);
+    for (const col of MAPEO_COLUMNAS) ws.set(`${col}${f}`, null);
   }
 
   return areas;
 }
 
-export async function generarInformeEspecializado(datos: DatosEspecializado): Promise<ExcelJS.Buffer> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(rutaPlantillaEspecializado());
+export async function generarInformeEspecializado(datos: DatosEspecializado): Promise<Buffer> {
+  const wb = await LibroPlantilla.abrir(rutaPlantillaEspecializado());
+  // La plantilla es .xlsm y se entrega como .xlsx: sin el proyecto VBA, Excel
+  // no avisa de macros. Todo lo demás —gráfico, formatos condicionales,
+  // cuadros de texto— viaja intacto.
+  wb.sinMacros();
 
   const concepto = etiquetaConcepto(datos.config.concepto);
   const comisiones = datos.config.incluirComisiones ? "Si" : "No";
 
   // ── Portada ──
-  const inicio = wb.getWorksheet(HOJAS.inicio);
+  const inicio = wb.hoja(HOJAS.inicio);
   set(inicio, "B12", datos.proyecto);
   set(inicio, "B14", datos.fechaInforme);
   set(inicio, "B16", datos.fechaData);
@@ -214,7 +212,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   set(inicio, "B20", datos.version);
 
   // ── Empresas participantes ──
-  const hojaEmpresas = wb.getWorksheet(HOJAS.empresas);
+  const hojaEmpresas = wb.hoja(HOJAS.empresas);
   if (hojaEmpresas) {
     set(hojaEmpresas, "I25", `Total: ${datos.empresasParticipantes.length} empresas`);
     const mitad = Math.ceil(datos.empresasParticipantes.length / 2);
@@ -228,7 +226,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   }
 
   // ── Dispersión ──
-  const disp = wb.getWorksheet(HOJAS.dispersion);
+  const disp = wb.hoja(HOJAS.dispersion);
   if (disp) {
     set(disp, "B5", "Grados");
     set(disp, "B6", concepto);
@@ -243,7 +241,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   }
 
   // ── Equidad interna ──
-  const eq = wb.getWorksheet(HOJAS.equidad);
+  const eq = wb.hoja(HOJAS.equidad);
   if (eq) {
     set(eq, "B5", "Grados");
     set(eq, "B6", concepto);
@@ -264,7 +262,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   // ── Competitividad ──
   // Cada percentil ocupa un par de columnas: mercado y diferencia.
   const PARES_COMP: Array<[string, string]> = [["H", "I"], ["K", "L"], ["N", "O"], ["Q", "R"], ["T", "U"]];
-  const comp = wb.getWorksheet(HOJAS.competitividad);
+  const comp = wb.hoja(HOJAS.competitividad);
   if (comp) {
     set(comp, "B5", "Grados");
     set(comp, "B6", datos.grupoComparacion);
@@ -288,7 +286,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   // ── Mapa de calor ──
   // Cada percentil ocupa un trío: máximo, mercado y mínimo, con el margen.
   const TRIOS: Array<[string, string, string]> = [["H", "I", "J"], ["K", "L", "M"], ["N", "O", "P"], ["Q", "R", "S"], ["T", "U", "V"]];
-  const mapa = wb.getWorksheet(HOJAS.mapaCalor);
+  const mapa = wb.hoja(HOJAS.mapaCalor);
   if (mapa) {
     set(mapa, "B5", "Grados");
     set(mapa, "B6", concepto);
@@ -316,7 +314,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   }
 
   // ── Data de mercado general ──
-  const merc = wb.getWorksheet(HOJAS.mercado);
+  const merc = wb.hoja(HOJAS.mercado);
   if (merc) {
     const grados = [...datos.mercadoPorGrado.keys()].sort((a, b) => b - a);
     grados.forEach((grado, i) => {
@@ -331,7 +329,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   }
 
   // ── Simulador de ajuste salarial ──
-  const sim = wb.getWorksheet(HOJAS.simulador);
+  const sim = wb.hoja(HOJAS.simulador);
   if (sim) {
     set(sim, "B5", "Grados");
     set(sim, "B6", concepto);
@@ -359,8 +357,8 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   }
 
   // ── Mapeo de cargos ──
-  const mapeo = wb.getWorksheet(HOJAS.mapeo);
+  const mapeo = wb.hoja(HOJAS.mapeo);
   if (mapeo && datos.mapeo.length > 0) escribirMapeo(mapeo, datos.mapeo);
 
-  return wb.xlsx.writeBuffer();
+  return wb.aBuffer();
 }

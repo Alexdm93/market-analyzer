@@ -4,15 +4,15 @@
  *
  * No se genera un libro desde cero: se **rellena la plantilla del cliente**
  * (`templates/informe-cortesia.xlsx`), que trae portada, agradecimiento,
- * índice, páginas institucionales, logos y diseño. Se comprobó que exceljs
- * conserva las 11 hojas y las 13 imágenes en un ciclo de lectura y escritura,
- * y que la plantilla no tiene gráficos nativos (que exceljs sí perdería).
+ * índice, páginas institucionales, logos y diseño.
  *
- * Solo se escriben las celdas de datos; todo lo demás queda como lo diseñaron.
+ * Se parchea el XML de la plantilla (ver `lib/xlsx-plantilla.ts`) en vez de
+ * reescribir el libro: así los diez cuadros de texto y las trece imágenes
+ * llegan intactos. Solo se escriben las celdas de datos.
  */
 import path from "node:path";
 
-import ExcelJS from "exceljs";
+import { LibroPlantilla, type HojaPlantilla } from "@/lib/xlsx-plantilla";
 
 export const HOJA_INICIO = "Inicio";
 export const HOJA_EMPRESAS = "Empresas Participantes";
@@ -91,20 +91,18 @@ export function rutaPlantillaCortesia(): string {
 }
 
 /**
- * Escribe un valor conservando el formato de la celda. exceljs mantiene el
- * estilo al reemplazar solo `.value`, que es justamente lo que interesa: la
- * plantilla ya tiene el tipo de letra, los bordes y los formatos numéricos.
+ * Escribe un valor conservando el formato de la celda: la plantilla ya trae el
+ * tipo de letra, los bordes y los formatos numéricos.
  */
-function escribir(ws: ExcelJS.Worksheet, direccion: string, valor: string | number | null) {
-  ws.getCell(direccion).value = valor;
+function escribir(ws: HojaPlantilla, direccion: string, valor: string | number | null) {
+  ws.set(direccion, valor);
 }
 
-export async function generarInformeCortesia(datos: DatosCortesia): Promise<ExcelJS.Buffer> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(rutaPlantillaCortesia());
+export async function generarInformeCortesia(datos: DatosCortesia): Promise<Buffer> {
+  const wb = await LibroPlantilla.abrir(rutaPlantillaCortesia());
 
   // ── Portada ──
-  const inicio = wb.getWorksheet(HOJA_INICIO);
+  const inicio = wb.hoja(HOJA_INICIO);
   if (inicio) {
     escribir(inicio, CELDA.titulo, datos.tituloEstudio);
     escribir(inicio, CELDA.fechaInforme, datos.fechaInforme);
@@ -114,7 +112,7 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Exce
   }
 
   // ── Empresas participantes ──
-  const hojaEmpresas = wb.getWorksheet(HOJA_EMPRESAS);
+  const hojaEmpresas = wb.hoja(HOJA_EMPRESAS);
   if (hojaEmpresas) {
     escribir(hojaEmpresas, CELDA.totalEmpresas, `Total: ${datos.empresas.length} empresas`);
 
@@ -142,22 +140,18 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Exce
   // La hoja está diseñada para UNA métrica y ahora van cuatro. Se apilan en
   // bloques dentro del mismo ancho de columnas (A a F) en vez de crecer a lo
   // ancho, que dejaría las columnas nuevas fuera del área con formato.
-  const hojaMarket = wb.getWorksheet(HOJA_MARKET);
+  const hojaMarket = wb.hoja(HOJA_MARKET);
   if (hojaMarket) {
-    const estiloTitulo = hojaMarket.getCell("A6").style;
     let fila = CELDA.filaCargos;
 
     for (const metrica of METRICAS_CORTESIA) {
       const filaTitulo = fila - 1;
-      const celdaTitulo = hojaMarket.getCell(`A${filaTitulo}`);
-      celdaTitulo.value = metrica.titulo;
-      celdaTitulo.style = { ...estiloTitulo };
+      hojaMarket.set(`A${filaTitulo}`, metrica.titulo, "A6");
+      const cabeceras: Record<string, string> = {
+        B: "P50 (Mediana)", C: "Promedio", D: "Minimo", E: "Maximo", F: "Participantes",
+      };
       for (const col of ["B", "C", "D", "E", "F"]) {
-        const c = hojaMarket.getCell(`${col}${filaTitulo}`);
-        c.value = { tem: "P50 (Mediana)", temz: "P50 (Mediana)", cim: "P50 (Mediana)", pcta: "P50 (Mediana)" }[metrica.clave] && col === "B"
-          ? "P50 (Mediana)"
-          : col === "C" ? "Promedio" : col === "D" ? "Minimo" : col === "E" ? "Maximo" : col === "F" ? "Participantes" : null;
-        c.style = { ...estiloTitulo };
+        hojaMarket.set(`${col}${filaTitulo}`, cabeceras[col] ?? null, "A6");
       }
 
       datos.cargos.forEach((cargo, i) => {
@@ -182,16 +176,13 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Exce
   }
 
   // ── Distribución de compensación ──
-  const hojaDist = wb.getWorksheet(HOJA_DISTRIBUCION);
+  const hojaDist = wb.hoja(HOJA_DISTRIBUCION);
   if (hojaDist) {
-    const estiloCabecera = hojaDist.getCell("A8").style;
     const columnas = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
 
     // Cabecera: "Niveles" más las ocho categorías del CEO.
     ["Niveles", ...datos.categoriasDistribucion].forEach((titulo, i) => {
-      const c = hojaDist.getCell(`${columnas[i]}8`);
-      c.value = titulo;
-      c.style = { ...estiloCabecera };
+      hojaDist.set(`${columnas[i]}8`, titulo, "A8");
     });
     // Se limpian las columnas que sobran de la cabecera vieja.
     for (let i = datos.categoriasDistribucion.length + 1; i < 12; i++) {
@@ -215,7 +206,7 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Exce
 
   // ── Índice ──
   // El CEO sacó del índice las secciones que se publicarán como informe aparte.
-  const hojaContenido = wb.getWorksheet(HOJA_CONTENIDO);
+  const hojaContenido = wb.hoja(HOJA_CONTENIDO);
   if (hojaContenido) {
     const primeraFila = 3;
     datos.secciones.forEach((seccion, i) => escribir(hojaContenido, `B${primeraFila + i}`, seccion));
@@ -224,5 +215,5 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Exce
     }
   }
 
-  return wb.xlsx.writeBuffer();
+  return wb.aBuffer();
 }
