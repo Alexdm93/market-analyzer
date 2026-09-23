@@ -1003,6 +1003,12 @@ export default function DataPage() {
       showNotification("Seleccione una actualización");
       return;
     }
+    // Sin empresa, la ruta devuelve la plantilla en blanco. Para el admin eso
+    // sería una sorpresa: si quiere una vacía, la baja desde Importar data.
+    if (isAdmin && !selectedCompanyId) {
+      showNotification("Elige primero la empresa cuya data quieres descargar");
+      return;
+    }
     setBajandoPlantilla(true);
     try {
       const params = new URLSearchParams({ snapshotId: selectedSnapshotId });
@@ -1307,7 +1313,7 @@ export default function DataPage() {
                   <button
                     onClick={() => void descargarParaEditar()}
                     className="btn btn-secondary whitespace-nowrap sm:col-span-2"
-                    disabled={bajandoPlantilla || !selectedSnapshotId}
+                    disabled={bajandoPlantilla || !selectedSnapshotId || (isAdmin && !selectedCompanyId)}
                   >
                     <Download className={`h-3.5 w-3.5 ${bajandoPlantilla ? "animate-pulse" : ""}`} />
                     {bajandoPlantilla ? "Preparando el archivo..." : "Descargar para editar en Excel"}
