@@ -1,7 +1,7 @@
 "use client";
 import { exportStyledExcel } from "@/lib/excel-export";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BriefcaseBusiness, CalendarDays, Check, Edit, Layers, Lock, LockOpen, Plus, RefreshCw, Save, Send, Sparkles, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, Check, Download, Edit, Layers, Lock, LockOpen, Plus, RefreshCw, Save, Send, Sparkles, Trash2 } from "lucide-react";
 import { CapriWizardModal, ROLES as CAPRI_ROLES } from "@/components/CapriWizardModal";
 import { useSession } from "next-auth/react";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
@@ -165,6 +165,7 @@ export default function DataPage() {
 
   // start with no snapshot selected by default (user asked that "-- seleccionar --" shows nothing)
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");
+  const [bajandoPlantilla, setBajandoPlantilla] = useState(false);
 
   // Un corte publicado queda congelado: su data alimenta un estudio que las
   // demás empresas ya están viendo.
@@ -992,6 +993,43 @@ export default function DataPage() {
   // legacy save function removed (use snapshots / saveCurrentToSnapshot instead)
 
 
+  /**
+   * Baja la data del corte en el MISMO formato que se sube, para corregirla en
+   * Excel y volver a cargarla. "Exportar a Excel" es otra cosa: un resumen con
+   * los totales calculados, que no se puede reimportar.
+   */
+  async function descargarParaEditar() {
+    if (!selectedSnapshotId) {
+      showNotification("Seleccione una actualización");
+      return;
+    }
+    setBajandoPlantilla(true);
+    try {
+      const params = new URLSearchParams({ snapshotId: selectedSnapshotId });
+      if (isAdmin && selectedCompanyId) params.set("companyId", selectedCompanyId);
+      const res = await fetch(`/api/plantilla-datos?${params.toString()}`, { cache: "no-store" });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { message?: string } | null;
+        showNotification(d?.message ?? "No se pudo descargar la plantilla.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `data-salarial-${selectedSnapshotId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      void fetch("/api/workspace/track-export", { method: "POST" });
+    } catch {
+      showNotification("No se pudo descargar la plantilla.");
+    } finally {
+      setBajandoPlantilla(false);
+    }
+  }
+
   async function exportJSON() {
     const diasVac = Number(companyInfo.minVacationDays) || 0;
     const diasUtil = Number(companyInfo.minUtilityDays) || 0;
@@ -1265,6 +1303,14 @@ export default function DataPage() {
                   <button onClick={exportJSON} className="btn btn-secondary whitespace-nowrap">
                     <Check className="h-3.5 w-3.5" />
                     Exportar a Excel
+                  </button>
+                  <button
+                    onClick={() => void descargarParaEditar()}
+                    className="btn btn-secondary whitespace-nowrap sm:col-span-2"
+                    disabled={bajandoPlantilla || !selectedSnapshotId}
+                  >
+                    <Download className={`h-3.5 w-3.5 ${bajandoPlantilla ? "animate-pulse" : ""}`} />
+                    {bajandoPlantilla ? "Preparando el archivo..." : "Descargar para editar en Excel"}
                   </button>
                   {!isReadOnlyDataView && !isLocked ? (
                     <>

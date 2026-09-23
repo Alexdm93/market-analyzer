@@ -217,7 +217,7 @@ export default function ImportarDataPage() {
     if (!corte) return "#";
     const params = new URLSearchParams({ snapshotId: corte.id });
     if (!prellenar) params.set("prellenar", "0");
-    return `/api/admin/import-template?${params.toString()}`;
+    return `/api/plantilla-datos?${params.toString()}`;
   }
 
   async function analizar() {

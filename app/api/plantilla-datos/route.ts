@@ -1,5 +1,12 @@
 /**
- * Genera la plantilla de carga de data salarial de un corte.
+ * La plantilla de carga de data salarial de un corte.
+ *
+ * Sirve para las dos direcciones: en blanco, para que una empresa cargue su
+ * data por primera vez; y con `companyId`, con su data ya escrita, para bajarla
+ * desde Data, corregirla en Excel y volver a subir el mismo archivo.
+ *
+ * Vive fuera de /api/admin porque la usan las empresas: el admin puede pedir la
+ * de cualquiera, una empresa solo la suya.
  *
  * Se arma con exceljs (y no con xlsx, que se usa para leer) porque es la única
  * de las dos que escribe validación de datos: así las columnas de moneda,
@@ -10,7 +17,9 @@ import ExcelJS from "exceljs";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { filasDeLaEmpresa } from "@/lib/export-plantilla";
 import { prisma } from "@/lib/prisma";
+import { safeParseCompanyInfo } from "@/lib/workspace";
 import {
   ADICIONALES_HEADERS,
   CARGOS_HEADERS,
@@ -79,8 +88,8 @@ function encabezar(hoja: ExcelJS.Worksheet, encabezados: string[], anchos?: numb
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions).catch(() => null);
 
-  if (!session?.user?.id || session.user.role !== "ADMIN") {
-    return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
+  if (!session?.user?.id) {
+    return Response.json({ message: "No autorizado." }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -89,6 +98,24 @@ export async function GET(request: Request) {
 
   if (!snapshotId) {
     return Response.json({ message: "Indica el corte." }, { status: 400 });
+  }
+
+  // Con empresa, la plantilla sale con su data cargada: sirve para corregir en
+  // Excel y volver a subirla. Sin empresa, sale en blanco como siempre.
+  // El admin elige de quién; una empresa solo puede bajar la suya.
+  const esAdmin = session.user.role === "ADMIN";
+  const companyId = esAdmin
+    ? (searchParams.get("companyId")?.trim() ?? "")
+    : (session.user.companyId ?? "");
+
+  if (!esAdmin) {
+    if (!companyId) {
+      return Response.json({ message: "Tu usuario no tiene empresa asignada." }, { status: 400 });
+    }
+    const participa = await prisma.userSnapshot.count({ where: { snapshotId, companyId } });
+    if (participa === 0) {
+      return Response.json({ message: "Tu empresa no participa en ese corte." }, { status: 403 });
+    }
   }
 
   const [configRow, snapshot] = await Promise.all([
@@ -111,6 +138,26 @@ export async function GET(request: Request) {
   const nombreCorte = snapshot?.label ?? snapshotId;
   const fechaCorte = snapshot?.date ? snapshot.date.toISOString().split("T")[0] : snapshotId;
 
+  const [empresa, posiciones, workspace] = companyId
+    ? await Promise.all([
+        prisma.company.findUnique({ where: { id: companyId }, select: { name: true } }),
+        prisma.userPosition.findMany({
+          where: { companyId, snapshotId },
+          select: { title: true, dataJson: true },
+          orderBy: { positionId: "asc" },
+        }),
+        prisma.userWorkspace.findFirst({
+          where: { user: { companyId } },
+          select: { companyInfoJson: true },
+        }),
+      ])
+    : [null, [], null];
+
+  const tasasEmpresa = workspace ? (safeParseCompanyInfo(workspace.companyInfoJson).tasas ?? []) : [];
+  const conData = companyId
+    ? filasDeLaEmpresa(catalogo, posiciones.map((p) => ({ title: p.title ?? "", dataJson: p.dataJson })), tasasEmpresa)
+    : null;
+
   const wb = new ExcelJS.Workbook();
   wb.creator = "Market Analyzer";
   wb.created = new Date();
@@ -122,8 +169,10 @@ export async function GET(request: Request) {
   const bloques: Array<[string, string]> = [
     ["Carga de data salarial", ""],
     ["Corte", `${nombreCorte} — ${fechaCorte}`],
-    ["Empresa", "ESCRIBE AQUÍ EL NOMBRE DE LA EMPRESA"],
-    ["", "Es lo primero que hay que llenar. Sin eso, quien cargue el archivo no tiene forma de saber de quién es, y los sueldos podrían terminar cargados en otra empresa."],
+    ["Empresa", empresa?.name ?? "ESCRIBE AQUÍ EL NOMBRE DE LA EMPRESA"],
+    ["", empresa
+      ? "Ya viene puesto. No lo cambies: es lo que identifica de quién es la data al volver a subir el archivo."
+      : "Es lo primero que hay que llenar. Sin eso, quien cargue el archivo no tiene forma de saber de quién es, y los sueldos podrían terminar cargados en otra empresa."],
     ["", ""],
     ["Las cuatro hojas", ""],
     [SHEET_CARGOS, "Una fila por cargo. El sueldo básico y el bono de alimentación."],
@@ -247,7 +296,9 @@ export async function GET(request: Request) {
   const hojaCargos = wb.addWorksheet(SHEET_CARGOS);
   encabezar(hojaCargos, CARGOS_HEADERS, [30, 46, 13, 13, 15, 18, 18, 22, 17, 18, 18, 22]);
 
-  if (prellenar) {
+  if (conData) {
+    conData.cargos.forEach((fila) => hojaCargos.addRow(fila));
+  } else if (prellenar) {
     catalogo.forEach((c) => {
       const fila: (string | number | null)[] = CARGOS_HEADERS.map((h) => {
         if (h === COL.departamento) return c.departamento;
@@ -285,6 +336,7 @@ export async function GET(request: Request) {
   // ── Otros pagos ───────────────────────────────────────────────────────────
   const hojaOtros = wb.addWorksheet(SHEET_ADICIONALES);
   encabezar(hojaOtros, ADICIONALES_HEADERS, [46, 12, 34, 14, 15, 18, 18, 22, 20, 18]);
+  conData?.otros.forEach((fila) => hojaOtros.addRow(fila));
   aplicarLista(hojaOtros, "Cargo", ADICIONALES_HEADERS, listaEnHoja("B", catalogo.length), "Ese cargo no está en el catálogo del corte.");
   aplicarLista(hojaOtros, "Clase", ADICIONALES_HEADERS, listaFija(OPCIONES.clase), "Usa Fijo o Variable.");
   aplicarLista(hojaOtros, "Frecuencia", ADICIONALES_HEADERS, listaFija(OPCIONES.frecuenciaVariable), "Usa una de las frecuencias de la lista. Los pagos fijos no admiten Quincenal.");
@@ -296,6 +348,7 @@ export async function GET(request: Request) {
   // ── Tasas ─────────────────────────────────────────────────────────────────
   const hojaTasas = wb.addWorksheet(SHEET_TASAS);
   encabezar(hojaTasas, TASAS_HEADERS, [38, 30, 24]);
+  conData?.tasas.forEach((fila) => hojaTasas.addRow(fila));
   aplicarLista(hojaTasas, "Referencia", TASAS_HEADERS, listaFija(OPCIONES.referencia), "Usa una de las referencias de la lista.");
 
   // ── Catálogo del corte ────────────────────────────────────────────────────
@@ -310,7 +363,9 @@ export async function GET(request: Request) {
   hojaListas.state = "veryHidden";
 
   const buffer = await wb.xlsx.writeBuffer();
-  const nombre = `Plantilla data salarial - ${nombreCorte}.xlsx`;
+  const nombre = empresa
+    ? `Data salarial - ${empresa.name} - ${nombreCorte}.xlsx`
+    : `Plantilla data salarial - ${nombreCorte}.xlsx`;
 
   return new Response(buffer as ArrayBuffer, {
     headers: {
