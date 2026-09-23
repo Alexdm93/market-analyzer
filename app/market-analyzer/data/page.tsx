@@ -1310,14 +1310,19 @@ export default function DataPage() {
                     <Check className="h-3.5 w-3.5" />
                     Exportar a Excel
                   </button>
-                  <button
-                    onClick={() => void descargarParaEditar()}
-                    className="btn btn-secondary whitespace-nowrap sm:col-span-2"
-                    disabled={bajandoPlantilla || !selectedSnapshotId || (isAdmin && !selectedCompanyId)}
-                  >
-                    <Download className={`h-3.5 w-3.5 ${bajandoPlantilla ? "animate-pulse" : ""}`} />
-                    {bajandoPlantilla ? "Preparando el archivo..." : "Descargar para editar en Excel"}
-                  </button>
+                  {/* Por ahora solo para el admin. La ruta ya sabe atender a una
+                      empresa con su propia data, así que abrirlo es quitar este
+                      condicional. */}
+                  {isAdmin && (
+                    <button
+                      onClick={() => void descargarParaEditar()}
+                      className="btn btn-secondary whitespace-nowrap sm:col-span-2"
+                      disabled={bajandoPlantilla || !selectedSnapshotId || !selectedCompanyId}
+                    >
+                      <Download className={`h-3.5 w-3.5 ${bajandoPlantilla ? "animate-pulse" : ""}`} />
+                      {bajandoPlantilla ? "Preparando el archivo..." : "Descargar para editar en Excel"}
+                    </button>
+                  )}
                   {!isReadOnlyDataView && !isLocked ? (
                     <>
                       <button
