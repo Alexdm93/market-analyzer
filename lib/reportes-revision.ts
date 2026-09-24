@@ -13,6 +13,7 @@
 import ExcelJS from "exceljs";
 
 import { capriRol, gradeToNivel } from "@/lib/capri";
+import { calcularResumenMuestra } from "@/lib/distribucion-compensacion";
 import { computeRowTotals } from "@/lib/compensation";
 import { FREQUENCY_OPTIONS } from "@/lib/compensation-options";
 import { getBcvRate } from "@/lib/bcv";
@@ -295,6 +296,136 @@ const COLS_CARGO = [
   { h: "TEM", w: 14 }, { h: "TEMz", w: 14 }, { h: "CIM", w: 14 }, { h: "PCTA", w: 16 },
 ];
 
+/**
+ * Con qué tasa de cambio paga cada empresa.
+ *
+ * No hay un campo que lo declare, así que se deduce: de los conceptos
+ * denominados en bolívares —los únicos que necesitan conversión— se mira contra
+ * qué referencia se convierten, y gana la más usada. Un concepto sin tasa
+ * propia se convierte con la del BCV, que es lo que hace el cálculo.
+ */
+export type PreferenciaTasa = { referencia: string; empresas: number; participacion: number };
+
+const SIN_CONVERSION = "Sin conversión (paga en dólares)";
+
+function referenciaDominante(empresa: EmpresaConData): string {
+  const tasas = empresa.companyInfo.tasas ?? [];
+  const conteo = new Map<string, number>();
+
+  const anotar = (cuenta: string | undefined, tasaId: string | undefined) => {
+    if (cuenta !== "VES") return;
+    const tasa = tasaId ? tasas.find((t) => t.id === tasaId) : undefined;
+    const referencia = tasa?.referencia?.trim() || "Tasa BCV (Bs./USD)";
+    conteo.set(referencia, (conteo.get(referencia) ?? 0) + 1);
+  };
+
+  for (const fila of empresa.filas) {
+    anotar(fila.sueldoBasicoCuentaMoneda, fila.sueldoBasicoTasaId);
+    anotar(fila.bonoAlimentacionCuentaMoneda, fila.bonoAlimentacionTasaId);
+    anotar(fila.bonoMovilizacionCuentaMoneda, undefined);
+    for (const c of fila.additionalFixedPayments ?? []) anotar(c.accountCurrency, c.tasaId);
+    for (const c of fila.additionalVariablePayments ?? []) anotar(c.accountCurrency, c.tasaId);
+    anotar(fila.bonoDesempenoCuentaMoneda, undefined);
+    anotar(fila.comisionesCuentaMoneda, undefined);
+    anotar(fila.pagoVariableOtrosCuentaMoneda, undefined);
+  }
+
+  if (conteo.size === 0) return SIN_CONVERSION;
+  return [...conteo.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"))[0][0];
+}
+
+export function preferenciaDeTasa(empresas: EmpresaConData[]): PreferenciaTasa[] {
+  const conteo = new Map<string, number>();
+  for (const e of empresas) {
+    const r = referenciaDominante(e);
+    conteo.set(r, (conteo.get(r) ?? 0) + 1);
+  }
+  const total = empresas.length;
+  return [...conteo.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"))
+    .map(([referencia, cantidad]) => ({
+      referencia,
+      empresas: cantidad,
+      participacion: total > 0 ? cantidad / total : 0,
+    }));
+}
+
+/**
+ * Hoja de la selección completa: cómo se reparte la compensación entre las
+ * ocho categorías del CEO, con qué moneda se pacta y se paga cada una, y con
+ * qué tasa convierte cada empresa.
+ */
+function agregarHojaDistribucion(
+  wb: ExcelJS.Workbook,
+  empresas: EmpresaConData[],
+  etiquetaCorte: string,
+  bcvFallback: number | null,
+) {
+  const ws = wb.addWorksheet("Distribución");
+  ws.columns = [{ width: 46 }, { width: 16 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }];
+
+  const titulo = ws.addRow([`Distribución de compensación — ${etiquetaCorte}`]);
+  titulo.font = { bold: true, size: 14 };
+
+  const entradas = empresas.flatMap((e) =>
+    e.filas.map((fila) => ({
+      fila,
+      tasas: e.companyInfo.tasas ?? [],
+      bcv: e.companyInfo.ratesAtSave?.bcvUsd ?? bcvFallback,
+    })),
+  );
+  const resumen = calcularResumenMuestra(entradas);
+
+  ws.addRow([`${empresas.length} empresas · ${resumen.ocupantes} cargos`]);
+  ws.addRow([]);
+
+  estiloCabecera(ws.addRow([
+    "Elemento de pago", "% del total",
+    "Moneda de cuenta — USD", "Moneda de cuenta — Bs",
+    "Moneda de pago — USD", "Moneda de pago — Bs",
+  ]));
+
+  const porcentaje = (fila: ExcelJS.Row) => {
+    for (let i = 2; i <= 6; i++) fila.getCell(i).numFmt = "0.0%";
+  };
+
+  for (const f of resumen.filas) {
+    porcentaje(ws.addRow([
+      f.categoria, f.participacion, f.cuentaUSD, f.cuentaVES, f.pagoUSD, f.pagoVES,
+    ]));
+  }
+
+  const totalCuentaUSD = resumen.totalUSD > 0
+    ? resumen.filas.reduce((s, f) => s + f.montoUSD * f.cuentaUSD, 0) / resumen.totalUSD : 0;
+  const totalPagoUSD = resumen.totalUSD > 0
+    ? resumen.filas.reduce((s, f) => s + f.montoUSD * f.pagoUSD, 0) / resumen.totalUSD : 0;
+
+  const filaTotal = ws.addRow([
+    "TOTAL", resumen.totalUSD > 0 ? 1 : 0,
+    totalCuentaUSD, 1 - totalCuentaUSD, totalPagoUSD, 1 - totalPagoUSD,
+  ]);
+  filaTotal.font = { bold: true };
+  porcentaje(filaTotal);
+
+  ws.addRow([]);
+  ws.addRow(["Los porcentajes salen de los montos llevados a dólares mensualizados, con la misma conversión que usa el resto del sistema."]);
+  ws.addRow(["El reparto por moneda es dentro de cada elemento: qué parte de ese monto se pacta —o se paga— en cada moneda."]);
+  ws.addRow([]);
+
+  // ── Preferencia de tasa de cambio ──
+  const subtitulo = ws.addRow(["Preferencia de tasa de cambio"]);
+  subtitulo.font = { bold: true, size: 12 };
+  estiloCabecera(ws.addRow(["Referencia", "Empresas", "% de la muestra"]));
+
+  for (const p of preferenciaDeTasa(empresas)) {
+    const fila = ws.addRow([p.referencia, p.empresas, p.participacion]);
+    fila.getCell(3).numFmt = "0.0%";
+  }
+
+  ws.addRow([]);
+  ws.addRow(["Se deduce de los conceptos pactados en bolívares: contra qué referencia se convierten. Gana la más usada por cada empresa."]);
+}
+
 export async function construirReportePorEmpresa(
   empresas: EmpresaConData[],
   etiquetaCorte: string,
@@ -325,6 +456,8 @@ export async function construirReportePorEmpresa(
     ]);
   }
   resumen.views = [{ state: "frozen", ySplit: 4 }];
+
+  agregarHojaDistribucion(wb, empresas, etiquetaCorte, bcvFallback);
 
   const usadosHojas = new Set<string>();
   for (const empresa of empresas) {

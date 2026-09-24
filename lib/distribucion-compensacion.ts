@@ -52,6 +52,81 @@ function casillaFija(freq: string | undefined, impacto: boolean | undefined): Ca
   return impacto ? "Otros pagos otra frecuencia con impacto" : "Otros pagos otra frecuencia sin impacto";
 }
 
+/** Una porción de la compensación de un cargo, ya en USD mensualizado. */
+export type Pieza = {
+  categoria: Categoria;
+  montoUSD: number;
+  /** Cómo los lee el cálculo canónico, no como vienen crudos. */
+  cuenta: "USD" | "VES";
+  pago: "USD" | "VES";
+};
+
+/**
+ * Desarma un cargo en sus porciones. Lo usan tanto la distribución por nivel
+ * del informe de cortesía como el resumen de la muestra de los reportes de
+ * revisión, para que no puedan dar números distintos.
+ */
+export function piezasDe(
+  fila: ExtendedMarketPosition,
+  tasas: ExchangeRate[],
+  bcv: number | null,
+): Pieza[] {
+  const piezas: Pieza[] = [];
+
+  // Los valores por defecto son los de `normalizeToUSD`: una cuenta sin moneda
+  // se trata como dólares y un pago sin moneda, como bolívares.
+  const agregar = (
+    categoria: Categoria,
+    monto: number | undefined,
+    freq: string | undefined,
+    cuenta: string | undefined,
+    pago: string | undefined,
+    tasaId?: string,
+  ) => {
+    if (!monto) return;
+    const usd = normalizeToUSD(monto, cuenta, pago, tasaId, tasas, bcv);
+    const mensual = (usd * freqToAnnual(freq)) / 12;
+    if (!mensual) return;
+    piezas.push({
+      categoria,
+      montoUSD: mensual,
+      cuenta: cuenta === "VES" ? "VES" : "USD",
+      pago: !pago || pago === "VES" ? "VES" : "USD",
+    });
+  };
+
+  agregar("Sueldo Base", fila.sueldoBasico, fila.sueldoBasicoFreq,
+    fila.sueldoBasicoCuentaMoneda, fila.sueldoBasicoMonedaPago, fila.sueldoBasicoTasaId);
+  agregar("Bono Alimentación", fila.bonoAlimentacion, fila.bonoAlimentacionFreq,
+    fila.bonoAlimentacionCuentaMoneda, fila.bonoAlimentacionMonedaPago, fila.bonoAlimentacionTasaId);
+
+  // Bono de movilización: no tiene interfaz, pero puede haber data vieja.
+  agregar(casillaFija(fila.bonoMovilizacionFreq, fila.bonoMovilizacionImpacto),
+    fila.bonoMovilizacion, fila.bonoMovilizacionFreq,
+    fila.bonoMovilizacionCuentaMoneda, fila.bonoMovilizacionMonedaPago);
+
+  for (const p of fila.additionalFixedPayments ?? []) {
+    agregar(casillaFija(p.freq, p.impacto), p.amount, p.freq, p.accountCurrency, p.paymentCurrency, p.tasaId);
+  }
+
+  // Variables: el impacto y la frecuencia no los separan, solo el tipo.
+  agregar("Variable por desempeño", fila.bonoDesempeno, fila.bonoDesempenoFreq,
+    fila.bonoDesempenoCuentaMoneda, fila.bonoDesempenoMonedaPago);
+  agregar("Variable por comisión", fila.comisiones, fila.comisionesFreq,
+    fila.comisionesCuentaMoneda, fila.comisionesMonedaPago);
+  // "Otros variables" no dice de qué tipo es; el CEO definió solo dos
+  // categorías, así que se cuenta como desempeño.
+  agregar("Variable por desempeño", fila.pagoVariableOtros, fila.pagoVariableOtrosFreq,
+    fila.pagoVariableOtrosCuentaMoneda, fila.pagoVariableOtrosMonedaPago);
+
+  for (const p of (fila.additionalVariablePayments ?? []) as CompensationConcept[]) {
+    const categoria: Categoria = p.variableType === "commission" ? "Variable por comisión" : "Variable por desempeño";
+    agregar(categoria, p.amount, p.freq, p.accountCurrency, p.paymentCurrency, p.tasaId);
+  }
+
+  return piezas;
+}
+
 export function calcularDistribucion(
   filas: Array<{ fila: ExtendedMarketPosition; tasas: ExchangeRate[]; bcv: number | null }>,
 ): FilaDistribucion[] {
@@ -63,60 +138,7 @@ export function calcularDistribucion(
 
     const actual = porNivel.get(nivel) ?? { acc: acumuladorVacio(), ocupantes: 0 };
     actual.ocupantes++;
-
-    /** Lleva cualquier monto a USD mensualizado. */
-    function mensualUSD(
-      monto: number | undefined,
-      freq: string | undefined,
-      cuenta: string | undefined,
-      pago: string | undefined,
-      tasaId?: string,
-    ): number {
-      if (!monto) return 0;
-      const usd = normalizeToUSD(monto, cuenta, pago, tasaId, tasas, bcv);
-      return (usd * freqToAnnual(freq)) / 12;
-    }
-
-    actual.acc["Sueldo Base"] += mensualUSD(
-      fila.sueldoBasico, fila.sueldoBasicoFreq, fila.sueldoBasicoCuentaMoneda,
-      fila.sueldoBasicoMonedaPago, fila.sueldoBasicoTasaId,
-    );
-    actual.acc["Bono Alimentación"] += mensualUSD(
-      fila.bonoAlimentacion, fila.bonoAlimentacionFreq, fila.bonoAlimentacionCuentaMoneda,
-      fila.bonoAlimentacionMonedaPago, fila.bonoAlimentacionTasaId,
-    );
-
-    // Bono de movilización: no tiene interfaz, pero puede haber data vieja.
-    actual.acc[casillaFija(fila.bonoMovilizacionFreq, fila.bonoMovilizacionImpacto)] += mensualUSD(
-      fila.bonoMovilizacion, fila.bonoMovilizacionFreq, fila.bonoMovilizacionCuentaMoneda,
-      fila.bonoMovilizacionMonedaPago,
-    );
-
-    for (const p of fila.additionalFixedPayments ?? []) {
-      actual.acc[casillaFija(p.freq, p.impacto)] += mensualUSD(
-        p.amount, p.freq, p.accountCurrency, p.paymentCurrency, p.tasaId,
-      );
-    }
-
-    // Variables: el impacto y la frecuencia no los separan, solo el tipo.
-    actual.acc["Variable por desempeño"] += mensualUSD(
-      fila.bonoDesempeno, fila.bonoDesempenoFreq, fila.bonoDesempenoCuentaMoneda, fila.bonoDesempenoMonedaPago,
-    );
-    actual.acc["Variable por comisión"] += mensualUSD(
-      fila.comisiones, fila.comisionesFreq, fila.comisionesCuentaMoneda, fila.comisionesMonedaPago,
-    );
-    // "Otros variables" no dice de qué tipo es; el CEO definió solo dos
-    // categorías, así que se cuenta como desempeño.
-    actual.acc["Variable por desempeño"] += mensualUSD(
-      fila.pagoVariableOtros, fila.pagoVariableOtrosFreq,
-      fila.pagoVariableOtrosCuentaMoneda, fila.pagoVariableOtrosMonedaPago,
-    );
-
-    for (const p of (fila.additionalVariablePayments ?? []) as CompensationConcept[]) {
-      const categoria: Categoria = p.variableType === "commission" ? "Variable por comisión" : "Variable por desempeño";
-      actual.acc[categoria] += mensualUSD(p.amount, p.freq, p.accountCurrency, p.paymentCurrency, p.tasaId);
-    }
-
+    for (const pieza of piezasDe(fila, tasas, bcv)) actual.acc[pieza.categoria] += pieza.montoUSD;
     porNivel.set(nivel, actual);
   }
 
@@ -133,4 +155,62 @@ export function calcularDistribucion(
 
     return { nivel, porcentajes, ocupantes: datos?.ocupantes ?? 0 };
   });
+}
+
+// ── Resumen de una muestra completa ─────────────────────────────────────────
+
+export type FilaResumen = {
+  categoria: Categoria;
+  montoUSD: number;
+  /** Participación de la categoría en el total de la muestra, de 0 a 1. */
+  participacion: number;
+  /** Reparto DENTRO de la categoría, de 0 a 1. */
+  cuentaUSD: number;
+  cuentaVES: number;
+  pagoUSD: number;
+  pagoVES: number;
+};
+
+export type ResumenMuestra = { ocupantes: number; totalUSD: number; filas: FilaResumen[] };
+
+/**
+ * La misma apertura por categoría, pero de toda la selección junta y con el
+ * reparto por moneda de cuenta y de pago dentro de cada una.
+ */
+export function calcularResumenMuestra(
+  entradas: Array<{ fila: ExtendedMarketPosition; tasas: ExchangeRate[]; bcv: number | null }>,
+): ResumenMuestra {
+  const acc = new Map<Categoria, { total: number; cuentaUSD: number; pagoUSD: number }>(
+    CATEGORIAS.map((c) => [c, { total: 0, cuentaUSD: 0, pagoUSD: 0 }]),
+  );
+
+  let ocupantes = 0;
+  for (const { fila, tasas, bcv } of entradas) {
+    ocupantes++;
+    for (const pieza of piezasDe(fila, tasas, bcv)) {
+      const a = acc.get(pieza.categoria)!;
+      a.total += pieza.montoUSD;
+      if (pieza.cuenta === "USD") a.cuentaUSD += pieza.montoUSD;
+      if (pieza.pago === "USD") a.pagoUSD += pieza.montoUSD;
+    }
+  }
+
+  const totalUSD = CATEGORIAS.reduce((s, c) => s + acc.get(c)!.total, 0);
+
+  const filas = CATEGORIAS.map((categoria): FilaResumen => {
+    const a = acc.get(categoria)!;
+    const parteUSD = a.total > 0 ? a.cuentaUSD / a.total : 0;
+    const pagoUSD = a.total > 0 ? a.pagoUSD / a.total : 0;
+    return {
+      categoria,
+      montoUSD: a.total,
+      participacion: totalUSD > 0 ? a.total / totalUSD : 0,
+      cuentaUSD: parteUSD,
+      cuentaVES: a.total > 0 ? 1 - parteUSD : 0,
+      pagoUSD,
+      pagoVES: a.total > 0 ? 1 - pagoUSD : 0,
+    };
+  });
+
+  return { ocupantes, totalUSD, filas };
 }
