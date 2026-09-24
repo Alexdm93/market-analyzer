@@ -26,6 +26,8 @@ export default function ReportesPage() {
   const [sector, setSector] = useState("");
   const [subsector, setSubsector] = useState("");
   const [headcountMin, setHeadcountMin] = useState("");
+  const [gradoMin, setGradoMin] = useState("");
+  const [gradoMax, setGradoMax] = useState("");
   const [headcountMax, setHeadcountMax] = useState("");
   const [soloEnviados, setSoloEnviados] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -71,11 +73,13 @@ export default function ReportesPage() {
     if (sector) p.set("sectores", sector);
     if (subsector) p.set("subsectores", subsector);
     if (seleccionadas.length > 0) p.set("empresas", seleccionadas.join(","));
+    if (gradoMin.trim()) p.set("gradoMin", gradoMin.trim());
+    if (gradoMax.trim()) p.set("gradoMax", gradoMax.trim());
     if (headcountMin.trim()) p.set("headcountMin", headcountMin.trim());
     if (headcountMax.trim()) p.set("headcountMax", headcountMax.trim());
     if (soloEnviados) p.set("soloEnviados", "1");
     return p;
-  }, [snapshotId, sector, subsector, seleccionadas, headcountMin, headcountMax, soloEnviados]);
+  }, [snapshotId, sector, subsector, seleccionadas, gradoMin, gradoMax, headcountMin, headcountMax, soloEnviados]);
 
   // Cambiar cualquier filtro invalida el conteo anterior.
   const filtrosKey = parametros().toString();
@@ -163,6 +167,16 @@ export default function ReportesPage() {
                 opciones={[{ value: "", label: "Todos" }, ...subsectores.map((s) => ({ value: s, label: s }))]}
                 placeholder="Todos"
               />
+            </div>
+
+            <div>
+              <label htmlFor="rep-grado-min" className="field-label">Grado CAPRI desde</label>
+              <input id="rep-grado-min" type="number" min="8" max="25" value={gradoMin} onChange={(e) => setGradoMin(e.target.value)} className="field" placeholder="sin mínimo" />
+            </div>
+
+            <div>
+              <label htmlFor="rep-grado-max" className="field-label">Grado CAPRI hasta</label>
+              <input id="rep-grado-max" type="number" min="8" max="25" value={gradoMax} onChange={(e) => setGradoMax(e.target.value)} className="field" placeholder="sin máximo" />
             </div>
 
             <div>

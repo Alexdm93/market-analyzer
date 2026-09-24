@@ -52,6 +52,8 @@ export async function GET(request: Request) {
     empresaIds: lista(searchParams.get("empresas")),
     headcountMin: numero(searchParams.get("headcountMin")),
     headcountMax: numero(searchParams.get("headcountMax")),
+    gradoMin: numero(searchParams.get("gradoMin")),
+    gradoMax: numero(searchParams.get("gradoMax")),
     soloEnviados: searchParams.get("soloEnviados") === "1",
   };
 

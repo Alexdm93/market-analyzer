@@ -27,6 +27,9 @@ export type FiltrosReporte = {
   empresaIds: string[];
   headcountMin: number | null;
   headcountMax: number | null;
+  /** Rango de grados CAPRI a analizar. Filtra los CARGOS, no las empresas. */
+  gradoMin: number | null;
+  gradoMax: number | null;
   soloEnviados: boolean;
 };
 
@@ -196,7 +199,24 @@ export async function cargarEmpresas(filtros: FiltrosReporte): Promise<EmpresaCo
 }
 
 function aplicarFiltros(empresas: EmpresaConData[], f: FiltrosReporte): EmpresaConData[] {
-  return empresas.filter((e) => {
+  // El grado filtra cargos, no empresas: se recortan las filas de cada una y
+  // la que se queda sin ninguna desaparece del reporte.
+  const porGrado = f.gradoMin !== null || f.gradoMax !== null
+    ? empresas
+        .map((e) => ({
+          ...e,
+          filas: e.filas.filter((fila) => {
+            const g = Number(fila.hayGrade);
+            if (!Number.isFinite(g)) return false;
+            if (f.gradoMin !== null && g < f.gradoMin) return false;
+            if (f.gradoMax !== null && g > f.gradoMax) return false;
+            return true;
+          }),
+        }))
+        .filter((e) => e.filas.length > 0)
+    : empresas;
+
+  return porGrado.filter((e) => {
     if (f.soloEnviados && !e.enviado) return false;
     if (f.empresaIds.length > 0 && !f.empresaIds.includes(e.companyId)) return false;
     if (f.sectores.length > 0 && !f.sectores.includes(e.sector)) return false;
