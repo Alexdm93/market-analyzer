@@ -560,16 +560,15 @@ export default function ComparacionPage() {
             </p>
           ) : (
           <>
-          {/* Va antes de "Comparar" a propósito: primero qué cargos entran, después
-              cómo se comparan y contra quién. Cuando estaba debajo se leía como una
-              sub-opción del modo de comparación, que no lo es. */}
-          {gradosDisponibles.length > 0 && (
+          {/* Solo cuando se compara por grado. Con "por cargo homologado" el grado
+              no interviene en nada de lo que se ve, así que mostrarlo confunde. */}
+          {modo === "grado" && gradosDisponibles.length > 0 && (
             <div className="mb-5 rounded-2xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  <span className="block text-sm font-semibold text-slate-900">Qué cargos de tu lista analizar</span>
+                  <span className="block text-sm font-semibold text-slate-900">Grados a analizar</span>
                   <span className="block text-xs text-slate-500">
-                    Se eligen por grado CAPRI. Aplica compares por cargo homologado o por grado.
+                    Los de tu lista. Sin elegir ninguno, entran todos.
                   </span>
                 </span>
                 <span className="text-xs text-slate-500">
@@ -609,7 +608,18 @@ export default function ComparacionPage() {
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <div>
               <label htmlFor="cmp-modo" className="field-label">Comparar</label>
-              <select id="cmp-modo" value={modo} onChange={(e) => setModo(e.target.value as "cargo" | "grado")} className="field-select">
+              <select
+                id="cmp-modo"
+                value={modo}
+                onChange={(e) => {
+                  const siguiente = e.target.value as "cargo" | "grado";
+                  setModo(siguiente);
+                  // El filtro de grados no se ve en modo cargo: dejarlo puesto
+                  // sería filtrar a escondidas.
+                  if (siguiente === "cargo") setFiltroGrados([]);
+                }}
+                className="field-select"
+              >
                 <option value="cargo">Por cargo homologado</option>
                 <option value="grado">Por grado CAPRI</option>
               </select>
