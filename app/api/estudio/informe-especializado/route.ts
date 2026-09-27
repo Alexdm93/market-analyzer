@@ -41,6 +41,8 @@ type Cuerpo = {
   version?: string;
   grupoComparacion?: string;
   tcr?: { tipo?: string } | null;
+  /** Grados a analizar; vacío o ausente = todos. */
+  grados?: number[];
   config?: Partial<ConfiguracionInforme>;
   configSimulador?: Partial<ConfigSimulador>;
   mercadoPorGrado?: Array<Record<string, unknown>>;
@@ -105,7 +107,15 @@ export async function POST(request: Request) {
   const diasVac = Number(empresa?.minVacationDays ?? info.minVacationDays) || 0;
   const diasUtil = Number(empresa?.minUtilityDays ?? info.minUtilityDays) || 0;
 
-  const ocupantes: Ocupante[] = cargos.map((c) => {
+  // Los mismos grados que se están viendo en pantalla; si no vienen, todos.
+  const gradosPedidos = Array.isArray(body?.grados)
+    ? body.grados.map(Number).filter((n) => Number.isFinite(n))
+    : [];
+  const cargosEnFoco = gradosPedidos.length > 0
+    ? cargos.filter((c) => typeof c.hayGrade === "number" && gradosPedidos.includes(c.hayGrade))
+    : cargos;
+
+  const ocupantes: Ocupante[] = cargosEnFoco.map((c) => {
     let data: Partial<ExtendedMarketPosition> = {};
     try { data = JSON.parse(c.dataJson) as Partial<ExtendedMarketPosition>; } catch { data = {}; }
     return {

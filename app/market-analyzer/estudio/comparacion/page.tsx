@@ -116,6 +116,7 @@ export default function ComparacionPage() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [seleccionados, setSeleccionados] = useState<string[]>([]);
+  const [filtroGrados, setFiltroGrados] = useState<number[]>([]);
   const [nombreInforme, setNombreInforme] = useState("");
   const [generando, setGenerando] = useState(false);
   const [aviso, setAviso] = useState("");
@@ -332,8 +333,20 @@ export default function ComparacionPage() {
     return m;
   }, [porGrado]);
 
+  /** Los grados que de verdad hay en la lista de la empresa. */
+  const gradosDisponibles = useMemo(
+    () => [...new Set(cargos.map((c) => c.hayGrade).filter((g): g is number => typeof g === "number"))]
+      .sort((a, b) => b - a),
+    [cargos],
+  );
+
   const filas = useMemo(() => {
-    return cargos.map((c) => {
+    // Analizar solo los grados elegidos; sin elección, todos.
+    const enFoco = filtroGrados.length === 0
+      ? cargos
+      : cargos.filter((c) => typeof c.hayGrade === "number" && filtroGrados.includes(c.hayGrade));
+
+    return enFoco.map((c) => {
       const fila = { id: c.id, tituloCargo: c.tituloCargo, ...c.data } as ExtendedMarketPosition;
       const diasVac = Number(companyInfo.minVacationDays) || 0;
       const diasUtil = Number(companyInfo.minUtilityDays) || 0;
@@ -366,7 +379,7 @@ export default function ComparacionPage() {
         observaciones: mercado?.n ?? 0,
       };
     });
-  }, [cargos, tasas, bcv, companyInfo, metrica, modo, snapshotId, mercadoPorTitulo, mercadoPorGrado, opcionesTcr]);
+  }, [cargos, filtroGrados, tasas, bcv, companyInfo, metrica, modo, snapshotId, mercadoPorTitulo, mercadoPorGrado, opcionesTcr]);
 
   /**
    * Congela lo que la pantalla está mostrando. Se mandan los números ya
@@ -450,6 +463,7 @@ export default function ComparacionPage() {
           ...(esAdmin && companyId ? { companyId } : {}),
           snapshotId,
           config: { concepto: metrica, incluirComisiones: comisiones },
+          grados: filtroGrados.length > 0 ? filtroGrados : undefined,
           tcr: tcrActivo ? { tipo: tcrTipo } : null,
           grupoComparacion: descripcionGrupo,
           mercadoPorGrado,
@@ -573,6 +587,46 @@ export default function ComparacionPage() {
               </label>
             </div>
           </div>
+
+          {/* Qué grados de la propia lista se analizan. No es parte del grupo de
+              comparación: eso es el mercado, esto son tus cargos. */}
+          {gradosDisponibles.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-slate-900">Grados a analizar</span>
+                <span className="text-xs text-slate-500">
+                  {filtroGrados.length === 0
+                    ? `Todos los de tu lista (${gradosDisponibles.length})`
+                    : `${filtroGrados.length} de ${gradosDisponibles.length}`}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {gradosDisponibles.map((g) => {
+                  const activo = filtroGrados.includes(g);
+                  return (
+                    <button
+                      key={g}
+                      type="button"
+                      aria-pressed={activo}
+                      onClick={() => setFiltroGrados((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])}
+                      className={`rounded-full border px-3 py-1 text-sm font-semibold transition ${
+                        activo
+                          ? "border-[#1B4965] bg-[#1B4965] text-white"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  );
+                })}
+                {filtroGrados.length > 0 && (
+                  <button type="button" onClick={() => setFiltroGrados([])} className="btn btn-secondary btn-xs">
+                    Todos
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ── Tipo de cambio ───────────────────────────────────────── */}
           <div className="mt-5 rounded-2xl border border-slate-200 p-4">
