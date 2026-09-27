@@ -15,17 +15,30 @@ export type FiltrosMercado = {
   clasificaciones: string[];
   empresas: string[];
   localidades: string[];
-  headcountMin: number | null;
-  headcountMax: number | null;
+  /** Tamaño por headcount: "pequeña", "mediana" o "grande". */
+  tamanos: string[];
 };
+
+/**
+ * El tamaño de una empresa según su headcount, con los mismos cortes que usa
+ * el resto del sistema: pequeña bajo 50, mediana hasta 200, grande arriba.
+ */
+export function tamanoDeEmpresa(headcount: string | undefined): "pequeña" | "mediana" | "grande" | null {
+  const n = Number(headcount);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n < 50) return "pequeña";
+  if (n <= 200) return "mediana";
+  return "grande";
+}
+
+export const TAMANOS = [
+  { valor: "pequeña", etiqueta: "Pequeña (menos de 50)" },
+  { valor: "mediana", etiqueta: "Mediana (50 a 200)" },
+  { valor: "grande",  etiqueta: "Grande (más de 200)" },
+] as const;
 
 function lista(valor: string | null): string[] {
   return (valor ?? "").split(",").map((v) => v.trim()).filter(Boolean);
-}
-
-function numero(valor: string | null): number | null {
-  const n = Number(valor);
-  return Number.isFinite(n) && valor !== null && valor.trim() !== "" ? n : null;
 }
 
 export function leerFiltrosMercado(searchParams: URLSearchParams): FiltrosMercado {
@@ -35,8 +48,7 @@ export function leerFiltrosMercado(searchParams: URLSearchParams): FiltrosMercad
     clasificaciones: lista(searchParams.get("sizes")),
     empresas: lista(searchParams.get("companies")),
     localidades: lista(searchParams.get("localities")),
-    headcountMin: numero(searchParams.get("headcountMin")),
-    headcountMax: numero(searchParams.get("headcountMax")),
+    tamanos: lista(searchParams.get("tamanos")),
   };
 }
 
@@ -56,11 +68,9 @@ export function pasaFiltros(info: CompanyInfo, f: FiltrosMercado): boolean {
     if (!suyas.some((l) => f.localidades.includes(l))) return false;
   }
 
-  if (f.headcountMin !== null || f.headcountMax !== null) {
-    const n = Number(info.headcount);
-    if (!Number.isFinite(n)) return false;
-    if (f.headcountMin !== null && n < f.headcountMin) return false;
-    if (f.headcountMax !== null && n > f.headcountMax) return false;
+  if (f.tamanos.length > 0) {
+    const tamano = tamanoDeEmpresa(info.headcount);
+    if (!tamano || !f.tamanos.includes(tamano)) return false;
   }
 
   return true;

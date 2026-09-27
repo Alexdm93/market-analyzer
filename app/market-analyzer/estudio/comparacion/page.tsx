@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals, computeTCRTotals, tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
+import { TAMANOS } from "@/lib/filtros-mercado";
 import { posicionEnMercado } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
@@ -55,7 +56,7 @@ function money(v: number | null | undefined) {
  * ubicaciones, que son listas cortas pero de largo variable.
  */
 function ListaCasillas({
-  titulo, vacio, opciones, elegidas, onToggle, onLimpiar,
+  titulo, vacio, opciones, elegidas, onToggle, onLimpiar, etiquetas,
 }: {
   titulo: string;
   vacio: string;
@@ -63,6 +64,8 @@ function ListaCasillas({
   elegidas: string[];
   onToggle: (valor: string) => void;
   onLimpiar: () => void;
+  /** Para listas con valor interno distinto del que se muestra. */
+  etiquetas?: Record<string, string>;
 }) {
   return (
     <div>
@@ -82,7 +85,7 @@ function ListaCasillas({
           {opciones.map((o) => (
             <label key={o} className="flex items-start gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={elegidas.includes(o)} onChange={() => onToggle(o)} className="mt-1" />
-              <span className="truncate" title={o}>{o}</span>
+              <span className="truncate" title={etiquetas?.[o] ?? o}>{etiquetas?.[o] ?? o}</span>
             </label>
           ))}
           {opciones.length === 0 && <p className="text-xs text-slate-500">Sin opciones que listar todavía.</p>}
@@ -123,10 +126,10 @@ export default function ComparacionPage() {
   // Grupo de mercado contra el que se compara. La plantilla lo llama
   // "Compañía / Unidad" y por defecto dice "Mercado general", o sea todo el corte.
   const [filtroSectores, setFiltroSectores] = useState<string[]>([]);
-  const [filtroClasificacion, setFiltroClasificacion] = useState("");
+  const [filtroClasificaciones, setFiltroClasificaciones] = useState<string[]>([]);
   const [filtroLocalidades, setFiltroLocalidades] = useState<string[]>([]);
-  const [filtroHeadcountMin, setFiltroHeadcountMin] = useState("");
-  const [filtroHeadcountMax, setFiltroHeadcountMax] = useState("");
+  const [filtroTamanos, setFiltroTamanos] = useState<string[]>([]);
+  const [abrirEmpresas, setAbrirEmpresas] = useState(false);
   const [filtroEmpresas, setFiltroEmpresas] = useState<string[]>([]);
   const [buscaEmpresa, setBuscaEmpresa] = useState("");
   const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; empresas: string[]; localidades: string[] }>(
@@ -204,27 +207,29 @@ export default function ComparacionPage() {
   const filtrosMercado = useCallback(() => {
     const p = new URLSearchParams();
     if (filtroSectores.length > 0) p.set("sectors", filtroSectores.join(","));
-    if (filtroClasificacion) p.set("sizes", filtroClasificacion);
-    if (filtroEmpresas.length > 0) p.set("companies", filtroEmpresas.join(","));
+    if (filtroClasificaciones.length > 0) p.set("sizes", filtroClasificaciones.join(","));
     if (filtroLocalidades.length > 0) p.set("localities", filtroLocalidades.join(","));
-    if (filtroHeadcountMin.trim()) p.set("headcountMin", filtroHeadcountMin.trim());
-    if (filtroHeadcountMax.trim()) p.set("headcountMax", filtroHeadcountMax.trim());
+    if (filtroTamanos.length > 0) p.set("tamanos", filtroTamanos.join(","));
+    if (filtroEmpresas.length > 0) p.set("companies", filtroEmpresas.join(","));
     return p;
-  }, [filtroSectores, filtroClasificacion, filtroEmpresas, filtroLocalidades, filtroHeadcountMin, filtroHeadcountMax]);
+  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos, filtroEmpresas]);
 
   const descripcionGrupo = useMemo(() => {
     const partes: string[] = [];
-    if (filtroSectores.length === 1) partes.push(filtroSectores[0]);
-    else if (filtroSectores.length > 1) partes.push(`${filtroSectores.length} sectores`);
-    if (filtroClasificacion) partes.push(filtroClasificacion);
-    if (filtroLocalidades.length === 1) partes.push(filtroLocalidades[0]);
-    else if (filtroLocalidades.length > 1) partes.push(`${filtroLocalidades.length} ubicaciones`);
-    if (filtroHeadcountMin.trim() || filtroHeadcountMax.trim()) {
-      partes.push(`${filtroHeadcountMin.trim() || "0"}–${filtroHeadcountMax.trim() || "∞"} empleados`);
+    const resumir = (xs: string[], uno: string, varios: string) =>
+      xs.length === 1 ? xs[0] : xs.length > 1 ? `${xs.length} ${varios}` : "";
+
+    for (const texto of [
+      resumir(filtroSectores, "sector", "sectores"),
+      resumir(filtroClasificaciones, "clasificación", "clasificaciones"),
+      resumir(filtroLocalidades, "ubicación", "ubicaciones"),
+      resumir(filtroTamanos.map((t) => TAMANOS.find((x) => x.valor === t)?.etiqueta ?? t), "tamaño", "tamaños"),
+      filtroEmpresas.length > 0 ? `${filtroEmpresas.length} empresas` : "",
+    ]) {
+      if (texto) partes.push(texto);
     }
-    if (filtroEmpresas.length > 0) partes.push(`${filtroEmpresas.length} empresas`);
     return partes.length > 0 ? partes.join(" · ") : "Mercado general";
-  }, [filtroSectores, filtroClasificacion, filtroEmpresas, filtroLocalidades, filtroHeadcountMin, filtroHeadcountMax]);
+  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos, filtroEmpresas]);
 
   // Las tasas del sistema, para poder expresar el estudio en TCR.
   useEffect(() => {
@@ -617,6 +622,7 @@ export default function ComparacionPage() {
 
             {abrirGrupo && (
               <div className="mt-4 space-y-4">
+                {/* El orden que pidió el CEO: sector, clasificación, ubicación y tamaño. */}
                 <div className="grid gap-4 md:grid-cols-2">
                   <ListaCasillas
                     titulo="Sectores económicos"
@@ -627,6 +633,14 @@ export default function ComparacionPage() {
                     onLimpiar={() => setFiltroSectores([])}
                   />
                   <ListaCasillas
+                    titulo="Clasificación (subsector)"
+                    vacio="Todas las del corte"
+                    opciones={disponibles.clasificaciones}
+                    elegidas={filtroClasificaciones}
+                    onToggle={(v) => setFiltroClasificaciones((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                    onLimpiar={() => setFiltroClasificaciones([])}
+                  />
+                  <ListaCasillas
                     titulo="Ubicación"
                     vacio="Todas las del corte"
                     opciones={disponibles.localidades}
@@ -634,43 +648,39 @@ export default function ComparacionPage() {
                     onToggle={(v) => setFiltroLocalidades((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
                     onLimpiar={() => setFiltroLocalidades([])}
                   />
+                  <ListaCasillas
+                    titulo="Tamaño"
+                    vacio="Todos los del corte"
+                    opciones={TAMANOS.map((t) => t.valor)}
+                    etiquetas={Object.fromEntries(TAMANOS.map((t) => [t.valor, t.etiqueta]))}
+                    elegidas={filtroTamanos}
+                    onToggle={(v) => setFiltroTamanos((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                    onLimpiar={() => setFiltroTamanos([])}
+                  />
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div>
-                    <label htmlFor="cmp-clasif" className="field-label">Clasificación (subsector)</label>
-                    <SelectorBuscador
-                      id="cmp-clasif"
-                      value={filtroClasificacion}
-                      onChange={setFiltroClasificacion}
-                      opciones={[{ value: "", label: "Todas" }, ...disponibles.clasificaciones.map((x) => ({ value: x, label: x }))]}
-                      placeholder="Todas"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="cmp-hc-min" className="field-label">Tamaño — desde</label>
-                    <input
-                      id="cmp-hc-min" type="number" min="0" className="field" placeholder="sin mínimo"
-                      value={filtroHeadcountMin} onChange={(e) => setFiltroHeadcountMin(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="cmp-hc-max" className="field-label">Tamaño — hasta</label>
-                    <input
-                      id="cmp-hc-max" type="number" min="0" className="field" placeholder="sin máximo"
-                      value={filtroHeadcountMax} onChange={(e) => setFiltroHeadcountMax(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="field-label mb-0">Empresas</span>
-                    <span className="text-xs text-slate-500">
-                      {filtroEmpresas.length === 0 ? "Todas las del corte" : `${filtroEmpresas.length} elegidas`}
+                {/* Elegir empresas a dedo es otra forma de armar el grupo, no un
+                    filtro más, así que va aparte y cerrada. */}
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <button
+                    type="button"
+                    onClick={() => setAbrirEmpresas((v) => !v)}
+                    className="flex w-full items-center justify-between text-left"
+                  >
+                    <span>
+                      <span className="block text-sm font-semibold text-slate-900">O elegir empresas puntuales</span>
+                      <span className="block text-xs text-slate-500">
+                        {filtroEmpresas.length === 0
+                          ? "Se usan las que cumplan los filtros de arriba"
+                          : `${filtroEmpresas.length} elegidas — se cruzan con los filtros de arriba`}
+                      </span>
                     </span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-teal-700">{abrirEmpresas ? "Ocultar" : "Elegir"}</span>
+                  </button>
+
+                  {abrirEmpresas && (
+                  <div className="mt-3">
+                    <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="search"
                       value={buscaEmpresa}
@@ -705,6 +715,8 @@ export default function ComparacionPage() {
                       )}
                     </div>
                   </div>
+                  </div>
+                  )}
                 </div>
 
                 <p className="text-xs text-slate-500">
