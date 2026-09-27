@@ -7,6 +7,7 @@ import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import { type Snapshot } from "@/lib/workspace";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
+import type { TcrPercentilesResponse } from "@/app/api/percentiles-tcr/route";
 
 function formatMoney(n: number | null | undefined) {
   if (n == null || !Number.isFinite(n) || n === 0) return "ND";
@@ -192,13 +193,31 @@ export default function ResultadosPage() {
       const stat = (m: Metrica | undefined) => ({
         p50: m?.p50 ?? null, promedio: m?.promedio ?? null, min: m?.min ?? null, max: m?.max ?? null,
       });
+
+      // La columna "P50 - TCR BCV-USD" del informe. Se pide aparte porque el
+      // TCR no se ve en esta pantalla; si falla, esa columna sale "ND" y el
+      // informe igual se genera.
+      const tcrPorCargo = new Map<string, number | null>();
+      try {
+        const resTcr = await fetch(
+          `/api/percentiles-tcr?snapshotId=${encodeURIComponent(selectedSnapshotId)}&tcrType=bcv`,
+          { cache: "no-store" },
+        );
+        if (resTcr.ok) {
+          const data = (await resTcr.json()) as TcrPercentilesResponse;
+          for (const c of data.cargos ?? []) {
+            tcrPorCargo.set(c.tituloCargo.trim().toLowerCase(), c.conPasivosMensual?.p50 ?? null);
+          }
+        }
+      } catch {
+        // Sin TCR el informe sale igual, con ND en esa columna.
+      }
+
       const cargos = (percentileData.grupos ?? []).map((g) => ({
         tituloCargo: g.tituloCargo,
         n: g.n,
-        tem: stat(g.sinPasivosMensual as Metrica),
-        temz: stat(g.directoMensualizado as Metrica),
         cim: stat(g.conPasivosMensual as Metrica),
-        pcta: stat(g.conPasivosAnual as Metrica),
+        cimTcrP50: tcrPorCargo.get(g.tituloCargo.trim().toLowerCase()) ?? null,
       }));
 
       const res = await fetch("/api/estudio/informe-cortesia", {

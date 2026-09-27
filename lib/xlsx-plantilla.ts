@@ -155,7 +155,7 @@ function atributosHeredados(filas: Map<number, Fila>, fila: number): string {
 }
 
 export class HojaPlantilla {
-  private cambios = new Map<string, { valor: Valor; estiloDe?: string }>();
+  private cambios = new Map<string, { valor: Valor; estiloDe?: string; sinFormato?: boolean }>();
   private combinaciones: string[] | null = null;
 
   constructor(readonly nombre: string, private xml: string) {}
@@ -184,6 +184,18 @@ export class HojaPlantilla {
    */
   set(ref: string, valor: Valor, estiloDe?: string): void {
     this.cambios.set(ref.toUpperCase(), { valor, estiloDe: estiloDe?.toUpperCase() });
+  }
+
+  /**
+   * Vacía la celda y además le quita el formato.
+   *
+   * `set(ref, null)` deja la celda sin valor pero con los bordes y el relleno
+   * de la plantilla: donde la plantilla trae una tabla larga de ejemplo, las
+   * filas que sobran seguirían dibujándose vacías. Con esto la tabla termina
+   * donde termina la data.
+   */
+  limpiar(ref: string): void {
+    this.cambios.set(ref.toUpperCase(), { valor: null, sinFormato: true });
   }
 
   get tieneCambios(): boolean {
@@ -215,7 +227,7 @@ export class HojaPlantilla {
       }
     }
 
-    for (const [ref, { valor, estiloDe }] of ordenados) {
+    for (const [ref, { valor, estiloDe, sinFormato }] of ordenados) {
       const { fila: numero } = partesRef(ref);
       const { columna } = partesRef(ref);
       // Vaciar una celda que la plantilla no trae no es nada: crearla solo
@@ -233,6 +245,8 @@ export class HojaPlantilla {
       const copiado = estiloDe ? estilosOriginales.get(estiloDe) : undefined;
       if (copiado) {
         atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "") + ` s="${copiado}"`;
+      } else if (sinFormato) {
+        atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "");
       }
 
       const xmlCelda = escribirCelda(ref, atributosPrevios, valor);
