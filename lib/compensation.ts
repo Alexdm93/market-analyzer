@@ -255,9 +255,9 @@ export function pct(values: number[], p: number): number {
 }
 
 export const PERCENTILE_MIN_N = {
-  // min/max son los valores más identificables (pueden ser el dato exacto de una sola
-  // empresa/persona) — exigen al menos tantas observaciones como los percentiles extremos.
-  minMax: 12,
+  // min/max son los valores más identificables: son el dato exacto de una sola
+  // empresa. AC Consulting fijó el mismo mínimo que la mediana (2026-09-26).
+  minMax: 4,
   p10: 12,
   p25: 8,
   p50: 4,
