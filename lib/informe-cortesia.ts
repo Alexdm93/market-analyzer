@@ -24,7 +24,7 @@ export const HOJA_MARKET = "Market Analyzer";
 export const HOJA_DISTRIBUCION = "Distribución de Compensación";
 
 /** Hasta dónde llega dibujada la tabla del Market Analyzer en la plantilla. */
-const ULTIMA_FILA_MARKET = 215;
+const ULTIMA_FILA_MARKET = 260;
 
 /** Lo que se escribe donde no hay dato o no hay observaciones suficientes. */
 export const SIN_DATO = "ND";
@@ -39,14 +39,28 @@ const CELDA = {
   // portadas queden iguales.
   etiquetaCliente: "A18",
   cliente: "B18",
-  totalEmpresas: "I28",
-  primeraEmpresa: 30,
+  totalEmpresas: "A30",
+  primeraEmpresa: 33,
   filaCargos: 7,
   primeraFilaDistribucion: 9,
   // El cuadro de monedas va debajo del de niveles, como pidió el CEO.
-  filaTituloMoneda: 17,
   filaCabeceraMoneda: 18,
+  primeraFilaMoneda: 19,
 } as const;
+
+/**
+ * Las ocho categorías empiezan en la C: la A lleva el nivel (combinada con la
+ * B en el cuadro de arriba) y la B, en el de monedas, dice si la fila es la
+ * moneda de cuenta o la de pago.
+ */
+const COLS_CATEGORIAS = ["C", "D", "E", "F", "G", "H", "I", "J"];
+
+/**
+ * Hasta dónde llega el rango de los COUNTIF que alimentan los treemaps de
+ * sector y tamaño (`$B$33:$B$232`). Más empresas que eso no entrarían en los
+ * gráficos.
+ */
+const ULTIMA_FILA_EMPRESAS = 232;
 
 export type EstadisticaMercado = {
   p50: number | null;
@@ -74,14 +88,15 @@ export type FilaDistribucionInforme = {
   valores: number[];
 };
 
-/** Una categoría de pago con su reparto entre moneda de cuenta y de pago. */
+/**
+ * Un nivel con el reparto de cada categoría entre moneda de cuenta y moneda de
+ * pago. Cada arreglo va en el orden de `categoriasDistribucion`, y el número es
+ * la parte en dólares: lo que falta hasta 100% son bolívares.
+ */
 export type FilaMonedaInforme = {
-  categoria: string;
-  participacion: number;
-  cuentaUSD: number;
-  cuentaVES: number;
-  pagoUSD: number;
-  pagoVES: number;
+  nivel: string;
+  cuentaUSD: number[];
+  pagoUSD: number[];
 };
 
 /** Una empresa del corte, para los gráficos de sector y tamaño. */
@@ -97,7 +112,6 @@ export type DatosCortesia = {
   cliente: string;
   fechaInforme: string;
   fechaData: string;
-  empresas: string[];
   participantes: ParticipanteInforme[];
   cargos: GrupoMercado[];
   distribucion: FilaDistribucionInforme[];
@@ -143,30 +157,24 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Buff
   }
 
   // ── Empresas participantes ──
+  // Una sola tabla: empresa, sector y tamaño. Los COUNTIF de la plantilla
+  // cuentan sobre estas columnas y alimentan los dos treemaps, así que los
+  // conteos no se escriben desde acá: se recalculan al abrir el archivo.
   const hojaEmpresas = wb.hoja(HOJA_EMPRESAS);
   if (hojaEmpresas) {
-    escribir(hojaEmpresas, CELDA.totalEmpresas, `Total: ${datos.empresas.length} empresas`);
+    escribir(hojaEmpresas, CELDA.totalEmpresas, `Total: ${datos.participantes.length} empresas`);
 
-    // La plantilla las reparte en dos columnas (A y G), en orden alfabético y
-    // llenando primero la izquierda.
-    const mitad = Math.ceil(datos.empresas.length / 2);
-    const izquierda = datos.empresas.slice(0, mitad);
-    const derecha = datos.empresas.slice(mitad);
-    const maximo = Math.max(izquierda.length, derecha.length);
-
-    for (let i = 0; i < maximo; i++) {
+    datos.participantes.forEach((p, i) => {
       const fila = CELDA.primeraEmpresa + i;
-      escribir(hojaEmpresas, `A${fila}`, izquierda[i] ?? null);
-      escribir(hojaEmpresas, `G${fila}`, derecha[i] ?? null);
-    }
-    // Limpia lo que hubiera quedado del ejemplo más abajo.
-    for (let i = maximo; i < maximo + 60; i++) {
-      const fila = CELDA.primeraEmpresa + i;
-      escribir(hojaEmpresas, `A${fila}`, null);
-      escribir(hojaEmpresas, `G${fila}`, null);
-    }
+      escribir(hojaEmpresas, `A${fila}`, p.empresa);
+      escribir(hojaEmpresas, `B${fila}`, p.sector || SIN_DATO);
+      escribir(hojaEmpresas, `C${fila}`, p.tamano || SIN_DATO);
+    });
 
-    escribirDatosDeGraficos(hojaEmpresas, datos.participantes);
+    const despues = CELDA.primeraEmpresa + datos.participantes.length;
+    for (let f = despues; f <= Math.max(despues + 20, ULTIMA_FILA_EMPRESAS); f++) {
+      for (const col of ["A", "B", "C"]) hojaEmpresas.limpiar(`${col}${f}`);
+    }
   }
 
   // ── Market Analyzer ──
@@ -198,25 +206,20 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Buff
   // ── Distribución de compensación ──
   const hojaDist = wb.hoja(HOJA_DISTRIBUCION);
   if (hojaDist) {
-    const columnas = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
-
-    // Cabecera: "Niveles" más las ocho categorías del CEO.
-    ["Niveles", ...datos.categoriasDistribucion].forEach((titulo, i) => {
-      hojaDist.set(`${columnas[i]}8`, titulo, "A8");
+    // Cabecera: "Niveles" en la A (combinada con la B) y las ocho categorías
+    // del CEO de la C a la J.
+    hojaDist.set("A8", "Niveles", "A8");
+    datos.categoriasDistribucion.forEach((titulo, i) => {
+      hojaDist.set(`${COLS_CATEGORIAS[i]}8`, titulo, "C8");
     });
 
     datos.distribucion.forEach((f, idx) => {
       const fila = CELDA.primeraFilaDistribucion + idx;
       escribir(hojaDist, `A${fila}`, f.nivel);
-      f.valores.forEach((v, i) => escribir(hojaDist, `${columnas[i + 1]}${fila}`, v));
+      f.valores.forEach((v, i) => escribir(hojaDist, `${COLS_CATEGORIAS[i]}${fila}`, v));
     });
-    // La plantilla traía siete niveles y ahora son seis. Se limpia hasta donde
-    // empieza el cuadro de monedas, sin pisarlo.
-    for (let fila = CELDA.primeraFilaDistribucion + datos.distribucion.length; fila < CELDA.filaTituloMoneda; fila++) {
-      for (const col of columnas) hojaDist.limpiar(`${col}${fila}`);
-    }
 
-    escribirCuadroDeMonedas(hojaDist, datos.moneda);
+    escribirCuadroDeMonedas(hojaDist, datos.categoriasDistribucion, datos.moneda);
   }
 
   return wb.aBuffer();
@@ -229,83 +232,22 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Buff
  * moneda está pactado el pago (moneda de cuenta) y en cuál se entrega (moneda
  * de pago). Una empresa puede pactar en dólares y pagar en bolívares al cambio.
  *
- * La plantilla no llega hasta acá, así que cada celda copia el formato de la
- * fila equivalente del cuadro de arriba.
+ * Cada nivel ocupa dos filas —cuenta y pago— y la plantilla ya trae esas
+ * etiquetas en la columna B, con la A combinada de a dos.
  */
-function escribirCuadroDeMonedas(hoja: HojaPlantilla, filas: FilaMonedaInforme[]) {
-  const titulo = CELDA.filaTituloMoneda;
+function escribirCuadroDeMonedas(hoja: HojaPlantilla, categorias: string[], filas: FilaMonedaInforme[]) {
   const cabecera = CELDA.filaCabeceraMoneda;
-
-  hoja.set(`A${titulo}`, "MONEDA DE CUENTA Y MONEDA DE PAGO POR ELEMENTO", "A8");
-
-  const cabeceras = ["Elemento de pago", "% del total", "Cuenta USD", "Cuenta Bs", "Pago USD", "Pago Bs"];
-  cabeceras.forEach((texto, i) => {
-    hoja.set(`${String.fromCharCode(65 + i)}${cabecera}`, texto, i === 0 ? "A8" : "B8");
+  hoja.set(`A${cabecera}`, "Niveles", "A8");
+  // La plantilla arrastra un título de más en la B de la cabecera.
+  hoja.limpiar(`B${cabecera}`);
+  categorias.forEach((titulo, i) => {
+    hoja.set(`${COLS_CATEGORIAS[i]}${cabecera}`, titulo, "C8");
   });
 
   filas.forEach((f, idx) => {
-    const fila = cabecera + 1 + idx;
-    hoja.set(`A${fila}`, f.categoria, "A9");
-    const valores = [f.participacion, f.cuentaUSD, f.cuentaVES, f.pagoUSD, f.pagoVES];
-    valores.forEach((v, i) => hoja.set(`${String.fromCharCode(66 + i)}${fila}`, v, "B9"));
+    const filaCuenta = CELDA.primeraFilaMoneda + idx * 2;
+    hoja.set(`A${filaCuenta}`, f.nivel);
+    f.cuentaUSD.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS[i]}${filaCuenta}`, v));
+    f.pagoUSD.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS[i]}${filaCuenta + 1}`, v));
   });
-}
-
-/**
- * La tabla que alimenta los gráficos de sector y tamaño.
- *
- * Hasta ahora esos dos cuadros eran imágenes pegadas en la plantilla, así que
- * nunca cambiaban por más que cambiara el corte. Acá se escribe la data cruda
- * —una fila por empresa— y los dos conteos ya hechos, que es lo que un gráfico
- * de Excel necesita para dibujarse sin tabla dinámica.
- *
- * Va fuera del área de impresión (A1:K61), en columnas que no se ven al
- * imprimir ni al leer el informe.
- */
-function escribirDatosDeGraficos(hoja: HojaPlantilla, participantes: ParticipanteInforme[]) {
-  hoja.set("U1", "Empresa");
-  hoja.set("V1", "Sector");
-  hoja.set("W1", "Tamaño");
-
-  participantes.forEach((p, i) => {
-    const fila = 2 + i;
-    hoja.set(`U${fila}`, p.empresa);
-    hoja.set(`V${fila}`, p.sector || SIN_DATO);
-    hoja.set(`W${fila}`, p.tamano || SIN_DATO);
-  });
-  for (let i = participantes.length; i < participantes.length + 60; i++) {
-    const fila = 2 + i;
-    for (const col of ["U", "V", "W"]) hoja.set(`${col}${fila}`, null);
-  }
-
-  const contar = (valores: string[]) => {
-    const cuenta = new Map<string, number>();
-    for (const v of valores) cuenta.set(v, (cuenta.get(v) ?? 0) + 1);
-    return [...cuenta.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
-  };
-
-  const porSector = contar(participantes.map((p) => p.sector || SIN_DATO));
-  const porTamano = contar(participantes.map((p) => p.tamano || SIN_DATO));
-
-  hoja.set("Y1", "Sector");
-  hoja.set("Z1", "Empresas");
-  porSector.forEach(([nombre, n], i) => {
-    hoja.set(`Y${2 + i}`, nombre);
-    hoja.set(`Z${2 + i}`, n);
-  });
-  for (let i = porSector.length; i < porSector.length + 30; i++) {
-    hoja.set(`Y${2 + i}`, null);
-    hoja.set(`Z${2 + i}`, null);
-  }
-
-  hoja.set("AB1", "Tamaño");
-  hoja.set("AC1", "Empresas");
-  porTamano.forEach(([nombre, n], i) => {
-    hoja.set(`AB${2 + i}`, nombre);
-    hoja.set(`AC${2 + i}`, n);
-  });
-  for (let i = porTamano.length; i < porTamano.length + 10; i++) {
-    hoja.set(`AB${2 + i}`, null);
-    hoja.set(`AC${2 + i}`, null);
-  }
 }

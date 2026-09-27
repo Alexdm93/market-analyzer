@@ -13,7 +13,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { getBcvRate } from "@/lib/bcv";
-import { CATEGORIAS, calcularDistribucion, calcularResumenMuestra } from "@/lib/distribucion-compensacion";
+import { CATEGORIAS, calcularDistribucion, calcularMonedaPorNivel } from "@/lib/distribucion-compensacion";
 import { catalogoDelCorte, normalizarTitulo } from "@/lib/estudio-cargos";
 import { tamanoDeEmpresa } from "@/lib/filtros-mercado";
 import {
@@ -161,10 +161,7 @@ export async function POST(request: Request) {
     getBcvRate(),
   ]);
 
-  const empresas = [...new Set(enviados.map((e) => e.company?.name).filter((n): n is string => Boolean(n)))]
-    .sort((a, b) => a.localeCompare(b, "es"));
-
-  if (empresas.length === 0) {
+  if (enviados.length === 0) {
     return Response.json({ message: "Ninguna empresa ha enviado data en ese corte." }, { status: 400 });
   }
 
@@ -213,13 +210,10 @@ export async function POST(request: Request) {
     valores: CATEGORIAS.map((c) => f.porcentajes[c]),
   }));
 
-  const moneda = calcularResumenMuestra(paraDistribucion).filas.map((f) => ({
-    categoria: f.categoria,
-    participacion: f.participacion,
-    cuentaUSD: f.cuentaUSD,
-    cuentaVES: f.cuentaVES,
-    pagoUSD: f.pagoUSD,
-    pagoVES: f.pagoVES,
+  const moneda = calcularMonedaPorNivel(paraDistribucion).map((f) => ({
+    nivel: f.nivel.toUpperCase(),
+    cuentaUSD: CATEGORIAS.map((c) => f.cuentaUSD[c]),
+    pagoUSD: CATEGORIAS.map((c) => f.pagoUSD[c]),
   }));
 
   const snapshot = enviados[0];
@@ -234,7 +228,6 @@ export async function POST(request: Request) {
     cliente,
     fechaInforme: mesYAnio(new Date()),
     fechaData: mesYAnio(snapshot?.date ?? new Date()),
-    empresas,
     participantes,
     cargos,
     distribucion,

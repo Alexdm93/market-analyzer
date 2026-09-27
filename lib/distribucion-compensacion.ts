@@ -177,6 +177,54 @@ export type ResumenMuestra = { ocupantes: number; totalUSD: number; filas: FilaR
  * La misma apertura por categoría, pero de toda la selección junta y con el
  * reparto por moneda de cuenta y de pago dentro de cada una.
  */
+/**
+ * El reparto entre moneda de cuenta y moneda de pago, por nivel y por
+ * categoría: qué parte de cada elemento está pactada en dólares y qué parte
+ * se entrega en dólares. El resto, hasta 100%, va en bolívares.
+ *
+ * Es el mismo corte por nivel que `calcularDistribucion` —misma función de
+ * nivel, mismas piezas— para que los dos cuadros del informe no puedan
+ * contradecirse.
+ */
+export type FilaMonedaNivel = {
+  nivel: string;
+  cuentaUSD: Record<Categoria, number>;
+  pagoUSD: Record<Categoria, number>;
+};
+
+export function calcularMonedaPorNivel(
+  filas: Array<{ fila: ExtendedMarketPosition; tasas: ExchangeRate[]; bcv: number | null }>,
+): FilaMonedaNivel[] {
+  type Celda = { total: number; cuentaUSD: number; pagoUSD: number };
+  const porNivel = new Map<string, Record<Categoria, Celda>>();
+
+  for (const { fila, tasas, bcv } of filas) {
+    const nivel = gradeToNivel(fila.hayGrade, fila.capriFamily);
+    if (!nivel) continue;
+
+    const actual = porNivel.get(nivel)
+      ?? (Object.fromEntries(CATEGORIAS.map((c) => [c, { total: 0, cuentaUSD: 0, pagoUSD: 0 }])) as Record<Categoria, Celda>);
+    for (const pieza of piezasDe(fila, tasas, bcv)) {
+      const celda = actual[pieza.categoria];
+      celda.total += pieza.montoUSD;
+      if (pieza.cuenta === "USD") celda.cuentaUSD += pieza.montoUSD;
+      if (pieza.pago === "USD") celda.pagoUSD += pieza.montoUSD;
+    }
+    porNivel.set(nivel, actual);
+  }
+
+  return NIVELES.map((nivel) => {
+    const datos = porNivel.get(nivel);
+    const parte = (lectura: (c: Celda) => number) =>
+      Object.fromEntries(CATEGORIAS.map((c) => {
+        const celda = datos?.[c];
+        return [c, celda && celda.total > 0 ? lectura(celda) / celda.total : 0];
+      })) as Record<Categoria, number>;
+
+    return { nivel, cuentaUSD: parte((c) => c.cuentaUSD), pagoUSD: parte((c) => c.pagoUSD) };
+  });
+}
+
 export function calcularResumenMuestra(
   entradas: Array<{ fila: ExtendedMarketPosition; tasas: ExchangeRate[]; bcv: number | null }>,
 ): ResumenMuestra {
