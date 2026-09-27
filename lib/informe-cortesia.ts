@@ -45,15 +45,20 @@ const CELDA = {
   primeraFilaDistribucion: 9,
   // El cuadro de monedas va debajo del de niveles, como pidió el CEO.
   filaCabeceraMoneda: 18,
-  primeraFilaMoneda: 19,
+  // La 19 es la subcabecera Bs/USD, que ya viene en la plantilla.
+  primeraFilaMoneda: 20,
 } as const;
 
 /**
- * Las ocho categorías empiezan en la C: la A lleva el nivel (combinada con la
- * B en el cuadro de arriba) y la B, en el de monedas, dice si la fila es la
+ * Cada categoría ocupa DOS columnas, porque el cuadro de monedas reparte cada
+ * elemento entre bolívares y dólares. En el cuadro de niveles las dos van
+ * combinadas y el valor vive en la primera.
+ *
+ * La A lleva el nivel y la B, en el cuadro de monedas, dice si la fila es la
  * moneda de cuenta o la de pago.
  */
-const COLS_CATEGORIAS = ["C", "D", "E", "F", "G", "H", "I", "J"];
+const COLS_CATEGORIAS = ["C", "E", "G", "I", "K", "M", "O", "Q"];
+const COLS_CATEGORIAS_USD = ["D", "F", "H", "J", "L", "N", "P", "R"];
 
 /**
  * Hasta dónde llega el rango de los COUNTIF que alimentan los treemaps de
@@ -95,7 +100,9 @@ export type FilaDistribucionInforme = {
  */
 export type FilaMonedaInforme = {
   nivel: string;
+  cuentaVES: number[];
   cuentaUSD: number[];
+  pagoVES: number[];
   pagoUSD: number[];
 };
 
@@ -248,8 +255,11 @@ function escribirCuadroDeMonedas(hoja: HojaPlantilla, categorias: string[], fila
 
   filas.forEach((f, idx) => {
     const filaCuenta = CELDA.primeraFilaMoneda + idx * 2;
+    const filaPago = filaCuenta + 1;
     hoja.set(`A${filaCuenta}`, f.nivel);
-    f.cuentaUSD.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS[i]}${filaCuenta}`, v));
-    f.pagoUSD.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS[i]}${filaCuenta + 1}`, v));
+    f.cuentaVES.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS[i]}${filaCuenta}`, v));
+    f.cuentaUSD.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS_USD[i]}${filaCuenta}`, v));
+    f.pagoVES.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS[i]}${filaPago}`, v));
+    f.pagoUSD.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS_USD[i]}${filaPago}`, v));
   });
 }

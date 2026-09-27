@@ -155,6 +155,7 @@ export async function POST(request: Request) {
         company: { select: { name: true, economicSector: true, headcount: true } },
         date: true,
         label: true,
+        processedAt: true,
       },
       distinct: ["companyId"],
     }),
@@ -238,12 +239,21 @@ export async function POST(request: Request) {
 
   const moneda = calcularMonedaPorNivel(paraDistribucion).map((f) => ({
     nivel: f.nivel.toUpperCase(),
+    cuentaVES: CATEGORIAS.map((c) => f.cuentaVES[c]),
     cuentaUSD: CATEGORIAS.map((c) => f.cuentaUSD[c]),
+    pagoVES: CATEGORIAS.map((c) => f.pagoVES[c]),
     pagoUSD: CATEGORIAS.map((c) => f.pagoUSD[c]),
   }));
 
   const snapshot = enviados[0];
   const etiqueta = snapshot?.label ?? snapshotId;
+
+  // "DATA:" es cuándo se procesó el corte, no la fecha que lleva el corte de
+  // nombre. Si todavía no se procesó, queda la del corte.
+  const procesado = enviados
+    .map((e) => e.processedAt)
+    .filter((f): f is Date => Boolean(f))
+    .sort((a, b) => b.getTime() - a.getTime())[0];
 
   const cliente = companyIdCliente
     ? (await prisma.company.findUnique({ where: { id: companyIdCliente }, select: { name: true } }))?.name ?? ""
@@ -253,7 +263,7 @@ export async function POST(request: Request) {
     tituloEstudio: `RESULTADOS ${etiqueta.toUpperCase()}`,
     cliente,
     fechaInforme: mesYAnio(new Date()),
-    fechaData: mesYAnio(snapshot?.date ?? new Date()),
+    fechaData: mesYAnio(procesado ?? snapshot?.date ?? new Date()),
     participantes,
     cargos,
     distribucion,

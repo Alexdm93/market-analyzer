@@ -189,7 +189,9 @@ export type ResumenMuestra = { ocupantes: number; totalUSD: number; filas: FilaR
 export type FilaMonedaNivel = {
   nivel: string;
   cuentaUSD: Record<Categoria, number>;
+  cuentaVES: Record<Categoria, number>;
   pagoUSD: Record<Categoria, number>;
+  pagoVES: Record<Categoria, number>;
 };
 
 export function calcularMonedaPorNivel(
@@ -215,13 +217,21 @@ export function calcularMonedaPorNivel(
 
   return NIVELES.map((nivel) => {
     const datos = porNivel.get(nivel);
+    // Una categoría que nadie paga queda en cero por los dos lados, no en
+    // "100% bolívares", que es lo que daría restar de uno.
     const parte = (lectura: (c: Celda) => number) =>
       Object.fromEntries(CATEGORIAS.map((c) => {
         const celda = datos?.[c];
         return [c, celda && celda.total > 0 ? lectura(celda) / celda.total : 0];
       })) as Record<Categoria, number>;
 
-    return { nivel, cuentaUSD: parte((c) => c.cuentaUSD), pagoUSD: parte((c) => c.pagoUSD) };
+    return {
+      nivel,
+      cuentaUSD: parte((c) => c.cuentaUSD),
+      cuentaVES: parte((c) => c.total - c.cuentaUSD),
+      pagoUSD:   parte((c) => c.pagoUSD),
+      pagoVES:   parte((c) => c.total - c.pagoUSD),
+    };
   });
 }
 
