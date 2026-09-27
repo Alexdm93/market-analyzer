@@ -12,7 +12,8 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { getBcvRate } from "@/lib/bcv";
+import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
+import { promedioLibre } from "@/lib/compensation";
 import { CATEGORIAS, calcularDistribucion, calcularMonedaPorNivel } from "@/lib/distribucion-compensacion";
 import { catalogoDelCorte, normalizarTitulo } from "@/lib/estudio-cargos";
 import { tamanoDeEmpresa } from "@/lib/filtros-mercado";
@@ -23,8 +24,10 @@ import {
   type GrupoMercado,
   type ParticipanteInforme,
 } from "@/lib/informe-cortesia";
+import { calcularPercentilesTcr } from "@/lib/percentiles-tcr";
 import { prisma } from "@/lib/prisma";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
+import { getLibreRate } from "@/lib/tcr-config";
 import { safeParseCompanyInfo } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
 
@@ -120,7 +123,8 @@ export async function POST(request: Request) {
         unidadFuncional: unidadPorCargo.get(normalizarTitulo(tituloCargo)) ?? "",
         n: Number(c.n) || 0,
         cim: estadistica(c.cim),
-        cimTcrP50: numeroONulo(c.cimTcrP50),
+        // Se llena más abajo, con el mercado en TCR.
+        cimTcrP50: null as number | null,
       };
     })
     .filter((c) => c.tituloCargo && c.n > 0)
@@ -142,7 +146,7 @@ export async function POST(request: Request) {
 
   // Participantes: las empresas que enviaron data. Es la misma condición que
   // da derecho al informe.
-  const [enviados, posiciones, { rate: bcvGeneral }] = await Promise.all([
+  const [enviados, posiciones, tasasGlobales, workspaces] = await Promise.all([
     prisma.userSnapshot.findMany({
       where: { snapshotId, submittedAt: { not: null } },
       select: {
@@ -158,21 +162,43 @@ export async function POST(request: Request) {
       where: { snapshotId, snapshot: { submittedAt: { not: null } } },
       select: { userId: true, dataJson: true },
     }),
-    getBcvRate(),
+    Promise.all([getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate()]),
+    // Todos, no solo los de las empresas del corte: los percentiles en TCR se
+    // calculan sobre el mismo universo que ve la pantalla.
+    prisma.userWorkspace.findMany({
+      select: { userId: true, snapshotsJson: true, companyInfoJson: true },
+    }),
   ]);
 
   if (enviados.length === 0) {
     return Response.json({ message: "Ninguna empresa ha enviado data en ese corte." }, { status: 400 });
   }
 
+  const [{ rate: bcvGeneral }, { rate: bcvEurGeneral }, { rate: binanceGeneral }, { rate: libreManual }] = tasasGlobales;
+
   // Cada empresa convierte con la tasa que tenía al guardar, igual que el resto
   // del sistema.
-  const idsDeUsuario = [...new Set([...posiciones.map((p) => p.userId), ...enviados.map((e) => e.userId)])];
-  const workspaces = await prisma.userWorkspace.findMany({
-    where: { userId: { in: idsDeUsuario } },
-    select: { userId: true, companyInfoJson: true },
-  });
   const infoPorUsuario = new Map(workspaces.map((w) => [w.userId, safeParseCompanyInfo(w.companyInfoJson)]));
+
+  // La columna "P50 - TCR BCV-USD": el mercado del corte completo, sin filtros.
+  // Se calcula acá y no en el navegador porque si la llamada fallaba, la
+  // columna salía "ND" en todas las filas sin que nadie se enterara.
+  const tcrPorCargo = new Map<string, number | null>();
+  if (bcvGeneral || promedioLibre(binanceGeneral, bcvEurGeneral) || libreManual) {
+    const mercadoTcr = calcularPercentilesTcr({
+      snapshotId,
+      tcrType: "bcv",
+      filtros: { sectores: [], clasificaciones: [], empresas: [], localidades: [], tamanos: [] },
+      workspaces,
+      globales: { bcv: bcvGeneral, bcvEur: bcvEurGeneral, binance: binanceGeneral, libreManual },
+    });
+    for (const c of mercadoTcr.cargos) {
+      tcrPorCargo.set(normalizarTitulo(c.tituloCargo), c.conPasivosMensual.p50 ?? null);
+    }
+  }
+  for (const cargo of cargos) {
+    cargo.cimTcrP50 = tcrPorCargo.get(normalizarTitulo(cargo.tituloCargo)) ?? null;
+  }
 
   // Sector y tamaño de cada participante, para los gráficos de la hoja de
   // empresas. Manda lo que la empresa declaró al enviar su data, que es la

@@ -1,56 +1,23 @@
+/**
+ * Percentiles del corte expresados en TCR.
+ *
+ * El cálculo vive en `lib/percentiles-tcr` porque el informe de cortesía lo
+ * necesita del lado del servidor. Acá quedan los permisos, los parámetros y
+ * las tasas globales.
+ */
 import { getServerSession } from "next-auth";
+
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { safeParseSnapshots, safeParseCompanyInfo } from "@/lib/workspace";
-import { computeTCRTotals, computeMetricPercentiles, promedioLibre, tasasTcrDeEmpresa, type MetricPercentiles, type TcrType } from "@/lib/compensation";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
-import { getLibreRate } from "@/lib/tcr-config";
+import { promedioLibre, type TcrType } from "@/lib/compensation";
+import { leerFiltrosMercado } from "@/lib/filtros-mercado";
+import { calcularPercentilesTcr, type TcrPercentilesResponse } from "@/lib/percentiles-tcr";
+import { prisma } from "@/lib/prisma";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
-import { leerFiltrosMercado, pasaFiltros } from "@/lib/filtros-mercado";
+import { getLibreRate } from "@/lib/tcr-config";
+import { safeParseSnapshots } from "@/lib/workspace";
 
-export type TcrCargoPercentiles = {
-  tituloCargo: string;
-  n: number;
-  sinPasivosMensual: MetricPercentiles;
-  conPasivosMensual: MetricPercentiles;
-  conPasivosAnual: MetricPercentiles;
-  directoMensualizado: MetricPercentiles;
-};
-
-export type TcrGradePercentiles = {
-  grade: number;
-  n: number;
-  sinPasivosMensual: MetricPercentiles;
-  conPasivosMensual: MetricPercentiles;
-  conPasivosAnual: MetricPercentiles;
-  directoMensualizado: MetricPercentiles;
-};
-
-export type TcrPercentilesResponse = {
-  snapshotId: string;
-  bcvRate: number | null;
-  tcrType: TcrType;
-  tcrRate: number;
-  libreRate: number;
-  cargos: TcrCargoPercentiles[];
-  grades: TcrGradePercentiles[];
-};
-
-type CargoAccum = {
-  tituloCargo: string;
-  sinPasivosMensual: number[];
-  conPasivosMensual: number[];
-  conPasivosAnual: number[];
-  directoMensualizado: number[];
-};
-
-type GradeAccum = {
-  grade: number;
-  sinPasivosMensual: number[];
-  conPasivosMensual: number[];
-  conPasivosAnual: number[];
-  directoMensualizado: number[];
-};
+export type { TcrCargoPercentiles, TcrGradePercentiles, TcrPercentilesResponse } from "@/lib/percentiles-tcr";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -59,10 +26,9 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const snapshotId      = searchParams.get("snapshotId")?.trim() ?? "";
-  const tcrTypeParam    = searchParams.get("tcrType")?.trim() ?? "bcv";
-  const libreRateParam  = searchParams.get("libreRate")?.trim() ?? "";
-  const filtrosMercado = leerFiltrosMercado(searchParams);
+  const snapshotId   = searchParams.get("snapshotId")?.trim() ?? "";
+  const tcrTypeParam = searchParams.get("tcrType")?.trim() ?? "bcv";
+  const filtros = leerFiltrosMercado(searchParams);
 
   if (!snapshotId) {
     return Response.json({ message: "Indica el corte." }, { status: 400 });
@@ -102,110 +68,18 @@ export async function GET(request: Request) {
     return Response.json({ message: "No hay tasas de mercado disponibles para calcular TCR. Intenta más tarde." }, { status: 422 });
   }
 
-  const cargoGroups = new Map<string, CargoAccum>();
-  const gradeGroups = new Map<number, GradeAccum>();
-
-  for (const workspace of workspaces) {
-    const snapshots  = safeParseSnapshots(workspace.snapshotsJson);
-    const snapshot   = snapshots[snapshotId];
-    if (!snapshot?.rows?.length) continue;
-
-    const hasNonCarried = snapshot.rows.some((row) => !row._carried);
-    if (!hasNonCarried) continue;
-
-    const companyInfo = safeParseCompanyInfo(workspace.companyInfoJson);
-
-    if (!pasaFiltros(companyInfo, filtrosMercado)) continue;
-
-    // Las tasas que esta empresa tenía cuando envió su data. La resolución vive
-    // en lib/compensation para que la pantalla del cliente use exactamente la
-    // misma y no se comparen contra un mercado calculado con otro cambio.
-    const { bcvRate, bcvEurRate, libreRate, tcrRate } = tasasTcrDeEmpresa(
-      companyInfo.ratesAtSave,
-      { bcv: globalBcvRate, bcvEur: globalBcvEurRate, binance: globalBinanceRate, libreManual: libreOverride },
-      tcrType,
-    );
-
-    const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
-    const diasUtilidades = Number(companyInfo.minUtilityDays)  || 0;
-    const tasas          = companyInfo.tasas ?? [];
-
-    // Una observación por empresa por cargo/grado — igual que percentiles y
-    // percentiles-by-grade — para que una sola empresa con muchos empleados en
-    // el mismo cargo no domine/sesgue el "promedio de mercado".
-    const seenTituloInCompany = new Set<string>();
-    const seenGradeInCompany = new Set<number>();
-
-    for (const row of snapshot.rows) {
-      const totals = computeTCRTotals(row, tasas, bcvRate, bcvEurRate, libreRate, tcrRate, tcrType, diasVacaciones, diasUtilidades);
-      if (totals.totalSinPasivosMensual === 0 && totals.totalDirectoMensualizado === 0) continue;
-
-      // Accumulate by cargo title — one observation per company (first row wins on duplicates)
-      const titulo = String(row.tituloCargo ?? "").trim();
-      const normTitulo = titulo.toLowerCase();
-      if (normTitulo && !seenTituloInCompany.has(normTitulo)) {
-        seenTituloInCompany.add(normTitulo);
-        const existing = cargoGroups.get(normTitulo);
-        if (existing) {
-          existing.sinPasivosMensual.push(totals.totalSinPasivosMensual);
-          existing.conPasivosMensual.push(totals.totalConPasivosMensual);
-          existing.conPasivosAnual.push(totals.totalConPasivosAnual);
-          existing.directoMensualizado.push(totals.totalDirectoMensualizado);
-        } else {
-          cargoGroups.set(normTitulo, {
-            tituloCargo: titulo,
-            sinPasivosMensual:   [totals.totalSinPasivosMensual],
-            conPasivosMensual:   [totals.totalConPasivosMensual],
-            conPasivosAnual:     [totals.totalConPasivosAnual],
-            directoMensualizado: [totals.totalDirectoMensualizado],
-          });
-        }
-      }
-
-      // Accumulate by grade — one observation per company×grade (first row wins on duplicates)
-      const grade = row.hayGrade;
-      if (grade && !seenGradeInCompany.has(grade)) {
-        seenGradeInCompany.add(grade);
-        const existing = gradeGroups.get(grade);
-        if (existing) {
-          existing.sinPasivosMensual.push(totals.totalSinPasivosMensual);
-          existing.conPasivosMensual.push(totals.totalConPasivosMensual);
-          existing.conPasivosAnual.push(totals.totalConPasivosAnual);
-          existing.directoMensualizado.push(totals.totalDirectoMensualizado);
-        } else {
-          gradeGroups.set(grade, {
-            grade,
-            sinPasivosMensual:   [totals.totalSinPasivosMensual],
-            conPasivosMensual:   [totals.totalConPasivosMensual],
-            conPasivosAnual:     [totals.totalConPasivosAnual],
-            directoMensualizado: [totals.totalDirectoMensualizado],
-          });
-        }
-      }
-    }
-  }
-
-  const cargos: TcrCargoPercentiles[] = Array.from(cargoGroups.values())
-    .map((g) => ({
-      tituloCargo: g.tituloCargo,
-      n: g.sinPasivosMensual.length,
-      sinPasivosMensual:   computeMetricPercentiles(g.sinPasivosMensual),
-      conPasivosMensual:   computeMetricPercentiles(g.conPasivosMensual),
-      conPasivosAnual:     computeMetricPercentiles(g.conPasivosAnual),
-      directoMensualizado: computeMetricPercentiles(g.directoMensualizado),
-    }))
-    .sort((a, b) => a.tituloCargo.localeCompare(b.tituloCargo, "es"));
-
-  const grades: TcrGradePercentiles[] = Array.from(gradeGroups.values())
-    .map((g) => ({
-      grade: g.grade,
-      n: g.sinPasivosMensual.length,
-      sinPasivosMensual:   computeMetricPercentiles(g.sinPasivosMensual),
-      conPasivosMensual:   computeMetricPercentiles(g.conPasivosMensual),
-      conPasivosAnual:     computeMetricPercentiles(g.conPasivosAnual),
-      directoMensualizado: computeMetricPercentiles(g.directoMensualizado),
-    }))
-    .sort((a, b) => a.grade - b.grade);
+  const { cargos, grades } = calcularPercentilesTcr({
+    snapshotId,
+    tcrType,
+    filtros,
+    workspaces,
+    globales: {
+      bcv: globalBcvRate,
+      bcvEur: globalBcvEurRate,
+      binance: globalBinanceRate,
+      libreManual: libreOverride,
+    },
+  });
 
   return Response.json({
     snapshotId,

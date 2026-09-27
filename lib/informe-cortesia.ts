@@ -207,10 +207,11 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Buff
   const hojaDist = wb.hoja(HOJA_DISTRIBUCION);
   if (hojaDist) {
     // Cabecera: "Niveles" en la A (combinada con la B) y las ocho categorías
-    // del CEO de la C a la J.
-    hojaDist.set("A8", "Niveles", "A8");
+    // del CEO de la C a la J. Sin tocar el formato: la plantilla ya lo trae, y
+    // copiarle el de otra celda le cambia los bordes.
+    escribir(hojaDist, "A8", "Niveles");
     datos.categoriasDistribucion.forEach((titulo, i) => {
-      hojaDist.set(`${COLS_CATEGORIAS[i]}8`, titulo, "C8");
+      escribir(hojaDist, `${COLS_CATEGORIAS[i]}8`, titulo);
     });
 
     datos.distribucion.forEach((f, idx) => {
@@ -237,11 +238,12 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Buff
  */
 function escribirCuadroDeMonedas(hoja: HojaPlantilla, categorias: string[], filas: FilaMonedaInforme[]) {
   const cabecera = CELDA.filaCabeceraMoneda;
-  hoja.set(`A${cabecera}`, "Niveles", "A8");
-  // La plantilla arrastra un título de más en la B de la cabecera.
-  hoja.limpiar(`B${cabecera}`);
+  hoja.set(`A${cabecera}`, "Niveles");
+  // La plantilla arrastra un título de más en la B de la cabecera. Se borra el
+  // texto pero no el formato: la celda es parte de la banda del encabezado.
+  hoja.set(`B${cabecera}`, null);
   categorias.forEach((titulo, i) => {
-    hoja.set(`${COLS_CATEGORIAS[i]}${cabecera}`, titulo, "C8");
+    hoja.set(`${COLS_CATEGORIAS[i]}${cabecera}`, titulo);
   });
 
   filas.forEach((f, idx) => {
