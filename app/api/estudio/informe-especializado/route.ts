@@ -29,6 +29,7 @@ import { tasasTcrDeEmpresa } from "@/lib/compensation";
 import { getLibreRate } from "@/lib/tcr-config";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { generarInformeEspecializado, mesYAnioEsp } from "@/lib/informe-especializado";
+import { tamanoDeEmpresa } from "@/lib/filtros-mercado";
 import { prisma } from "@/lib/prisma";
 import { safeParseCompanyInfo } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
@@ -91,7 +92,10 @@ export async function POST(request: Request) {
     getBcvRate(),
     prisma.userSnapshot.findMany({
       where: { snapshotId, submittedAt: { not: null } },
-      select: { company: { select: { name: true } } },
+      select: {
+        userId: true,
+        company: { select: { name: true, economicSector: true, headcount: true } },
+      },
       distinct: ["companyId"],
     }),
     // processedAt manda sobre la fecha del corte: la portada dice cuándo se
@@ -151,6 +155,29 @@ export async function POST(request: Request) {
     }
   }
 
+  // Sector y tamaño de cada participante: alimentan los dos treemaps de la
+  // hoja de empresas. Manda lo que la empresa declaró al enviar su data, que
+  // es la fuente de los filtros de mercado; la ficha del admin queda de
+  // respaldo.
+  const infoPorUsuario = new Map(
+    (await prisma.userWorkspace.findMany({
+      where: { userId: { in: participantes.map((p) => p.userId) } },
+      select: { userId: true, companyInfoJson: true },
+    })).map((w) => [w.userId, safeParseCompanyInfo(w.companyInfoJson)]),
+  );
+  const participantesConPerfil = participantes
+    .filter((p) => p.company?.name)
+    .map((p) => {
+      const suya = infoPorUsuario.get(p.userId);
+      const tamano = tamanoDeEmpresa(suya?.headcount || p.company?.headcount || "");
+      return {
+        empresa: p.company!.name,
+        sector: (suya?.sector || p.company?.economicSector || "").trim(),
+        tamano: tamano ? tamano.charAt(0).toUpperCase() + tamano.slice(1) : "",
+      };
+    })
+    .sort((a, b) => a.empresa.localeCompare(b.empresa, "es"));
+
   const filas = construirFilas(ocupantes, nombreEmpresa, tasas, bcv, diasVac, diasUtil, config, opcionesTcr);
 
   const buffer = await generarInformeEspecializado({
@@ -158,8 +185,7 @@ export async function POST(request: Request) {
     proyecto: snapshot?.label ?? snapshotId,
     fechaInforme: mesYAnioEsp(new Date()),
     fechaData: mesYAnioEsp(snapshot?.processedAt ?? snapshot?.date ?? new Date()),
-    empresasParticipantes: [...new Set(participantes.map((p) => p.company?.name).filter((n): n is string => Boolean(n)))]
-      .sort((a, b) => a.localeCompare(b, "es")),
+    empresasParticipantes: participantesConPerfil,
     config,
     configSimulador,
     parametros: { diasVacaciones: diasVac, diasUtilidades: diasUtil, bcv },

@@ -43,7 +43,7 @@ export const HOJAS = {
 
 /** Primera fila de datos de cada hoja, tomadas de la plantilla real. */
 const PRIMERA_FILA = {
-  empresas: 27,
+  empresas: 28,
   dispersion: 13,
   equidad: 13,
   competitividad: 13,
@@ -65,6 +65,13 @@ const COLS_DATA_EMPRESA = (() => {
   return cols;
 })();
 
+/** Una empresa del corte, para la lista y los dos treemaps. */
+export type ParticipanteEspecializado = {
+  empresa: string;
+  sector: string;
+  tamano: string;
+};
+
 export type CargoMapeado = {
   grado: number;
   area: string;
@@ -78,7 +85,7 @@ export type DatosEspecializado = {
   proyecto: string;
   fechaInforme: string;
   fechaData: string;
-  empresasParticipantes: string[];
+  empresasParticipantes: ParticipanteEspecializado[];
   config: ConfiguracionInforme;
   configSimulador: ConfigSimulador;
   /** Contra qué grupo de mercado se comparó: "Mercado general", un sector, etc. */
@@ -161,7 +168,7 @@ function frecuenciaDe(c: ConfiguracionInforme["concepto"]): string {
  * de la plantilla. Y hay que rehacer las combinaciones: las 119 que trae el
  * archivo están atadas a la estructura del cliente del ejemplo.
  */
-const MAPEO_PRIMERA_FILA = 6;
+const MAPEO_PRIMERA_FILA = 5;
 const MAPEO_FILAS_POR_CARGO = 4;
 const MAPEO_COLUMNAS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
 
@@ -206,8 +213,11 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
         const base = fila + idx * (MAPEO_FILAS_POR_CARGO + 1);
         ws.set(`${col}${base}`, c.tituloCargo);
         ws.set(`${col}${base + 1}`, c.unidadFuncional);
-        ws.set(`${col}${base + 2}`, c.reportaA ? "Reporta a:" : null);
-        ws.set(`${col}${base + 3}`, c.reportaA || null);
+        // Una sola celda: "Reporta a: Fulano". Antes iba la etiqueta en una
+        // fila y el nombre en la siguiente, y cuando el cliente no cargaba a
+        // quién reporta quedaba un "Reporta a:" suelto sin nadie detrás.
+        ws.set(`${col}${base + 2}`, c.reportaA ? `Reporta a: ${c.reportaA}` : null);
+        ws.set(`${col}${base + 3}`, null);
       });
 
       // Lo que sobra de la banda se limpia y se combina, como en la plantilla.
@@ -265,17 +275,19 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   set(inicio, "B18", datos.cliente);
 
   // ── Empresas participantes ──
+  // Una tabla de empresa, sector y tamaño desde la fila 28. Los dos treemaps
+  // de arriba se dibujan con los COUNTIF de la plantilla sobre estas columnas,
+  // así que acá no se escribe ningún conteo.
   const hojaEmpresas = wb.hoja(HOJAS.empresas);
   if (hojaEmpresas) {
     set(hojaEmpresas, "I25", `Total: ${datos.empresasParticipantes.length} empresas`);
-    const mitad = Math.ceil(datos.empresasParticipantes.length / 2);
-    const izq = datos.empresasParticipantes.slice(0, mitad);
-    const der = datos.empresasParticipantes.slice(mitad);
-    const maximo = Math.max(izq.length, der.length);
-    for (let i = 0; i < maximo; i++) {
-      setFila(hojaEmpresas, PRIMERA_FILA.empresas + i, [["A", izq[i] ?? null], ["G", der[i] ?? null]]);
-    }
-    limpiarDesde(hojaEmpresas, PRIMERA_FILA.empresas + maximo, ["A", "G"], 80);
+    datos.empresasParticipantes.forEach((p, i) => {
+      setFila(hojaEmpresas, PRIMERA_FILA.empresas + i, [
+        ["A", p.empresa], ["B", p.sector || "ND"], ["C", p.tamano || "ND"],
+      ]);
+    });
+    limpiarDesde(hojaEmpresas, PRIMERA_FILA.empresas + datos.empresasParticipantes.length,
+      ["A", "B", "C", "G"], 200);
   }
 
   // ── Dispersión ──
