@@ -13,7 +13,6 @@ import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
-import { SelectorBuscador } from "@/components/SelectorBuscador";
 import { useEstudio } from "@/contexts/EstudioContext";
 
 type Metrica = "sinPasivosMensual" | "directoMensualizado" | "conPasivosMensual" | "conPasivosAnual";
