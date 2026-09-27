@@ -129,11 +129,8 @@ export default function ComparacionPage() {
   const [filtroClasificaciones, setFiltroClasificaciones] = useState<string[]>([]);
   const [filtroLocalidades, setFiltroLocalidades] = useState<string[]>([]);
   const [filtroTamanos, setFiltroTamanos] = useState<string[]>([]);
-  const [abrirEmpresas, setAbrirEmpresas] = useState(false);
-  const [filtroEmpresas, setFiltroEmpresas] = useState<string[]>([]);
-  const [buscaEmpresa, setBuscaEmpresa] = useState("");
-  const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; empresas: string[]; localidades: string[] }>(
-    { sectores: [], clasificaciones: [], empresas: [], localidades: [] },
+  const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; localidades: string[] }>(
+    { sectores: [], clasificaciones: [], localidades: [] },
   );
   const [abrirGrupo, setAbrirGrupo] = useState(false);
 
@@ -201,8 +198,8 @@ export default function ComparacionPage() {
   // Los percentiles salen de las rutas que ya alimentan el estudio de cortesía:
   // así la comparación da exactamente lo mismo que ve la empresa en Resultados.
   /**
-   * Los filtros del grupo de comparación. La ruta los llama `sizes`, pero lo
-   * que filtra es la clasificación de la empresa, o sea el subsector.
+   * Los filtros del grupo de comparación: por criterio, no por empresa. La
+   * ruta llama `sizes` a la clasificación, que es el subsector.
    */
   const filtrosMercado = useCallback(() => {
     const p = new URLSearchParams();
@@ -210,9 +207,8 @@ export default function ComparacionPage() {
     if (filtroClasificaciones.length > 0) p.set("sizes", filtroClasificaciones.join(","));
     if (filtroLocalidades.length > 0) p.set("localities", filtroLocalidades.join(","));
     if (filtroTamanos.length > 0) p.set("tamanos", filtroTamanos.join(","));
-    if (filtroEmpresas.length > 0) p.set("companies", filtroEmpresas.join(","));
     return p;
-  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos, filtroEmpresas]);
+  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos]);
 
   const descripcionGrupo = useMemo(() => {
     const partes: string[] = [];
@@ -224,12 +220,11 @@ export default function ComparacionPage() {
       resumir(filtroClasificaciones, "clasificación", "clasificaciones"),
       resumir(filtroLocalidades, "ubicación", "ubicaciones"),
       resumir(filtroTamanos.map((t) => TAMANOS.find((x) => x.valor === t)?.etiqueta ?? t), "tamaño", "tamaños"),
-      filtroEmpresas.length > 0 ? `${filtroEmpresas.length} empresas` : "",
     ]) {
       if (texto) partes.push(texto);
     }
     return partes.length > 0 ? partes.join(" · ") : "Mercado general";
-  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos, filtroEmpresas]);
+  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos]);
 
   // Las tasas del sistema, para poder expresar el estudio en TCR.
   useEffect(() => {
@@ -259,7 +254,7 @@ export default function ComparacionPage() {
 
     void fetch(`/api/percentiles?${base}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((d: { grupos?: GrupoCargo[]; availableSectors?: string[]; availableSizes?: string[]; availableCompanies?: string[]; availableLocalities?: string[] } | null) => {
+      .then((d: { grupos?: GrupoCargo[]; availableSectors?: string[]; availableSizes?: string[]; availableLocalities?: string[] } | null) => {
         if (ignorar) return;
         setPorCargo(d?.grupos ?? []);
         // Las listas se quedan con lo que devuelve el corte completo; si se
@@ -267,7 +262,6 @@ export default function ComparacionPage() {
         setDisponibles((prev) => ({
           sectores: (d?.availableSectors?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSectors! : prev.sectores,
           clasificaciones: (d?.availableSizes?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSizes! : prev.clasificaciones,
-          empresas: (d?.availableCompanies?.length ?? 0) > 0 && !consultaFiltros ? d!.availableCompanies! : prev.empresas,
           localidades: (d?.availableLocalities?.length ?? 0) > 0 && !consultaFiltros ? d!.availableLocalities! : prev.localidades,
         }));
       })
@@ -710,66 +704,6 @@ export default function ComparacionPage() {
                     onToggle={(v) => setFiltroTamanos((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
                     onLimpiar={() => setFiltroTamanos([])}
                   />
-                </div>
-
-                {/* Elegir empresas a dedo es otra forma de armar el grupo, no un
-                    filtro más, así que va aparte y cerrada. */}
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <button
-                    type="button"
-                    onClick={() => setAbrirEmpresas((v) => !v)}
-                    className="flex w-full items-center justify-between text-left"
-                  >
-                    <span>
-                      <span className="block text-sm font-semibold text-slate-900">O elegir empresas puntuales</span>
-                      <span className="block text-xs text-slate-500">
-                        {filtroEmpresas.length === 0
-                          ? "Se usan las que cumplan los filtros de arriba"
-                          : `${filtroEmpresas.length} elegidas — se cruzan con los filtros de arriba`}
-                      </span>
-                    </span>
-                    <span className="text-xs font-semibold text-teal-700">{abrirEmpresas ? "Ocultar" : "Elegir"}</span>
-                  </button>
-
-                  {abrirEmpresas && (
-                  <div className="mt-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="search"
-                      value={buscaEmpresa}
-                      onChange={(e) => setBuscaEmpresa(e.target.value)}
-                      placeholder="Buscar…"
-                      aria-label="Buscar empresa"
-                      className="field max-w-xs"
-                    />
-                    {filtroEmpresas.length > 0 && (
-                      <button type="button" onClick={() => setFiltroEmpresas([])} className="btn btn-secondary btn-xs">
-                        Quitar selección
-                      </button>
-                    )}
-                  </div>
-                  <div className="mt-2 max-h-40 overflow-y-auto rounded-2xl border border-slate-200 p-3">
-                    <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                      {disponibles.empresas
-                        .filter((e) => !buscaEmpresa || norm(e).includes(norm(buscaEmpresa)))
-                        .map((e) => (
-                          <label key={e} className="flex items-start gap-2 text-sm text-slate-700">
-                            <input
-                              type="checkbox"
-                              checked={filtroEmpresas.includes(e)}
-                              onChange={() => setFiltroEmpresas((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e])}
-                              className="mt-1"
-                            />
-                            <span className="truncate" title={e}>{e}</span>
-                          </label>
-                        ))}
-                      {disponibles.empresas.length === 0 && (
-                        <p className="text-xs text-slate-500">Sin empresas que listar todavía.</p>
-                      )}
-                    </div>
-                  </div>
-                  </div>
-                  )}
                 </div>
 
                 <p className="text-xs text-slate-500">
