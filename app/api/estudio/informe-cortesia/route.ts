@@ -113,8 +113,12 @@ export async function POST(request: Request) {
     if (!ordenDeLaUnidad.has(c.departamento)) ordenDeLaUnidad.set(c.departamento, ordenDeLaUnidad.size);
   });
 
-  // Solo los cargos con al menos un participante, como pidió AC Consulting:
-  // una lista con el catálogo entero serían páginas de "ND".
+  // Solo los cargos que tienen algo que mostrar.
+  //
+  // Todas las columnas de la tabla —TCR, P50, promedio, mínimo y máximo—
+  // exigen las mismas observaciones mínimas, así que una fila sin mediana sale
+  // en "ND" de punta a punta: ocupa el renglón para no decir nada. Se deja
+  // fuera del informe (AC Consulting, 2026-09-27).
   const cargos: GrupoMercado[] = body.cargos
     .map((c) => {
       const tituloCargo = String(c.tituloCargo ?? "").trim();
@@ -127,7 +131,7 @@ export async function POST(request: Request) {
         cimTcrP50: null as number | null,
       };
     })
-    .filter((c) => c.tituloCargo && c.n > 0)
+    .filter((c) => c.tituloCargo && c.n > 0 && c.cim.p50 !== null)
     // Agrupados por unidad funcional, y dentro de cada una en el orden del
     // catálogo. Lo que no esté en el catálogo del corte cae al final.
     .sort((a, b) => {
@@ -141,7 +145,10 @@ export async function POST(request: Request) {
     });
 
   if (cargos.length === 0) {
-    return Response.json({ message: "Ningún cargo del corte tiene observaciones." }, { status: 400 });
+    return Response.json(
+      { message: "Ningún cargo del corte reúne las observaciones mínimas para publicarse." },
+      { status: 400 },
+    );
   }
 
   // Participantes: las empresas que enviaron data. Es la misma condición que
