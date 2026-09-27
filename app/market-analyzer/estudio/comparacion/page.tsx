@@ -560,10 +560,43 @@ export default function ComparacionPage() {
             </p>
           ) : (
           <>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <div>
+              <label htmlFor="cmp-modo" className="field-label">Comparar</label>
+              <select
+                id="cmp-modo"
+                value={modo}
+                onChange={(e) => {
+                  const siguiente = e.target.value as "cargo" | "grado";
+                  setModo(siguiente);
+                  // El filtro de grados no se ve en modo cargo: dejarlo puesto
+                  // sería filtrar a escondidas.
+                  if (siguiente === "cargo") setFiltroGrados([]);
+                }}
+                className="field-select"
+              >
+                <option value="cargo">Por cargo homologado</option>
+                <option value="grado">Por grado CAPRI</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="cmp-metrica" className="field-label">Métrica</label>
+              <select id="cmp-metrica" value={metrica} onChange={(e) => setMetrica(e.target.value as Metrica)} className="field-select">
+                {METRICAS.map((m) => <option key={m.value} value={m.value}>{m.sigla} — {m.label}</option>)}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={comisiones} onChange={(e) => setComisiones(e.target.checked)} className="mt-1" />
+                <span>Incluir comisiones</span>
+              </label>
+            </div>
+          </div>
+
           {/* Solo cuando se compara por grado. Con "por cargo homologado" el grado
               no interviene en nada de lo que se ve, así que mostrarlo confunde. */}
           {modo === "grado" && gradosDisponibles.length > 0 && (
-            <div className="mb-5 rounded-2xl border border-slate-200 p-4">
+            <div className="mt-5 rounded-2xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span>
                   <span className="block text-sm font-semibold text-slate-900">Grados a analizar</span>
@@ -604,39 +637,6 @@ export default function ComparacionPage() {
               </div>
             </div>
           )}
-
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <div>
-              <label htmlFor="cmp-modo" className="field-label">Comparar</label>
-              <select
-                id="cmp-modo"
-                value={modo}
-                onChange={(e) => {
-                  const siguiente = e.target.value as "cargo" | "grado";
-                  setModo(siguiente);
-                  // El filtro de grados no se ve en modo cargo: dejarlo puesto
-                  // sería filtrar a escondidas.
-                  if (siguiente === "cargo") setFiltroGrados([]);
-                }}
-                className="field-select"
-              >
-                <option value="cargo">Por cargo homologado</option>
-                <option value="grado">Por grado CAPRI</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="cmp-metrica" className="field-label">Métrica</label>
-              <select id="cmp-metrica" value={metrica} onChange={(e) => setMetrica(e.target.value as Metrica)} className="field-select">
-                {METRICAS.map((m) => <option key={m.value} value={m.value}>{m.sigla} — {m.label}</option>)}
-              </select>
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-start gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={comisiones} onChange={(e) => setComisiones(e.target.checked)} className="mt-1" />
-                <span>Incluir comisiones</span>
-              </label>
-            </div>
-          </div>
 
           {/* ── Tipo de cambio ───────────────────────────────────────── */}
           <div className="mt-5 rounded-2xl border border-slate-200 p-4">
