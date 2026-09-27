@@ -91,7 +91,7 @@ export type DatosEspecializado = {
   empresasParticipantes: string[];
   config: ConfiguracionInforme;
   configSimulador: ConfigSimulador;
-  /** Contra qué grupo de mercado se comparó: "Transversales", un sector, etc. */
+  /** Contra qué grupo de mercado se comparó: "Mercado general", un sector, etc. */
   grupoComparacion: string;
   /** Los parámetros con los que se calculó, para la hoja de data de la empresa. */
   parametros: { diasVacaciones: number; diasUtilidades: number; bcv: number | null };
@@ -466,7 +466,7 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   // comparación del cliente de ejemplo, con nombres de empresas reales.
   const listas = wb.hoja(HOJAS.listas);
   if (listas) {
-    set(listas, "D3", datos.grupoComparacion || "Transversales");
+    set(listas, "D3", datos.grupoComparacion || "Mercado general");
     for (const fila of [4, 5, 6, 7, 8]) set(listas, `D${fila}`, null);
   }
 

@@ -79,7 +79,7 @@ export default function ComparacionPage() {
   const [bajandoExcel, setBajandoExcel] = useState(false);
 
   // Grupo de mercado contra el que se compara. La plantilla lo llama
-  // "Compañía / Unidad" y por defecto dice "Transversales", o sea todo el corte.
+  // "Compañía / Unidad" y por defecto dice "Mercado general", o sea todo el corte.
   const [filtroSector, setFiltroSector] = useState("");
   const [filtroClasificacion, setFiltroClasificacion] = useState("");
   const [filtroEmpresas, setFiltroEmpresas] = useState<string[]>([]);
@@ -169,7 +169,7 @@ export default function ComparacionPage() {
     if (filtroSector) partes.push(filtroSector);
     if (filtroClasificacion) partes.push(filtroClasificacion);
     if (filtroEmpresas.length > 0) partes.push(`${filtroEmpresas.length} empresas`);
-    return partes.length > 0 ? partes.join(" · ") : "Transversales";
+    return partes.length > 0 ? partes.join(" · ") : "Mercado general";
   }, [filtroSector, filtroClasificacion, filtroEmpresas]);
 
   // Las tasas del sistema, para poder expresar el estudio en TCR.

@@ -154,7 +154,7 @@ export async function POST(request: Request) {
         }
       : null,
     dataEmpresa: construirDataEmpresa(ocupantes, nombreEmpresa, tasas, bcv),
-    grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Transversales",
+    grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Mercado general",
     dispersion: filas,
     equidad: analizarEquidad(filas, config.aperturaBandas),
     competitividad: analizarCompetitividad(filas, mercadoPorGrado),
