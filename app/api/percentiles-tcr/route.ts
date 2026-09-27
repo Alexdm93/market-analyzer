@@ -6,6 +6,7 @@ import { computeTCRTotals, computeMetricPercentiles, promedioLibre, tasasTcrDeEm
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { getLibreRate } from "@/lib/tcr-config";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
+import { leerFiltrosMercado, pasaFiltros } from "@/lib/filtros-mercado";
 
 export type TcrCargoPercentiles = {
   tituloCargo: string;
@@ -61,9 +62,7 @@ export async function GET(request: Request) {
   const snapshotId      = searchParams.get("snapshotId")?.trim() ?? "";
   const tcrTypeParam    = searchParams.get("tcrType")?.trim() ?? "bcv";
   const libreRateParam  = searchParams.get("libreRate")?.trim() ?? "";
-  const filterSectors   = searchParams.get("sectors")?.split(",").filter(Boolean) ?? [];
-  const filterSizes     = searchParams.get("sizes")?.split(",").filter(Boolean) ?? [];
-  const filterCompanies = searchParams.get("companies")?.split(",").filter(Boolean) ?? [];
+  const filtrosMercado = leerFiltrosMercado(searchParams);
 
   if (!snapshotId) {
     return Response.json({ message: "Indica el corte." }, { status: 400 });
@@ -116,9 +115,7 @@ export async function GET(request: Request) {
 
     const companyInfo = safeParseCompanyInfo(workspace.companyInfoJson);
 
-    if (filterSectors.length   > 0 && (!companyInfo.sector         || !filterSectors.includes(companyInfo.sector)))                continue;
-    if (filterSizes.length     > 0 && (!companyInfo.classification || !filterSizes.includes(companyInfo.classification)))          continue;
-    if (filterCompanies.length > 0 && (!companyInfo.companyName    || !filterCompanies.includes(companyInfo.companyName)))         continue;
+    if (!pasaFiltros(companyInfo, filtrosMercado)) continue;
 
     // Las tasas que esta empresa tenía cuando envió su data. La resolución vive
     // en lib/compensation para que la pantalla del cliente use exactamente la

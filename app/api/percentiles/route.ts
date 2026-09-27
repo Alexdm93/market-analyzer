@@ -5,6 +5,7 @@ import { safeParseSnapshots, safeParseCompanyInfo } from "@/lib/workspace";
 import { computeRowTotals, computeMetricPercentiles, type MetricPercentiles } from "@/lib/compensation";
 import { getBcvRate } from "@/lib/bcv";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
+import { leerFiltrosMercado, localidadesDe, pasaFiltros } from "@/lib/filtros-mercado";
 
 export type CargoPercentiles = {
   tituloCargo: string;
@@ -22,6 +23,7 @@ export type PercentilesResponse = {
   availableSectors: string[];
   availableSizes: string[];
   availableCompanies: string[];
+  availableLocalities: string[];
 };
 
 type CargoAccum = {
@@ -41,9 +43,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const snapshotId = searchParams.get("snapshotId")?.trim() ?? "";
-  const filterSectors   = searchParams.get("sectors")?.split(",").filter(Boolean) ?? [];
-  const filterSizes     = searchParams.get("sizes")?.split(",").filter(Boolean) ?? [];
-  const filterCompanies = searchParams.get("companies")?.split(",").filter(Boolean) ?? [];
+  const filtrosMercado = leerFiltrosMercado(searchParams);
 
   if (!snapshotId) {
     return Response.json({ message: "Indica el corte." }, { status: 400 });
@@ -81,6 +81,7 @@ export async function GET(request: Request) {
   const availableSectors   = new Set<string>();
   const availableSizes     = new Set<string>();
   const availableCompanies = new Set<string>();
+  const availableLocalities = new Set<string>();
 
   for (const workspace of workspaces) {
     const snapshots = safeParseSnapshots(workspace.snapshotsJson);
@@ -97,11 +98,10 @@ export async function GET(request: Request) {
     if (companyInfo.sector)         availableSectors.add(companyInfo.sector);
     if (companyInfo.classification) availableSizes.add(companyInfo.classification);
     if (companyInfo.companyName)    availableCompanies.add(companyInfo.companyName);
+    for (const l of localidadesDe(companyInfo)) availableLocalities.add(l);
 
     // Apply user-selected filters
-    if (filterSectors.length   > 0 && (!companyInfo.sector         || !filterSectors.includes(companyInfo.sector)))                   continue;
-    if (filterSizes.length     > 0 && (!companyInfo.classification || !filterSizes.includes(companyInfo.classification)))             continue;
-    if (filterCompanies.length > 0 && (!companyInfo.companyName    || !filterCompanies.includes(companyInfo.companyName)))            continue;
+    if (!pasaFiltros(companyInfo, filtrosMercado)) continue;
     const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
     const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
     const tasas = companyInfo.tasas ?? [];
@@ -158,6 +158,7 @@ export async function GET(request: Request) {
     availableSectors:   Array.from(availableSectors).sort((a, b) => a.localeCompare(b, "es")),
     availableSizes:     Array.from(availableSizes).sort((a, b) => a.localeCompare(b, "es")),
     availableCompanies: Array.from(availableCompanies).sort((a, b) => a.localeCompare(b, "es")),
+    availableLocalities: Array.from(availableLocalities).sort((a, b) => a.localeCompare(b, "es")),
   };
 
   return Response.json(response);

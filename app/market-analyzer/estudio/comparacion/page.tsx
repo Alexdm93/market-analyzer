@@ -50,6 +50,48 @@ function money(v: number | null | undefined) {
   return Math.round(v).toLocaleString("es-VE");
 }
 
+/**
+ * Una lista de casillas para elegir varias opciones. Se repite para sectores y
+ * ubicaciones, que son listas cortas pero de largo variable.
+ */
+function ListaCasillas({
+  titulo, vacio, opciones, elegidas, onToggle, onLimpiar,
+}: {
+  titulo: string;
+  vacio: string;
+  opciones: string[];
+  elegidas: string[];
+  onToggle: (valor: string) => void;
+  onLimpiar: () => void;
+}) {
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="field-label mb-0">{titulo}</span>
+        <span className="text-xs text-slate-500">
+          {elegidas.length === 0 ? vacio : `${elegidas.length} ${elegidas.length === 1 ? "elegido" : "elegidos"}`}
+        </span>
+      </div>
+      {elegidas.length > 0 && (
+        <button type="button" onClick={onLimpiar} className="btn btn-secondary btn-xs mt-2">
+          Quitar selección
+        </button>
+      )}
+      <div className="mt-2 max-h-40 overflow-y-auto rounded-2xl border border-slate-200 p-3">
+        <div className="grid gap-1.5">
+          {opciones.map((o) => (
+            <label key={o} className="flex items-start gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={elegidas.includes(o)} onChange={() => onToggle(o)} className="mt-1" />
+              <span className="truncate" title={o}>{o}</span>
+            </label>
+          ))}
+          {opciones.length === 0 && <p className="text-xs text-slate-500">Sin opciones que listar todavía.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ComparacionPage() {
   const { data: session, status } = useSession();
   const esAdmin = isAdminRole(session?.user?.role);
@@ -80,12 +122,15 @@ export default function ComparacionPage() {
 
   // Grupo de mercado contra el que se compara. La plantilla lo llama
   // "Compañía / Unidad" y por defecto dice "Mercado general", o sea todo el corte.
-  const [filtroSector, setFiltroSector] = useState("");
+  const [filtroSectores, setFiltroSectores] = useState<string[]>([]);
   const [filtroClasificacion, setFiltroClasificacion] = useState("");
+  const [filtroLocalidades, setFiltroLocalidades] = useState<string[]>([]);
+  const [filtroHeadcountMin, setFiltroHeadcountMin] = useState("");
+  const [filtroHeadcountMax, setFiltroHeadcountMax] = useState("");
   const [filtroEmpresas, setFiltroEmpresas] = useState<string[]>([]);
   const [buscaEmpresa, setBuscaEmpresa] = useState("");
-  const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; empresas: string[] }>(
-    { sectores: [], clasificaciones: [], empresas: [] },
+  const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; empresas: string[]; localidades: string[] }>(
+    { sectores: [], clasificaciones: [], empresas: [], localidades: [] },
   );
   const [abrirGrupo, setAbrirGrupo] = useState(false);
 
@@ -158,19 +203,28 @@ export default function ComparacionPage() {
    */
   const filtrosMercado = useCallback(() => {
     const p = new URLSearchParams();
-    if (filtroSector) p.set("sectors", filtroSector);
+    if (filtroSectores.length > 0) p.set("sectors", filtroSectores.join(","));
     if (filtroClasificacion) p.set("sizes", filtroClasificacion);
     if (filtroEmpresas.length > 0) p.set("companies", filtroEmpresas.join(","));
+    if (filtroLocalidades.length > 0) p.set("localities", filtroLocalidades.join(","));
+    if (filtroHeadcountMin.trim()) p.set("headcountMin", filtroHeadcountMin.trim());
+    if (filtroHeadcountMax.trim()) p.set("headcountMax", filtroHeadcountMax.trim());
     return p;
-  }, [filtroSector, filtroClasificacion, filtroEmpresas]);
+  }, [filtroSectores, filtroClasificacion, filtroEmpresas, filtroLocalidades, filtroHeadcountMin, filtroHeadcountMax]);
 
   const descripcionGrupo = useMemo(() => {
     const partes: string[] = [];
-    if (filtroSector) partes.push(filtroSector);
+    if (filtroSectores.length === 1) partes.push(filtroSectores[0]);
+    else if (filtroSectores.length > 1) partes.push(`${filtroSectores.length} sectores`);
     if (filtroClasificacion) partes.push(filtroClasificacion);
+    if (filtroLocalidades.length === 1) partes.push(filtroLocalidades[0]);
+    else if (filtroLocalidades.length > 1) partes.push(`${filtroLocalidades.length} ubicaciones`);
+    if (filtroHeadcountMin.trim() || filtroHeadcountMax.trim()) {
+      partes.push(`${filtroHeadcountMin.trim() || "0"}–${filtroHeadcountMax.trim() || "∞"} empleados`);
+    }
     if (filtroEmpresas.length > 0) partes.push(`${filtroEmpresas.length} empresas`);
     return partes.length > 0 ? partes.join(" · ") : "Mercado general";
-  }, [filtroSector, filtroClasificacion, filtroEmpresas]);
+  }, [filtroSectores, filtroClasificacion, filtroEmpresas, filtroLocalidades, filtroHeadcountMin, filtroHeadcountMax]);
 
   // Las tasas del sistema, para poder expresar el estudio en TCR.
   useEffect(() => {
@@ -200,7 +254,7 @@ export default function ComparacionPage() {
 
     void fetch(`/api/percentiles?${base}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((d: { grupos?: GrupoCargo[]; availableSectors?: string[]; availableSizes?: string[]; availableCompanies?: string[] } | null) => {
+      .then((d: { grupos?: GrupoCargo[]; availableSectors?: string[]; availableSizes?: string[]; availableCompanies?: string[]; availableLocalities?: string[] } | null) => {
         if (ignorar) return;
         setPorCargo(d?.grupos ?? []);
         // Las listas se quedan con lo que devuelve el corte completo; si se
@@ -209,6 +263,7 @@ export default function ComparacionPage() {
           sectores: (d?.availableSectors?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSectors! : prev.sectores,
           clasificaciones: (d?.availableSizes?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSizes! : prev.clasificaciones,
           empresas: (d?.availableCompanies?.length ?? 0) > 0 && !consultaFiltros ? d!.availableCompanies! : prev.empresas,
+          localidades: (d?.availableLocalities?.length ?? 0) > 0 && !consultaFiltros ? d!.availableLocalities! : prev.localidades,
         }));
       })
       .catch(() => { if (!ignorar) setPorCargo([]); });
@@ -563,16 +618,25 @@ export default function ComparacionPage() {
             {abrirGrupo && (
               <div className="mt-4 space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label htmlFor="cmp-sector" className="field-label">Sector económico</label>
-                    <SelectorBuscador
-                      id="cmp-sector"
-                      value={filtroSector}
-                      onChange={setFiltroSector}
-                      opciones={[{ value: "", label: "Todos" }, ...disponibles.sectores.map((x) => ({ value: x, label: x }))]}
-                      placeholder="Todos"
-                    />
-                  </div>
+                  <ListaCasillas
+                    titulo="Sectores económicos"
+                    vacio="Todos los del corte"
+                    opciones={disponibles.sectores}
+                    elegidas={filtroSectores}
+                    onToggle={(v) => setFiltroSectores((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                    onLimpiar={() => setFiltroSectores([])}
+                  />
+                  <ListaCasillas
+                    titulo="Ubicación"
+                    vacio="Todas las del corte"
+                    opciones={disponibles.localidades}
+                    elegidas={filtroLocalidades}
+                    onToggle={(v) => setFiltroLocalidades((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                    onLimpiar={() => setFiltroLocalidades([])}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <label htmlFor="cmp-clasif" className="field-label">Clasificación (subsector)</label>
                     <SelectorBuscador
@@ -581,6 +645,20 @@ export default function ComparacionPage() {
                       onChange={setFiltroClasificacion}
                       opciones={[{ value: "", label: "Todas" }, ...disponibles.clasificaciones.map((x) => ({ value: x, label: x }))]}
                       placeholder="Todas"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="cmp-hc-min" className="field-label">Tamaño — desde</label>
+                    <input
+                      id="cmp-hc-min" type="number" min="0" className="field" placeholder="sin mínimo"
+                      value={filtroHeadcountMin} onChange={(e) => setFiltroHeadcountMin(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="cmp-hc-max" className="field-label">Tamaño — hasta</label>
+                    <input
+                      id="cmp-hc-max" type="number" min="0" className="field" placeholder="sin máximo"
+                      value={filtroHeadcountMax} onChange={(e) => setFiltroHeadcountMax(e.target.value)}
                     />
                   </div>
                 </div>
