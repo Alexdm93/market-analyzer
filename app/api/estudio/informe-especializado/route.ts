@@ -19,10 +19,13 @@ import {
   type ConfigSimulador,
   type ConfiguracionInforme,
   type Ocupante,
+  type OpcionesTcr,
   type PercentilesGrado,
 } from "@/lib/analisis-especializado";
 import { authOptions } from "@/lib/auth";
-import { getBcvRate } from "@/lib/bcv";
+import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
+import { tasasTcrDeEmpresa } from "@/lib/compensation";
+import { getLibreRate } from "@/lib/tcr-config";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { generarInformeEspecializado, mesYAnioEsp } from "@/lib/informe-especializado";
 import { prisma } from "@/lib/prisma";
@@ -37,6 +40,7 @@ type Cuerpo = {
   snapshotId?: string;
   version?: string;
   grupoComparacion?: string;
+  tcr?: { tipo?: string } | null;
   config?: Partial<ConfiguracionInforme>;
   configSimulador?: Partial<ConfigSimulador>;
   mercadoPorGrado?: Array<Record<string, unknown>>;
@@ -111,7 +115,26 @@ export async function POST(request: Request) {
   });
 
   const nombreEmpresa = empresa?.name ?? "";
-  const filas = construirFilas(ocupantes, nombreEmpresa, tasas, bcv, diasVac, diasUtil, config);
+
+  // Si el informe va en TCR, se resuelve con las mismas tasas que la pantalla
+  // y que la ruta de percentiles TCR: las que la empresa tenía al enviar.
+  const tipoTcr = body?.tcr?.tipo;
+  let opcionesTcr: OpcionesTcr | null = null;
+  if (tipoTcr === "bcv" || tipoTcr === "euro" || tipoTcr === "libre") {
+    const [bcvG, bcvEurG, binanceG, libreG] = await Promise.all([
+      getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
+    ]);
+    const r = tasasTcrDeEmpresa(
+      info.ratesAtSave,
+      { bcv: bcvG.rate, bcvEur: bcvEurG.rate, binance: binanceG.rate, libreManual: libreG.rate },
+      tipoTcr,
+    );
+    if (r.tcrRate > 0) {
+      opcionesTcr = { tipo: tipoTcr, bcvEur: r.bcvEurRate, libre: r.libreRate, tasaTcr: r.tcrRate };
+    }
+  }
+
+  const filas = construirFilas(ocupantes, nombreEmpresa, tasas, bcv, diasVac, diasUtil, config, opcionesTcr);
 
   const buffer = await generarInformeEspecializado({
     cliente: nombreEmpresa,
@@ -124,6 +147,12 @@ export async function POST(request: Request) {
     config,
     configSimulador,
     parametros: { diasVacaciones: diasVac, diasUtilidades: diasUtil, bcv },
+    tcr: opcionesTcr
+      ? {
+          etiqueta: opcionesTcr.tipo === "libre" ? "Libre" : opcionesTcr.tipo === "euro" ? "BCV euro" : "BCV dólar",
+          tasa: opcionesTcr.tasaTcr,
+        }
+      : null,
     dataEmpresa: construirDataEmpresa(ocupantes, nombreEmpresa, tasas, bcv),
     grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Transversales",
     dispersion: filas,

@@ -95,6 +95,8 @@ export type DatosEspecializado = {
   grupoComparacion: string;
   /** Los parámetros con los que se calculó, para la hoja de data de la empresa. */
   parametros: { diasVacaciones: number; diasUtilidades: number; bcv: number | null };
+  /** Cuando el estudio va en TCR, con qué referencia y a qué tasa. */
+  tcr?: { etiqueta: string; tasa: number } | null;
   dataEmpresa: FilaDataEmpresa[];
   dispersion: FilaAnalisis[];
   equidad: { filas: FilaEquidad[]; indiceGlobal: number | null };
@@ -245,7 +247,11 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   // cuadros de texto— viaja intacto.
   wb.sinMacros();
 
-  const concepto = etiquetaConcepto(datos.config.concepto);
+  // Si el estudio va en TCR, el concepto lo dice: si no, el informe parecería
+  // estar en dólares BCV y los montos no cuadrarían con nada.
+  const concepto = datos.tcr
+    ? `${etiquetaConcepto(datos.config.concepto)} — TCR ${datos.tcr.etiqueta}`
+    : etiquetaConcepto(datos.config.concepto);
   const comisiones = datos.config.incluirComisiones ? "Si" : "No";
 
   // ── Portada ──
@@ -415,8 +421,8 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
     set(dataEmpresa, "B5", diasVacaciones || null);
     set(dataEmpresa, "B6", diasUtilidades || null);
     set(dataEmpresa, "B7", datos.config.incluirComisiones ? "Sí" : "No");
-    set(dataEmpresa, "B8", "TCR-BCV USD");
-    set(dataEmpresa, "C8", bcv);
+    set(dataEmpresa, "B8", datos.tcr ? `TCR ${datos.tcr.etiqueta}` : "TCR-BCV USD");
+    set(dataEmpresa, "C8", datos.tcr ? datos.tcr.tasa : bcv);
     // Las fórmulas de la hoja convierten con B9; usamos la misma tasa con la
     // que se calculó el resto del informe para que no digan cosas distintas.
     set(dataEmpresa, "B9", bcv);

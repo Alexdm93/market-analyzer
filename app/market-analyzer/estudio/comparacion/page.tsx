@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft, BarChart3, Check, Download, FileText, Loader2
 import Link from "next/link";
 
 import { gradeToNivel } from "@/lib/capri";
-import { computeRowTotals } from "@/lib/compensation";
+import { computeRowTotals, computeTCRTotals, tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
 import { posicionEnMercado } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
@@ -58,6 +58,11 @@ export default function ComparacionPage() {
   const { companyId, snapshotId } = useEstudio();
   const [snapshots, setSnapshots] = useState<SnapshotOption[]>([]);
   const [modo, setModo] = useState<"cargo" | "grado">("cargo");
+  const [tcrActivo, setTcrActivo] = useState(false);
+  const [tcrTipo, setTcrTipo] = useState<TcrType>("bcv");
+  const [tasasGlobales, setTasasGlobales] = useState<{ bcv: number | null; bcvEur: number | null; binance: number | null; libreManual: number | null }>(
+    { bcv: null, bcvEur: null, binance: null, libreManual: null },
+  );
   const [metrica, setMetrica] = useState<Metrica>("sinPasivosMensual");
 
   const [cargos, setCargos] = useState<CargoDTO[]>([]);
@@ -167,6 +172,25 @@ export default function ComparacionPage() {
     return partes.length > 0 ? partes.join(" · ") : "Transversales";
   }, [filtroSector, filtroClasificacion, filtroEmpresas]);
 
+  // Las tasas del sistema, para poder expresar el estudio en TCR.
+  useEffect(() => {
+    void fetch(esAdmin ? "/api/admin/tcr-rates" : "/api/tcr-rates", { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((d: {
+        bcvUsd?: { rate: number | null }; bcvEur?: { rate: number | null };
+        binance?: { rate: number | null }; libre?: { rate: number | null; isManual?: boolean };
+      } | null) => {
+        if (!d) return;
+        setTasasGlobales({
+          bcv: d.bcvUsd?.rate ?? null,
+          bcvEur: d.bcvEur?.rate ?? null,
+          binance: d.binance?.rate ?? null,
+          libreManual: d.libre?.isManual ? (d.libre?.rate ?? null) : null,
+        });
+      })
+      .catch(() => {});
+  }, [esAdmin]);
+
   const consultaFiltros = filtrosMercado().toString();
 
   useEffect(() => {
@@ -195,13 +219,47 @@ export default function ComparacionPage() {
       .catch(() => { if (!ignorar) setPorGrado([]); });
 
     return () => { ignorar = true; };
-  }, [snapshotId, consultaFiltros]);
+  }, [snapshotId, consultaFiltros, tcrActivo]);
+
+  // En TCR el mercado sale de su propia ruta, que devuelve las mismas cuatro
+  // métricas por cargo y por grado, pero convertidas con el tipo elegido.
+  useEffect(() => {
+    if (!snapshotId || !tcrActivo) return;
+    let ignorar = false;
+    const base = `snapshotId=${encodeURIComponent(snapshotId)}&tcrType=${tcrTipo}${consultaFiltros ? `&${consultaFiltros}` : ""}`;
+
+    void fetch(`/api/percentiles-tcr?${base}`, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((d: { cargos?: GrupoCargo[]; grades?: GrupoGrado[]; message?: string } | null) => {
+        if (ignorar) return;
+        setPorCargo(d?.cargos ?? []);
+        setPorGrado(d?.grades ?? []);
+        if (d?.message) setError(d.message);
+      })
+      .catch(() => { if (!ignorar) { setPorCargo([]); setPorGrado([]); } });
+
+    return () => { ignorar = true; };
+  }, [snapshotId, consultaFiltros, tcrActivo, tcrTipo]);
 
   const tasas = useMemo(() => (companyInfo.tasas ?? []).filter((t) => !t.isSystem), [companyInfo.tasas]);
   const bcv = useMemo(() => {
     const v = Number((companyInfo.tasas ?? []).find((t) => t.id === "bcv-usd")?.valor);
     return Number.isFinite(v) && v > 0 ? v : null;
   }, [companyInfo.tasas]);
+
+  /**
+   * Las tasas con las que la empresa envió su data, resueltas igual que en la
+   * ruta de percentiles TCR. `null` cuando el TCR está apagado.
+   */
+  const opcionesTcr = useMemo(() => {
+    if (!tcrActivo) return null;
+    const { bcvEurRate, libreRate, tasaTcr } = (() => {
+      const r = tasasTcrDeEmpresa(companyInfo.ratesAtSave, tasasGlobales, tcrTipo);
+      return { bcvEurRate: r.bcvEurRate, libreRate: r.libreRate, tasaTcr: r.tcrRate };
+    })();
+    if (!tasaTcr || tasaTcr <= 0) return null;
+    return { tipo: tcrTipo, bcvEur: bcvEurRate, libre: libreRate, tasaTcr };
+  }, [tcrActivo, tcrTipo, companyInfo.ratesAtSave, tasasGlobales]);
 
   const mercadoPorTitulo = useMemo(() => {
     const m = new Map<string, GrupoCargo>();
@@ -218,11 +276,11 @@ export default function ComparacionPage() {
   const filas = useMemo(() => {
     return cargos.map((c) => {
       const fila = { id: c.id, tituloCargo: c.tituloCargo, ...c.data } as ExtendedMarketPosition;
-      const totales = computeRowTotals(
-        fila, tasas, bcv,
-        Number(companyInfo.minVacationDays) || 0,
-        Number(companyInfo.minUtilityDays) || 0,
-      );
+      const diasVac = Number(companyInfo.minVacationDays) || 0;
+      const diasUtil = Number(companyInfo.minUtilityDays) || 0;
+      const totales = opcionesTcr
+        ? computeTCRTotals(fila, tasas, bcv, opcionesTcr.bcvEur, opcionesTcr.libre, opcionesTcr.tasaTcr, opcionesTcr.tipo, diasVac, diasUtil)
+        : computeRowTotals(fila, tasas, bcv, diasVac, diasUtil);
       const propio = totales[
         metrica === "sinPasivosMensual" ? "totalSinPasivosMensual"
         : metrica === "directoMensualizado" ? "totalDirectoMensualizado"
@@ -249,7 +307,7 @@ export default function ComparacionPage() {
         observaciones: mercado?.n ?? 0,
       };
     });
-  }, [cargos, tasas, bcv, companyInfo, metrica, modo, snapshotId, mercadoPorTitulo, mercadoPorGrado]);
+  }, [cargos, tasas, bcv, companyInfo, metrica, modo, snapshotId, mercadoPorTitulo, mercadoPorGrado, opcionesTcr]);
 
   /**
    * Congela lo que la pantalla está mostrando. Se mandan los números ya
@@ -309,12 +367,19 @@ export default function ComparacionPage() {
     setBajandoExcel(true);
     setError("");
     try {
-      const resPct = await fetch(`/api/percentiles-by-grade?snapshotId=${encodeURIComponent(snapshotId)}${consultaFiltros ? `&${consultaFiltros}` : ""}`, { cache: "no-store" });
+      // El mercado del informe sale de la misma fuente que la pantalla, para
+      // que el Excel no pueda decir algo distinto de lo que se está viendo.
+      const urlMercado = tcrActivo
+        ? `/api/percentiles-tcr?snapshotId=${encodeURIComponent(snapshotId)}&tcrType=${tcrTipo}${consultaFiltros ? `&${consultaFiltros}` : ""}`
+        : `/api/percentiles-by-grade?snapshotId=${encodeURIComponent(snapshotId)}${consultaFiltros ? `&${consultaFiltros}` : ""}`;
+      const resPct = await fetch(urlMercado, { cache: "no-store" });
       const pct = (await resPct.json().catch(() => null)) as
-        | { grupos?: Array<{ grade: number } & Record<string, Percentiles>>; message?: string } | null;
+        | { grupos?: Array<{ grade: number } & Record<string, Percentiles>>;
+            grades?: Array<{ grade: number } & Record<string, Percentiles>>;
+            message?: string } | null;
       if (!resPct.ok) { setError(pct?.message ?? "No se pudieron obtener los percentiles por grado."); return; }
 
-      const mercadoPorGrado = (pct?.grupos ?? []).map((g) => {
+      const mercadoPorGrado = ((tcrActivo ? pct?.grades : pct?.grupos) ?? []).map((g) => {
         const m = g[metrica];
         return { grade: g.grade, p90: m?.p90 ?? null, p75: m?.p75 ?? null, p50: m?.p50 ?? null, p25: m?.p25 ?? null, p10: m?.p10 ?? null };
       });
@@ -326,6 +391,7 @@ export default function ComparacionPage() {
           ...(esAdmin && companyId ? { companyId } : {}),
           snapshotId,
           config: { concepto: metrica, incluirComisiones: comisiones },
+          tcr: tcrActivo ? { tipo: tcrTipo } : null,
           grupoComparacion: descripcionGrupo,
           mercadoPorGrado,
         }),
@@ -447,6 +513,35 @@ export default function ComparacionPage() {
                 <span>Incluir comisiones</span>
               </label>
             </div>
+          </div>
+
+          {/* ── Tipo de cambio ───────────────────────────────────────── */}
+          <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+            <label className="flex items-start gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={tcrActivo} onChange={(e) => setTcrActivo(e.target.checked)} className="mt-1" />
+              <span>
+                <span className="block font-semibold text-slate-900">Expresar en TCR</span>
+                <span className="block text-xs text-slate-500">
+                  Convierte todo con un tipo de cambio de referencia, en vez del BCV. Aplica al estudio completo:
+                  pantalla e informe.
+                </span>
+              </span>
+            </label>
+
+            {tcrActivo && (
+              <div className="mt-3 max-w-xs">
+                <label htmlFor="cmp-tcr-tipo" className="field-label">Tipo de cambio de referencia</label>
+                <select id="cmp-tcr-tipo" value={tcrTipo} onChange={(e) => setTcrTipo(e.target.value as TcrType)} className="field-select">
+                  <option value="bcv">BCV — dólar</option>
+                  <option value="euro">BCV — euro</option>
+                  <option value="libre">Libre</option>
+                </select>
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Se usa la tasa que la empresa tenía guardada al enviar su data, la misma con la que se calcula el
+                  mercado contra el que se compara.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* ── Grupo de comparación ──────────────────────────────────── */}

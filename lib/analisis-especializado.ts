@@ -12,7 +12,7 @@
  * divergir del cálculo canónico.
  */
 import { gradeToNivel } from "@/lib/capri";
-import { computeRowTotals } from "@/lib/compensation";
+import { computeRowTotals, computeTCRTotals, type TcrType } from "@/lib/compensation";
 import type { ExchangeRate } from "@/lib/workspace";
 import type { CompensationConcept, ExtendedMarketPosition } from "@/types/salary";
 
@@ -32,6 +32,21 @@ export type ConfiguracionInforme = {
   aperturaBandas: number;
   /** Margen del mapa de calor, p. ej. 0,15. */
   margenMapaCalor: number;
+};
+
+/**
+ * Con qué tipo de cambio se expresa el estudio.
+ *
+ * Cuando viene, TODO el estudio se calcula en TCR —dispersión, equidad,
+ * competitividad, mapa de calor y simulador— porque son la misma plata mirada
+ * de distintas formas: mezclar bases haría que el informe se contradiga.
+ */
+export type OpcionesTcr = {
+  tipo: TcrType;
+  bcvEur: number | null;
+  libre: number;
+  /** El denominador del TCR, ya resuelto para esta empresa. */
+  tasaTcr: number;
 };
 
 export const CONFIG_POR_DEFECTO: ConfiguracionInforme = {
@@ -82,10 +97,13 @@ export function compensacionDe(
   diasVacaciones: number,
   diasUtilidades: number,
   config: ConfiguracionInforme,
+  tcr?: OpcionesTcr | null,
 ): number {
   const data = config.incluirComisiones ? ocupante.data : sinComisiones(ocupante.data);
   const fila = { id: ocupante.id, tituloCargo: ocupante.tituloCargo, ...data } as ExtendedMarketPosition;
-  const t = computeRowTotals(fila, tasas, bcv, diasVacaciones, diasUtilidades);
+  const t = tcr
+    ? computeTCRTotals(fila, tasas, bcv, tcr.bcvEur, tcr.libre, tcr.tasaTcr, tcr.tipo, diasVacaciones, diasUtilidades)
+    : computeRowTotals(fila, tasas, bcv, diasVacaciones, diasUtilidades);
 
   switch (config.concepto) {
     case "sinPasivosMensual":   return t.totalSinPasivosMensual;
@@ -103,6 +121,7 @@ export function construirFilas(
   diasVacaciones: number,
   diasUtilidades: number,
   config: ConfiguracionInforme,
+  tcr?: OpcionesTcr | null,
 ): FilaAnalisis[] {
   return ocupantes
     .map((o) => ({
@@ -112,7 +131,7 @@ export function construirFilas(
       tituloCargo: o.tituloCargo,
       grado: o.hayGrade,
       nivel: gradeToNivel(o.hayGrade ?? undefined, o.capriFamily ?? undefined),
-      compensacion: compensacionDe(o, tasas, bcv, diasVacaciones, diasUtilidades, config),
+      compensacion: compensacionDe(o, tasas, bcv, diasVacaciones, diasUtilidades, config, tcr),
     }))
     // Ordenado por grado descendente, como en el modelo del cliente.
     .sort((a, b) => (b.grado ?? 0) - (a.grado ?? 0) || a.tituloCargo.localeCompare(b.tituloCargo, "es"));
