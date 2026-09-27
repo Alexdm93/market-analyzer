@@ -3,6 +3,66 @@ import type { ExchangeRate } from "@/lib/workspace";
 
 export type TcrType = "bcv" | "euro" | "libre";
 
+/**
+ * Las tasas con las que se calcula el TCR de UNA empresa.
+ *
+ * Manda lo que la empresa tenía guardado cuando envió su data
+ * (`companyInfo.ratesAtSave`); las tasas globales solo entran como respaldo
+ * para la data vieja, que se guardó antes de que existiera ese registro.
+ *
+ * Vive aquí y no en cada pantalla porque antes estaba escrito dos veces: la
+ * ruta de percentiles usaba la tasa guardada y la pantalla usaba la de hoy, de
+ * modo que una empresa se comparaba contra un mercado calculado con otro tipo
+ * de cambio.
+ */
+export type TasasGlobalesTcr = {
+  bcv: number | null;
+  bcvEur: number | null;
+  binance: number | null;
+  /** Override manual de la tasa libre. Si existe, manda sobre el promedio. */
+  libreManual: number | null;
+};
+
+export type TasasGuardadas = {
+  bcvUsd: number | null;
+  bcvEur: number | null;
+  binance: number | null;
+} | undefined;
+
+export type TasasTcr = {
+  bcvRate: number | null;
+  bcvEurRate: number | null;
+  libreRate: number;
+  /** El denominador del TCR, según el tipo elegido. */
+  tcrRate: number;
+};
+
+/** La tasa libre es el promedio de Binance y el BCV en euros. */
+export function promedioLibre(binance: number | null, bcvEur: number | null): number | null {
+  if (binance && bcvEur) return Math.round(((binance + bcvEur) / 2) * 100) / 100;
+  return binance ?? bcvEur ?? null;
+}
+
+export function tasasTcrDeEmpresa(
+  guardadas: TasasGuardadas,
+  globales: TasasGlobalesTcr,
+  tcrType: TcrType,
+): TasasTcr {
+  const libreGlobal = globales.libreManual ?? promedioLibre(globales.binance, globales.bcvEur);
+
+  const bcvRate    = guardadas?.bcvUsd  ?? globales.bcv;
+  const bcvEurRate = guardadas?.bcvEur  ?? globales.bcvEur;
+  const binRate    = guardadas?.binance ?? globales.binance;
+
+  const libreRate = globales.libreManual ?? promedioLibre(binRate, bcvEurRate) ?? libreGlobal ?? 1;
+
+  const tcrRate = tcrType === "libre" ? libreRate
+    : tcrType === "euro" ? (bcvEurRate ?? libreRate)
+    : (bcvRate ?? libreRate);
+
+  return { bcvRate, bcvEurRate, libreRate, tcrRate };
+}
+
 export function freqToAnnual(freq?: string): number {
   switch (freq) {
     case "biweekly": return 24;

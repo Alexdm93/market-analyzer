@@ -7,7 +7,7 @@ import { exportStyledExcel } from "@/lib/excel-export";
 import { ExtendedMarketPosition } from "@/types/salary";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { type Snapshot, type CompanyInfo, type ExchangeRate, EMPTY_COMPANY_INFO } from "@/lib/workspace";
-import { resolveRowTotals, computeTCRTotals, PERCENTILE_MIN_N, type TcrType } from "@/lib/compensation";
+import { resolveRowTotals, computeTCRTotals, tasasTcrDeEmpresa, PERCENTILE_MIN_N, type TcrType } from "@/lib/compensation";
 import type { PercentilesGradeResponse } from "@/app/api/percentiles-by-grade/route";
 import type { TcrPercentilesResponse, TcrCargoPercentiles } from "@/app/api/percentiles-tcr/route";
 import { FmtMoney, fmtMoneyStr } from "@/components/FmtMoney";
@@ -256,7 +256,7 @@ export default function EstudioPage() {
   const [tcrPercentileData, setTcrPercentileData] = useState<TcrPercentilesResponse | null>(null);
   const [tcrLoading, setTcrLoading] = useState(false);
   // TCR libre rate (fetched from API; BCV USD/EUR come from tasas array)
-  const [tcrRates, setTcrRates] = useState<{ libre: number | null; libreUpdatedAt: string | null; bcvEur: number | null; bcvUsd: number | null }>({ libre: null, libreUpdatedAt: null, bcvEur: null, bcvUsd: null });
+  const [tcrRates, setTcrRates] = useState<{ libre: number | null; libreUpdatedAt: string | null; bcvEur: number | null; bcvUsd: number | null; binance: number | null; libreEsManual: boolean }>({ libre: null, libreUpdatedAt: null, bcvEur: null, bcvUsd: null, binance: null, libreEsManual: false });
   // TCR — admin study
   const [adminTcrEnabled, setAdminTcrEnabled] = useState(false);
   const [adminTcrType, setAdminTcrType] = useState<TcrType>("bcv");
@@ -595,13 +595,18 @@ export default function EstudioPage() {
     const url = isAdmin ? "/api/admin/tcr-rates" : "/api/tcr-rates";
     void fetch(url, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((body: { libre?: { rate: number | null; updatedAt: string | null }; bcvEur?: { rate: number | null }; bcvUsd?: { rate: number | null } } | null) => {
+      .then((body: {
+        libre?: { rate: number | null; updatedAt: string | null; isManual?: boolean };
+        bcvEur?: { rate: number | null }; bcvUsd?: { rate: number | null }; binance?: { rate: number | null };
+      } | null) => {
         if (!body) return;
         setTcrRates({
           libre:          body.libre?.rate   ?? null,
           libreUpdatedAt: body.libre?.updatedAt ?? null,
           bcvEur:         body.bcvEur?.rate  ?? null,
           bcvUsd:         body.bcvUsd?.rate  ?? null,
+          binance:        body.binance?.rate ?? null,
+          libreEsManual:  body.libre?.isManual === true,
         });
       })
       .catch(() => {});
@@ -1133,24 +1138,28 @@ export default function EstudioPage() {
 
   const userTcrRowTotals = useMemo(() => {
     if (!tcrEnabled || parsedLibreRate <= 0) return null;
-    const bcvRate = (() => {
-      const v = Number(tasas.find((t) => t.id === "bcv-usd")?.valor);
-      return Number.isFinite(v) && v > 0 ? v : null;
-    })();
-    const bcvEurRate = (() => {
-      const v = Number(tasas.find((t) => t.id === "bcv-eur")?.valor);
-      return Number.isFinite(v) && v > 0 ? v : null;
-    })();
-    const tcrRate = tcrType === "libre" ? parsedLibreRate
-      : tcrType === "euro"  ? (bcvEurRate ?? parsedLibreRate)
-      : (bcvRate ?? parsedLibreRate);
+
+    // Las mismas tasas que usa /api/percentiles-tcr para esta empresa: las que
+    // quedaron guardadas al enviar la data, no las de hoy. Si no, los montos
+    // propios se calcularían con un cambio y el mercado con otro.
+    const { bcvRate, bcvEurRate, libreRate, tcrRate } = tasasTcrDeEmpresa(
+      companyInfo.ratesAtSave,
+      {
+        bcv: tcrRates.bcvUsd,
+        bcvEur: tcrRates.bcvEur,
+        binance: tcrRates.binance,
+        libreManual: tcrRates.libreEsManual ? tcrRates.libre : null,
+      },
+      tcrType,
+    );
+
     const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
     const diasUtilidades = Number(companyInfo.minUtilityDays) || 0;
     return rows.map((row) => ({
       row,
-      totals: computeTCRTotals(row, tasas, bcvRate, bcvEurRate, parsedLibreRate, tcrRate, tcrType, diasVacaciones, diasUtilidades),
+      totals: computeTCRTotals(row, tasas, bcvRate, bcvEurRate, libreRate, tcrRate, tcrType, diasVacaciones, diasUtilidades),
     }));
-  }, [tcrEnabled, parsedLibreRate, tcrType, rows, tasas, companyInfo]);
+  }, [tcrEnabled, parsedLibreRate, tcrType, rows, tasas, companyInfo, tcrRates]);
 
   const tcrMarketByTitle = useMemo(() => {
     const m = new Map<string, TcrCargoPercentiles>();

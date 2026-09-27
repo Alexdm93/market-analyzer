@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { safeParseSnapshots, safeParseCompanyInfo } from "@/lib/workspace";
-import { computeTCRTotals, computeMetricPercentiles, type MetricPercentiles, type TcrType } from "@/lib/compensation";
+import { computeTCRTotals, computeMetricPercentiles, promedioLibre, tasasTcrDeEmpresa, type MetricPercentiles, type TcrType } from "@/lib/compensation";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { getLibreRate } from "@/lib/tcr-config";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
@@ -97,10 +97,7 @@ export async function GET(request: Request) {
   }
 
   // Fallback global libre (used only when a company has no ratesAtSave)
-  const globalLibreRate = libreOverride
-    ?? (globalBinanceRate && globalBcvEurRate
-      ? Math.round(((globalBinanceRate + globalBcvEurRate) / 2) * 100) / 100
-      : globalBinanceRate ?? globalBcvEurRate ?? null);
+  const globalLibreRate = libreOverride ?? promedioLibre(globalBinanceRate, globalBcvEurRate);
 
   if (!globalLibreRate && !globalBcvRate) {
     return Response.json({ message: "No hay tasas de mercado disponibles para calcular TCR. Intenta más tarde." }, { status: 422 });
@@ -123,20 +120,14 @@ export async function GET(request: Request) {
     if (filterSizes.length     > 0 && (!companyInfo.classification || !filterSizes.includes(companyInfo.classification)))          continue;
     if (filterCompanies.length > 0 && (!companyInfo.companyName    || !filterCompanies.includes(companyInfo.companyName)))         continue;
 
-    // Use rates from when this company last saved — fall back to global rates for legacy data
-    const saved      = companyInfo.ratesAtSave;
-    const bcvRate    = saved?.bcvUsd   ?? globalBcvRate;
-    const bcvEurRate = saved?.bcvEur   ?? globalBcvEurRate;
-    const binRate    = saved?.binance  ?? globalBinanceRate;
-    const libreRate  = libreOverride
-      ?? (binRate && bcvEurRate
-        ? Math.round(((binRate + bcvEurRate) / 2) * 100) / 100
-        : binRate ?? bcvEurRate ?? globalLibreRate ?? 1);
-
-    // tcrRate uses this company's contemporaneous reference rate as denominator
-    const tcrRate = tcrType === "libre" ? libreRate
-      : tcrType === "euro" ? (bcvEurRate ?? libreRate)
-      : (bcvRate ?? libreRate);
+    // Las tasas que esta empresa tenía cuando envió su data. La resolución vive
+    // en lib/compensation para que la pantalla del cliente use exactamente la
+    // misma y no se comparen contra un mercado calculado con otro cambio.
+    const { bcvRate, bcvEurRate, libreRate, tcrRate } = tasasTcrDeEmpresa(
+      companyInfo.ratesAtSave,
+      { bcv: globalBcvRate, bcvEur: globalBcvEurRate, binance: globalBinanceRate, libreManual: libreOverride },
+      tcrType,
+    );
 
     const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
     const diasUtilidades = Number(companyInfo.minUtilityDays)  || 0;
