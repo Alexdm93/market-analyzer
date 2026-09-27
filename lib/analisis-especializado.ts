@@ -60,6 +60,7 @@ export type Ocupante = {
   id: string;
   ocupanteId: string;
   departamento: string;
+  reportaA: string;
   tituloCargo: string;
   hayGrade: number | null;
   capriFamily: string | null;
@@ -70,6 +71,7 @@ export type FilaAnalisis = {
   empresa: string;
   ocupanteId: string;
   unidadFuncional: string;
+  reportaA: string;
   tituloCargo: string;
   grado: number | null;
   nivel: string;
@@ -128,6 +130,7 @@ export function construirFilas(
       empresa,
       ocupanteId: o.ocupanteId || "",
       unidadFuncional: o.departamento,
+      reportaA: o.reportaA || "",
       tituloCargo: o.tituloCargo,
       grado: o.hayGrade,
       nivel: gradeToNivel(o.hayGrade ?? undefined, o.capriFamily ?? undefined),

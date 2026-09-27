@@ -2,55 +2,52 @@
  * La hoja "Data Empresa" del informe especializado: la nómina del cliente con
  * el desglose de cada elemento de pago.
  *
- * La hoja calcula sola sus totales —tiene 2.056 fórmulas— así que aquí solo se
- * arman las ENTRADAS. Las columnas de totales (Z, AA, AB, BA–BJ) son de la
- * plantilla y no se tocan: Excel las recalcula al abrir.
+ * Los bloques de columnas no son fijos. Antes la plantilla tenía una columna
+ * por concepto —salud, transporte, fondo de ahorros— y había que meter a la
+ * fuerza en esos cajones lo que cada empresa llamara distinto. Ahora se arman
+ * a partir de lo que la empresa reportó: un bloque por concepto, con su propio
+ * nombre en la cabecera (AC Consulting, 2026-09-27).
  *
- * La plantilla tiene una columna por concepto y nosotros permitimos una lista
- * libre de conceptos, así que los adicionales se agrupan en los cajones que
- * ella prevé: mensuales con y sin impacto, anualizados con y sin impacto, y
- * los pactados en moneda dura aparte. Dos conceptos se reconocen por su
- * nombre porque la plantilla les reserva columna propia: el bono de salud y el
- * fondo de ahorros.
+ * La plantilla trae cinco bloques fijos y dos variables. Si una empresa usa
+ * más, los menos frecuentes se agrupan en el último bloque, porque darle
+ * columna propia a cada uno exigiría ensanchar la hoja.
  */
-import { freqToAnnual } from "@/lib/compensation";
-import { FREQUENCY_OPTIONS } from "@/lib/compensation-options";
-import type { ExchangeRate } from "@/lib/workspace";
 import type { CompensationConcept, ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
+import { FREQUENCY_OPTIONS } from "@/lib/compensation-options";
 
-/** Un importe con sus dos monedas, como los pide la plantilla. */
-export type Monto = { monto: number | null; cuenta: string | null; pago: string | null };
-
-export type Variable = Monto & { impacto: string | null; frecuencia: string | null };
-
-export type FilaDataEmpresa = {
-  empresa: string;
-  ocupanteId: string;
-  unidadFuncional: string;
-  tituloCargo: string;
-  grado: number | null;
-
-  sueldoBasico: Monto;
-  bonoAlimentacion: Monto;
-  bonoSalud: Monto;
-  bonoTransporte: Monto;
-  fijosMensualesConImpacto: Monto;
-  fijosMensualesSinImpacto: Monto;
-  /** Pactados en dólares: la plantilla los quiere ya en dólares, sin moneda. */
-  duraMensualConImpacto: number | null;
-  duraMensualSinImpacto: number | null;
-
-  otrosAnualesConImpacto: Monto;
-  otrosAnualesSinImpacto: Monto;
-  fondoAhorros: Monto;
-  duraAnualConImpacto: number | null;
-  duraAnualSinImpacto: number | null;
-
-  desempeno: Variable;
-  comisiones: Variable & { tipo: string | null; detalle: string | null; objetivos: string | null };
+/** Lo que va en un bloque de cinco columnas de la hoja. */
+export type CeldaPago = {
+  monto: number | null;
+  cuenta: string | null;
+  pago: string | null;
+  impacto: string | null;
+  frecuencia: string | null;
 };
 
-const VACIO: Monto = { monto: null, cuenta: null, pago: null };
+export type FilaDataEmpresa = {
+  ocupanteId: string;
+  unidadFuncional: string;
+  reportaA: string;
+  tituloCargo: string;
+  grado: number | null;
+  /** Un valor por cada nombre de `conceptosFijos`, en el mismo orden. */
+  fijos: CeldaPago[];
+  variables: CeldaPago[];
+  /** El total del ocupante según la métrica elegida, y su equivalente en TCR. */
+  metrica: number | null;
+  metricaTcr: number | null;
+};
+
+export type DataEmpresa = {
+  conceptosFijos: string[];
+  conceptosVariables: string[];
+  filas: FilaDataEmpresa[];
+};
+
+export const MAX_BLOQUES_FIJOS = 5;
+export const MAX_BLOQUES_VARIABLES = 2;
+
+const VACIA: CeldaPago = { monto: null, cuenta: null, pago: null, impacto: null, frecuencia: null };
 
 function moneda(c: "USD" | "VES" | undefined): string | null {
   if (c === "USD") return "Dólares";
@@ -58,249 +55,143 @@ function moneda(c: "USD" | "VES" | undefined): string | null {
   return null;
 }
 
-function etiquetaFrecuencia(f: PaymentFrequency | undefined): string | null {
+function frecuencia(f: PaymentFrequency | undefined): string | null {
+  if (!f) return null;
   return FREQUENCY_OPTIONS.find((o) => o.value === f)?.label ?? null;
 }
 
-function esMensual(f: PaymentFrequency | undefined): boolean {
-  return !f || f === "monthly" || f === "biweekly";
+function impacto(v: boolean | undefined): string | null {
+  return v === undefined ? null : v ? "Con Impacto" : "Sin Impacto";
 }
 
-function tasaDe(tasaId: string | undefined, tasas: ExchangeRate[], bcv: number | null): number {
-  const t = tasas.find((x) => x.id === tasaId);
-  const valor = Number(t?.valor);
-  if (Number.isFinite(valor) && valor > 0) return valor;
-  return bcv && bcv > 0 ? bcv : 0;
-}
+type Pieza = { concepto: string; celda: CeldaPago };
 
-function normaliza(texto: string): string {
-  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+/** Los pagos de un ocupante, cada uno con el nombre que le puso la empresa. */
+function piezasDelOcupante(d: Partial<ExtendedMarketPosition>): { fijos: Pieza[]; variables: Pieza[] } {
+  const arma = (
+    concepto: string,
+    monto: number | undefined,
+    cuenta: "USD" | "VES" | undefined,
+    pago: "USD" | "VES" | undefined,
+    imp: boolean | undefined,
+    freq: PaymentFrequency | undefined,
+  ): Pieza[] => {
+    if (!monto) return [];
+    return [{
+      concepto,
+      celda: { monto, cuenta: moneda(cuenta), pago: moneda(pago), impacto: impacto(imp), frecuencia: frecuencia(freq) },
+    }];
+  };
+
+  const deLista = (lista: CompensationConcept[] | undefined, porDefecto: string): Pieza[] =>
+    (lista ?? []).flatMap((c) =>
+      arma((c.concept || porDefecto).trim(), c.amount, c.accountCurrency, c.paymentCurrency, c.impacto, c.freq));
+
+  const fijos = [
+    ...arma("Sueldo base", d.sueldoBasico, d.sueldoBasicoCuentaMoneda, d.sueldoBasicoMonedaPago, d.sueldoBasicoImpacto, d.sueldoBasicoFreq),
+    ...arma("Bono alimentación", d.bonoAlimentacion, d.bonoAlimentacionCuentaMoneda, d.bonoAlimentacionMonedaPago, d.bonoAlimentacionImpacto, d.bonoAlimentacionFreq),
+    ...arma("Bono movilización", d.bonoMovilizacion, d.bonoMovilizacionCuentaMoneda, d.bonoMovilizacionMonedaPago, d.bonoMovilizacionImpacto, d.bonoMovilizacionFreq),
+    ...deLista(d.additionalFixedPayments, "Otro pago fijo"),
+  ];
+
+  const variables = [
+    ...arma("Desempeño", d.bonoDesempeno, d.bonoDesempenoCuentaMoneda, d.bonoDesempenoMonedaPago, d.bonoDesempenoImpacto, d.bonoDesempenoFreq),
+    ...arma("Comisiones", d.comisiones, d.comisionesCuentaMoneda, d.comisionesMonedaPago, d.comisionesImpacto, d.comisionesFreq),
+    ...arma("Otros variables", d.pagoVariableOtros, d.pagoVariableOtrosCuentaMoneda, d.pagoVariableOtrosMonedaPago, d.pagoVariableOtrosImpacto, d.pagoVariableOtrosFreq),
+    ...deLista(d.additionalVariablePayments, "Otro pago variable"),
+  ];
+
+  return { fijos, variables };
 }
 
 /**
- * Junta varios conceptos en un solo importe.
- *
- * Si todos están pactados en la misma moneda se conserva; si están mezclados
- * se pasa todo a bolívares, que es la moneda base de la hoja. Devuelve el
- * importe ya llevado a la periodicidad que pide la columna.
+ * Qué conceptos merecen bloque propio: los que más ocupantes usan, y los
+ * canónicos primero para que el orden no baile entre informes.
  */
-function agrupar(
-  conceptos: Array<{ monto: number; cuenta?: "USD" | "VES"; pago?: "USD" | "VES"; tasaId?: string }>,
-  tasas: ExchangeRate[],
-  bcv: number | null,
-): Monto {
-  const vivos = conceptos.filter((c) => Number.isFinite(c.monto) && c.monto !== 0);
-  if (vivos.length === 0) return VACIO;
-
-  const cuentas = new Set(vivos.map((c) => c.cuenta ?? "VES"));
-  if (cuentas.size === 1) {
-    const cuenta = vivos[0].cuenta ?? "VES";
-    return {
-      monto: vivos.reduce((s, c) => s + c.monto, 0),
-      cuenta: moneda(cuenta),
-      pago: moneda(vivos[0].pago ?? cuenta),
-    };
+function elegirConceptos(porOcupante: Pieza[][], maximo: number, canonicos: string[], sobrante: string): string[] {
+  const cuenta = new Map<string, number>();
+  for (const piezas of porOcupante) {
+    for (const p of new Map(piezas.map((x) => [x.concepto, x])).values()) {
+      cuenta.set(p.concepto, (cuenta.get(p.concepto) ?? 0) + 1);
+    }
   }
+  if (cuenta.size === 0) return [];
 
-  const enBolivares = vivos.reduce(
-    (s, c) => s + (c.cuenta === "USD" ? c.monto * tasaDe(c.tasaId, tasas, bcv) : c.monto),
-    0,
-  );
-  return { monto: enBolivares, cuenta: "Bolívares", pago: "Bolívares" };
-}
-
-function sumaDura(conceptos: Array<{ monto: number }>): number | null {
-  const total = conceptos.reduce((s, c) => s + c.monto, 0);
-  return total === 0 ? null : total;
-}
-
-type Pieza = { monto: number; cuenta?: "USD" | "VES"; pago?: "USD" | "VES"; tasaId?: string };
-
-export function construirDataEmpresa(
-  ocupantes: Array<{
-    ocupanteId: string;
-    departamento: string;
-    tituloCargo: string;
-    hayGrade: number | null;
-    data: Partial<ExtendedMarketPosition>;
-  }>,
-  empresa: string,
-  tasas: ExchangeRate[],
-  bcv: number | null,
-): FilaDataEmpresa[] {
-  return ocupantes.map((o) => {
-    const d = o.data;
-
-    const mensualesConImpacto: Pieza[] = [];
-    const mensualesSinImpacto: Pieza[] = [];
-    const anualesConImpacto: Pieza[] = [];
-    const anualesSinImpacto: Pieza[] = [];
-    const duraMensualCon: Pieza[] = [];
-    const duraMensualSin: Pieza[] = [];
-    const duraAnualCon: Pieza[] = [];
-    const duraAnualSin: Pieza[] = [];
-    const salud: Pieza[] = [];
-    const ahorro: Pieza[] = [];
-
-    for (const c of d.additionalFixedPayments ?? []) {
-      const monto = Number(c.amount);
-      if (!Number.isFinite(monto) || monto === 0) continue;
-
-      const veces = freqToAnnual(c.freq);
-      const mensual = esMensual(c.freq);
-      const pieza: Pieza = {
-        monto: mensual ? (monto * veces) / 12 : monto * veces,
-        cuenta: c.accountCurrency,
-        pago: c.paymentCurrency,
-        tasaId: c.tasaId,
-      };
-
-      const nombre = normaliza(c.concept ?? "");
-      if (nombre.includes("salud") && mensual) { salud.push(pieza); continue; }
-      if (nombre.includes("fondo de ahorro")) { ahorro.push({ ...pieza, monto: monto * veces }); continue; }
-
-      const dura = c.accountCurrency === "USD";
-      if (mensual) {
-        if (dura) (c.impacto ? duraMensualCon : duraMensualSin).push(pieza);
-        else (c.impacto ? mensualesConImpacto : mensualesSinImpacto).push(pieza);
-      } else if (dura) {
-        (c.impacto ? duraAnualCon : duraAnualSin).push(pieza);
-      } else {
-        (c.impacto ? anualesConImpacto : anualesSinImpacto).push(pieza);
-      }
-    }
-
-    // ── Variables ──
-    const variables = (tipo: "performance" | "commission"): CompensationConcept[] =>
-      (d.additionalVariablePayments ?? []).filter((c) => (c.variableType ?? "performance") === tipo);
-
-    const anualizar = (c: CompensationConcept): Pieza | null => {
-      const monto = Number(c.amount);
-      if (!Number.isFinite(monto) || monto === 0) return null;
-      return {
-        monto: monto * freqToAnnual(c.freq),
-        cuenta: c.accountCurrency, pago: c.paymentCurrency, tasaId: c.tasaId,
-      };
-    };
-
-    const piezasDesempeno: Pieza[] = [];
-    const frecuenciasDesempeno: Array<PaymentFrequency | undefined> = [];
-    let impactoDesempeno = false;
-
-    for (const [monto, freq, cuenta, pago, impacto] of [
-      [d.bonoDesempeno, d.bonoDesempenoFreq, d.bonoDesempenoCuentaMoneda, d.bonoDesempenoMonedaPago, d.bonoDesempenoImpacto],
-      [d.pagoVariableOtros, d.pagoVariableOtrosFreq, d.pagoVariableOtrosCuentaMoneda, d.pagoVariableOtrosMonedaPago, d.pagoVariableOtrosImpacto],
-    ] as Array<[number | undefined, PaymentFrequency | undefined, "USD" | "VES" | undefined, "USD" | "VES" | undefined, boolean | undefined]>) {
-      const n = Number(monto);
-      if (!Number.isFinite(n) || n === 0) continue;
-      piezasDesempeno.push({ monto: n * freqToAnnual(freq), cuenta, pago });
-      frecuenciasDesempeno.push(freq);
-      if (impacto) impactoDesempeno = true;
-    }
-    for (const c of variables("performance")) {
-      const p = anualizar(c);
-      if (!p) continue;
-      piezasDesempeno.push(p);
-      frecuenciasDesempeno.push(c.freq);
-      if (c.impacto) impactoDesempeno = true;
-    }
-
-    const piezasComision: Pieza[] = [];
-    const frecuenciasComision: Array<PaymentFrequency | undefined> = [];
-    let impactoComision = false;
-    let tipo: string | null = null, detalle: string | null = null, objetivos: string | null = null;
-
-    if (Number.isFinite(Number(d.comisiones)) && Number(d.comisiones) !== 0) {
-      piezasComision.push({
-        monto: Number(d.comisiones) * freqToAnnual(d.comisionesFreq),
-        cuenta: d.comisionesCuentaMoneda, pago: d.comisionesMonedaPago,
-      });
-      frecuenciasComision.push(d.comisionesFreq);
-      if (d.comisionesImpacto) impactoComision = true;
-    }
-    for (const c of variables("commission")) {
-      const p = anualizar(c);
-      if (!p) continue;
-      piezasComision.push(p);
-      frecuenciasComision.push(c.freq);
-      if (c.impacto) impactoComision = true;
-      tipo ??= etiqueta(c.commissionType, "tipo");
-      detalle ??= etiqueta(c.calculationDetail, "detalle");
-      objetivos ??= etiqueta(c.goalsTarget, "objetivos");
-    }
-
-    const frecuenciaDe = (fs: Array<PaymentFrequency | undefined>): string | null => {
-      if (fs.length === 0) return null;
-      const unicas = new Set(fs);
-      return unicas.size === 1 ? etiquetaFrecuencia(fs[0]) : "Anual";
-    };
-
-    const desempeno = agrupar(piezasDesempeno, tasas, bcv);
-    const comision = agrupar(piezasComision, tasas, bcv);
-
-    return {
-      empresa,
-      ocupanteId: o.ocupanteId,
-      unidadFuncional: o.departamento,
-      tituloCargo: o.tituloCargo,
-      grado: o.hayGrade,
-
-      sueldoBasico: unico(d.sueldoBasico, d.sueldoBasicoCuentaMoneda, d.sueldoBasicoMonedaPago, d.sueldoBasicoFreq),
-      bonoAlimentacion: unico(d.bonoAlimentacion, d.bonoAlimentacionCuentaMoneda, d.bonoAlimentacionMonedaPago, d.bonoAlimentacionFreq),
-      bonoSalud: agrupar(salud, tasas, bcv),
-      bonoTransporte: unico(d.bonoMovilizacion, d.bonoMovilizacionCuentaMoneda, d.bonoMovilizacionMonedaPago, d.bonoMovilizacionFreq),
-      fijosMensualesConImpacto: agrupar(mensualesConImpacto, tasas, bcv),
-      fijosMensualesSinImpacto: agrupar(mensualesSinImpacto, tasas, bcv),
-      duraMensualConImpacto: sumaDura(duraMensualCon),
-      duraMensualSinImpacto: sumaDura(duraMensualSin),
-
-      otrosAnualesConImpacto: agrupar(anualesConImpacto, tasas, bcv),
-      otrosAnualesSinImpacto: agrupar(anualesSinImpacto, tasas, bcv),
-      fondoAhorros: agrupar(ahorro, tasas, bcv),
-      duraAnualConImpacto: sumaDura(duraAnualCon),
-      duraAnualSinImpacto: sumaDura(duraAnualSin),
-
-      desempeno: {
-        ...desempeno,
-        impacto: desempeno.monto === null ? null : impactoDesempeno ? "Con Impacto" : "Sin Impacto",
-        frecuencia: desempeno.monto === null ? null : frecuenciaDe(frecuenciasDesempeno),
-      },
-      comisiones: {
-        ...comision,
-        impacto: comision.monto === null ? null : impactoComision ? "Con Impacto" : "Sin Impacto",
-        frecuencia: comision.monto === null ? null : frecuenciaDe(frecuenciasComision),
-        tipo, detalle, objetivos,
-      },
-    };
+  const orden = [...cuenta.keys()].sort((a, b) => {
+    const ia = canonicos.indexOf(a), ib = canonicos.indexOf(b);
+    if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    return (cuenta.get(b) ?? 0) - (cuenta.get(a) ?? 0) || a.localeCompare(b, "es");
   });
+
+  if (orden.length <= maximo) return orden;
+  return [...orden.slice(0, maximo - 1), sobrante];
 }
 
-/** Un concepto propio de la plantilla: se lleva a mensual y se deja tal cual. */
-function unico(
-  monto: number | undefined,
-  cuenta: "USD" | "VES" | undefined,
-  pago: "USD" | "VES" | undefined,
-  freq: PaymentFrequency | undefined,
-): Monto {
-  const n = Number(monto);
-  if (!Number.isFinite(n) || n === 0) return VACIO;
+/** Junta en una sola celda lo que no entró en un bloque propio. */
+function agrupar(piezas: Pieza[]): CeldaPago {
+  if (piezas.length === 0) return VACIA;
+  const igual = <K extends keyof CeldaPago>(k: K) => {
+    const v = piezas[0].celda[k];
+    return piezas.every((p) => p.celda[k] === v) ? v : null;
+  };
   return {
-    monto: (n * freqToAnnual(freq)) / 12,
-    cuenta: moneda(cuenta ?? "VES"),
-    pago: moneda(pago ?? cuenta ?? "VES"),
+    monto: piezas.reduce((s, p) => s + (p.celda.monto ?? 0), 0) || null,
+    cuenta: igual("cuenta"),
+    pago: igual("pago"),
+    impacto: igual("impacto"),
+    frecuencia: igual("frecuencia"),
   };
 }
 
-function etiqueta(valor: string | undefined, cual: "tipo" | "detalle" | "objetivos"): string | null {
-  if (!valor) return null;
-  const tablas = {
-    tipo: { simple: "Simple", tiered: "Escalonada", product: "Por Producto", service: "Servicio", other: "Otro" },
-    detalle: { sale_value: "Valor de la venta", profit_margin: "Margen de la ganancia", units_sold: "Unidades vendidas", other: "Otro" },
-    objetivos: {
-      sales_quota: "Cuotas de ventas monetaria", units_sold: "Numero de unidades vendidas",
-      new_clients: "Numero de nuevos clientes", client_retention: "Retencion de clientes",
-      profit_margin: "Margen de ganancias", mixed: "Mixto",
-    },
-  } as const;
-  return (tablas[cual] as Record<string, string>)[valor] ?? null;
+export type OcupanteData = {
+  id: string;
+  ocupanteId: string;
+  departamento: string;
+  reportaA: string;
+  tituloCargo: string;
+  hayGrade: number | null;
+  data: Partial<ExtendedMarketPosition>;
+};
+
+export function construirDataEmpresa(
+  ocupantes: OcupanteData[],
+  /** Por id de ocupante: el total según la métrica y su equivalente en TCR. */
+  totales: Map<string, { metrica: number | null; tcr: number | null }>,
+): DataEmpresa {
+  const piezas = ocupantes.map((o) => piezasDelOcupante(o.data));
+
+  const conceptosFijos = elegirConceptos(
+    piezas.map((p) => p.fijos), MAX_BLOQUES_FIJOS,
+    ["Sueldo base", "Bono alimentación", "Bono movilización"], "Otros pagos fijos",
+  );
+  const conceptosVariables = elegirConceptos(
+    piezas.map((p) => p.variables), MAX_BLOQUES_VARIABLES,
+    ["Desempeño", "Comisiones"], "Otros variables",
+  );
+
+  const repartir = (lista: Pieza[], conceptos: string[], sobrante: string): CeldaPago[] =>
+    conceptos.map((c) => {
+      if (c === sobrante && !lista.some((p) => p.concepto === sobrante)) {
+        return agrupar(lista.filter((p) => !conceptos.includes(p.concepto)));
+      }
+      const suyas = lista.filter((p) => p.concepto === c);
+      return suyas.length === 1 ? suyas[0].celda : agrupar(suyas);
+    });
+
+  const filas = ocupantes.map((o, i): FilaDataEmpresa => {
+    const t = totales.get(o.id);
+    return {
+      ocupanteId: o.ocupanteId || "",
+      unidadFuncional: o.departamento,
+      reportaA: o.reportaA,
+      tituloCargo: o.tituloCargo,
+      grado: o.hayGrade,
+      fijos: repartir(piezas[i].fijos, conceptosFijos, "Otros pagos fijos"),
+      variables: repartir(piezas[i].variables, conceptosVariables, "Otros variables"),
+      metrica: t?.metrica ?? null,
+      metricaTcr: t?.tcr ?? null,
+    };
+  });
+
+  return { conceptosFijos, conceptosVariables, filas };
 }

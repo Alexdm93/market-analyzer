@@ -14,6 +14,7 @@ import {
   analizarCompetitividad,
   analizarEquidad,
   analizarMapaCalor,
+  compensacionDe,
   construirFilas,
   simularAjuste,
   type ConfigSimulador,
@@ -38,7 +39,6 @@ export const maxDuration = 60;
 type Cuerpo = {
   companyId?: string;
   snapshotId?: string;
-  version?: string;
   grupoComparacion?: string;
   tcr?: { tipo?: string } | null;
   /** Grados a analizar; vacío o ausente = todos. */
@@ -94,7 +94,13 @@ export async function POST(request: Request) {
       select: { company: { select: { name: true } } },
       distinct: ["companyId"],
     }),
-    prisma.userSnapshot.findFirst({ where: { snapshotId }, select: { label: true, date: true } }),
+    // processedAt manda sobre la fecha del corte: la portada dice cuándo se
+    // procesó la data, no cómo se llama el corte.
+    prisma.userSnapshot.findFirst({
+      where: { snapshotId },
+      select: { label: true, date: true, processedAt: true },
+      orderBy: { processedAt: "desc" },
+    }),
   ]);
 
   if (cargos.length === 0) {
@@ -120,6 +126,7 @@ export async function POST(request: Request) {
     try { data = JSON.parse(c.dataJson) as Partial<ExtendedMarketPosition>; } catch { data = {}; }
     return {
       id: c.id, ocupanteId: c.ocupanteId ?? "", departamento: c.departamento,
+      reportaA: c.reportaA ?? "",
       tituloCargo: c.tituloCargo, hayGrade: c.hayGrade, capriFamily: c.capriFamily, data,
     };
   });
@@ -150,8 +157,7 @@ export async function POST(request: Request) {
     cliente: nombreEmpresa,
     proyecto: snapshot?.label ?? snapshotId,
     fechaInforme: mesYAnioEsp(new Date()),
-    fechaData: mesYAnioEsp(snapshot?.date ?? new Date()),
-    version: (body?.version ?? "V1R1").trim() || "V1R1",
+    fechaData: mesYAnioEsp(snapshot?.processedAt ?? snapshot?.date ?? new Date()),
     empresasParticipantes: [...new Set(participantes.map((p) => p.company?.name).filter((n): n is string => Boolean(n)))]
       .sort((a, b) => a.localeCompare(b, "es")),
     config,
@@ -163,7 +169,17 @@ export async function POST(request: Request) {
           tasa: opcionesTcr.tasaTcr,
         }
       : null,
-    dataEmpresa: construirDataEmpresa(ocupantes, nombreEmpresa, tasas, bcv),
+    dataEmpresa: construirDataEmpresa(
+      ocupantes,
+      // El total de cada ocupante según la métrica elegida y, cuando el
+      // estudio va en TCR, su equivalente. Antes eran fórmulas de la
+      // plantilla; al rediseñarla quedaron en #REF!, así que los calcula el
+      // sistema (AC Consulting, 2026-09-27).
+      new Map(ocupantes.map((o) => [o.id, {
+        metrica: compensacionDe(o, tasas, bcv, diasVac, diasUtil, config),
+        tcr: opcionesTcr ? compensacionDe(o, tasas, bcv, diasVac, diasUtil, config, opcionesTcr) : null,
+      }])),
+    ),
     grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Mercado general",
     dispersion: filas,
     equidad: analizarEquidad(filas, config.aperturaBandas),
