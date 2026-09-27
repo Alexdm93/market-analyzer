@@ -560,34 +560,18 @@ export default function ComparacionPage() {
             </p>
           ) : (
           <>
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <div>
-              <label htmlFor="cmp-modo" className="field-label">Comparar</label>
-              <select id="cmp-modo" value={modo} onChange={(e) => setModo(e.target.value as "cargo" | "grado")} className="field-select">
-                <option value="cargo">Por cargo homologado</option>
-                <option value="grado">Por grado CAPRI</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="cmp-metrica" className="field-label">Métrica</label>
-              <select id="cmp-metrica" value={metrica} onChange={(e) => setMetrica(e.target.value as Metrica)} className="field-select">
-                {METRICAS.map((m) => <option key={m.value} value={m.value}>{m.sigla} — {m.label}</option>)}
-              </select>
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-start gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={comisiones} onChange={(e) => setComisiones(e.target.checked)} className="mt-1" />
-                <span>Incluir comisiones</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Qué grados de la propia lista se analizan. No es parte del grupo de
-              comparación: eso es el mercado, esto son tus cargos. */}
+          {/* Va antes de "Comparar" a propósito: primero qué cargos entran, después
+              cómo se comparan y contra quién. Cuando estaba debajo se leía como una
+              sub-opción del modo de comparación, que no lo es. */}
           {gradosDisponibles.length > 0 && (
-            <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+            <div className="mb-5 rounded-2xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-slate-900">Grados a analizar</span>
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">Qué cargos de tu lista analizar</span>
+                  <span className="block text-xs text-slate-500">
+                    Se eligen por grado CAPRI. Aplica compares por cargo homologado o por grado.
+                  </span>
+                </span>
                 <span className="text-xs text-slate-500">
                   {filtroGrados.length === 0
                     ? `Todos los de tu lista (${gradosDisponibles.length})`
@@ -621,6 +605,28 @@ export default function ComparacionPage() {
               </div>
             </div>
           )}
+
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <div>
+              <label htmlFor="cmp-modo" className="field-label">Comparar</label>
+              <select id="cmp-modo" value={modo} onChange={(e) => setModo(e.target.value as "cargo" | "grado")} className="field-select">
+                <option value="cargo">Por cargo homologado</option>
+                <option value="grado">Por grado CAPRI</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="cmp-metrica" className="field-label">Métrica</label>
+              <select id="cmp-metrica" value={metrica} onChange={(e) => setMetrica(e.target.value as Metrica)} className="field-select">
+                {METRICAS.map((m) => <option key={m.value} value={m.value}>{m.sigla} — {m.label}</option>)}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={comisiones} onChange={(e) => setComisiones(e.target.checked)} className="mt-1" />
+                <span>Incluir comisiones</span>
+              </label>
+            </div>
+          </div>
 
           {/* ── Tipo de cambio ───────────────────────────────────────── */}
           <div className="mt-5 rounded-2xl border border-slate-200 p-4">
