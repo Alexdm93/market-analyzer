@@ -10,9 +10,13 @@
  * reescribir el libro: así los cuadros de texto y las imágenes llegan intactos.
  * Solo se escriben las celdas de datos.
  *
- * La plantilla es la que revisó AC Consulting (2026-09-26): los títulos de cada
+ * La plantilla es la que revisó AC Consulting (2026-09-28): los títulos de cada
  * hoja son formas, no celdas, las pestañas perdieron el prefijo "F - ", y el
  * índice ya viene escrito. Por eso acá no se tocan ni los títulos ni el índice.
+ *
+ * La última revisión sumó la hoja "Metodologia" —conceptos, percentiles y el
+ * mínimo de participantes de cada uno— y la agregó al Contenido. Las dos son
+ * texto fijo de la plantilla: el generador no escribe nada en ellas.
  */
 import path from "node:path";
 
