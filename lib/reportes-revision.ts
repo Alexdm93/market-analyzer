@@ -45,6 +45,9 @@ export type EmpresaConData = {
   diasBonoVacacional: string;
   diasUtilidades: string;
   localidades: string;
+  /** Quién lleva la relación en la empresa. Sale de la ficha que ella misma
+   *  llena; si la dejó vacía, de la que mantiene el admin. */
+  contacto: { nombre: string; cargo: string; correo: string; telefono: string; celular: string };
   enviado: boolean;
   companyInfo: CompanyInfo;
   filas: ExtendedMarketPosition[];
@@ -143,6 +146,7 @@ export async function cargarEmpresas(filtros: FiltrosReporte): Promise<EmpresaCo
             id: true, name: true, economicSector: true, classification: true,
             headcount: true, revenueUSD: true, minVacationDays: true,
             minUtilityDays: true, locality: true,
+            hrName: true, hrPosition: true, hrEmail: true, hrPhone: true, hrCell: true,
           },
         },
       },
@@ -179,6 +183,8 @@ export async function cargarEmpresas(filtros: FiltrosReporte): Promise<EmpresaCo
     if (filas.length === 0) continue;
     vistas.add(s.companyId);
 
+    const info = infoPorUsuario.get(s.userId) ?? safeParseCompanyInfo("");
+
     empresas.push({
       companyId: s.companyId,
       userId: s.userId,
@@ -187,11 +193,18 @@ export async function cargarEmpresas(filtros: FiltrosReporte): Promise<EmpresaCo
       subsector: s.company.classification || "",
       headcount: s.company.headcount || "",
       facturacion: s.company.revenueUSD || "",
+      contacto: {
+        nombre:   info.hrName     || s.company.hrName     || "",
+        cargo:    info.hrPosition || s.company.hrPosition || "",
+        correo:   info.hrEmail    || s.company.hrEmail    || "",
+        telefono: info.hrPhone    || s.company.hrPhone    || "",
+        celular:  info.hrCell     || s.company.hrCell     || "",
+      },
       diasBonoVacacional: s.company.minVacationDays || "",
       diasUtilidades: s.company.minUtilityDays || "",
       localidades: (s.company.locality || "").split(",").filter(Boolean).join(", "),
       enviado: Boolean(s.submittedAt),
-      companyInfo: infoPorUsuario.get(s.userId) ?? safeParseCompanyInfo(""),
+      companyInfo: info,
       filas,
     });
   }
@@ -439,12 +452,16 @@ export async function construirReportePorEmpresa(
   resumen.columns = [
     { width: 40 }, { width: 28 }, { width: 28 }, { width: 14 },
     { width: 16 }, { width: 12 }, { width: 12 }, { width: 12 },
+    { width: 26 }, { width: 26 }, { width: 32 }, { width: 18 }, { width: 18 },
   ];
   resumen.addRow([`Reporte por empresa — ${etiquetaCorte}`]);
   resumen.getRow(1).font = { bold: true, size: 14 };
   resumen.addRow([`Generado el ${new Date().toLocaleString("es-VE")}`]);
   resumen.addRow([]);
-  estiloCabecera(resumen.addRow(["Empresa", "Sector", "Subsector", "Headcount", "Facturación USD", "Cargos", "Enviado", "Hoja"]));
+  estiloCabecera(resumen.addRow([
+    "Empresa", "Sector", "Subsector", "Headcount", "Facturación USD", "Cargos", "Enviado", "Hoja",
+    "Contacto RRHH", "Cargo del contacto", "Correo", "Teléfono", "Celular",
+  ]));
 
   const usados = new Set<string>();
 
@@ -453,6 +470,8 @@ export async function construirReportePorEmpresa(
     resumen.addRow([
       empresa.nombre, empresa.sector, empresa.subsector, empresa.headcount,
       empresa.facturacion, empresa.filas.length, empresa.enviado ? "Sí" : "No", hoja,
+      empresa.contacto.nombre, empresa.contacto.cargo, empresa.contacto.correo,
+      empresa.contacto.telefono, empresa.contacto.celular,
     ]);
   }
   resumen.views = [{ state: "frozen", ySplit: 4 }];
