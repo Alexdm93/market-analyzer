@@ -39,6 +39,8 @@ export default function EmpresasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [companySearch, setCompanySearch] = useState("");
+  const [filterSector, setFilterSector] = useState("");
+  const [filterClassification, setFilterClassification] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [modalMode, setModalMode] = useState<"view" | "edit" | "delete">("view");
   const [editName, setEditName] = useState("");
@@ -49,6 +51,20 @@ export default function EmpresasPage() {
   function getClassifications(sectorName: string): string[] {
     return sectors.find((s) => s.name === sectorName)?.classifications ?? [];
   }
+
+  // Los filtros se arman con lo que tienen las empresas registradas, no con el
+  // catálogo: ofrecer un sector que no usa nadie solo da listas vacías. El
+  // subsector depende del sector elegido.
+  const filterSectorOptions = [...new Set(companies.map((c) => c.economicSector).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "es"));
+  const filterClassificationOptions = [
+    ...new Set(
+      companies
+        .filter((c) => !filterSector || c.economicSector === filterSector)
+        .map((c) => c.classification)
+        .filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "es"));
   const classificationOptions = getClassifications(companyEconomicSector);
   const editClassificationOptions = getClassifications(editSector);
 
@@ -377,15 +393,43 @@ export default function EmpresasPage() {
                 <h2 className="font-display text-2xl font-bold text-slate-900">Listado de empresas</h2>
               </div>
             </div>
-            <div className="relative min-w-[14rem] max-w-xs flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden />
-              <input
-                type="search"
-                value={companySearch}
-                onChange={(e) => setCompanySearch(e.target.value)}
-                placeholder="Buscar empresa..."
-                className="field pl-9 py-2 text-sm"
-              />
+            <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
+              <div className="min-w-[11rem] flex-1 sm:max-w-[13rem]">
+                <SelectorBuscador
+                  id="emp-filtro-sector"
+                  value={filterSector}
+                  onChange={(v) => { setFilterSector(v); setFilterClassification(""); }}
+                  opciones={[
+                    { value: "", label: "Todos los sectores" },
+                    ...filterSectorOptions.map((x) => ({ value: x, label: x })),
+                  ]}
+                  placeholder="Todos los sectores"
+                  aria-label="Filtrar por sector"
+                />
+              </div>
+              <div className="min-w-[11rem] flex-1 sm:max-w-[13rem]">
+                <SelectorBuscador
+                  id="emp-filtro-subsector"
+                  value={filterClassification}
+                  onChange={setFilterClassification}
+                  opciones={[
+                    { value: "", label: "Todos los subsectores" },
+                    ...filterClassificationOptions.map((x) => ({ value: x, label: x })),
+                  ]}
+                  placeholder="Todos los subsectores"
+                  aria-label="Filtrar por subsector"
+                />
+              </div>
+              <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" aria-hidden />
+                <input
+                  type="search"
+                  value={companySearch}
+                  onChange={(e) => setCompanySearch(e.target.value)}
+                  placeholder="Buscar empresa..."
+                  className="field pl-9 py-2 text-sm"
+                />
+              </div>
             </div>
           </div>
 
@@ -396,19 +440,28 @@ export default function EmpresasPage() {
               No hay empresas registradas todavía.
             </div>
           ) : (() => {
-            const filtered = companySearch.trim()
-              ? companies.filter((c) =>
-                  c.name.toLowerCase().includes(companySearch.toLowerCase()) ||
-                  (c.description ?? "").toLowerCase().includes(companySearch.toLowerCase()) ||
-                  (c.economicSector ?? "").toLowerCase().includes(companySearch.toLowerCase())
-                )
-              : companies;
+            const term = companySearch.trim().toLowerCase();
+            const filtered = companies
+              .filter((c) => !filterSector || c.economicSector === filterSector)
+              .filter((c) => !filterClassification || c.classification === filterClassification)
+              .filter((c) =>
+                !term ||
+                c.name.toLowerCase().includes(term) ||
+                (c.description ?? "").toLowerCase().includes(term) ||
+                (c.economicSector ?? "").toLowerCase().includes(term)
+              );
             return filtered.length === 0 ? (
               <div className="mt-6 rounded-[1.5rem] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-sm text-slate-500">
-                No se encontraron empresas para "{companySearch}".
+                No hay empresas que cumplan con la búsqueda.
               </div>
             ) : (
-              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <>
+              <div className="mt-4 text-sm text-slate-500">
+                {filtered.length === companies.length
+                  ? `${companies.length} ${companies.length === 1 ? "empresa" : "empresas"}`
+                  : `${filtered.length} de ${companies.length} ${companies.length === 1 ? "empresa" : "empresas"}`}
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filtered.map((company) => (
                   <article
                     key={company.id}
@@ -428,6 +481,7 @@ export default function EmpresasPage() {
                   </article>
                 ))}
               </div>
+              </>
             );
           })()}
         </section>

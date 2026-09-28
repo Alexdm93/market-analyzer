@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Activity, ArrowUpDown, Building2, Clock, Download, RefreshCw, Save } from "lucide-react";
+import { Activity, ArrowUpDown, Building2, Clock, Download, RefreshCw, Save, Send } from "lucide-react";
 import type { CompanyTelemetry } from "@/app/api/admin/telemetry/route";
+import { SelectorBuscador } from "@/components/SelectorBuscador";
 
-type SortKey = "companyName" | "lastLoginAt" | "lastDataSavedAt" | "lastExportAt" | "totalPositions";
+type SortKey = "companyName" | "lastLoginAt" | "lastDataSavedAt" | "lastExportAt" | "totalPositions" | "submittedAt";
 type SortDir = "asc" | "desc";
+
+type AdminSnapshot = { id: string; label: string; date: string };
 
 function timeAgo(iso: string | null): { label: string; level: "recent" | "old" | "never" } {
   if (!iso) return { label: "Nunca", level: "never" };
@@ -77,6 +80,9 @@ export default function TelemetryPage() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("companyName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [snapshots, setSnapshots] = useState<AdminSnapshot[]>([]);
+  const [snapshotId, setSnapshotId] = useState("");
+  const porCorte = Boolean(snapshotId);
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role !== "ADMIN") {
@@ -84,10 +90,11 @@ export default function TelemetryPage() {
     }
   }, [status, session, router]);
 
-  async function load() {
+  const load = useCallback(async (corte: string) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/telemetry");
+      const url = corte ? `/api/admin/telemetry?snapshotId=${encodeURIComponent(corte)}` : "/api/admin/telemetry";
+      const res = await fetch(url, { cache: "no-store" });
       if (res.ok) {
         const json = (await res.json()) as { telemetry: CompanyTelemetry[] };
         setData(json.telemetry);
@@ -96,9 +103,16 @@ export default function TelemetryPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(snapshotId); }, [load, snapshotId]);
+
+  useEffect(() => {
+    void fetch("/api/admin/study", { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((d: { snapshots?: AdminSnapshot[] } | null) => setSnapshots(d?.snapshots ?? []))
+      .catch(() => setSnapshots([]));
+  }, []);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -116,6 +130,8 @@ export default function TelemetryPage() {
     (c) => c.lastLoginAt && Date.now() - new Date(c.lastLoginAt).getTime() < 7 * 86_400_000
   ).length;
   const neverLogged = data.filter((c) => !c.lastLoginAt).length;
+  const conDatos = data.filter((c) => c.totalPositions > 0).length;
+  const enviados = data.filter((c) => c.submittedAt).length;
 
   function SortBtn({ k, children }: { k: SortKey; children: React.ReactNode }) {
     const active = sortKey === k;
@@ -145,7 +161,9 @@ export default function TelemetryPage() {
                 Actividad por empresa
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Última sesión, carga de datos y descargas por cada empresa registrada.
+                {porCorte
+                  ? "Lo que cada empresa cargó y envió en el estudio elegido. El acceso y la descarga son de la cuenta, no del corte."
+                  : "Última sesión, carga de datos y descargas por cada empresa registrada, sumando todos los estudios."}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -155,7 +173,7 @@ export default function TelemetryPage() {
                 </span>
               )}
               <button
-                onClick={() => void load()}
+                onClick={() => void load(snapshotId)}
                 disabled={loading}
                 className="btn btn-secondary flex items-center gap-1.5"
               >
@@ -165,24 +183,62 @@ export default function TelemetryPage() {
             </div>
           </div>
 
+          {/* Corte */}
+          <div className="mt-4 max-w-md">
+            <label htmlFor="tel-corte" className="field-label">Estudio de mercado</label>
+            <SelectorBuscador
+              id="tel-corte"
+              value={snapshotId}
+              onChange={setSnapshotId}
+              opciones={[
+                { value: "", label: "Todos los estudios" },
+                ...snapshots.map((s) => ({ value: s.id, label: `${s.label} (${s.date})` })),
+              ]}
+              placeholder="Todos los estudios"
+            />
+          </div>
+
           {/* Summary tiles */}
           <div className="mt-4 flex flex-wrap gap-2">
             <div className="metric-tile py-2.5 w-40 shrink-0">
               <div className="metric-label">Total empresas</div>
               <div className="metric-value mt-1">{data.length}</div>
             </div>
-            <div className="metric-tile py-2.5 w-40 shrink-0">
-              <div className="metric-label">Activas esta semana</div>
-              <div className="metric-value mt-1 text-teal-700">{activeThisWeek}</div>
-            </div>
-            <div className="metric-tile py-2.5 w-40 shrink-0">
-              <div className="metric-label">Sin inicio de sesión</div>
-              <div className="metric-value mt-1 text-amber-600">{neverLogged}</div>
-            </div>
-            <div className="metric-tile py-2.5 w-40 shrink-0">
-              <div className="metric-label">Total cargos cargados</div>
-              <div className="metric-value mt-1">{totalPositions}</div>
-            </div>
+            {porCorte ? (
+              <>
+                <div className="metric-tile py-2.5 w-40 shrink-0">
+                  <div className="metric-label">Con datos en el corte</div>
+                  <div className="metric-value mt-1 text-teal-700">{conDatos}</div>
+                </div>
+                <div className="metric-tile py-2.5 w-40 shrink-0">
+                  <div className="metric-label">Ya lo enviaron</div>
+                  <div className="metric-value mt-1 text-teal-700">{enviados}</div>
+                </div>
+                <div className="metric-tile py-2.5 w-40 shrink-0">
+                  <div className="metric-label">Sin datos en el corte</div>
+                  <div className="metric-value mt-1 text-amber-600">{data.length - conDatos}</div>
+                </div>
+                <div className="metric-tile py-2.5 w-40 shrink-0">
+                  <div className="metric-label">Cargos del corte</div>
+                  <div className="metric-value mt-1">{totalPositions}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="metric-tile py-2.5 w-40 shrink-0">
+                  <div className="metric-label">Activas esta semana</div>
+                  <div className="metric-value mt-1 text-teal-700">{activeThisWeek}</div>
+                </div>
+                <div className="metric-tile py-2.5 w-40 shrink-0">
+                  <div className="metric-label">Sin inicio de sesión</div>
+                  <div className="metric-value mt-1 text-amber-600">{neverLogged}</div>
+                </div>
+                <div className="metric-tile py-2.5 w-40 shrink-0">
+                  <div className="metric-label">Total cargos cargados</div>
+                  <div className="metric-value mt-1">{totalPositions}</div>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
@@ -219,9 +275,17 @@ export default function TelemetryPage() {
                     <th className="px-5 py-4">
                       <SortBtn k="lastDataSavedAt">
                         <Save size={10} />
-                        Último guardado
+                        {porCorte ? "Último guardado del corte" : "Último guardado"}
                       </SortBtn>
                     </th>
+                    {porCorte && (
+                      <th className="px-5 py-4">
+                        <SortBtn k="submittedAt">
+                          <Send size={10} />
+                          Envío
+                        </SortBtn>
+                      </th>
+                    )}
                     <th className="px-5 py-4">
                       <SortBtn k="lastExportAt">
                         <Download size={10} />
@@ -277,6 +341,24 @@ export default function TelemetryPage() {
                             </div>
                           )}
                         </td>
+
+                        {/* Envío del corte */}
+                        {porCorte && (
+                          <td className="px-5 py-3.5">
+                            {company.submittedAt ? (
+                              <>
+                                <Pill iso={company.submittedAt} />
+                                <div className="mt-1 text-xs text-slate-400">
+                                  {company.processingStatus === "PROCESSED" ? "Procesado" : "En revisión"}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="inline-block rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-400">
+                                {company.totalPositions > 0 ? "Sin enviar" : "Sin datos"}
+                              </span>
+                            )}
+                          </td>
+                        )}
 
                         {/* Last export */}
                         <td className="px-5 py-3.5">

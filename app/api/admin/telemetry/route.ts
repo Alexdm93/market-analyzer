@@ -13,9 +13,72 @@ export type CompanyTelemetry = {
   lastExportAt: string | null;
   totalPositions: number;
   lastPositionAt: string | null;
+  /** Cuándo envió el corte. Nulo fuera del modo corte o si todavía no lo envió. */
+  submittedAt: string | null;
+  /** En qué quedó el envío del corte. Nulo fuera del modo corte. */
+  processingStatus: "IN_REVIEW" | "PROCESSED" | null;
 };
 
-export async function GET() {
+/**
+ * Lo que la empresa hizo **en un corte**.
+ *
+ * `UserSnapshot.updatedAt` no sirve para esto: al guardar, el cliente manda el
+ * mapa completo de cortes y el servidor borra y recrea las filas de todos, así
+ * que la marca de tiempo termina siendo la misma en todos. La única marca que
+ * sí distingue un corte de otro es `_lastModified`, que el guardado conserva
+ * fila por fila cuando la data no cambió (ver app/api/workspace/route.ts).
+ */
+async function actividadDelCorte(snapshotId: string) {
+  const [snapshots, posiciones] = await Promise.all([
+    prisma.userSnapshot.findMany({
+      where: { snapshotId },
+      select: { companyId: true, submittedAt: true, status: true },
+    }),
+    prisma.userPosition.findMany({
+      where: { snapshotId },
+      select: { companyId: true, dataJson: true, updatedAt: true },
+    }),
+  ]);
+
+  // Una empresa puede tener varios usuarios: vale el envío más viejo —el
+  // primero que respondió— y el estado más avanzado.
+  const envios = new Map<string, { submittedAt: Date | null; status: "IN_REVIEW" | "PROCESSED" }>();
+  for (const s of snapshots) {
+    const previo = envios.get(s.companyId);
+    const anterior = previo?.submittedAt ?? null;
+    const primero =
+      anterior && s.submittedAt ? (s.submittedAt < anterior ? s.submittedAt : anterior) : anterior ?? s.submittedAt;
+
+    envios.set(s.companyId, {
+      submittedAt: primero,
+      status: previo?.status === "PROCESSED" || s.status === "PROCESSED" ? "PROCESSED" : "IN_REVIEW",
+    });
+  }
+
+  const cargos = new Map<string, number>();
+  const guardados = new Map<string, Date>();
+  for (const p of posiciones) {
+    cargos.set(p.companyId, (cargos.get(p.companyId) ?? 0) + 1);
+
+    let marca = p.updatedAt;
+    try {
+      const fila = JSON.parse(p.dataJson) as { _lastModified?: unknown };
+      if (typeof fila._lastModified === "string") {
+        const fecha = new Date(fila._lastModified);
+        if (!Number.isNaN(fecha.getTime())) marca = fecha;
+      }
+    } catch {
+      // fila corrupta: queda la marca de la fila, que igual es del último guardado
+    }
+
+    const previo = guardados.get(p.companyId);
+    if (!previo || marca > previo) guardados.set(p.companyId, marca);
+  }
+
+  return { envios, cargos, guardados };
+}
+
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
@@ -25,6 +88,10 @@ export async function GET() {
   if (session.user.role !== "ADMIN") {
     return Response.json({ message: "Acceso restringido a administradores." }, { status: 403 });
   }
+
+  // Sin corte se ve la actividad de la cuenta, que es como estaba antes.
+  const snapshotId = new URL(request.url).searchParams.get("snapshotId")?.trim() ?? "";
+  const corte = snapshotId ? await actividadDelCorte(snapshotId) : null;
 
   // Base query — works even before migration is applied
   const companies = await prisma.company.findMany({
@@ -52,8 +119,8 @@ export async function GET() {
   });
 
   // Try to fetch telemetry columns added by migration — gracefully degrade if not applied yet
-  let loginMap = new Map<string, { lastLoginAt: Date; name: string }>();
-  let exportMap = new Map<string, Date>();
+  const loginMap = new Map<string, { lastLoginAt: Date; name: string }>();
+  const exportMap = new Map<string, Date>();
 
   try {
     const usersWithLogin = await prisma.user.findMany({
@@ -104,6 +171,11 @@ export async function GET() {
       }
     }
 
+    const envio = corte?.envios.get(company.id) ?? null;
+    // El acceso y la descarga son de la cuenta, no del corte: no hay forma de
+    // atribuirlos a uno, así que se dejan como están aunque haya corte elegido.
+    const guardadoDelCorte = corte ? corte.guardados.get(company.id) ?? null : lastDataSavedAt;
+
     return {
       companyId: company.id,
       companyName: company.name,
@@ -111,10 +183,12 @@ export async function GET() {
       userCount: company.users.length,
       lastLoginAt: lastLoginAt ? lastLoginAt.toISOString() : null,
       lastLoginUserName,
-      lastDataSavedAt: lastDataSavedAt ? lastDataSavedAt.toISOString() : null,
+      lastDataSavedAt: guardadoDelCorte ? guardadoDelCorte.toISOString() : null,
       lastExportAt: lastExportAt ? lastExportAt.toISOString() : null,
-      totalPositions: company._count.positions,
+      totalPositions: corte ? corte.cargos.get(company.id) ?? 0 : company._count.positions,
       lastPositionAt: company.positions[0]?.updatedAt.toISOString() ?? null,
+      submittedAt: envio?.submittedAt?.toISOString() ?? null,
+      processingStatus: envio?.status ?? null,
     };
   });
 
