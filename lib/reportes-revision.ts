@@ -459,7 +459,7 @@ export async function construirReportePorEmpresa(
   resumen.addRow([`Generado el ${new Date().toLocaleString("es-VE")}`]);
   resumen.addRow([]);
   estiloCabecera(resumen.addRow([
-    "Empresa", "Sector", "Subsector", "Headcount", "Facturación USD", "Cargos", "Enviado", "Hoja",
+    "Empresa", "Sector", "Subsector", "Headcount", "Facturación anual USD", "Cargos", "Enviado", "Hoja",
     "Contacto RRHH", "Cargo del contacto", "Correo", "Teléfono", "Celular",
   ]));
 
@@ -491,7 +491,7 @@ export async function construirReportePorEmpresa(
       ["Sector", empresa.sector],
       ["Subsector", empresa.subsector],
       ["Headcount", empresa.headcount],
-      ["Facturación USD", empresa.facturacion],
+      ["Facturación anual USD", empresa.facturacion],
       ["Días de bono vacacional", empresa.diasBonoVacacional],
       ["Días de utilidades", empresa.diasUtilidades],
       ["Dónde tiene operación", empresa.localidades],

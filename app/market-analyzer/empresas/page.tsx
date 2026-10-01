@@ -261,7 +261,7 @@ export default function EmpresasPage() {
       Descripción: c.description || "—",
       Localidad: c.locality || "—",
       Headcount: c.headcount || "—",
-      "Facturación USD": c.revenueUSD || "—",
+      "Facturación anual USD": c.revenueUSD || "—",
       "Contacto RRHH": c.hrName || "—",
       "Correo RRHH": c.hrEmail || "—",
       "Fecha registro": new Date(c.createdAt).toLocaleDateString("es-VE"),
@@ -534,7 +534,7 @@ export default function EmpresasPage() {
                       <div className="mt-1 font-medium text-slate-900">{selectedCompany.headcount || "—"}</div>
                     </div>
                     <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3">
-                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Facturación USD</div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Facturación anual USD</div>
                       <div className="mt-1 font-medium text-slate-900">{selectedCompany.revenueUSD || "—"}</div>
                     </div>
                   </div>

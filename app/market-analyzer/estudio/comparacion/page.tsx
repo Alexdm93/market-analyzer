@@ -54,6 +54,9 @@ function money(v: number | null | undefined) {
  * Una lista de casillas para elegir varias opciones. Se repite para sectores y
  * ubicaciones, que son listas cortas pero de largo variable.
  */
+/** A partir de acá la lista no se puede recorrer con la vista y lleva buscador. */
+const LISTA_LARGA = 12;
+
 function ListaCasillas({
   titulo, vacio, opciones, elegidas, onToggle, onLimpiar, etiquetas,
 }: {
@@ -66,6 +69,11 @@ function ListaCasillas({
   /** Para listas con valor interno distinto del que se muestra. */
   etiquetas?: Record<string, string>;
 }) {
+  const [busqueda, setBusqueda] = useState("");
+  const conBuscador = opciones.length > LISTA_LARGA;
+  const q = busqueda.trim().toLowerCase();
+  const visibles = q ? opciones.filter((o) => (etiquetas?.[o] ?? o).toLowerCase().includes(q)) : opciones;
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -79,15 +87,28 @@ function ListaCasillas({
           Quitar selección
         </button>
       )}
+      {conBuscador && (
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder={`Buscar en ${opciones.length}…`}
+          aria-label={`Buscar en ${titulo}`}
+          className="field mt-2 py-1.5 text-sm"
+        />
+      )}
       <div className="mt-2 max-h-40 overflow-y-auto rounded-2xl border border-slate-200 p-3">
         <div className="grid gap-1.5">
-          {opciones.map((o) => (
+          {visibles.map((o) => (
             <label key={o} className="flex items-start gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={elegidas.includes(o)} onChange={() => onToggle(o)} className="mt-1" />
               <span className="truncate" title={etiquetas?.[o] ?? o}>{etiquetas?.[o] ?? o}</span>
             </label>
           ))}
           {opciones.length === 0 && <p className="text-xs text-slate-500">Sin opciones que listar todavía.</p>}
+          {opciones.length > 0 && visibles.length === 0 && (
+            <p className="text-xs text-slate-500">Nada coincide con «{busqueda}».</p>
+          )}
         </div>
       </div>
     </div>
@@ -129,8 +150,9 @@ export default function ComparacionPage() {
   const [filtroClasificaciones, setFiltroClasificaciones] = useState<string[]>([]);
   const [filtroLocalidades, setFiltroLocalidades] = useState<string[]>([]);
   const [filtroTamanos, setFiltroTamanos] = useState<string[]>([]);
-  const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; localidades: string[] }>(
-    { sectores: [], clasificaciones: [], localidades: [] },
+  const [filtroEmpresas, setFiltroEmpresas] = useState<string[]>([]);
+  const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; localidades: string[]; empresas: string[] }>(
+    { sectores: [], clasificaciones: [], localidades: [], empresas: [] },
   );
   const [abrirGrupo, setAbrirGrupo] = useState(false);
 
@@ -207,8 +229,11 @@ export default function ComparacionPage() {
     if (filtroClasificaciones.length > 0) p.set("sizes", filtroClasificaciones.join(","));
     if (filtroLocalidades.length > 0) p.set("localities", filtroLocalidades.join(","));
     if (filtroTamanos.length > 0) p.set("tamanos", filtroTamanos.join(","));
+    // Las empresas van por nombre: así las filtra `pasaFiltros`, que compara
+    // contra el nombre que cada una guardó en su ficha.
+    if (filtroEmpresas.length > 0) p.set("companies", filtroEmpresas.join(","));
     return p;
-  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos]);
+  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos, filtroEmpresas]);
 
   const descripcionGrupo = useMemo(() => {
     const partes: string[] = [];
@@ -220,11 +245,12 @@ export default function ComparacionPage() {
       resumir(filtroClasificaciones, "clasificación", "clasificaciones"),
       resumir(filtroLocalidades, "ubicación", "ubicaciones"),
       resumir(filtroTamanos.map((t) => TAMANOS.find((x) => x.valor === t)?.etiqueta ?? t), "tamaño", "tamaños"),
+      resumir(filtroEmpresas, "empresa", "empresas"),
     ]) {
       if (texto) partes.push(texto);
     }
     return partes.length > 0 ? partes.join(" · ") : "Mercado general";
-  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos]);
+  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos, filtroEmpresas]);
 
   // Las tasas del sistema, para poder expresar el estudio en TCR.
   useEffect(() => {
@@ -254,7 +280,7 @@ export default function ComparacionPage() {
 
     void fetch(`/api/percentiles?${base}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((d: { grupos?: GrupoCargo[]; availableSectors?: string[]; availableSizes?: string[]; availableLocalities?: string[] } | null) => {
+      .then((d: { grupos?: GrupoCargo[]; availableSectors?: string[]; availableSizes?: string[]; availableLocalities?: string[]; availableCompanies?: string[] } | null) => {
         if (ignorar) return;
         setPorCargo(d?.grupos ?? []);
         // Las listas se quedan con lo que devuelve el corte completo; si se
@@ -263,6 +289,7 @@ export default function ComparacionPage() {
           sectores: (d?.availableSectors?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSectors! : prev.sectores,
           clasificaciones: (d?.availableSizes?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSizes! : prev.clasificaciones,
           localidades: (d?.availableLocalities?.length ?? 0) > 0 && !consultaFiltros ? d!.availableLocalities! : prev.localidades,
+          empresas: (d?.availableCompanies?.length ?? 0) > 0 && !consultaFiltros ? d!.availableCompanies! : prev.empresas,
         }));
       })
       .catch(() => { if (!ignorar) setPorCargo([]); });
@@ -721,6 +748,17 @@ export default function ComparacionPage() {
                     onLimpiar={() => setFiltroTamanos([])}
                   />
                 </div>
+
+                {/* Elegir empresas a mano. Se cruza con los demás filtros: una
+                    empresa elegida que no cumpla el sector marcado queda fuera. */}
+                <ListaCasillas
+                  titulo="Empresas"
+                  vacio="Todas las del corte"
+                  opciones={disponibles.empresas}
+                  elegidas={filtroEmpresas}
+                  onToggle={(v) => setFiltroEmpresas((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                  onLimpiar={() => setFiltroEmpresas([])}
+                />
 
                 <p className="text-xs text-slate-500">
                   Recortar el grupo cambia los percentiles de toda la pantalla y del informe que descargues. Con menos

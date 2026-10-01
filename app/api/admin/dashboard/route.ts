@@ -122,7 +122,7 @@ export async function GET(request: Request) {
     .map((c) => {
       const missing: string[] = [];
       if (!c.headcount) missing.push("Headcount");
-      if (!c.revenueUSD) missing.push("Facturación");
+      if (!c.revenueUSD) missing.push("Facturación anual");
       if (!c.avgProfitPercent) missing.push("Utilidades %");
       if (!c.hrName) missing.push("Contacto RRHH");
       if (!c.hrEmail) missing.push("Correo RRHH");

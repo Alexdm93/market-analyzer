@@ -1080,7 +1080,7 @@ export default function DataPage() {
   const missingCompanyFields: string[] = [];
   if (modal.type === "save") {
     if (!companyInfo.headcount) missingCompanyFields.push("Headcount");
-    if (!companyInfo.revenueUSD) missingCompanyFields.push("Facturación");
+    if (!companyInfo.revenueUSD) missingCompanyFields.push("Facturación anual");
     if (!companyInfo.avgProfitPercent) missingCompanyFields.push("Utilidades antes de ISLR (%)");
     if (!companyInfo.hrName) missingCompanyFields.push("Nombre de contacto de RRHH");
     if (!companyInfo.hrEmail) missingCompanyFields.push("Correo de contacto de RRHH");
@@ -1089,7 +1089,7 @@ export default function DataPage() {
   const missingCompanyFieldsForSubmit = useMemo(() => {
     const missing: string[] = [];
     if (!companyInfo.headcount) missing.push("Headcount");
-    if (!companyInfo.revenueUSD) missing.push("Facturación");
+    if (!companyInfo.revenueUSD) missing.push("Facturación anual");
     if (!companyInfo.avgProfitPercent) missing.push("Utilidades antes de ISLR (%)");
     if (!companyInfo.hrName) missing.push("Nombre de contacto de RRHH");
     if (!companyInfo.hrEmail) missing.push("Correo de contacto de RRHH");

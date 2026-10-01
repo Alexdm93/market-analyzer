@@ -3,6 +3,7 @@ import { Building2, Contact2, Globe2, Layers, Lock, Plus, RefreshCw, Save, Spark
 import { useEffect, useState } from "react";
 import { EMPTY_COMPANY_INFO, type CompanyInfo, type CompensationTemplateConcept, type ExchangeRate } from "@/lib/workspace";
 import { FREQUENCY_OPTIONS, SYSTEM_FIXED_CONCEPTS, VARIABLE_BONUS_TYPES, VARIABLE_COMMISSION_TYPES, VARIABLE_CALCULATION_DETAILS, VARIABLE_GOALS_TARGETS } from "@/lib/compensation-options";
+import { LOCALIDADES, estadosDe } from "@/lib/localidades";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 
 const MAX_TASAS = 5;
@@ -11,18 +12,6 @@ const REFERENCIA_OPTIONS = [
   "Tasa BCV (Bs./USD)",
   "Tasa BCV (Bs./EUR)",
   "Tasa de Referencia Externa",
-] as const;
-
-const LOCALITY_OPTIONS = [
-  "Capital",
-  "Central",
-  "Centroccidental",
-  "Guayana",
-  "Insular",
-  "Los Andes",
-  "Los Llanos",
-  "Nororiental",
-  "Zuliana",
 ] as const;
 
 const REVENUE_RANGE_OPTIONS = [
@@ -307,8 +296,8 @@ export default function Informacion() {
                 <input title="Headcount" aria-label="Headcount" type="number" placeholder="0" value={companyInfo.headcount} onChange={(e) => updateCompany("headcount", e.target.value)} className="field" />
               </div>
               <div className="flex flex-col">
-                <label className="field-label">Facturación (USD)</label>
-                <select title="Facturación USD" aria-label="Facturación USD" value={companyInfo.revenueUSD} onChange={(e) => updateCompany("revenueUSD", e.target.value)} className="field-select flex-1">
+                <label className="field-label">Facturación Anual (USD)</label>
+                <select title="Facturación anual USD" aria-label="Facturación anual USD" value={companyInfo.revenueUSD} onChange={(e) => updateCompany("revenueUSD", e.target.value)} className="field-select flex-1">
                   <option value="">Seleccionar rango</option>
                   {REVENUE_RANGE_OPTIONS.map((option) => (
                     <option key={option} value={option}>{option}</option>
@@ -381,21 +370,25 @@ export default function Informacion() {
             </div>
             <div className="min-w-0 flex-1">
               <label className="field-label">Localidad</label>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {LOCALITY_OPTIONS.map((loc) => {
-                  const isSelected = (companyInfo.locality || "").split(",").filter(Boolean).includes(loc);
+              <div className="mt-1.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {LOCALIDADES.map(({ nombre }) => {
+                  const isSelected = (companyInfo.locality || "").split(",").filter(Boolean).includes(nombre);
                   return (
                     <button
-                      key={loc}
+                      key={nombre}
                       type="button"
-                      onClick={() => toggleLocality(loc)}
-                      className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                      onClick={() => toggleLocality(nombre)}
+                      aria-pressed={isSelected}
+                      className={`rounded-2xl border px-3 py-2 text-left transition-colors ${
                         isSelected
                           ? "border-teal-600 bg-teal-600 text-white"
                           : "border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700"
                       }`}
                     >
-                      {loc}
+                      <span className="block text-sm font-semibold">{nombre}</span>
+                      <span className={`block text-xs ${isSelected ? "text-teal-50" : "text-slate-500"}`}>
+                        {estadosDe(nombre)}
+                      </span>
                     </button>
                   );
                 })}
