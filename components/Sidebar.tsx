@@ -61,6 +61,13 @@ const posicionamientoItem: MenuItem = {
   hint: "Por grado CAPRI y TCR",
 };
 
+const informeGeneralItem: MenuItem = {
+  name: "Informe general",
+  href: `${BASE}/informe-general`,
+  icon: FileSpreadsheet,
+  hint: "Tendencias salariales del corte",
+};
+
 const especializadoItem: MenuItem = {
   name: "Estudio especializado",
   href: `${BASE}/estudio/cargos`,
@@ -80,6 +87,7 @@ const grupoAdmin: MenuGroup = {
     { name: "Valoración", href: `${BASE}/valoracion`, icon: Layers, hint: "CAPRI por cargo" },
     { name: "Respaldos", href: `${BASE}/admin/respaldos`, icon: HardDrive, hint: "Respaldar y restaurar cortes" },
     { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
+    { name: "Informe general", href: `${BASE}/admin/informe-general`, icon: FileSpreadsheet, hint: "Habilitar y repartir informes" },
   ],
 };
 
@@ -91,6 +99,7 @@ export default function Sidebar() {
   const isAdmin = isAdminRole(role);
   const isCoordinator = isCoordinatorRole(role);
   const canSeeEstudio = isAdmin || session?.user?.estudioEnabled === true;
+  const canSeeInformeGeneral = isAdmin || session?.user?.generalEnabled === true;
   const triggerNavigation = useNavigationTrigger();
   const [signingOut, setSigningOut] = useState(false);
   const { hasUnread } = useAnnouncements();
@@ -125,9 +134,13 @@ export default function Sidebar() {
     ? [isAdmin ? procesamientoItem : posicionamientoItem, especializadoItem]
     : [];
 
+  // El admin lo configura desde Administración, así que acá solo aparece para
+  // la empresa que lo tiene habilitado.
+  const itemsInformeGeneral = !isAdmin && canSeeInformeGeneral ? [informeGeneralItem] : [];
+
   const itemsPlanos = isAdmin
     ? [...itemsBaseAdmin, ...itemsEstudio]
-    : [...itemsBase, ...itemsEstudio, ...(isCoordinator ? [estudiosItem] : [])];
+    : [...itemsBase, ...itemsInformeGeneral, ...itemsEstudio, ...(isCoordinator ? [estudiosItem] : [])];
 
   const grupos: MenuGroup[] = isAdmin ? [grupoAdmin] : [];
 

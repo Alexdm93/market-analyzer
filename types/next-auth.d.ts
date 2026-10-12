@@ -8,6 +8,7 @@ declare module "next-auth" {
       companyId?: string;
       companyName?: string;
       estudioEnabled?: boolean;
+      generalEnabled?: boolean;
     };
     error?: string;
   }
@@ -18,6 +19,7 @@ declare module "next-auth" {
     companyId?: string;
     companyName?: string;
     estudioEnabled?: boolean;
+    generalEnabled?: boolean;
     sessionVersion?: number;
   }
 }
@@ -29,6 +31,7 @@ declare module "next-auth/jwt" {
     companyId?: string;
     companyName?: string;
     estudioEnabled?: boolean;
+    generalEnabled?: boolean;
     sessionVersion?: number;
     error?: string;
   }

@@ -60,6 +60,41 @@ async function cortesDelInformeGeneral(companyId: string): Promise<string[]> {
   }
 }
 
+/**
+ * Qué puede bajar quien pregunta: los cortes habilitados y si tiene un
+ * informe de beneficios autorizado. El admin ve todos los cortes del sistema.
+ */
+export async function GET(request: Request) {
+  const session = await getServerSession(authOptions).catch(() => null);
+  if (!session?.user?.id) return Response.json({ message: "No autorizado." }, { status: 401 });
+
+  const esAdmin = session.user.role === "ADMIN";
+  const companyId = esAdmin
+    ? (new URL(request.url).searchParams.get("companyId")?.trim() ?? "")
+    : (session.user.companyId ?? "");
+
+  const permitidos = esAdmin || !companyId ? null : new Set(await cortesDelInformeGeneral(companyId));
+
+  const todos = await prisma.userSnapshot.findMany({
+    select: { snapshotId: true, label: true, date: true },
+    distinct: ["snapshotId"],
+    orderBy: { date: "desc" },
+  });
+
+  const cortes = todos
+    .filter((s) => !permitidos || permitidos.has(s.snapshotId))
+    .map((s) => ({ id: s.snapshotId, label: s.label, date: s.date.toISOString().slice(0, 10) }));
+
+  const empresa = companyId
+    ? await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { beneficiosInforme: { select: { id: true, titulo: true } } },
+      })
+    : null;
+
+  return Response.json({ cortes, beneficios: empresa?.beneficiosInforme ?? null });
+}
+
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions).catch(() => null);
   if (!session?.user?.id) {
