@@ -282,6 +282,8 @@ export class HojaPlantilla {
 export class LibroPlantilla {
   private hojas = new Map<string, HojaPlantilla>();
   private rutaDeHoja = new Map<string, string>();
+  /** Las hojas en el orden del libro, con repetidas y todo. */
+  private rutasEnOrden: string[] = [];
 
   private constructor(private entradas: EntradaZip[]) {}
 
@@ -328,6 +330,7 @@ export class LibroPlantilla {
       const ruta = target.startsWith("/") ? target.slice(1) : `xl/${target.replace(/^\.\//, "")}`;
       // Solo la primera, si la plantilla repite nombres de hoja.
       if (!this.rutaDeHoja.has(nombre)) this.rutaDeHoja.set(nombre, ruta);
+      this.rutasEnOrden.push(ruta);
     }
   }
 
@@ -394,6 +397,8 @@ export class LibroPlantilla {
       this.texto("[Content_Types].xml").replace(/<Override\b[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/g, ""),
     );
 
+    this.abrirEnLaPrimeraHoja();
+
     // Y que recalcule al abrir, para que nada quede con el valor viejo en caché.
     const wb = this.texto("xl/workbook.xml");
     this.reemplazar("xl/workbook.xml", /<calcPr\b[^>]*\/>/.test(wb)
@@ -402,5 +407,39 @@ export class LibroPlantilla {
       : wb.replace("</workbook>", '<calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>'));
 
     return escribirZip(this.entradas);
+  }
+
+  /**
+   * El informe tiene que abrirse en la portada.
+   *
+   * Excel guarda en el libro la pestaña en la que estaba parado quien lo
+   * grabó, y las plantillas llegan de AC Consulting tal como las dejaron: una
+   * venía apuntando a "Contacto", la última. Como cada revisión suya entra
+   * como plantilla nueva, esto se normaliza al generar y no archivo por
+   * archivo, que sería acordarse cada vez.
+   */
+  private abrirEnLaPrimeraHoja(): void {
+    const wb = this.texto("xl/workbook.xml");
+    if (wb) {
+      this.reemplazar("xl/workbook.xml", wb.replace(/<workbookView\b[^>]*\/>/, (etiqueta) =>
+        etiqueta
+          .replace(/\s*firstSheet="[^"]*"/, "")
+          .replace(/\s*activeTab="[^"]*"/, "")
+          .replace(/\s*\/>$/, ' activeTab="0"/>')));
+    }
+
+    this.rutasEnOrden.forEach((ruta, i) => {
+      const xml = this.texto(ruta);
+      if (!xml) return;
+
+      const sinSeleccion = xml.replace(/(<sheetView\b[^>]*?)\s*tabSelected="[^"]*"/g, "$1");
+      // La primera es la única que queda seleccionada; si no tiene sheetView
+      // se deja como está, que Excel igual abre en ella por el activeTab.
+      const final = i === 0
+        ? sinSeleccion.replace(/<sheetView\b/, '<sheetView tabSelected="1"')
+        : sinSeleccion;
+
+      if (final !== xml) this.reemplazar(ruta, final);
+    });
   }
 }
