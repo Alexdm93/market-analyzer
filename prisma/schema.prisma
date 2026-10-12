@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -26,110 +26,138 @@ enum EditRequestStatus {
 }
 
 model Company {
-  id         String         @id @default(cuid())
-  name       String         @unique
-  description String        @default("")
-  economicSector String     @default("")
-  classification String     @default("")
-  headcount String          @default("")
-  revenueUSD String         @default("")
-  avgProfitPercent String   @default("")
-  hrName String             @default("")
-  hrPosition String         @default("")
-  hrEmail String            @default("")
-  hrPhone String            @default("")
-  hrCell String             @default("")
-  minVacationDays String    @default("")
-  minUtilityDays String     @default("")
-  conversionRate String     @default("")
-  locality String           @default("")
-  users           User[]
-  snapshots       UserSnapshot[]
-  positions       UserPosition[]
-  editRequests    EditRequest[]
-  estudioCargos   EstudioCargo[]
+  id                   String                @id @default(cuid())
+  name                 String                @unique
+  description          String                @default("")
+  economicSector       String                @default("")
+  classification       String                @default("")
+  headcount            String                @default("")
+  revenueUSD           String                @default("")
+  avgProfitPercent     String                @default("")
+  hrName               String                @default("")
+  hrPosition           String                @default("")
+  hrEmail              String                @default("")
+  hrPhone              String                @default("")
+  hrCell               String                @default("")
+  minVacationDays      String                @default("")
+  minUtilityDays       String                @default("")
+  conversionRate       String                @default("")
+  locality             String                @default("")
+  users                User[]
+  snapshots            UserSnapshot[]
+  positions            UserPosition[]
+  editRequests         EditRequest[]
+  estudioCargos        EstudioCargo[]
   estudioEquivalencias EstudioEquivalencia[]
-  estudioInformes EstudioInforme[]
-  estudioEnabled      Boolean @default(false)
-  estudioSnapshotIds  String  @default("[]")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  estudioInformes      EstudioInforme[]
+  estudioEnabled       Boolean               @default(false)
+  estudioSnapshotIds   String                @default("[]")
+  /// Informe General de Tendencias Salariales: se habilita y se elige qué
+  /// cortes puede descargar, igual que el Estudio Especializado.
+  generalEnabled       Boolean               @default(false)
+  generalSnapshotIds   String                @default("[]")
+  /// Cuál de los informes de beneficios no salariales tiene autorizado bajar.
+  /// Es global, no depende del corte: una empresa puede tener el del mercado
+  /// general y otra el de su sector.
+  beneficiosInformeId  String?
+  beneficiosInforme    InformeBeneficios?    @relation(fields: [beneficiosInformeId], references: [id], onDelete: SetNull)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 }
 
 model User {
-  id           String   @id @default(cuid())
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  role         UserRole @default(USER)
-  name         String
-  email        String
-  passwordHash  String
-  passwordPlain String?
-  workspace     UserWorkspace?
-  snapshots    UserSnapshot[]
-  positions    UserPosition[]
-  editRequests EditRequest[]
-  lastLoginAt     DateTime?
-  sessionVersion  Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String         @id @default(cuid())
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  role           UserRole       @default(USER)
+  name           String
+  email          String
+  passwordHash   String
+  passwordPlain  String?
+  workspace      UserWorkspace?
+  snapshots      UserSnapshot[]
+  positions      UserPosition[]
+  editRequests   EditRequest[]
+  lastLoginAt    DateTime?
+  sessionVersion Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@unique([email, companyId])
 }
 
 model UserWorkspace {
-  userId             String   @id
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  inflation          Float    @default(5)
-  snapshotsJson      String   @default("{}")
+  userId             String    @id
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inflation          Float     @default(5)
+  snapshotsJson      String    @default("{}")
   selectedSnapshotId String?
-  companyInfoJson    String   @default("{}")
+  companyInfoJson    String    @default("{}")
   lastExportAt       DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 model UserSnapshot {
-  id         String         @id @default(cuid())
-  userId     String
-  companyId  String
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  snapshotId String
-  label      String
-  date       DateTime
-  status     SnapshotProcessingStatus @default(IN_REVIEW)
+  id          String                   @id @default(cuid())
+  userId      String
+  companyId   String
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company     Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshotId  String
+  label       String
+  date        DateTime
+  status      SnapshotProcessingStatus @default(IN_REVIEW)
   processedAt DateTime?
   submittedAt DateTime?
-  positions  UserPosition[]
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  positions   UserPosition[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
 
   @@unique([userId, snapshotId])
   @@index([companyId, date])
 }
 
 model UserPosition {
-  id            String   @id @default(cuid())
-  userId        String
-  companyId     String
+  id             String       @id @default(cuid())
+  userId         String
+  companyId      String
   userSnapshotId String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  snapshot      UserSnapshot @relation(fields: [userSnapshotId], references: [id], onDelete: Cascade)
-  snapshotId    String
-  snapshotLabel String
-  snapshotDate  DateTime
-  positionId    String
-  title         String?
-  dataJson      String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshot       UserSnapshot @relation(fields: [userSnapshotId], references: [id], onDelete: Cascade)
+  snapshotId     String
+  snapshotLabel  String
+  snapshotDate   DateTime
+  positionId     String
+  title          String?
+  dataJson       String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@unique([userId, snapshotId, positionId])
   @@index([userId, snapshotDate])
   @@index([companyId, snapshotDate])
   @@index([userSnapshotId])
+}
+
+/// Un informe de beneficios no salariales: un PDF que arma AC Consulting
+/// fuera de la plataforma y que acá solo se guarda y se reparte.
+///
+/// El archivo va en base64 en la misma base, como la imagen de un anuncio: son
+/// pocos, pesan un par de megas y no hay almacenamiento de archivos montado.
+/// Si algún día son muchos o pesan más, esto se muda a un bucket.
+model InformeBeneficios {
+  id            String    @id @default(cuid())
+  titulo        String
+  /// El nombre con el que se descarga, con extensión.
+  nombreArchivo String    @default("")
+  /// El PDF en base64, sin el prefijo `data:`.
+  archivo       String
+  bytes         Int       @default(0)
+  companies     Company[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model GlobalConfig {
@@ -170,7 +198,6 @@ model Announcement {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
-
 
 /// Un ocupante de la lista propia de una empresa para el Estudio Especializado.
 ///

@@ -1,8 +1,8 @@
 /**
  * Percentiles del corte expresados en TCR.
  *
- * El cálculo vive en `lib/percentiles-tcr` porque el informe de cortesía lo
- * necesita del lado del servidor. Acá quedan los permisos, los parámetros y
+ * El cálculo vive en `lib/percentiles-mercado` porque los informes lo
+ * necesitan del lado del servidor. Acá quedan los permisos, los parámetros y
  * las tasas globales.
  */
 import { getServerSession } from "next-auth";
@@ -11,13 +11,17 @@ import { authOptions } from "@/lib/auth";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { promedioLibre, type TcrType } from "@/lib/compensation";
 import { leerFiltrosMercado } from "@/lib/filtros-mercado";
-import { calcularPercentilesTcr, type TcrPercentilesResponse } from "@/lib/percentiles-tcr";
+import { calcularPercentilesTcr, type TcrPercentilesResponse } from "@/lib/percentiles-mercado";
 import { prisma } from "@/lib/prisma";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 import { getLibreRate } from "@/lib/tcr-config";
 import { safeParseSnapshots } from "@/lib/workspace";
 
-export type { TcrCargoPercentiles, TcrGradePercentiles, TcrPercentilesResponse } from "@/lib/percentiles-tcr";
+export type {
+  CargoPercentilesMercado as TcrCargoPercentiles,
+  GradoPercentilesMercado as TcrGradePercentiles,
+  TcrPercentilesResponse,
+} from "@/lib/percentiles-mercado";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);

@@ -1,25 +1,37 @@
 /**
- * Los percentiles del mercado expresados en TCR.
+ * Los percentiles del mercado de un corte, por cargo y por grado.
  *
- * Vive acá y no en la ruta porque lo necesitan dos consumidores: la pantalla
- * de comparación, que lo pide por HTTP, y el informe de cortesía, que lo
- * calcula del lado del servidor mientras arma el Excel. Cuando esto estaba
- * escrito dentro de la ruta, el informe tenía que pedírselo al navegador y
- * cualquier tropiezo de esa llamada dejaba la columna en "ND" sin decir nada.
+ * Vive acá y no en una ruta porque lo necesitan consumidores que no hablan
+ * HTTP: los informes lo calculan del lado del servidor mientras arman el
+ * Excel. Cuando el cálculo en TCR estaba dentro de la ruta, el informe tenía
+ * que pedírselo al navegador y cualquier tropiezo de esa llamada dejaba la
+ * columna en "ND" sin que nadie se enterara.
  *
- * Es una función pura: quien llama trae los workspaces y las tasas globales.
+ * Hay dos entradas y un solo recorrido. La diferencia entre expresar el
+ * mercado en su moneda base o en TCR es cómo se totaliza cada fila, nada más:
+ * el resto —una observación por empresa y cargo, los filtros, los mínimos de
+ * muestra— tiene que ser idéntico o la misma empresa se compararía contra
+ * muestras distintas según la pantalla.
+ *
+ * Son funciones puras: quien llama trae los workspaces y las tasas globales.
+ *
+ * `/api/percentiles` hace este mismo recorrido escrito aparte. Es el endpoint
+ * del estudio de cortesía y está fuera de alcance por pedido del cliente, así
+ * que por ahora conviven; cuando se pueda tocar, debería llamar acá.
  */
 import {
   computeMetricPercentiles,
+  computeRowTotals,
   computeTCRTotals,
   tasasTcrDeEmpresa,
   type MetricPercentiles,
+  type RowTotals,
   type TcrType,
 } from "@/lib/compensation";
 import { pasaFiltros, type FiltrosMercado } from "@/lib/filtros-mercado";
 import { safeParseCompanyInfo, safeParseSnapshots } from "@/lib/workspace";
 
-export type TcrCargoPercentiles = {
+export type CargoPercentilesMercado = {
   tituloCargo: string;
   n: number;
   sinPasivosMensual: MetricPercentiles;
@@ -28,7 +40,7 @@ export type TcrCargoPercentiles = {
   directoMensualizado: MetricPercentiles;
 };
 
-export type TcrGradePercentiles = {
+export type GradoPercentilesMercado = {
   grade: number;
   n: number;
   sinPasivosMensual: MetricPercentiles;
@@ -43,8 +55,8 @@ export type TcrPercentilesResponse = {
   tcrType: TcrType;
   tcrRate: number;
   libreRate: number;
-  cargos: TcrCargoPercentiles[];
-  grades: TcrGradePercentiles[];
+  cargos: CargoPercentilesMercado[];
+  grades: GradoPercentilesMercado[];
 };
 
 /** Lo mínimo del workspace que hace falta para calcular. */
@@ -88,14 +100,19 @@ function percentiles(a: Acumulado) {
   };
 }
 
-export function calcularPercentilesTcr(params: {
+/** Cómo se totaliza una fila: en moneda base o convertida a TCR. */
+type Totalizador = (
+  row: Parameters<typeof computeRowTotals>[0],
+  companyInfo: ReturnType<typeof safeParseCompanyInfo>,
+) => RowTotals;
+
+function recorrer(params: {
   snapshotId: string;
-  tcrType: TcrType;
   filtros: FiltrosMercado;
   workspaces: WorkspaceParaTcr[];
-  globales: TasasGlobales;
-}): { cargos: TcrCargoPercentiles[]; grades: TcrGradePercentiles[] } {
-  const { snapshotId, tcrType, filtros, workspaces, globales } = params;
+  totalizar: Totalizador;
+}): { cargos: CargoPercentilesMercado[]; grades: GradoPercentilesMercado[] } {
+  const { snapshotId, filtros, workspaces, totalizar } = params;
 
   const porCargo = new Map<string, { tituloCargo: string; acc: Acumulado }>();
   const porGrado = new Map<number, Acumulado>();
@@ -111,27 +128,15 @@ export function calcularPercentilesTcr(params: {
     const companyInfo = safeParseCompanyInfo(workspace.companyInfoJson);
     if (!pasaFiltros(companyInfo, filtros)) continue;
 
-    // Las tasas que esta empresa tenía cuando envió su data. La resolución vive
-    // en lib/compensation para que la pantalla del cliente use exactamente la
-    // misma y no se comparen contra un mercado calculado con otro cambio.
-    const { bcvRate, bcvEurRate, libreRate, tcrRate } = tasasTcrDeEmpresa(
-      companyInfo.ratesAtSave,
-      globales,
-      tcrType,
-    );
-
-    const diasVacaciones = Number(companyInfo.minVacationDays) || 0;
-    const diasUtilidades = Number(companyInfo.minUtilityDays)  || 0;
-    const tasas          = companyInfo.tasas ?? [];
-
-    // Una observación por empresa por cargo/grado — igual que percentiles y
-    // percentiles-by-grade — para que una sola empresa con muchos empleados en
+    // Una observación por empresa por cargo/grado —igual que percentiles y
+    // percentiles-by-grade— para que una sola empresa con muchos empleados en
     // el mismo cargo no domine el "promedio de mercado".
     const cargosVistos = new Set<string>();
     const gradosVistos = new Set<number>();
 
     for (const row of snapshot.rows) {
-      const totals = computeTCRTotals(row, tasas, bcvRate, bcvEurRate, libreRate, tcrRate, tcrType, diasVacaciones, diasUtilidades);
+      const totals = totalizar(row, companyInfo);
+      // Una fila sin llenar no es una observación.
       if (totals.totalSinPasivosMensual === 0 && totals.totalDirectoMensualizado === 0) continue;
 
       const titulo = String(row.tituloCargo ?? "").trim();
@@ -162,4 +167,56 @@ export function calcularPercentilesTcr(params: {
     .sort((a, b) => a.grade - b.grade);
 
   return { cargos, grades };
+}
+
+/** El mercado en la moneda en que cada empresa cargó su data. */
+export function calcularPercentilesMercado(params: {
+  snapshotId: string;
+  filtros: FiltrosMercado;
+  workspaces: WorkspaceParaTcr[];
+  /** La tasa BCV del sistema, para la empresa que no guardó la suya. */
+  bcvGeneral: number | null;
+}) {
+  return recorrer({
+    ...params,
+    totalizar: (row, info) => computeRowTotals(
+      row,
+      info.tasas ?? [],
+      // La tasa que la empresa tenía al guardar, no la de hoy.
+      info.ratesAtSave?.bcvUsd ?? params.bcvGeneral,
+      Number(info.minVacationDays) || 0,
+      Number(info.minUtilityDays) || 0,
+    ),
+  });
+}
+
+/** El mismo mercado, convertido al tipo de cambio de referencia elegido. */
+export function calcularPercentilesTcr(params: {
+  snapshotId: string;
+  tcrType: TcrType;
+  filtros: FiltrosMercado;
+  workspaces: WorkspaceParaTcr[];
+  globales: TasasGlobales;
+}): { cargos: CargoPercentilesMercado[]; grades: GradoPercentilesMercado[] } {
+  return recorrer({
+    ...params,
+    totalizar: (row, info) => {
+      // Las tasas que esta empresa tenía cuando envió su data. La resolución
+      // vive en lib/compensation para que la pantalla del cliente use
+      // exactamente la misma y no se compare contra un mercado calculado con
+      // otro cambio.
+      const { bcvRate, bcvEurRate, libreRate, tcrRate } = tasasTcrDeEmpresa(
+        info.ratesAtSave,
+        params.globales,
+        params.tcrType,
+      );
+      return computeTCRTotals(
+        row,
+        info.tasas ?? [],
+        bcvRate, bcvEurRate, libreRate, tcrRate, params.tcrType,
+        Number(info.minVacationDays) || 0,
+        Number(info.minUtilityDays) || 0,
+      );
+    },
+  });
 }

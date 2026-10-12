@@ -26,56 +26,30 @@
  */
 import path from "node:path";
 
+import {
+  SIN_DATO,
+  escribirDistribucion,
+  escribirEmpresasParticipantes,
+  escribirPortada,
+  type FilaDistribucionInforme,
+  type FilaMonedaInforme,
+  type ParticipanteInforme,
+} from "@/lib/informe-hojas-comunes";
 import { LibroPlantilla, type HojaPlantilla } from "@/lib/xlsx-plantilla";
 
-export const HOJA_INICIO = "Inicio";
-export const HOJA_EMPRESAS = "Empresas Participantes";
 export const HOJA_MARKET = "Market Analyzer";
-export const HOJA_DISTRIBUCION = "Distribución de Compensación";
+
+// Se vuelven a exportar porque media docena de archivos los importa desde acá.
+export { SIN_DATO, mesYAnio } from "@/lib/informe-hojas-comunes";
+export type { FilaDistribucionInforme, FilaMonedaInforme, ParticipanteInforme } from "@/lib/informe-hojas-comunes";
 
 /** Hasta dónde llega dibujada la tabla del Market Analyzer en la plantilla. */
 const ULTIMA_FILA_MARKET = 260;
 
-/** Lo que se escribe donde no hay dato o no hay observaciones suficientes. */
-export const SIN_DATO = "ND";
-
 /** Direcciones tomadas de la plantilla real, no inventadas. */
 const CELDA = {
-  titulo: "A12",
-  fechaInforme: "B14",
-  fechaData: "B16",
-  // La plantilla del cortesía no traía cliente. Se agrega en A18/B18, las
-  // mismas celdas donde lo lleva la del informe especializado, para que las dos
-  // portadas queden iguales.
-  etiquetaCliente: "A18",
-  cliente: "B18",
-  totalEmpresas: "A30",
-  primeraEmpresa: 33,
   filaCargos: 7,
-  primeraFilaDistribucion: 9,
-  // El cuadro de monedas va debajo del de niveles, como pidió el CEO.
-  filaCabeceraMoneda: 18,
-  // La 19 es la subcabecera Bs/USD, que ya viene en la plantilla.
-  primeraFilaMoneda: 20,
 } as const;
-
-/**
- * Cada categoría ocupa DOS columnas, porque el cuadro de monedas reparte cada
- * elemento entre bolívares y dólares. En el cuadro de niveles las dos van
- * combinadas y el valor vive en la primera.
- *
- * La A lleva el nivel y la B, en el cuadro de monedas, dice si la fila es la
- * moneda de cuenta o la de pago.
- */
-const COLS_CATEGORIAS = ["C", "E", "G", "I", "K", "M", "O", "Q"];
-const COLS_CATEGORIAS_USD = ["D", "F", "H", "J", "L", "N", "P", "R"];
-
-/**
- * Hasta dónde llega el rango de los COUNTIF que alimentan los treemaps de
- * sector y tamaño (`$B$33:$B$232`). Más empresas que eso no entrarían en los
- * gráficos.
- */
-const ULTIMA_FILA_EMPRESAS = 232;
 
 export type EstadisticaMercado = {
   p50: number | null;
@@ -98,31 +72,6 @@ export type GrupoMercado = {
   cimTcrP50: number | null;
 };
 
-export type FilaDistribucionInforme = {
-  nivel: string;
-  valores: number[];
-};
-
-/**
- * Un nivel con el reparto de cada categoría entre moneda de cuenta y moneda de
- * pago. Cada arreglo va en el orden de `categoriasDistribucion`, y el número es
- * la parte en dólares: lo que falta hasta 100% son bolívares.
- */
-export type FilaMonedaInforme = {
-  nivel: string;
-  cuentaVES: number[];
-  cuentaUSD: number[];
-  pagoVES: number[];
-  pagoUSD: number[];
-};
-
-/** Una empresa del corte, para los gráficos de sector y tamaño. */
-export type ParticipanteInforme = {
-  empresa: string;
-  sector: string;
-  tamano: string;
-};
-
 export type DatosCortesia = {
   tituloEstudio: string;
   /** Vacío genera el informe genérico, sin empresa en la portada. */
@@ -135,13 +84,6 @@ export type DatosCortesia = {
   categoriasDistribucion: string[];
   moneda: FilaMonedaInforme[];
 };
-
-const MESES = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
-
-/** "ABRIL 2026", como en la plantilla. */
-export function mesYAnio(fecha: Date): string {
-  return `${MESES[fecha.getMonth()]} ${fecha.getFullYear()}`;
-}
 
 export function rutaPlantillaCortesia(): string {
   return path.join(process.cwd(), "templates", "informe-cortesia.xlsx");
@@ -163,36 +105,9 @@ function cifra(valor: number | null | undefined): string | number {
 export async function generarInformeCortesia(datos: DatosCortesia): Promise<Buffer> {
   const wb = await LibroPlantilla.abrir(rutaPlantillaCortesia());
 
-  // ── Portada ──
-  const inicio = wb.hoja(HOJA_INICIO);
-  if (inicio) {
-    escribir(inicio, CELDA.titulo, datos.tituloEstudio);
-    escribir(inicio, CELDA.fechaInforme, datos.fechaInforme);
-    escribir(inicio, CELDA.fechaData, datos.fechaData);
-    escribir(inicio, CELDA.etiquetaCliente, datos.cliente ? "CLIENTE:" : null);
-    escribir(inicio, CELDA.cliente, datos.cliente || null);
-  }
-
-  // ── Empresas participantes ──
-  // Una sola tabla: empresa, sector y tamaño. Los COUNTIF de la plantilla
-  // cuentan sobre estas columnas y alimentan los dos treemaps, así que los
-  // conteos no se escriben desde acá: se recalculan al abrir el archivo.
-  const hojaEmpresas = wb.hoja(HOJA_EMPRESAS);
-  if (hojaEmpresas) {
-    escribir(hojaEmpresas, CELDA.totalEmpresas, `Total: ${datos.participantes.length} empresas`);
-
-    datos.participantes.forEach((p, i) => {
-      const fila = CELDA.primeraEmpresa + i;
-      escribir(hojaEmpresas, `A${fila}`, p.empresa);
-      escribir(hojaEmpresas, `B${fila}`, p.sector || SIN_DATO);
-      escribir(hojaEmpresas, `C${fila}`, p.tamano || SIN_DATO);
-    });
-
-    const despues = CELDA.primeraEmpresa + datos.participantes.length;
-    for (let f = despues; f <= Math.max(despues + 20, ULTIMA_FILA_EMPRESAS); f++) {
-      for (const col of ["A", "B", "C"]) hojaEmpresas.limpiar(`${col}${f}`);
-    }
-  }
+  escribirPortada(wb, datos);
+  escribirEmpresasParticipantes(wb, datos.participantes);
+  escribirDistribucion(wb, datos.categoriasDistribucion, datos.distribucion, datos.moneda);
 
   // ── Market Analyzer ──
   const hojaMarket = wb.hoja(HOJA_MARKET);
@@ -220,56 +135,5 @@ export async function generarInformeCortesia(datos: DatosCortesia): Promise<Buff
     }
   }
 
-  // ── Distribución de compensación ──
-  const hojaDist = wb.hoja(HOJA_DISTRIBUCION);
-  if (hojaDist) {
-    // Cabecera: "Niveles" en la A (combinada con la B) y las ocho categorías
-    // del CEO de la C a la J. Sin tocar el formato: la plantilla ya lo trae, y
-    // copiarle el de otra celda le cambia los bordes.
-    escribir(hojaDist, "A8", "Niveles");
-    datos.categoriasDistribucion.forEach((titulo, i) => {
-      escribir(hojaDist, `${COLS_CATEGORIAS[i]}8`, titulo);
-    });
-
-    datos.distribucion.forEach((f, idx) => {
-      const fila = CELDA.primeraFilaDistribucion + idx;
-      escribir(hojaDist, `A${fila}`, f.nivel);
-      f.valores.forEach((v, i) => escribir(hojaDist, `${COLS_CATEGORIAS[i]}${fila}`, v));
-    });
-
-    escribirCuadroDeMonedas(hojaDist, datos.categoriasDistribucion, datos.moneda);
-  }
-
   return wb.aBuffer();
-}
-
-/**
- * El cuadro de monedas, debajo del de niveles.
- *
- * Responde a las dos preguntas que el mismo porcentaje no distingue: en qué
- * moneda está pactado el pago (moneda de cuenta) y en cuál se entrega (moneda
- * de pago). Una empresa puede pactar en dólares y pagar en bolívares al cambio.
- *
- * Cada nivel ocupa dos filas —cuenta y pago— y la plantilla ya trae esas
- * etiquetas en la columna B, con la A combinada de a dos.
- */
-function escribirCuadroDeMonedas(hoja: HojaPlantilla, categorias: string[], filas: FilaMonedaInforme[]) {
-  const cabecera = CELDA.filaCabeceraMoneda;
-  hoja.set(`A${cabecera}`, "Niveles");
-  // La plantilla arrastra un título de más en la B de la cabecera. Se borra el
-  // texto pero no el formato: la celda es parte de la banda del encabezado.
-  hoja.set(`B${cabecera}`, null);
-  categorias.forEach((titulo, i) => {
-    hoja.set(`${COLS_CATEGORIAS[i]}${cabecera}`, titulo);
-  });
-
-  filas.forEach((f, idx) => {
-    const filaCuenta = CELDA.primeraFilaMoneda + idx * 2;
-    const filaPago = filaCuenta + 1;
-    hoja.set(`A${filaCuenta}`, f.nivel);
-    f.cuentaVES.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS[i]}${filaCuenta}`, v));
-    f.cuentaUSD.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS_USD[i]}${filaCuenta}`, v));
-    f.pagoVES.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS[i]}${filaPago}`, v));
-    f.pagoUSD.forEach((v, i) => hoja.set(`${COLS_CATEGORIAS_USD[i]}${filaPago}`, v));
-  });
 }
