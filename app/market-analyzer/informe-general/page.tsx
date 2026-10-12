@@ -14,7 +14,7 @@ import { isAdminRole } from "@/lib/roles";
 import { SelectorBuscador } from "@/components/SelectorBuscador";
 
 type Corte = { id: string; label: string; date: string };
-type Beneficios = { id: string; titulo: string } | null;
+type InformeBeneficios = { id: string; titulo: string };
 type CompanyOption = { id: string; name: string };
 
 const METRICAS = [
@@ -31,7 +31,7 @@ export default function InformeGeneralPage() {
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
   const [companyId, setCompanyId] = useState("");
   const [cortes, setCortes] = useState<Corte[]>([]);
-  const [beneficios, setBeneficios] = useState<Beneficios>(null);
+  const [beneficios, setBeneficios] = useState<InformeBeneficios[]>([]);
   const [snapshotId, setSnapshotId] = useState("");
   const [metrica, setMetrica] = useState<string>("conPasivosMensual");
   const [tcrActivo, setTcrActivo] = useState(false);
@@ -50,9 +50,9 @@ export default function InformeGeneralPage() {
   const cargar = useCallback(async () => {
     const q = esAdmin && companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
     const res = await fetch(`/api/estudio/informe-general${q}`, { cache: "no-store" }).catch(() => null);
-    const d = (await res?.json().catch(() => null)) as { cortes?: Corte[]; beneficios?: Beneficios } | null;
+    const d = (await res?.json().catch(() => null)) as { cortes?: Corte[]; beneficios?: InformeBeneficios[] } | null;
     setCortes(d?.cortes ?? []);
-    setBeneficios(d?.beneficios ?? null);
+    setBeneficios(d?.beneficios ?? []);
     setSnapshotId((prev) => (d?.cortes?.some((c) => c.id === prev) ? prev : d?.cortes?.[0]?.id ?? ""));
   }, [esAdmin, companyId]);
 
@@ -209,18 +209,32 @@ export default function InformeGeneralPage() {
           )}
         </section>
 
-        {beneficios && (
+        {beneficios.length > 0 && (
           <section className="surface-card rounded-[2rem] p-6">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-slate-100 p-3 text-slate-700"><FileText size={18} aria-hidden /></div>
               <div>
                 <h2 className="font-display text-xl font-bold text-slate-900">Beneficios no salariales</h2>
-                <p className="text-sm text-slate-500">{beneficios.titulo}</p>
+                <p className="text-sm text-slate-500">
+                  {beneficios.length === 1
+                    ? "El informe de prácticas y beneficios que tienes disponible."
+                    : "Los informes de prácticas y beneficios que tienes disponibles."}
+                </p>
               </div>
             </div>
-            <a href="/api/estudio/informe-beneficios" className="btn btn-secondary mt-4 flex w-fit items-center gap-1.5">
-              <Download size={14} /> Descargar PDF
-            </a>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {beneficios.map((b) => (
+                <article key={b.id} className="metric-tile flex flex-col gap-3">
+                  <div className="font-display text-base font-bold text-slate-900">{b.titulo}</div>
+                  <a
+                    href={`/api/estudio/informe-beneficios?id=${encodeURIComponent(b.id)}`}
+                    className="btn btn-secondary flex w-fit items-center gap-1.5"
+                  >
+                    <Download size={14} /> Descargar PDF
+                  </a>
+                </article>
+              ))}
+            </div>
           </section>
         )}
       </div>

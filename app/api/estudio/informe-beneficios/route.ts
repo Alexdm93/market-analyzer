@@ -1,8 +1,9 @@
 /**
- * Descarga del informe de beneficios no salariales.
+ * Descarga de un informe de beneficios no salariales.
  *
- * La empresa no elige cuál: baja el que el admin le autorizó. El admin puede
- * pedir cualquiera por `id`, para revisarlo antes de repartirlo.
+ * La empresa solo puede pedir uno de los que el admin le autorizó, que pueden
+ * ser varios. El admin puede pedir cualquiera, para revisarlo antes de
+ * repartirlo.
  */
 import { getServerSession } from "next-auth";
 
@@ -10,6 +11,15 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 60;
+
+function autorizadosDe(json: string): string[] {
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions).catch(() => null);
@@ -26,13 +36,18 @@ export async function GET(request: Request) {
 
     const empresa = await prisma.company.findUnique({
       where: { id: companyId },
-      select: { beneficiosInformeId: true },
+      select: { beneficiosInformeIds: true },
     });
-    if (!empresa?.beneficiosInformeId) {
-      return Response.json({ message: "Tu empresa no tiene un informe de beneficios autorizado." }, { status: 403 });
+    const autorizados = autorizadosDe(empresa?.beneficiosInformeIds ?? "[]");
+    if (autorizados.length === 0) {
+      return Response.json({ message: "Tu empresa no tiene informes de beneficios autorizados." }, { status: 403 });
     }
-    // Lo que pida el cliente no cuenta: baja el suyo.
-    informeId = empresa.beneficiosInformeId;
+    // Sin pedir nada se baja el primero; pedir uno que no le toca, no.
+    if (!idPedido) {
+      informeId = autorizados[0];
+    } else if (!autorizados.includes(idPedido)) {
+      return Response.json({ message: "Ese informe de beneficios no está autorizado para tu empresa." }, { status: 403 });
+    }
   }
 
   if (!informeId) return Response.json({ message: "Indica el informe." }, { status: 400 });

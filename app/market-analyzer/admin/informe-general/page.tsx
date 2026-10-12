@@ -11,7 +11,15 @@ import type {
 } from "@/app/api/admin/informe-general/route";
 import { useConfirm } from "@/components/ConfirmDialog";
 
-type ModalCortes = { empresa: EmpresaInformeGeneral; elegidos: Set<string> };
+/**
+ * El mismo modal para las dos columnas: cortes habilitados e informes de
+ * beneficios. Cambia el título, las opciones y qué campo se guarda.
+ */
+type Modal = {
+  empresa: EmpresaInformeGeneral;
+  que: "cortes" | "beneficios";
+  elegidos: Set<string>;
+};
 
 function fecha(iso: string) {
   return new Date(iso).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" });
@@ -33,7 +41,7 @@ export default function InformeGeneralAdminPage() {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState("");
   const [error, setError] = useState("");
-  const [modal, setModal] = useState<ModalCortes | null>(null);
+  const [modal, setModal] = useState<Modal | null>(null);
   const [busqueda, setBusqueda] = useState("");
 
   const [tituloNuevo, setTituloNuevo] = useState("");
@@ -129,7 +137,7 @@ export default function InformeGeneralAdminPage() {
   }
 
   async function borrarInforme(informe: InformeBeneficiosFicha) {
-    const usan = empresas.filter((e) => e.beneficiosInformeId === informe.id).length;
+    const usan = empresas.filter((e) => e.beneficiosInformeIds.includes(informe.id)).length;
     const ok = await confirmar({
       title: `Eliminar «${informe.titulo}»`,
       message: usan > 0
@@ -147,7 +155,7 @@ export default function InformeGeneralAdminPage() {
     !busqueda.trim() || e.name.toLowerCase().includes(busqueda.trim().toLowerCase()),
   );
   const habilitadas = empresas.filter((e) => e.generalEnabled).length;
-  const conBeneficios = empresas.filter((e) => e.beneficiosInformeId).length;
+  const conBeneficios = empresas.filter((e) => e.beneficiosInformeIds.length > 0).length;
 
   return (
     <main className="page-wrap">
@@ -247,7 +255,7 @@ export default function InformeGeneralAdminPage() {
                     {peso(i.bytes)} · subido el {fecha(i.createdAt)}
                   </div>
                   <div className="mt-1 text-xs text-slate-400">
-                    {empresas.filter((e) => e.beneficiosInformeId === i.id).length} empresas autorizadas
+                    {empresas.filter((e) => e.beneficiosInformeIds.includes(i.id)).length} empresas autorizadas
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <a
@@ -308,7 +316,7 @@ export default function InformeGeneralAdminPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <button
-                          onClick={() => setModal({ empresa: e, elegidos: new Set(e.generalSnapshotIds) })}
+                          onClick={() => setModal({ empresa: e, que: "cortes", elegidos: new Set(e.generalSnapshotIds) })}
                           className="btn btn-secondary btn-xs flex items-center gap-1.5"
                           disabled={guardando === e.id}
                         >
@@ -319,16 +327,17 @@ export default function InformeGeneralAdminPage() {
                         </button>
                       </td>
                       <td className="px-5 py-3.5">
-                        <select
-                          value={e.beneficiosInformeId ?? ""}
-                          onChange={(ev) => void guardarEmpresa(e.id, { beneficiosInformeId: ev.target.value || null })}
+                        <button
+                          onClick={() => setModal({ empresa: e, que: "beneficios", elegidos: new Set(e.beneficiosInformeIds) })}
+                          className="btn btn-secondary btn-xs flex items-center gap-1.5"
                           disabled={guardando === e.id || informes.length === 0}
-                          aria-label={`Informe de beneficios de ${e.name}`}
-                          className="field-select max-w-xs py-1.5 text-sm"
+                          title={informes.length === 0 ? "Todavía no hay informes cargados" : undefined}
                         >
-                          <option value="">Ninguno</option>
-                          {informes.map((i) => <option key={i.id} value={i.id}>{i.titulo}</option>)}
-                        </select>
+                          <FileText size={12} />
+                          {e.beneficiosInformeIds.length > 0
+                            ? `${e.beneficiosInformeIds.length} ${e.beneficiosInformeIds.length === 1 ? "informe" : "informes"}`
+                            : "Ninguno"}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -349,7 +358,9 @@ export default function InformeGeneralAdminPage() {
               <div>
                 <div className="font-display text-xl font-bold text-slate-900">{modal.empresa.name}</div>
                 <p className="mt-1 text-sm text-slate-500">
-                  De qué cortes puede descargar el informe general. Sin ningún corte marcado, no lo tiene habilitado.
+                  {modal.que === "cortes"
+                    ? "De qué cortes puede descargar el informe general. Sin ningún corte marcado, no lo tiene habilitado."
+                    : "Qué informes de beneficios no salariales puede descargar. Puede tener varios, o ninguno."}
                 </p>
               </div>
               <button onClick={() => setModal(null)} aria-label="Cerrar" className="shrink-0 rounded-full p-2 text-slate-400 hover:bg-slate-100">
@@ -358,32 +369,42 @@ export default function InformeGeneralAdminPage() {
             </div>
 
             <div className="mt-4 grid gap-1.5">
-              {cortes.map((c) => (
-                <label key={c.snapshotId} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+              {(modal.que === "cortes"
+                ? cortes.map((c) => ({ id: c.snapshotId, titulo: c.label, pie: fecha(c.date) }))
+                : informes.map((i) => ({ id: i.id, titulo: i.titulo, pie: `${peso(i.bytes)} · ${fecha(i.createdAt)}` }))
+              ).map((o) => (
+                <label key={o.id} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
                   <input
                     type="checkbox"
-                    checked={modal.elegidos.has(c.snapshotId)}
+                    checked={modal.elegidos.has(o.id)}
                     onChange={() => setModal((p) => {
                       if (!p) return p;
                       const next = new Set(p.elegidos);
-                      if (next.has(c.snapshotId)) next.delete(c.snapshotId); else next.add(c.snapshotId);
+                      if (next.has(o.id)) next.delete(o.id); else next.add(o.id);
                       return { ...p, elegidos: next };
                     })}
                   />
-                  <span className="font-medium">{c.label}</span>
-                  <span className="text-xs text-slate-400">{fecha(c.date)}</span>
+                  <span className="font-medium">{o.titulo}</span>
+                  <span className="text-xs text-slate-400">{o.pie}</span>
                 </label>
               ))}
-              {cortes.length === 0 && <p className="text-sm text-slate-500">No hay cortes todavía.</p>}
+              {modal.que === "cortes" && cortes.length === 0 && (
+                <p className="text-sm text-slate-500">No hay cortes todavía.</p>
+              )}
+              {modal.que === "beneficios" && informes.length === 0 && (
+                <p className="text-sm text-slate-500">Todavía no hay informes de beneficios cargados.</p>
+              )}
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setModal(null)} className="btn btn-secondary">Cancelar</button>
               <button
                 onClick={() => {
-                  const { empresa, elegidos } = modal;
+                  const { empresa, que, elegidos } = modal;
                   setModal(null);
-                  void guardarEmpresa(empresa.id, { enabled: elegidos.size > 0, snapshotIds: [...elegidos] });
+                  void guardarEmpresa(empresa.id, que === "cortes"
+                    ? { enabled: elegidos.size > 0, snapshotIds: [...elegidos] }
+                    : { beneficiosInformeIds: [...elegidos] });
                 }}
                 className="btn btn-primary flex items-center gap-1.5"
               >

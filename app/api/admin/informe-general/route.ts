@@ -18,8 +18,8 @@ export type EmpresaInformeGeneral = {
   economicSector: string;
   generalEnabled: boolean;
   generalSnapshotIds: string[];
-  /** Qué PDF de beneficios tiene autorizado, o null si ninguno. */
-  beneficiosInformeId: string | null;
+  /** Qué PDF de beneficios tiene autorizados. Vacío es ninguno. */
+  beneficiosInformeIds: string[];
   userCount: number;
 };
 
@@ -66,7 +66,7 @@ export async function GET() {
         economicSector: true,
         generalEnabled: true,
         generalSnapshotIds: true,
-        beneficiosInformeId: true,
+        beneficiosInformeIds: true,
         _count: { select: { users: true } },
       },
       orderBy: { name: "asc" },
@@ -89,7 +89,7 @@ export async function GET() {
       economicSector: c.economicSector || "—",
       generalEnabled: c.generalEnabled,
       generalSnapshotIds: listaDeIds(c.generalSnapshotIds),
-      beneficiosInformeId: c.beneficiosInformeId,
+      beneficiosInformeIds: listaDeIds(c.beneficiosInformeIds),
       userCount: c._count.users,
     })),
     cortes: cortes.map((s): CorteDisponible => ({
@@ -115,8 +115,8 @@ export async function PUT(request: Request) {
     companyId?: string;
     enabled?: boolean;
     snapshotIds?: string[];
-    /** `null` le quita el informe de beneficios; ausente lo deja como está. */
-    beneficiosInformeId?: string | null;
+    /** La lista completa de informes de beneficios; ausente la deja como está. */
+    beneficiosInformeIds?: string[];
   } | null;
 
   if (!body?.companyId) {
@@ -130,8 +130,10 @@ export async function PUT(request: Request) {
     datos.generalSnapshotIds = JSON.stringify(Array.isArray(body.snapshotIds) ? body.snapshotIds : []);
   }
 
-  if (body.beneficiosInformeId !== undefined) {
-    datos.beneficiosInformeId = body.beneficiosInformeId || null;
+  if (body.beneficiosInformeIds !== undefined) {
+    datos.beneficiosInformeIds = JSON.stringify(
+      Array.isArray(body.beneficiosInformeIds) ? body.beneficiosInformeIds : [],
+    );
   }
 
   if (Object.keys(datos).length === 0) {

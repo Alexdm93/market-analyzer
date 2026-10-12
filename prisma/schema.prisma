@@ -56,11 +56,10 @@ model Company {
   /// cortes puede descargar, igual que el Estudio Especializado.
   generalEnabled       Boolean               @default(false)
   generalSnapshotIds   String                @default("[]")
-  /// Cuál de los informes de beneficios no salariales tiene autorizado bajar.
-  /// Es global, no depende del corte: una empresa puede tener el del mercado
-  /// general y otra el de su sector.
-  beneficiosInformeId  String?
-  beneficiosInforme    InformeBeneficios?    @relation(fields: [beneficiosInformeId], references: [id], onDelete: SetNull)
+  /// Qué informes de beneficios no salariales tiene autorizados. Son globales,
+  /// no dependen del corte, y pueden ser varios: una empresa puede comprar el
+  /// del mercado general y el de su sector.
+  beneficiosInformeIds String                @default("[]")
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 }
@@ -148,16 +147,15 @@ model UserPosition {
 /// pocos, pesan un par de megas y no hay almacenamiento de archivos montado.
 /// Si algún día son muchos o pesan más, esto se muda a un bucket.
 model InformeBeneficios {
-  id            String    @id @default(cuid())
+  id            String   @id @default(cuid())
   titulo        String
   /// El nombre con el que se descarga, con extensión.
-  nombreArchivo String    @default("")
+  nombreArchivo String   @default("")
   /// El PDF en base64, sin el prefijo `data:`.
   archivo       String
-  bytes         Int       @default(0)
-  companies     Company[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  bytes         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model GlobalConfig {

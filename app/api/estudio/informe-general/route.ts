@@ -45,6 +45,15 @@ function esTcr(v: string): v is TcrType {
   return v === "bcv" || v === "euro" || v === "libre";
 }
 
+function listaDeIds(json: string): string[] {
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Los cortes del informe general que el admin le habilitó a una empresa. */
 async function cortesDelInformeGeneral(companyId: string): Promise<string[]> {
   const empresa = await prisma.company.findUnique({
@@ -88,11 +97,18 @@ export async function GET(request: Request) {
   const empresa = companyId
     ? await prisma.company.findUnique({
         where: { id: companyId },
-        select: { beneficiosInforme: { select: { id: true, titulo: true } } },
+        select: { beneficiosInformeIds: true },
       })
     : null;
 
-  return Response.json({ cortes, beneficios: empresa?.beneficiosInforme ?? null });
+  const autorizados = listaDeIds(empresa?.beneficiosInformeIds ?? "[]");
+  const beneficios = autorizados.length === 0 ? [] : await prisma.informeBeneficios.findMany({
+    where: { id: { in: autorizados } },
+    select: { id: true, titulo: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return Response.json({ cortes, beneficios });
 }
 
 export async function POST(request: Request) {
