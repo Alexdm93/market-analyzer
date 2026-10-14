@@ -24,9 +24,11 @@ export type PercentilesInforme = {
   n: number;
   min: number | null;
   max: number | null;
+  p10: number | null;
   p25: number | null;
   p50: number | null;
   p75: number | null;
+  p90: number | null;
   promedio: number | null;
 };
 
@@ -43,10 +45,31 @@ export type FilaInforme = {
   percentiles: PercentilesInforme | null;
 };
 
+/**
+ * Con qué criterios se armó el informe.
+ *
+ * Se guardan para dos cosas: mostrárselos a quien lo abra meses después, y
+ * poder volver a emitir el documento completo sin que el cliente tenga que
+ * reconstruir la configuración a mano.
+ */
+export type CriteriosInforme = {
+  snapshotId: string;
+  snapshotLabel: string;
+  /** Null cuando el estudio no va en TCR. */
+  tcr: string | null;
+  comisiones: boolean;
+  /** Los filtros del grupo, como viajan en la URL. */
+  filtrosGrupo: string;
+  /** En palabras, para mostrarlo. */
+  grupoComparacion: string;
+  grados: number[];
+};
+
 export type DatosInforme = {
   generadoEl: string;
   modo: "cargo" | "grado";
   metrica: MetricaInforme;
+  criterios?: CriteriosInforme;
   filas: FilaInforme[];
 };
 
@@ -97,7 +120,8 @@ export function validarDatosInforme(entrada: unknown): Validacion {
         ? {
             n: Number(p.n) || 0,
             min: numeroONulo(p.min), max: numeroONulo(p.max),
-            p25: numeroONulo(p.p25), p50: numeroONulo(p.p50), p75: numeroONulo(p.p75),
+            p10: numeroONulo(p.p10), p25: numeroONulo(p.p25), p50: numeroONulo(p.p50),
+            p75: numeroONulo(p.p75), p90: numeroONulo(p.p90),
             promedio: numeroONulo(p.promedio),
           }
         : null,
@@ -106,9 +130,22 @@ export function validarDatosInforme(entrada: unknown): Validacion {
 
   if (filas.length === 0) return { ok: false, mensaje: "Ninguna fila del informe es válida." };
 
+  const c = e.criterios && typeof e.criterios === "object" ? (e.criterios as Record<string, unknown>) : null;
+  const criterios: CriteriosInforme | undefined = c
+    ? {
+        snapshotId: String(c.snapshotId ?? ""),
+        snapshotLabel: String(c.snapshotLabel ?? ""),
+        tcr: c.tcr ? String(c.tcr) : null,
+        comisiones: Boolean(c.comisiones),
+        filtrosGrupo: String(c.filtrosGrupo ?? ""),
+        grupoComparacion: String(c.grupoComparacion ?? ""),
+        grados: Array.isArray(c.grados) ? c.grados.map(Number).filter(Number.isFinite) : [],
+      }
+    : undefined;
+
   return {
     ok: true,
-    datos: { generadoEl: new Date().toISOString(), modo, metrica, filas },
+    datos: { generadoEl: new Date().toISOString(), modo, metrica, criterios, filas },
   };
 }
 

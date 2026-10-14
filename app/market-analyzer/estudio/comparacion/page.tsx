@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, ArrowLeft, BarChart3, Check, Download, FileText, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, Check, Download, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 import { gradeToNivel } from "@/lib/capri";
@@ -26,7 +26,10 @@ const METRICAS: Array<{ value: Metrica; label: string; sigla: string }> = [
   { value: "conPasivosAnual",     label: "Paquete de Compensación Total Anual", sigla: "PCTA" },
 ];
 
-type Percentiles = { n: number; min: number | null; max: number | null; p10?: number | null; p25: number | null; p50: number | null; p75: number | null; p90?: number | null; promedio: number | null };
+type Percentiles = {
+  n: number; min: number | null; max: number | null; promedio: number | null;
+  p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null;
+};
 type GrupoCargo = { tituloCargo: string; n: number } & Record<Metrica, Percentiles>;
 type GrupoGrado = { grade: number; n: number } & Record<Metrica, Percentiles>;
 
@@ -480,10 +483,11 @@ export default function ComparacionPage() {
    * calculados a propósito: un informe es la foto de lo que el cliente vio, así
    * que recalcularlos al guardar sería justamente lo contrario de congelar.
    */
-  async function generarInforme() {
+  /** Congela el informe en el historial. Devuelve si pudo. */
+  async function guardarEnHistorial(): Promise<boolean> {
     const elegidas = filas.filter((f) => seleccionados.includes(f.cargo.id));
-    if (elegidas.length === 0) { setError("Elige al menos un cargo para el informe."); return; }
-    if (!nombreInforme.trim()) { setError("Ponle un nombre al informe."); return; }
+    if (elegidas.length === 0) { setError("Elige al menos un cargo para el informe."); return false; }
+    if (!nombreInforme.trim()) { setError("Ponle un nombre al informe."); return false; }
 
     setGenerando(true);
     setError("");
@@ -500,6 +504,15 @@ export default function ComparacionPage() {
           snapshotLabel: corte ? `${corte.label} — ${corte.date}` : "",
           modo,
           metrica,
+          criterios: {
+            snapshotId,
+            snapshotLabel: corte ? `${corte.label} — ${corte.date}` : "",
+            tcr: tcrActivo ? tcrTipo : null,
+            comisiones,
+            filtrosGrupo: consultaFiltros,
+            grupoComparacion: descripcionGrupo,
+            grados: filtroGrados,
+          },
           // Lo que define el corte de data, para que el servidor sepa si es
           // uno nuevo —y consume cupo— o uno que la empresa ya configuró.
           tcr: tcrActivo ? tcrTipo : null,
@@ -520,22 +533,26 @@ export default function ComparacionPage() {
         }),
       });
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      if (!res.ok) { setError(data?.message ?? "No se pudo guardar el informe."); return; }
-      setAviso(data?.message ?? "Informe guardado.");
-      setNombreInforme("");
-      setSeleccionados([]);
+      if (!res.ok) { setError(data?.message ?? "No se pudo guardar el informe."); return false; }
+      return true;
     } finally {
       setGenerando(false);
     }
   }
 
   /**
-   * El documento completo en Excel. Va acá y no en Informes porque el corte y
-   * la métrica ya están elegidos en esta pantalla: pedirlos de nuevo en otra
-   * obligaba a elegir lo mismo dos veces.
+   * Un solo botón: el informe se descarga y queda guardado en el Historial.
+   *
+   * AC Consulting pidió que guardar no fuera opcional (2026-10-14): el cupo se
+   * cuenta por informes generados, así que uno que se bajó y no quedó
+   * registrado sería un corte que nadie contó.
    */
-  async function descargarExcel() {
+  async function descargarInforme() {
     if (!snapshotId) return;
+
+    const guardado = await guardarEnHistorial();
+    if (!guardado) return;
+
     setBajandoExcel(true);
     setError("");
     try {
@@ -572,6 +589,11 @@ export default function ComparacionPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+
+      setAviso(`Informe "${nombreInforme.trim()}" descargado y guardado en el Historial.`);
+      setNombreInforme("");
+      setSeleccionados([]);
+      await cargarCupo();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo generar el informe.");
     } finally {
@@ -1016,10 +1038,11 @@ export default function ComparacionPage() {
                     <th className="px-4 py-2.5 font-semibold">Cargo</th>
                     <th className="px-4 py-2.5 font-semibold">{modo === "cargo" ? "Equivale a" : "Grado"}</th>
                     <th className="px-4 py-2.5 text-right font-semibold">Tuyo</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">P25</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">P50</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">P90</th>
                     <th className="px-4 py-2.5 text-right font-semibold">P75</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">Obs.</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">P50</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">P25</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">P10</th>
                     <th className="px-4 py-2.5 font-semibold">Posición</th>
                   </tr>
                 </thead>
@@ -1053,14 +1076,15 @@ export default function ComparacionPage() {
                         <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-800">{money(f.propio)}</td>
                         {hayMercado ? (
                           <>
-                            <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p25)}</td>
-                            <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-900">{money(f.percentiles!.p50)}</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p90)}</td>
                             <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p75)}</td>
-                            <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-500">{f.observaciones}</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-900">{money(f.percentiles!.p50)}</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p25)}</td>
+                            <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p10)}</td>
                             <td className="px-4 py-2.5"><span className={`pill ${pos.clase}`}>{pos.texto}</span></td>
                           </>
                         ) : (
-                          <td colSpan={5} className="px-4 py-2.5 text-xs text-slate-500">Sin comparación disponible</td>
+                          <td colSpan={6} className="px-4 py-2.5 text-xs text-slate-500">Sin comparación disponible</td>
                         )}
                       </tr>
                     );
@@ -1086,12 +1110,6 @@ export default function ComparacionPage() {
           {snapshotId && cargos.length > 0 && (
             <div className="mt-6 rounded-2xl border border-slate-200 p-5">
               <h3 className="font-display text-base font-bold text-slate-900">Generar un informe</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                <strong>Guardar</strong> deja el informe congelado con estos números en el <strong>Historial</strong>:
-                si después cambia la data, seguirá igual. <strong>Descargar</strong> baja el documento completo en Excel
-                —dispersión, equidad interna, competitividad, mapa de calor y simulador— con el estudio y la métrica
-                de arriba.
-              </p>
               <div className="mt-3 flex flex-wrap items-end gap-3">
                 <div className="min-w-[16rem] flex-1">
                   <label htmlFor="cmp-nombre" className="field-label">Nombre del informe</label>
@@ -1105,21 +1123,13 @@ export default function ComparacionPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => void generarInforme()}
-                  disabled={generando || seleccionados.length === 0 || grupoValidado !== true}
+                  onClick={() => void descargarInforme()}
+                  disabled={bajandoExcel || generando || grupoValidado !== true
+                    || !nombreInforme.trim() || seleccionados.length === 0}
                   className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {generando ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-                  Guardar con {seleccionados.length} {seleccionados.length === 1 ? "cargo" : "cargos"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void descargarExcel()}
-                  disabled={bajandoExcel || grupoValidado !== true}
-                  className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {bajandoExcel ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                  Descargar el informe completo
+                  {bajandoExcel || generando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                  Descargar el informe
                 </button>
               </div>
               {cupo && !cupo.ilimitado && (
@@ -1173,11 +1183,6 @@ export default function ComparacionPage() {
             </div>
           )}
 
-          <p className="mt-4 text-xs text-slate-500">
-            Los percentiles salen del mismo cálculo que alimenta Resultados, así que coinciden con lo que ve la empresa.
-            Un cargo sin homologar, o homologado contra uno sin data suficiente, se muestra igual con sus propios
-            montos y sin columnas de mercado.
-          </p>
         </section>
         )}
       </div>

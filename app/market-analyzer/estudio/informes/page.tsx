@@ -1,11 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, ArrowLeft, ArrowRight, Download, FileText, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Download, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
 
-import { useConfirm } from "@/components/ConfirmDialog";
-import { exportStyledExcel } from "@/lib/excel-export";
 import { METRICAS_INFORME, posicionEnMercado, type DatosInforme } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
 import { PasosEstudio } from "@/components/PasosEstudio";
@@ -37,7 +35,6 @@ function money(v: number | null | undefined) {
 export default function InformesPage() {
   const { data: session, status } = useSession();
   const esAdmin = isAdminRole(session?.user?.role);
-  const [confirm, confirmDialog] = useConfirm();
 
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
   const { companyId, setCompanyId } = useEstudio();
@@ -45,7 +42,8 @@ export default function InformesPage() {
   const [abierto, setAbierto] = useState<InformeCompleto | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
-  const [aviso, setAviso] = useState("");
+  const [aviso] = useState("");
+  const [bajando, setBajando] = useState(false);
 
 
   const empresaActiva = esAdmin ? companyId : (session?.user?.companyId ?? "");
@@ -93,22 +91,6 @@ export default function InformesPage() {
     }
   }
 
-  async function borrar(informe: InformeResumen) {
-    const ok = await confirm({
-      title: `Eliminar "${informe.nombre}"`,
-      message: "El informe se elimina definitivamente. Los cargos y sus datos no se tocan: solo se borra este documento.",
-      confirmLabel: "Eliminar",
-      tone: "danger",
-    });
-    if (!ok) return;
-
-    const res = await fetch(`/api/estudio/informes?${qs({ id: informe.id })}`, { method: "DELETE" });
-    const data = (await res.json().catch(() => null)) as { message?: string } | null;
-    if (!res.ok) { setError(data?.message ?? "No se pudo eliminar."); return; }
-    setAviso(data?.message ?? "Informe eliminado.");
-    if (abierto?.id === informe.id) setAbierto(null);
-    await cargar();
-  }
 
   const sigla = useMemo(() => {
     const m = METRICAS_INFORME.find((x) => x.value === abierto?.datos?.metrica);
@@ -136,44 +118,61 @@ export default function InformesPage() {
    * congelado. El documento completo sobre la plantilla del cliente se baja
    * desde Comparación, con la data del momento.
    */
-  async function descargarCongelado(informe: InformeCompleto) {
-    const datos = informe.datos;
-    if (!datos) { setError("Este informe no tiene datos que exportar."); return; }
+  /**
+   * Vuelve a emitir el informe completo con los criterios guardados.
+   *
+   * No consume cupo: es la misma configuración que ya se contó cuando se
+   * generó, y el servidor la reconoce por su huella.
+   */
+  async function descargarInformeCompleto(informe: InformeCompleto) {
+    const criterios = informe.datos?.criterios;
+    if (!criterios?.snapshotId) {
+      setError("Este informe es anterior a que se guardaran los criterios, así que no se puede volver a emitir. "
+        + "Genera uno nuevo desde Comparación.");
+      return;
+    }
 
-    const metrica = METRICAS_INFORME.find((x) => x.value === datos.metrica);
-    await exportStyledExcel(
-      [{
-        name: "Informe",
-        columns: [
-          { header: "Unidad funcional", key: "departamento", width: 26 },
-          { header: "Cargo", key: "cargo", width: 38 },
-          { header: datos.modo === "grado" ? "Grado" : "Equivale a", key: "referencia", width: 30 },
-          { header: "Nivel", key: "nivel", width: 18 },
-          { header: `Tuyo (${metrica?.sigla ?? ""})`, key: "propio", width: 16, align: "right" },
-          { header: "P25", key: "p25", width: 14, align: "right" },
-          { header: "P50", key: "p50", width: 14, align: "right" },
-          { header: "P75", key: "p75", width: 14, align: "right" },
-          { header: "Observaciones", key: "n", width: 14, align: "right" },
-          { header: "Posición", key: "posicion", width: 20 },
-        ],
-        rows: datos.filas.map((f) => {
-          const hay = Boolean(f.percentiles && f.percentiles.n > 0);
-          return {
-            departamento: f.departamento || "—",
-            cargo: f.tituloCargo,
-            referencia: datos.modo === "grado" ? (f.hayGrade ?? "—") : (f.equivalencia || "—"),
-            nivel: f.nivel || "—",
-            propio: f.propio || null,
-            p25: hay ? f.percentiles!.p25 : null,
-            p50: hay ? f.percentiles!.p50 : null,
-            p75: hay ? f.percentiles!.p75 : null,
-            n: hay ? f.percentiles!.n : null,
-            posicion: hay ? posicionEnMercado(f.propio, f.percentiles).texto : "Sin comparación",
-          };
+    setBajando(true);
+    setError("");
+    try {
+      const res = await fetch("/api/estudio/informe-especializado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(esAdmin && companyId ? { companyId } : {}),
+          snapshotId: criterios.snapshotId,
+          modo: informe.datos?.modo,
+          config: {
+            concepto: informe.datos?.metrica,
+            incluirComisiones: criterios.comisiones,
+          },
+          grados: criterios.grados.length > 0 ? criterios.grados : undefined,
+          tcr: criterios.tcr ? { tipo: criterios.tcr } : null,
+          grupoComparacion: criterios.grupoComparacion,
+          filtrosGrupo: criterios.filtrosGrupo,
         }),
-      }],
-      `${informe.nombre} — ${informe.snapshotLabel || informe.snapshotId}.xlsx`,
-    );
+      });
+
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(d?.message ?? `No se pudo generar el informe (error ${res.status}).`);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${informe.nombre}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el informe.");
+    } finally {
+      setBajando(false);
+    }
   }
 
   // ── Vista de un informe ───────────────────────────────────────────────
@@ -187,8 +186,14 @@ export default function InformesPage() {
               <button type="button" onClick={() => setAbierto(null)} className="btn btn-secondary text-xs">
                 <ArrowLeft size={14} /> Volver al historial
               </button>
-              <button type="button" onClick={() => void descargarCongelado(abierto)} className="btn btn-primary text-xs">
-                <Download size={14} /> Descargar en Excel
+              <button
+                type="button"
+                onClick={() => void descargarInformeCompleto(abierto)}
+                disabled={bajando}
+                className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {bajando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                Descargar el Informe
               </button>
             </div>
             <div className="eyebrow mb-3">Informe congelado</div>
@@ -197,10 +202,26 @@ export default function InformesPage() {
               {abierto.snapshotLabel || abierto.snapshotId} · generado el {fecha(abierto.createdAt)}
               {abierto.generadoPor ? ` por ${abierto.generadoPor}` : ""}
             </p>
-            <p className="mt-3 text-xs text-slate-500">
-              Los números son los del momento en que se generó. Si la data cambió después, este informe sigue igual:
-              para verla al día hay que generar uno nuevo.
-            </p>
+            <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { k: "Comparado por", v: datos?.modo === "grado" ? "Grado CAPRI" : "Cargo homologado" },
+                { k: "Métrica", v: sigla },
+                { k: "Tipo de cambio", v: datos?.criterios?.tcr ? `TCR ${datos.criterios.tcr}` : "Moneda base" },
+                { k: "Comisiones", v: datos?.criterios?.comisiones ? "Incluidas" : "Excluidas" },
+                { k: "Grupo de comparación", v: datos?.criterios?.grupoComparacion || "Mercado general" },
+                {
+                  k: "Grados analizados",
+                  v: (datos?.criterios?.grados?.length ?? 0) > 0
+                    ? datos!.criterios!.grados.join(", ")
+                    : "Todos",
+                },
+              ].map((i) => (
+                <div key={i.k} className="rounded-2xl bg-slate-50 p-4">
+                  <dt className="text-xs text-slate-500">{i.k}</dt>
+                  <dd className="mt-1 text-sm font-semibold text-slate-900">{i.v}</dd>
+                </div>
+              ))}
+            </dl>
           </section>
 
           <section className="surface-panel rounded-[2rem] p-6 md:p-8">
@@ -261,8 +282,7 @@ export default function InformesPage() {
             )}
           </section>
         </div>
-        {confirmDialog}
-      </main>
+        </main>
     );
   }
 
@@ -274,10 +294,6 @@ export default function InformesPage() {
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio Especializado</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Historial.</h1>
-          <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
-            Los informes que guardaste desde Comparación. Cada uno queda congelado con los números del momento en
-            que se hizo, así que sigue diciendo lo mismo aunque la data cambie después.
-          </p>
         </section>
 
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
@@ -293,11 +309,6 @@ export default function InformesPage() {
               />
             </div>
           )}
-
-          <p className="mb-5 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            El documento completo en Excel —dispersión, equidad interna, competitividad, mapa de calor y
-            simulador— se descarga desde <strong>Comparación</strong>, donde ya eliges el estudio y la métrica.
-          </p>
 
           {cargando && <p className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…</p>}
           {error && <p className="flex items-center gap-1.5 text-sm text-red-700"><AlertTriangle className="h-4 w-4" /> {error}</p>}
@@ -348,9 +359,6 @@ export default function InformesPage() {
                           <button type="button" onClick={() => void abrir(i.id)} aria-label={`Ver ${i.nombre}`} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
                             <FileText size={14} />
                           </button>
-                          <button type="button" onClick={() => void borrar(i)} aria-label={`Eliminar ${i.nombre}`} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                            <Trash2 size={14} />
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -361,7 +369,6 @@ export default function InformesPage() {
           )}
         </section>
       </div>
-      {confirmDialog}
     </main>
   );
 }

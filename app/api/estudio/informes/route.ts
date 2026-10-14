@@ -145,10 +145,23 @@ export async function POST(request: Request) {
   return Response.json({ id: creado.id, message: `Informe "${nombre}" guardado.` });
 }
 
+/**
+ * Borrar un informe quedó solo para el admin.
+ *
+ * El cupo se cuenta por informes generados, así que si el cliente pudiera
+ * borrarlos se regalaría descargas (AC Consulting, 2026-10-14).
+ */
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const acceso = resolverAcceso(await sesion(), searchParams.get("companyId")?.trim() ?? "");
   if (!acceso.ok) return acceso.response;
+
+  if (!acceso.esAdmin) {
+    return Response.json(
+      { message: "Los informes generados no se borran: el cupo se cuenta sobre ellos." },
+      { status: 403 },
+    );
+  }
 
   const id = searchParams.get("id")?.trim() ?? "";
   if (!id) return Response.json({ message: "Indica el informe a borrar." }, { status: 400 });

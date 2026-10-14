@@ -455,7 +455,7 @@ export default function MisCargosPage() {
                   value={borrador.ocupanteId}
                   onChange={(e) => setBorrador({ ...borrador, ocupanteId: e.target.value })}
                   className="field"
-                  placeholder="Ej. TEALCA-001 (opcional)"
+                  placeholder="Ej. 001 (opcional)"
                 />
               </div>
               <div>

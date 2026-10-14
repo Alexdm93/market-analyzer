@@ -120,7 +120,13 @@ export type GrupoDelMercado = {
   clasificaciones: string[];
   empresas: string[];
   localidades: string[];
-  /** Cuántas empresas quedaron dentro del grupo elegido. */
+  /**
+   * Cuántas EMPRESAS quedaron dentro del grupo elegido.
+   *
+   * Se cuentan por nombre y no por workspace: una empresa con dos usuarios
+   * cargando data tiene dos workspaces, y contándolos aparecían 136 empresas
+   * donde solo habían enviado 128 (AC Consulting, 2026-10-14).
+   */
   empresasEnGrupo: number;
 };
 
@@ -165,7 +171,7 @@ function recorrer(params: {
   const clasificaciones = new Set<string>();
   const empresas = new Set<string>();
   const localidades = new Set<string>();
-  let empresasEnGrupo = 0;
+  const enElGrupo = new Set<string>();
 
   for (const workspace of workspaces) {
     const snapshots = safeParseSnapshots(workspace.snapshotsJson);
@@ -183,7 +189,7 @@ function recorrer(params: {
     for (const l of localidadesDe(companyInfo)) localidades.add(l);
 
     if (!pasaFiltros(companyInfo, filtros)) continue;
-    empresasEnGrupo += 1;
+    if (companyInfo.companyName) enElGrupo.add(companyInfo.companyName.trim().toLowerCase());
 
     // Una observación por empresa por cargo/grado —igual que percentiles y
     // percentiles-by-grade— para que una sola empresa con muchos empleados en
@@ -234,7 +240,7 @@ function recorrer(params: {
       clasificaciones: ordenar(clasificaciones),
       empresas: ordenar(empresas),
       localidades: ordenar(localidades),
-      empresasEnGrupo,
+      empresasEnGrupo: enElGrupo.size,
     },
   };
 }
