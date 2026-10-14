@@ -20,7 +20,12 @@ import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import type { TcrType } from "@/lib/compensation";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { leerFiltrosMercado } from "@/lib/filtros-mercado";
-import { calcularPercentilesMercado, calcularPercentilesTcr, type MercadoDelCorte } from "@/lib/percentiles-mercado";
+import {
+  calcularPercentilesMercado,
+  calcularPercentilesTcr,
+  usuariosQueEnviaron,
+  type MercadoDelCorte,
+} from "@/lib/percentiles-mercado";
 import { prisma } from "@/lib/prisma";
 import { getLibreRate } from "@/lib/tcr-config";
 
@@ -51,8 +56,9 @@ export async function GET(request: Request) {
 
   const filtros = leerFiltrosMercado(searchParams);
 
-  const [workspaces, bcv, bcvEur, binance, libreManual] = await Promise.all([
-    prisma.userWorkspace.findMany({ select: { snapshotsJson: true, companyInfoJson: true } }),
+  const [workspaces, enviaron, bcv, bcvEur, binance, libreManual] = await Promise.all([
+    prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
+    usuariosQueEnviaron(snapshotId),
     getBcvRate(),
     getBcvEuroRate(),
     getBinanceRate(),
@@ -65,9 +71,10 @@ export async function GET(request: Request) {
         tcrType: tipoPedido,
         filtros,
         workspaces,
+        enviaron,
         globales: { bcv: bcv.rate, bcvEur: bcvEur.rate, binance: binance.rate, libreManual: libreManual.rate },
       })
-    : calcularPercentilesMercado({ snapshotId, filtros, workspaces, bcvGeneral: bcv.rate });
+    : calcularPercentilesMercado({ snapshotId, filtros, workspaces, enviaron, bcvGeneral: bcv.rate });
 
   return Response.json({ snapshotId, ...mercado } satisfies MercadoDelEstudio);
 }

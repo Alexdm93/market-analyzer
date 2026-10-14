@@ -29,6 +29,7 @@ import {
   type TcrType,
 } from "@/lib/compensation";
 import { localidadesDe, pasaFiltros, type FiltrosMercado } from "@/lib/filtros-mercado";
+import { prisma } from "@/lib/prisma";
 import { suavizarPorMetrica, type Diagnostico } from "@/lib/suavizado-percentiles";
 import { safeParseCompanyInfo, safeParseSnapshots } from "@/lib/workspace";
 
@@ -64,6 +65,8 @@ export type TcrPercentilesResponse = {
 export type WorkspaceParaTcr = {
   snapshotsJson: string;
   companyInfoJson: string;
+  /** Hace falta para saber si esta empresa envió el corte. */
+  userId?: string;
 };
 
 export type TasasGlobales = {
@@ -99,6 +102,21 @@ function percentiles(a: Acumulado) {
     conPasivosAnual:     computeMetricPercentiles(a.conPasivosAnual),
     directoMensualizado: computeMetricPercentiles(a.directoMensualizado),
   };
+}
+
+/**
+ * Los usuarios que enviaron su data en un corte.
+ *
+ * Es la condición que define "empresa participante" en todo el sistema: la
+ * usa el informe de cortesía para su lista y los reportes de revisión para
+ * saber quién respondió.
+ */
+export async function usuariosQueEnviaron(snapshotId: string): Promise<Set<string>> {
+  const envios = await prisma.userSnapshot.findMany({
+    where: { snapshotId, submittedAt: { not: null } },
+    select: { userId: true },
+  });
+  return new Set(envios.map((e) => e.userId));
 }
 
 /** Cómo se totaliza una fila: en moneda base o convertida a TCR. */
@@ -161,8 +179,16 @@ function recorrer(params: {
   filtros: FiltrosMercado;
   workspaces: WorkspaceParaTcr[];
   totalizar: Totalizador;
+  /**
+   * Quiénes enviaron el corte. Cuando viene, el mercado se arma solo con
+   * ellos: una empresa que cargó data y nunca la envió no confirmó sus
+   * números, así que no debería estar en el mercado de nadie. Es la misma
+   * condición con la que el informe de cortesía arma su lista de
+   * participantes, y por eso los dos dan el mismo total.
+   */
+  enviaron?: Set<string>;
 }): MercadoDelCorte {
-  const { snapshotId, filtros, workspaces, totalizar } = params;
+  const { snapshotId, filtros, workspaces, totalizar, enviaron } = params;
 
   const porCargo = new Map<string, { tituloCargo: string; acc: Acumulado }>();
   const porGrado = new Map<number, Acumulado>();
@@ -174,6 +200,8 @@ function recorrer(params: {
   const enElGrupo = new Set<string>();
 
   for (const workspace of workspaces) {
+    if (enviaron && !(workspace.userId && enviaron.has(workspace.userId))) continue;
+
     const snapshots = safeParseSnapshots(workspace.snapshotsJson);
     const snapshot  = snapshots[snapshotId];
     if (!snapshot?.rows?.length) continue;
@@ -252,6 +280,7 @@ export function calcularPercentilesMercado(params: {
   workspaces: WorkspaceParaTcr[];
   /** La tasa BCV del sistema, para la empresa que no guardó la suya. */
   bcvGeneral: number | null;
+  enviaron?: Set<string>;
 }) {
   return recorrer({
     ...params,
@@ -273,6 +302,7 @@ export function calcularPercentilesTcr(params: {
   filtros: FiltrosMercado;
   workspaces: WorkspaceParaTcr[];
   globales: TasasGlobales;
+  enviaron?: Set<string>;
 }): MercadoDelCorte {
   return recorrer({
     ...params,

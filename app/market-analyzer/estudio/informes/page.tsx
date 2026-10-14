@@ -189,7 +189,10 @@ export default function InformesPage() {
               <button
                 type="button"
                 onClick={() => void descargarInformeCompleto(abierto)}
-                disabled={bajando}
+                disabled={bajando || !abierto.datos?.criterios?.snapshotId}
+                title={abierto.datos?.criterios?.snapshotId
+                  ? undefined
+                  : "Este informe es anterior a que se guardaran los criterios"}
                 className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {bajando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
@@ -202,6 +205,20 @@ export default function InformesPage() {
               {abierto.snapshotLabel || abierto.snapshotId} · generado el {fecha(abierto.createdAt)}
               {abierto.generadoPor ? ` por ${abierto.generadoPor}` : ""}
             </p>
+            {error && (
+              <p className="mt-4 flex items-start gap-1.5 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+              </p>
+            )}
+
+            {!abierto.datos?.criterios?.snapshotId && (
+              <p className="mt-4 flex items-start gap-1.5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                Este informe se generó antes de que se guardaran los criterios de comparación, así que no se puede
+                volver a emitir el documento completo. Genera uno nuevo desde Comparación.
+              </p>
+            )}
+
             <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 { k: "Comparado por", v: datos?.modo === "grado" ? "Grado CAPRI" : "Cargo homologado" },
@@ -239,10 +256,11 @@ export default function InformesPage() {
                       <th className="px-4 py-2.5 font-semibold">Cargo</th>
                       <th className="px-4 py-2.5 font-semibold">{datos.modo === "grado" ? "Grado" : "Equivale a"}</th>
                       <th className="px-4 py-2.5 text-right font-semibold">Tuyo</th>
-                      <th className="px-4 py-2.5 text-right font-semibold">P25</th>
-                      <th className="px-4 py-2.5 text-right font-semibold">P50</th>
+                      <th className="px-4 py-2.5 text-right font-semibold">P90</th>
                       <th className="px-4 py-2.5 text-right font-semibold">P75</th>
-                      <th className="px-4 py-2.5 text-right font-semibold">Obs.</th>
+                      <th className="px-4 py-2.5 text-right font-semibold">P50</th>
+                      <th className="px-4 py-2.5 text-right font-semibold">P25</th>
+                      <th className="px-4 py-2.5 text-right font-semibold">P10</th>
                       <th className="px-4 py-2.5 font-semibold">Posición</th>
                     </tr>
                   </thead>
@@ -264,14 +282,15 @@ export default function InformesPage() {
                           <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-800">{money(f.propio)}</td>
                           {hay ? (
                             <>
-                              <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p25)}</td>
-                              <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-900">{money(f.percentiles!.p50)}</td>
+                              <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p90)}</td>
                               <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p75)}</td>
-                              <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-500">{f.percentiles!.n}</td>
+                              <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-900">{money(f.percentiles!.p50)}</td>
+                              <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p25)}</td>
+                              <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">{money(f.percentiles!.p10)}</td>
                               <td className="px-4 py-2.5"><span className={`pill ${pos.clase}`}>{pos.texto}</span></td>
                             </>
                           ) : (
-                            <td colSpan={5} className="px-4 py-2.5 text-xs text-slate-500">Sin comparación disponible</td>
+                            <td colSpan={6} className="px-4 py-2.5 text-xs text-slate-500">Sin comparación disponible</td>
                           )}
                         </tr>
                       );

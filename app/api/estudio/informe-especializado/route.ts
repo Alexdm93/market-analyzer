@@ -36,7 +36,7 @@ import {
 } from "@/lib/informe-especializado";
 import { cupoAgotado } from "@/lib/cupo-informes";
 import { MINIMO_EMPRESAS_DEL_GRUPO, leerFiltrosMercado, tamanoDeEmpresa } from "@/lib/filtros-mercado";
-import { calcularPercentilesMercado, calcularPercentilesTcr } from "@/lib/percentiles-mercado";
+import { calcularPercentilesMercado, calcularPercentilesTcr, usuariosQueEnviaron } from "@/lib/percentiles-mercado";
 import { elegirTendencia } from "@/lib/tendencia-compensacion";
 import { prisma } from "@/lib/prisma";
 import { safeParseCompanyInfo } from "@/lib/workspace";
@@ -73,12 +73,18 @@ type Cuerpo = {
  * Y viene con la matriz por grado ya suavizada.
  */
 async function mercadoDelInforme(snapshotId: string, filtros: string, tcrType: TcrType | null) {
-  const [workspaces, bcv, bcvEur, binance, libre] = await Promise.all([
-    prisma.userWorkspace.findMany({ select: { snapshotsJson: true, companyInfoJson: true } }),
+  const [workspaces, enviaron, bcv, bcvEur, binance, libre] = await Promise.all([
+    prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
+    usuariosQueEnviaron(snapshotId),
     getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
   ]);
 
-  const parametros = { snapshotId, filtros: leerFiltrosMercado(new URLSearchParams(filtros)), workspaces };
+  const parametros = {
+    snapshotId,
+    filtros: leerFiltrosMercado(new URLSearchParams(filtros)),
+    workspaces,
+    enviaron,
+  };
 
   return tcrType
     ? calcularPercentilesTcr({
