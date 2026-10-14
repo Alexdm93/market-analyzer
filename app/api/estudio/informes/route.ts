@@ -7,6 +7,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { cupoAgotado, huellaDelCorte, type ConfiguracionDelCorte } from "@/lib/cupo-informes";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { parseDatosInforme, validarDatosInforme } from "@/lib/estudio-informes";
 import { prisma } from "@/lib/prisma";
@@ -75,6 +76,11 @@ type CuerpoCrear = {
   modo?: string;
   metrica?: string;
   filas?: unknown[];
+  /** Lo que define el corte de data, para saber si consume cupo. */
+  tcr?: string | null;
+  comisiones?: boolean;
+  filtrosGrupo?: string;
+  grados?: number[];
 };
 
 export async function POST(request: Request) {
@@ -96,6 +102,33 @@ export async function POST(request: Request) {
   const validacion = validarDatosInforme({ modo: body?.modo, metrica: body?.metrica, filas: body?.filas });
   if (!validacion.ok) return Response.json({ message: validacion.mensaje }, { status: 400 });
 
+  const configuracion: ConfiguracionDelCorte = {
+    snapshotId,
+    modo: body?.modo ?? "",
+    metrica: body?.metrica ?? "",
+    tcr: body?.tcr ?? null,
+    comisiones: Boolean(body?.comisiones),
+    filtros: body?.filtrosGrupo ?? "",
+    grados: Array.isArray(body?.grados) ? body.grados : [],
+  };
+
+  // El cupo limita cuántos cortes de data distintos configura la empresa, no
+  // cuántas veces baja los que ya tiene. El admin no tiene tope.
+  if (!acceso.esAdmin) {
+    const agotado = await cupoAgotado(acceso.companyId, configuracion);
+    if (agotado) {
+      return Response.json(
+        {
+          message: `Ya configuraste los ${agotado.estado.cupo} cortes de data de este estudio. `
+            + "Los que guardaste los puedes volver a descargar cuando quieras; para armar uno nuevo "
+            + "necesitas que el administrador te autorice.",
+          cupo: agotado.estado,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   const creado = await prisma.estudioInforme.create({
     data: {
       companyId: acceso.companyId,
@@ -103,6 +136,7 @@ export async function POST(request: Request) {
       snapshotId,
       snapshotLabel: (body?.snapshotLabel ?? "").trim(),
       datosJson: JSON.stringify(validacion.datos),
+      configHash: huellaDelCorte(configuracion),
       generadoPor: session?.user?.name ?? session?.user?.email ?? "",
     },
     select: { id: true },

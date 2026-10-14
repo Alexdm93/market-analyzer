@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { BookOpen, Building2, CalendarDays, RefreshCw, X } from "lucide-react";
 import type { EstudioCompany, GlobalSnapshot } from "@/app/api/admin/estudio-especializado/route";
+import type { SolicitudInformeDto } from "@/app/api/estudio/solicitudes-informe/route";
 
 type ModalState = {
   company: EstudioCompany;
@@ -23,6 +24,7 @@ export default function EstudioEspecializadoPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [solicitudes, setSolicitudes] = useState<SolicitudInformeDto[]>([]);
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role !== "ADMIN") {
@@ -39,6 +41,10 @@ export default function EstudioEspecializadoPage() {
         setCompanies(json.companies);
         setSnapshots(json.snapshots);
       }
+
+      const resSol = await fetch("/api/estudio/solicitudes-informe?pendientes=1", { cache: "no-store" });
+      const dSol = (await resSol.json().catch(() => null)) as { solicitudes?: SolicitudInformeDto[] } | null;
+      setSolicitudes(dSol?.solicitudes ?? []);
     } finally {
       setLoading(false);
     }
@@ -85,6 +91,36 @@ export default function EstudioEspecializadoPage() {
           c.id === company.id ? { ...c, estudioEnabled: enabled, estudioSnapshotIds: snapshotIds } : c
         )
       );
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function resolverSolicitud(solicitud: SolicitudInformeDto, aprobar: boolean, otorgados: number) {
+    setSaving(solicitud.companyId);
+    try {
+      await fetch("/api/estudio/solicitudes-informe", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: solicitud.id, aprobar, otorgados }),
+      });
+      await load();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function guardarCupo(company: EstudioCompany, snapshotId: string, valor: number) {
+    setSaving(company.id);
+    try {
+      await fetch("/api/admin/estudio-especializado", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, cupo: { snapshotId, valor } }),
+      });
+      setCompanies((prev) => prev.map((c) => c.id === company.id
+        ? { ...c, estudioCupos: { ...c.estudioCupos, [snapshotId]: valor } }
+        : c));
     } finally {
       setSaving(null);
     }
@@ -148,6 +184,51 @@ export default function EstudioEspecializadoPage() {
           </div>
         </section>
 
+        {/* Solicitudes de informes adicionales */}
+        {solicitudes.length > 0 && (
+          <section className="surface-card rounded-[2rem] p-6">
+            <h2 className="font-display text-xl font-bold text-slate-900">
+              Solicitudes de informes adicionales
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Empresas que agotaron su cupo de cortes de data y piden armar uno más.
+            </p>
+
+            <div className="mt-4 divide-y divide-slate-100">
+              {solicitudes.map((s) => (
+                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900">{s.empresa}</div>
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {s.snapshotLabel || s.snapshotId} · pedido el{" "}
+                      {new Date(s.createdAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}
+                    </div>
+                    {s.motivo && <p className="mt-1 text-sm text-slate-600">{s.motivo}</p>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={saving === s.companyId}
+                      onClick={() => void resolverSolicitud(s, true, 1)}
+                      className="btn btn-primary text-sm px-3 py-1.5"
+                    >
+                      Autorizar uno
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving === s.companyId}
+                      onClick={() => void resolverSolicitud(s, false, 0)}
+                      className="btn btn-secondary text-sm px-3 py-1.5"
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Company list */}
         <section className="surface-card overflow-hidden rounded-[2rem]">
           {loading && companies.length === 0 ? (
@@ -180,6 +261,36 @@ export default function EstudioEspecializadoPage() {
                         </>
                       )}
                     </div>
+
+                    {company.estudioEnabled && company.estudioSnapshotIds.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {company.estudioSnapshotIds.map((id) => {
+                          const corte = snapshots.find((s) => s.snapshotId === id);
+                          const cupo = company.estudioCupos[id] ?? 0;
+                          const usados = company.estudioUsados[id] ?? 0;
+                          const agotado = usados >= cupo;
+                          return (
+                            <span
+                              key={id}
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+                                agotado ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-600"
+                              }`}
+                            >
+                              <span className="font-medium">{corte?.label ?? id}</span>
+                              <span className="tabular-nums">{usados} de</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={cupo}
+                                aria-label={`Cupo de informes de ${company.name} en ${corte?.label ?? id}`}
+                                onChange={(e) => void guardarCupo(company, id, Number(e.target.value) || 0)}
+                                className="w-12 rounded border border-slate-200 bg-white px-1 py-0.5 text-right tabular-nums"
+                              />
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {company.estudioEnabled ? (

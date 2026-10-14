@@ -15,6 +15,7 @@ import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
 import { useEstudio } from "@/contexts/EstudioContext";
 import type { MercadoDelEstudio } from "@/app/api/estudio/mercado/route";
+import type { RespuestaCupo } from "@/app/api/estudio/cupo/route";
 
 type Metrica = "sinPasivosMensual" | "directoMensualizado" | "conPasivosMensual" | "conPasivosAnual";
 
@@ -166,6 +167,9 @@ export default function ComparacionPage() {
   const [empresasEnGrupo, setEmpresasEnGrupo] = useState<number | null>(null);
   const [grupoValidadoCon, setGrupoValidadoCon] = useState<string | null>(null);
   const [validandoGrupo, setValidandoGrupo] = useState(false);
+  /** Cuántos cortes de data distintos le quedan por configurar en este estudio. */
+  const [cupo, setCupo] = useState<RespuestaCupo | null>(null);
+  const [pidiendoCupo, setPidiendoCupo] = useState(false);
 
   const empresaActiva = esAdmin ? companyId : (session?.user?.companyId ?? "");
 
@@ -286,6 +290,41 @@ export default function ComparacionPage() {
 
   // Tocar un filtro invalida el conteo anterior: hay que volver a analizar.
   useEffect(() => { setGrupoValidadoCon(null); }, [consultaFiltros]);
+
+  const cargarCupo = useCallback(async () => {
+    if (!snapshotId) { setCupo(null); return; }
+    const p = new URLSearchParams({ snapshotId });
+    if (esAdmin && companyId) p.set("companyId", companyId);
+    const res = await fetch(`/api/estudio/cupo?${p.toString()}`, { cache: "no-store" }).catch(() => null);
+    const d = (await res?.json().catch(() => null)) as RespuestaCupo | null;
+    setCupo(d && "disponibles" in d ? d : null);
+  }, [snapshotId, esAdmin, companyId]);
+
+  useEffect(() => { void cargarCupo(); }, [cargarCupo]);
+
+  async function pedirMasInformes() {
+    if (!snapshotId) return;
+    setPidiendoCupo(true);
+    try {
+      const corte = snapshots.find((x) => x.id === snapshotId);
+      const res = await fetch("/api/estudio/solicitudes-informe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(esAdmin && companyId ? { companyId } : {}),
+          snapshotId,
+          snapshotLabel: corte ? `${corte.label} — ${corte.date}` : "",
+        }),
+      });
+      const d = (await res.json().catch(() => null)) as { message?: string } | null;
+      setAviso("");
+      setError(res.ok ? "" : d?.message ?? "No se pudo enviar la solicitud.");
+      if (res.ok) setAviso(d?.message ?? "Solicitud enviada.");
+      await cargarCupo();
+    } finally {
+      setPidiendoCupo(false);
+    }
+  }
 
   /**
    * `null` mientras no se haya analizado esta selección; después, si alcanza
@@ -454,6 +493,12 @@ export default function ComparacionPage() {
           snapshotLabel: corte ? `${corte.label} — ${corte.date}` : "",
           modo,
           metrica,
+          // Lo que define el corte de data, para que el servidor sepa si es
+          // uno nuevo —y consume cupo— o uno que la empresa ya configuró.
+          tcr: tcrActivo ? tcrTipo : null,
+          comisiones,
+          filtrosGrupo: consultaFiltros,
+          grados: filtroGrados,
           filas: elegidas.map((f) => ({
             cargoId: f.cargo.id,
             departamento: f.cargo.departamento,
@@ -518,6 +563,7 @@ export default function ComparacionPage() {
           tcr: tcrActivo ? { tipo: tcrTipo } : null,
           grupoComparacion: descripcionGrupo,
           filtrosGrupo: consultaFiltros,
+          modo,
           mercadoPorGrado,
         }),
       });
@@ -985,6 +1031,41 @@ export default function ComparacionPage() {
                   Descargar el informe completo
                 </button>
               </div>
+              {cupo && !cupo.ilimitado && (
+                <div className={`mt-3 rounded-2xl px-4 py-3 text-sm ${
+                  cupo.disponibles > 0 ? "bg-slate-50 text-slate-600" : "bg-amber-50 text-amber-800"
+                }`}>
+                  {cupo.disponibles > 0 ? (
+                    <>
+                      Te {cupo.disponibles === 1 ? "queda" : "quedan"} <strong>{cupo.disponibles}</strong> de{" "}
+                      {cupo.cupo} {cupo.cupo === 1 ? "corte de data" : "cortes de data"} por configurar en este
+                      estudio. Los que ya guardaste los puedes volver a descargar cuando quieras.
+                    </>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="flex items-start gap-1.5">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        Ya configuraste los {cupo.cupo} cortes de data de este estudio. Para armar uno nuevo
+                        necesitas autorización; los que guardaste siguen disponibles en el historial.
+                      </span>
+                      {cupo.solicitudPendiente ? (
+                        <span className="text-xs font-semibold">Solicitud enviada, esperando respuesta.</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void pedirMasInformes()}
+                          disabled={pidiendoCupo}
+                          className="btn btn-secondary btn-xs flex items-center gap-1.5"
+                        >
+                          {pidiendoCupo ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                          Solicitar autorización
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {grupoValidado !== true && (
                 <p className="mt-3 flex items-center gap-1.5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
                   <AlertTriangle className="h-4 w-4 shrink-0" />

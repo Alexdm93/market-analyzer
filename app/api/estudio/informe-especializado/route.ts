@@ -29,6 +29,7 @@ import { tasasTcrDeEmpresa } from "@/lib/compensation";
 import { getLibreRate } from "@/lib/tcr-config";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { generarInformeEspecializado, mesYAnioEsp } from "@/lib/informe-especializado";
+import { cupoAgotado } from "@/lib/cupo-informes";
 import { MINIMO_EMPRESAS_DEL_GRUPO, leerFiltrosMercado, tamanoDeEmpresa } from "@/lib/filtros-mercado";
 import { calcularPercentilesMercado } from "@/lib/percentiles-mercado";
 import { prisma } from "@/lib/prisma";
@@ -54,6 +55,8 @@ type Cuerpo = {
    * grupo acá: el botón deshabilitado en pantalla no es una regla.
    */
   filtrosGrupo?: string;
+  /** "cargo" o "grado": forma parte de lo que define el corte de data. */
+  modo?: string;
 };
 
 function numeroONulo(v: unknown): number | null {
@@ -111,6 +114,32 @@ export async function POST(request: Request) {
 
   const config: ConfiguracionInforme = { ...CONFIG_POR_DEFECTO, ...(body?.config ?? {}) };
   const configSimulador: ConfigSimulador = { ...SIMULADOR_POR_DEFECTO, ...(body?.configSimulador ?? {}) };
+
+  // El cupo también se mira acá: si solo se controlara al guardar en el
+  // historial, bastaría con no guardar para saltárselo. Un corte ya guardado
+  // se puede volver a bajar siempre.
+  if (!acceso.esAdmin) {
+    const agotado = await cupoAgotado(acceso.companyId, {
+      snapshotId,
+      modo: body?.modo ?? "",
+      metrica: config.concepto,
+      tcr: body?.tcr?.tipo ?? null,
+      comisiones: Boolean(config.incluirComisiones),
+      filtros: body?.filtrosGrupo ?? "",
+      grados: body?.grados ?? [],
+    });
+    if (agotado) {
+      return Response.json(
+        {
+          message: `Ya configuraste los ${agotado.estado.cupo} cortes de data de este estudio. `
+            + "Guarda el informe desde el historial para volver a descargarlo, o pide autorización "
+            + "al administrador para armar uno nuevo.",
+          cupo: agotado.estado,
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   const mercadoPorGrado = new Map<number, PercentilesGrado>();
   for (const g of body?.mercadoPorGrado ?? []) {

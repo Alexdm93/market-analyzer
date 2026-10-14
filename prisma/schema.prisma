@@ -52,6 +52,10 @@ model Company {
   estudioInformes      EstudioInforme[]
   estudioEnabled       Boolean               @default(false)
   estudioSnapshotIds   String                @default("[]")
+  /// Cuántos cortes de data distintos puede configurar en cada estudio.
+  /// Mapa snapshotId -> cupo; lo que no esté vale CUPO_POR_DEFECTO.
+  estudioCuposJson     String                @default("{}")
+  solicitudesInforme   SolicitudInforme[]
   /// Informe General de Tendencias Salariales: se habilita y se elige qué
   /// cortes puede descargar, igual que el Estudio Especializado.
   generalEnabled       Boolean               @default(false)
@@ -156,6 +160,29 @@ model InformeBeneficios {
   bytes         Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+/// Un cliente que agotó su cupo de informes en un estudio y pide más.
+///
+/// El cupo no limita descargas: limita cuántos cortes de data distintos puede
+/// configurar. Los que ya configuró los baja las veces que quiera.
+model SolicitudInforme {
+  id            String            @id @default(cuid())
+  companyId     String
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshotId    String
+  snapshotLabel String            @default("")
+  motivo        String            @default("")
+  status        EditRequestStatus @default(PENDING)
+  /// Cuántos informes le otorgó el admin al aprobar.
+  otorgados     Int               @default(0)
+  resueltoPor   String            @default("")
+  resueltoEn    DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status, companyId])
+  @@index([companyId, snapshotId])
 }
 
 model GlobalConfig {
@@ -272,6 +299,10 @@ model EstudioInforme {
   /// La foto: filas con montos propios y percentiles de mercado, más con qué
   /// criterio se armó (modo y métrica).
   datosJson     String
+  /// Huella de la configuración del corte de data: mismo corte, modo, métrica,
+  /// TCR, comisiones, grados y filtros. Dos informes con la misma huella son
+  /// el mismo corte, así que el segundo no consume cupo.
+  configHash    String   @default("")
   generadoPor   String   @default("")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
