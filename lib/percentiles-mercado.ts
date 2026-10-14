@@ -28,7 +28,7 @@ import {
   type RowTotals,
   type TcrType,
 } from "@/lib/compensation";
-import { pasaFiltros, type FiltrosMercado } from "@/lib/filtros-mercado";
+import { localidadesDe, pasaFiltros, type FiltrosMercado } from "@/lib/filtros-mercado";
 import { safeParseCompanyInfo, safeParseSnapshots } from "@/lib/workspace";
 
 export type CargoPercentilesMercado = {
@@ -106,16 +106,45 @@ type Totalizador = (
   companyInfo: ReturnType<typeof safeParseCompanyInfo>,
 ) => RowTotals;
 
+/**
+ * Con qué se puede recortar el mercado de este corte, y cuántas empresas
+ * quedaron dentro del recorte.
+ *
+ * Las listas salen de TODOS los participantes, antes de aplicar filtros: si se
+ * recortaran al filtro activo no habría forma de volver atrás. El conteo, en
+ * cambio, es de las que pasaron, que es lo que mira el mínimo de doce.
+ */
+export type GrupoDelMercado = {
+  sectores: string[];
+  clasificaciones: string[];
+  empresas: string[];
+  localidades: string[];
+  /** Cuántas empresas quedaron dentro del grupo elegido. */
+  empresasEnGrupo: number;
+};
+
+export type MercadoDelCorte = {
+  cargos: CargoPercentilesMercado[];
+  grades: GradoPercentilesMercado[];
+  grupo: GrupoDelMercado;
+};
+
 function recorrer(params: {
   snapshotId: string;
   filtros: FiltrosMercado;
   workspaces: WorkspaceParaTcr[];
   totalizar: Totalizador;
-}): { cargos: CargoPercentilesMercado[]; grades: GradoPercentilesMercado[] } {
+}): MercadoDelCorte {
   const { snapshotId, filtros, workspaces, totalizar } = params;
 
   const porCargo = new Map<string, { tituloCargo: string; acc: Acumulado }>();
   const porGrado = new Map<number, Acumulado>();
+
+  const sectores = new Set<string>();
+  const clasificaciones = new Set<string>();
+  const empresas = new Set<string>();
+  const localidades = new Set<string>();
+  let empresasEnGrupo = 0;
 
   for (const workspace of workspaces) {
     const snapshots = safeParseSnapshots(workspace.snapshotsJson);
@@ -126,7 +155,14 @@ function recorrer(params: {
     if (!snapshot.rows.some((row) => !row._carried)) continue;
 
     const companyInfo = safeParseCompanyInfo(workspace.companyInfoJson);
+
+    if (companyInfo.sector) sectores.add(companyInfo.sector);
+    if (companyInfo.classification) clasificaciones.add(companyInfo.classification);
+    if (companyInfo.companyName) empresas.add(companyInfo.companyName);
+    for (const l of localidadesDe(companyInfo)) localidades.add(l);
+
     if (!pasaFiltros(companyInfo, filtros)) continue;
+    empresasEnGrupo += 1;
 
     // Una observación por empresa por cargo/grado —igual que percentiles y
     // percentiles-by-grade— para que una sola empresa con muchos empleados en
@@ -166,7 +202,19 @@ function recorrer(params: {
     .map(([grade, acc]) => ({ grade, ...percentiles(acc) }))
     .sort((a, b) => a.grade - b.grade);
 
-  return { cargos, grades };
+  const ordenar = (xs: Set<string>) => [...xs].sort((a, b) => a.localeCompare(b, "es"));
+
+  return {
+    cargos,
+    grades,
+    grupo: {
+      sectores: ordenar(sectores),
+      clasificaciones: ordenar(clasificaciones),
+      empresas: ordenar(empresas),
+      localidades: ordenar(localidades),
+      empresasEnGrupo,
+    },
+  };
 }
 
 /** El mercado en la moneda en que cada empresa cargó su data. */
@@ -197,7 +245,7 @@ export function calcularPercentilesTcr(params: {
   filtros: FiltrosMercado;
   workspaces: WorkspaceParaTcr[];
   globales: TasasGlobales;
-}): { cargos: CargoPercentilesMercado[]; grades: GradoPercentilesMercado[] } {
+}): MercadoDelCorte {
   return recorrer({
     ...params,
     totalizar: (row, info) => {

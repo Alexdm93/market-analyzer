@@ -31,6 +31,17 @@ export function tamanoDeEmpresa(headcount: string | undefined): "pequeña" | "me
   return "grande";
 }
 
+/**
+ * El mínimo de empresas que tiene que tener el grupo de comparación del
+ * Estudio Especializado.
+ *
+ * Con menos, el cliente estaría mirando el sueldo de un puñado de empresas
+ * identificables. AC Consulting lo fijó en doce (2026-10-14) y no importa cómo
+ * se llegue: sector, subsector, tamaño, ubicación o empresas elegidas a mano.
+ * No aplica al admin, que arma recortes para revisar.
+ */
+export const MINIMO_EMPRESAS_DEL_GRUPO = 12;
+
 export const TAMANOS = [
   { valor: "pequeña", etiqueta: "Pequeña (menos de 50)" },
   { valor: "mediana", etiqueta: "Mediana (50 a 200)" },

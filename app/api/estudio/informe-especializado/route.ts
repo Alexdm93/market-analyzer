@@ -29,7 +29,8 @@ import { tasasTcrDeEmpresa } from "@/lib/compensation";
 import { getLibreRate } from "@/lib/tcr-config";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { generarInformeEspecializado, mesYAnioEsp } from "@/lib/informe-especializado";
-import { tamanoDeEmpresa } from "@/lib/filtros-mercado";
+import { MINIMO_EMPRESAS_DEL_GRUPO, leerFiltrosMercado, tamanoDeEmpresa } from "@/lib/filtros-mercado";
+import { calcularPercentilesMercado } from "@/lib/percentiles-mercado";
 import { prisma } from "@/lib/prisma";
 import { safeParseCompanyInfo } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
@@ -47,11 +48,45 @@ type Cuerpo = {
   config?: Partial<ConfiguracionInforme>;
   configSimulador?: Partial<ConfigSimulador>;
   mercadoPorGrado?: Array<Record<string, unknown>>;
+  /**
+   * Los filtros del grupo de comparación, tal como viajan en la URL de
+   * `/api/estudio/mercado`. Sirven para volver a contar las empresas del
+   * grupo acá: el botón deshabilitado en pantalla no es una regla.
+   */
+  filtrosGrupo?: string;
 };
 
 function numeroONulo(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) && n !== 0 ? n : null;
+}
+
+/**
+ * Cuenta las empresas del grupo y responde si no llegan al mínimo. Devuelve
+ * `null` cuando el grupo alcanza.
+ */
+async function grupoDemasiadoChico(snapshotId: string, filtros: string): Promise<Response | null> {
+  const [workspaces, { rate: bcv }] = await Promise.all([
+    prisma.userWorkspace.findMany({ select: { snapshotsJson: true, companyInfoJson: true } }),
+    getBcvRate(),
+  ]);
+
+  const { grupo } = calcularPercentilesMercado({
+    snapshotId,
+    filtros: leerFiltrosMercado(new URLSearchParams(filtros)),
+    workspaces,
+    bcvGeneral: bcv,
+  });
+
+  if (grupo.empresasEnGrupo >= MINIMO_EMPRESAS_DEL_GRUPO) return null;
+
+  return Response.json(
+    {
+      message: `El grupo de comparación tiene ${grupo.empresasEnGrupo} ${grupo.empresasEnGrupo === 1 ? "empresa" : "empresas"} `
+        + `y hacen falta ${MINIMO_EMPRESAS_DEL_GRUPO}. Amplía alguno de los criterios.`,
+    },
+    { status: 400 },
+  );
 }
 
 export async function POST(request: Request) {
@@ -65,6 +100,14 @@ export async function POST(request: Request) {
 
   const vetado = await asegurarCorte(acceso, snapshotId);
   if (vetado) return vetado;
+
+  // El grupo de comparación necesita un mínimo de empresas para que nadie
+  // deduzca el sueldo de una en particular. Lo fijó AC Consulting en doce
+  // (2026-10-14) y no alcanza con esconder el botón.
+  if (!acceso.esAdmin) {
+    const faltan = await grupoDemasiadoChico(snapshotId, body?.filtrosGrupo ?? "");
+    if (faltan) return faltan;
+  }
 
   const config: ConfiguracionInforme = { ...CONFIG_POR_DEFECTO, ...(body?.config ?? {}) };
   const configSimulador: ConfigSimulador = { ...SIMULADOR_POR_DEFECTO, ...(body?.configSimulador ?? {}) };

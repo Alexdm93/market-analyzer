@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals, computeTCRTotals, tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
-import { TAMANOS } from "@/lib/filtros-mercado";
+import { MINIMO_EMPRESAS_DEL_GRUPO, TAMANOS } from "@/lib/filtros-mercado";
 import { posicionEnMercado } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
@@ -14,6 +14,7 @@ import { fetchWorkspace } from "@/lib/workspace-client";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
 import { useEstudio } from "@/contexts/EstudioContext";
+import type { MercadoDelEstudio } from "@/app/api/estudio/mercado/route";
 
 type Metrica = "sinPasivosMensual" | "directoMensualizado" | "conPasivosMensual" | "conPasivosAnual";
 
@@ -56,6 +57,8 @@ function money(v: number | null | undefined) {
  */
 /** A partir de acá la lista no se puede recorrer con la vista y lleva buscador. */
 const LISTA_LARGA = 12;
+
+
 
 function ListaCasillas({
   titulo, vacio, opciones, elegidas, onToggle, onLimpiar, etiquetas,
@@ -155,6 +158,14 @@ export default function ComparacionPage() {
     { sectores: [], clasificaciones: [], localidades: [], empresas: [] },
   );
   const [abrirGrupo, setAbrirGrupo] = useState(false);
+  /**
+   * Cuántas empresas quedaron dentro del grupo, y con qué filtros se contaron.
+   * AC Consulting exige un mínimo de doce para que el cliente pueda seguir
+   * (2026-10-14); el admin no tiene ese tope.
+   */
+  const [empresasEnGrupo, setEmpresasEnGrupo] = useState<number | null>(null);
+  const [grupoValidadoCon, setGrupoValidadoCon] = useState<string | null>(null);
+  const [validandoGrupo, setValidandoGrupo] = useState(false);
 
   const empresaActiva = esAdmin ? companyId : (session?.user?.companyId ?? "");
 
@@ -273,54 +284,70 @@ export default function ComparacionPage() {
 
   const consultaFiltros = filtrosMercado().toString();
 
+  // Tocar un filtro invalida el conteo anterior: hay que volver a analizar.
+  useEffect(() => { setGrupoValidadoCon(null); }, [consultaFiltros]);
+
+  /**
+   * `null` mientras no se haya analizado esta selección; después, si alcanza
+   * el mínimo. El admin siempre puede seguir.
+   */
+  const grupoValidado = grupoValidadoCon !== consultaFiltros
+    ? null
+    : esAdmin || (empresasEnGrupo ?? 0) >= MINIMO_EMPRESAS_DEL_GRUPO;
+
+  const analizarGrupo = useCallback(async () => {
+    if (!snapshotId) return;
+    setValidandoGrupo(true);
+    try {
+      const p = new URLSearchParams(consultaFiltros);
+      p.set("snapshotId", snapshotId);
+      if (esAdmin && companyId) p.set("companyId", companyId);
+      const res = await fetch(`/api/estudio/mercado?${p.toString()}`, { cache: "no-store" });
+      const d = (await res.json().catch(() => null)) as MercadoDelEstudio | null;
+      if (d && "grupo" in d) {
+        setEmpresasEnGrupo(d.grupo.empresasEnGrupo);
+        setGrupoValidadoCon(consultaFiltros);
+      }
+    } finally {
+      setValidandoGrupo(false);
+    }
+  }, [snapshotId, consultaFiltros, esAdmin, companyId]);
+
+  /**
+   * El mercado del corte sale de `/api/estudio/mercado`, no de `/api/percentiles`.
+   * Esa otra es la del estudio de cortesía y exige haber participado; acá una
+   * empresa puede haber contratado el estudio sin participar.
+   */
   useEffect(() => {
     if (!snapshotId) { setPorCargo([]); setPorGrado([]); return; }
     let ignorar = false;
-    const base = `snapshotId=${encodeURIComponent(snapshotId)}${consultaFiltros ? `&${consultaFiltros}` : ""}`;
 
-    void fetch(`/api/percentiles?${base}`, { cache: "no-store" })
+    const p = new URLSearchParams(consultaFiltros);
+    p.set("snapshotId", snapshotId);
+    if (esAdmin && companyId) p.set("companyId", companyId);
+    if (tcrActivo) p.set("tcrType", tcrTipo);
+
+    void fetch(`/api/estudio/mercado?${p.toString()}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
-      .then((d: { grupos?: GrupoCargo[]; availableSectors?: string[]; availableSizes?: string[]; availableLocalities?: string[]; availableCompanies?: string[] } | null) => {
-        if (ignorar) return;
-        setPorCargo(d?.grupos ?? []);
+      .then((d: MercadoDelEstudio | { message?: string } | null) => {
+        if (ignorar || !d) return;
+        if (!("cargos" in d)) { setError(d.message ?? "No se pudo obtener el mercado."); return; }
+        setPorCargo(d.cargos as unknown as GrupoCargo[]);
+        setPorGrado(d.grades as unknown as GrupoGrado[]);
+        setEmpresasEnGrupo(d.grupo.empresasEnGrupo);
         // Las listas se quedan con lo que devuelve el corte completo; si se
         // recortaran al filtro activo no habría forma de volver atrás.
-        setDisponibles((prev) => ({
-          sectores: (d?.availableSectors?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSectors! : prev.sectores,
-          clasificaciones: (d?.availableSizes?.length ?? 0) > 0 && !consultaFiltros ? d!.availableSizes! : prev.clasificaciones,
-          localidades: (d?.availableLocalities?.length ?? 0) > 0 && !consultaFiltros ? d!.availableLocalities! : prev.localidades,
-          empresas: (d?.availableCompanies?.length ?? 0) > 0 && !consultaFiltros ? d!.availableCompanies! : prev.empresas,
-        }));
-      })
-      .catch(() => { if (!ignorar) setPorCargo([]); });
-
-    void fetch(`/api/percentiles-by-grade?${base}`, { cache: "no-store" })
-      .then((r) => r.json().catch(() => null))
-      .then((d: { grupos?: GrupoGrado[] } | null) => { if (!ignorar) setPorGrado(d?.grupos ?? []); })
-      .catch(() => { if (!ignorar) setPorGrado([]); });
-
-    return () => { ignorar = true; };
-  }, [snapshotId, consultaFiltros, tcrActivo]);
-
-  // En TCR el mercado sale de su propia ruta, que devuelve las mismas cuatro
-  // métricas por cargo y por grado, pero convertidas con el tipo elegido.
-  useEffect(() => {
-    if (!snapshotId || !tcrActivo) return;
-    let ignorar = false;
-    const base = `snapshotId=${encodeURIComponent(snapshotId)}&tcrType=${tcrTipo}${consultaFiltros ? `&${consultaFiltros}` : ""}`;
-
-    void fetch(`/api/percentiles-tcr?${base}`, { cache: "no-store" })
-      .then((r) => r.json().catch(() => null))
-      .then((d: { cargos?: GrupoCargo[]; grades?: GrupoGrado[]; message?: string } | null) => {
-        if (ignorar) return;
-        setPorCargo(d?.cargos ?? []);
-        setPorGrado(d?.grades ?? []);
-        if (d?.message) setError(d.message);
+        setDisponibles((prev) => consultaFiltros ? prev : {
+          sectores: d.grupo.sectores,
+          clasificaciones: d.grupo.clasificaciones,
+          localidades: d.grupo.localidades,
+          empresas: d.grupo.empresas,
+        });
       })
       .catch(() => { if (!ignorar) { setPorCargo([]); setPorGrado([]); } });
 
     return () => { ignorar = true; };
-  }, [snapshotId, consultaFiltros, tcrActivo, tcrTipo]);
+  }, [snapshotId, consultaFiltros, tcrActivo, tcrTipo, esAdmin, companyId]);
 
   const tasas = useMemo(() => (companyInfo.tasas ?? []).filter((t) => !t.isSystem), [companyInfo.tasas]);
   const bcv = useMemo(() => {
@@ -487,6 +514,7 @@ export default function ComparacionPage() {
           grados: filtroGrados.length > 0 ? filtroGrados : undefined,
           tcr: tcrActivo ? { tipo: tcrTipo } : null,
           grupoComparacion: descripcionGrupo,
+          filtrosGrupo: consultaFiltros,
           mercadoPorGrado,
         }),
       });
@@ -764,6 +792,34 @@ export default function ComparacionPage() {
                   Recortar el grupo cambia los percentiles de toda la pantalla y del informe que descargues. Con menos
                   empresas hay menos observaciones por cargo, así que algunos pueden quedar sin comparación.
                 </p>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {esAdmin
+                          ? "Cuántas empresas quedaron en el grupo"
+                          : `El grupo necesita al menos ${MINIMO_EMPRESAS_DEL_GRUPO} empresas`}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {grupoValidado === null
+                          ? "Analiza la selección para saber con cuántas estás comparando."
+                          : grupoValidado
+                          ? `Hay ${empresasEnGrupo} empresas en el grupo. Puedes continuar.`
+                          : `Solo hay ${empresasEnGrupo} ${empresasEnGrupo === 1 ? "empresa" : "empresas"}. Amplía alguno de los criterios.`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={analizarGrupo}
+                      disabled={validandoGrupo || !snapshotId}
+                      className="btn btn-secondary flex items-center gap-1.5"
+                    >
+                      {validandoGrupo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BarChart3 className="h-3.5 w-3.5" />}
+                      Analizar selección
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -910,7 +966,7 @@ export default function ComparacionPage() {
                 <button
                   type="button"
                   onClick={() => void generarInforme()}
-                  disabled={generando || seleccionados.length === 0}
+                  disabled={generando || seleccionados.length === 0 || grupoValidado !== true}
                   className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {generando ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
@@ -919,13 +975,21 @@ export default function ComparacionPage() {
                 <button
                   type="button"
                   onClick={() => void descargarExcel()}
-                  disabled={bajandoExcel}
+                  disabled={bajandoExcel || grupoValidado !== true}
                   className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {bajandoExcel ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                   Descargar el informe completo
                 </button>
               </div>
+              {grupoValidado !== true && (
+                <p className="mt-3 flex items-center gap-1.5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  {grupoValidado === null
+                    ? "Antes de emitir el informe, analiza el grupo de comparación en el paso anterior."
+                    : `El grupo de comparación tiene ${empresasEnGrupo} ${empresasEnGrupo === 1 ? "empresa" : "empresas"} y hacen falta ${MINIMO_EMPRESAS_DEL_GRUPO}. Amplía alguno de los criterios.`}
+                </p>
+              )}
               {aviso && (
                 <p className="mt-3 rounded-2xl bg-teal-50 px-4 py-3 text-sm text-teal-800">
                   {aviso} Lo encuentras en <strong>Informes</strong>.

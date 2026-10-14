@@ -1,9 +1,13 @@
 /**
  * Los cortes que la empresa puede usar en el Estudio Especializado.
  *
- * Son los que cumplen las dos condiciones: que la empresa haya participado
- * (si no, no tiene data que comparar) y que el admin se los haya incluido en
- * el estudio contratado. El admin no tiene la segunda restricción.
+ * Son los que el admin le incluyó en el estudio contratado, y nada más. Antes
+ * se exigía además haber participado en el corte, pero AC Consulting pidió que
+ * una empresa que no participó también pueda contratar el estudio
+ * (2026-10-14): compara sus cargos contra un mercado del que no forma parte,
+ * que es exactamente lo que vende el informe.
+ *
+ * El admin ve todos los cortes del sistema.
  */
 import { getServerSession } from "next-auth";
 
@@ -17,22 +21,16 @@ export async function GET(request: Request) {
   const acceso = resolverAcceso(session, searchParams.get("companyId")?.trim() ?? "");
   if (!acceso.ok) return acceso.response;
 
-  const participados = await prisma.userSnapshot.findMany({
-    where: { companyId: acceso.companyId },
+  const permitidos = acceso.esAdmin ? null : new Set(await cortesPermitidos(acceso.companyId));
+
+  const todos = await prisma.userSnapshot.findMany({
     select: { snapshotId: true, label: true, date: true },
+    distinct: ["snapshotId"],
     orderBy: { date: "desc" },
   });
 
-  const permitidos = acceso.esAdmin ? null : new Set(await cortesPermitidos(acceso.companyId));
-
-  const vistos = new Set<string>();
-  const cortes = participados
-    .filter((s) => {
-      if (vistos.has(s.snapshotId)) return false;
-      if (permitidos && !permitidos.has(s.snapshotId)) return false;
-      vistos.add(s.snapshotId);
-      return true;
-    })
+  const cortes = todos
+    .filter((s) => !permitidos || permitidos.has(s.snapshotId))
     .map((s) => ({ id: s.snapshotId, label: s.label, date: s.date.toISOString().slice(0, 10) }));
 
   return Response.json({ cortes });
