@@ -56,6 +56,7 @@ model Company {
   /// Mapa snapshotId -> cupo; lo que no esté vale CUPO_POR_DEFECTO.
   estudioCuposJson     String                @default("{}")
   solicitudesInforme   SolicitudInforme[]
+  auditoriasSuavizado  AuditoriaSuavizado[]
   /// Informe General de Tendencias Salariales: se habilita y se elige qué
   /// cortes puede descargar, igual que el Estudio Especializado.
   generalEnabled       Boolean               @default(false)
@@ -183,6 +184,32 @@ model SolicitudInforme {
 
   @@index([status, companyId])
   @@index([companyId, snapshotId])
+}
+
+/// La foto del suavizado de un informe, para auditarlo después.
+///
+/// Guarda la matriz cruda, la que vio el cliente y qué hizo el algoritmo. Sin
+/// esto no hay forma de revisar, meses más tarde, si las líneas de tendencia
+/// estaban ajustando bien o si el modelo necesita cambios.
+model AuditoriaSuavizado {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshotId       String
+  snapshotLabel    String   @default("")
+  /// Contra qué grupo de mercado se comparó, en palabras.
+  grupoComparacion String   @default("")
+  /// Los filtros del grupo, como viajan en la URL.
+  filtros          String   @default("")
+  /// Qué métrica se publicó en el informe.
+  metrica          String   @default("")
+  /// Cruda, procesada y diagnóstico de las cuatro métricas.
+  datosJson        String
+  generadoPor      String   @default("")
+  createdAt        DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([snapshotId, createdAt])
 }
 
 model GlobalConfig {

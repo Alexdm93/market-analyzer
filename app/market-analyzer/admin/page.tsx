@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, Download, FileSpreadsheet, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BookOpen, ScanSearch, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, Download, FileSpreadsheet, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { useConfirm, type ConfirmOptions } from "@/components/ConfirmDialog";
@@ -34,6 +34,12 @@ const adminActions = [
     description: "Habilita el Informe General por empresa y corte, y reparte los informes de beneficios.",
     href: "/market-analyzer/admin/informe-general",
     icon: FileSpreadsheet,
+  },
+  {
+    title: "Control de calidad",
+    description: "Audita el suavizado del mercado: qué matriz recibió cada cliente y qué le hizo el algoritmo.",
+    href: "/market-analyzer/admin/auditoria",
+    icon: ScanSearch,
   },
 ];
 

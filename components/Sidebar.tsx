@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChartBar, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, ChartBar, ScanSearch, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { Fragment, useEffect, useState } from "react";
@@ -88,6 +88,7 @@ const grupoAdmin: MenuGroup = {
     { name: "Respaldos", href: `${BASE}/admin/respaldos`, icon: HardDrive, hint: "Respaldar y restaurar cortes" },
     { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
     { name: "Informe general", href: `${BASE}/admin/informe-general`, icon: FileSpreadsheet, hint: "Habilitar y repartir informes" },
+    { name: "Control de calidad", href: `${BASE}/admin/auditoria`, icon: ScanSearch, hint: "Suavizado del mercado" },
   ],
 };
 

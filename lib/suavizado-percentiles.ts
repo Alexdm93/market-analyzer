@@ -50,6 +50,10 @@ export type AjusteColumna = {
 };
 
 export type Diagnostico = {
+  /** La matriz tal como llegó del mercado, antes de tocarla. */
+  cruda: FilaGrado[];
+  /** La matriz que ve el cliente. */
+  procesada: FilaGrado[];
   /** Cuántos grados se reordenaron en la fase 1. */
   filasReordenadas: number;
   /** Cuántas celdas vacías se rellenaron con la curva. */
@@ -141,6 +145,8 @@ export function suavizarMatriz(entrada: FilaGrado[]): MatrizSuavizada {
   const filas = clonar(entrada).sort((a, b) => a.grade - b.grade);
 
   const diagnostico: Diagnostico = {
+    cruda,
+    procesada: [],
     filasReordenadas: 0,
     celdasImputadas: 0,
     celdasSuavizadas: 0,
@@ -195,6 +201,8 @@ export function suavizarMatriz(entrada: FilaGrado[]): MatrizSuavizada {
   // Dos columnas suavizadas por separado pueden cruzarse en algún grado, así
   // que la validación horizontal se corre de nuevo sobre el resultado.
   for (const fila of filas) ordenarFila(fila);
+
+  diagnostico.procesada = clonar(filas);
 
   return { filas, cruda, diagnostico };
 }

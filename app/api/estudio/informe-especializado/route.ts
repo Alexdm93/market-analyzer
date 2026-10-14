@@ -329,6 +329,27 @@ export async function POST(request: Request) {
       })),
   });
 
+  // ── Auditoría del suavizado ──
+  // Cada informe deja la foto de su matriz: la cruda del mercado, la que vio
+  // el cliente y qué hizo el algoritmo. Si falla, el informe igual se entrega:
+  // la auditoría es para nosotros, no para el cliente.
+  try {
+    await prisma.auditoriaSuavizado.create({
+      data: {
+        companyId: acceso.companyId,
+        snapshotId,
+        snapshotLabel: snapshot?.label ?? "",
+        grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Mercado general",
+        filtros: body?.filtrosGrupo ?? "",
+        metrica: config.concepto,
+        datosJson: JSON.stringify(mercado.suavizado),
+        generadoPor: session?.user?.name ?? session?.user?.email ?? "",
+      },
+    });
+  } catch {
+    // Sin auditoría, pero con informe.
+  }
+
   const nombre = `Informe especializado - ${nombreEmpresa} - ${snapshot?.label ?? snapshotId}.xlsx`;
 
   return new Response(new Uint8Array(buffer), {
