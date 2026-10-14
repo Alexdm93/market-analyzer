@@ -76,6 +76,8 @@ type CuerpoCrear = {
   modo?: string;
   metrica?: string;
   filas?: unknown[];
+  /** Con qué criterios se armó, para poder volver a emitirlo. */
+  criterios?: unknown;
   /** Lo que define el corte de data, para saber si consume cupo. */
   tcr?: string | null;
   comisiones?: boolean;
@@ -99,7 +101,14 @@ export async function POST(request: Request) {
   const vetado = await asegurarCorte(acceso, snapshotId);
   if (vetado) return vetado;
 
-  const validacion = validarDatosInforme({ modo: body?.modo, metrica: body?.metrica, filas: body?.filas });
+  const validacion = validarDatosInforme({
+    modo: body?.modo,
+    metrica: body?.metrica,
+    filas: body?.filas,
+    // Sin esto el informe queda sin criterios y después no se puede volver a
+    // emitir: el cuerpo los traía y se perdían acá.
+    criterios: body?.criterios,
+  });
   if (!validacion.ok) return Response.json({ message: validacion.mensaje }, { status: 400 });
 
   const configuracion: ConfiguracionDelCorte = {
