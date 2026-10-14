@@ -532,26 +532,9 @@ export default function ComparacionPage() {
     setBajandoExcel(true);
     setError("");
     try {
-      // El mercado del informe sale de la misma fuente que la pantalla, para
-      // que el Excel no pueda decir algo distinto de lo que se está viendo.
-      // Esa fuente trae la matriz por grado ya suavizada.
-      const p = new URLSearchParams(consultaFiltros);
-      p.set("snapshotId", snapshotId);
-      if (esAdmin && companyId) p.set("companyId", companyId);
-      if (tcrActivo) p.set("tcrType", tcrTipo);
-
-      const resPct = await fetch(`/api/estudio/mercado?${p.toString()}`, { cache: "no-store" });
-      const pct = (await resPct.json().catch(() => null)) as (MercadoDelEstudio & { message?: string }) | null;
-      if (!resPct.ok || !pct || !("grades" in pct)) {
-        setError(pct?.message ?? "No se pudieron obtener los percentiles por grado.");
-        return;
-      }
-
-      const mercadoPorGrado = pct.grades.map((g) => {
-        const m = (g as unknown as Record<string, Percentiles>)[metrica];
-        return { grade: g.grade, p90: m?.p90 ?? null, p75: m?.p75 ?? null, p50: m?.p50 ?? null, p25: m?.p25 ?? null, p10: m?.p10 ?? null };
-      });
-
+      // El mercado ya no se pide acá: lo calcula la ruta del informe con la
+      // misma fuente que alimenta esta pantalla. Mandarlo desde el navegador
+      // abría la puerta a que el Excel dijera algo distinto de lo que se ve.
       const res = await fetch("/api/estudio/informe-especializado", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -564,7 +547,6 @@ export default function ComparacionPage() {
           grupoComparacion: descripcionGrupo,
           filtrosGrupo: consultaFiltros,
           modo,
-          mercadoPorGrado,
         }),
       });
 

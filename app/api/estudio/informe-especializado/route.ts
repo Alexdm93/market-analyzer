@@ -25,13 +25,19 @@ import {
 } from "@/lib/analisis-especializado";
 import { authOptions } from "@/lib/auth";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
-import { tasasTcrDeEmpresa } from "@/lib/compensation";
+import { tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
 import { getLibreRate } from "@/lib/tcr-config";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
-import { generarInformeEspecializado, mesYAnioEsp } from "@/lib/informe-especializado";
+import {
+  generarInformeEspecializado,
+  mesYAnioEsp,
+  type MercadoPorCargo,
+  type VarianteInforme,
+} from "@/lib/informe-especializado";
 import { cupoAgotado } from "@/lib/cupo-informes";
 import { MINIMO_EMPRESAS_DEL_GRUPO, leerFiltrosMercado, tamanoDeEmpresa } from "@/lib/filtros-mercado";
-import { calcularPercentilesMercado } from "@/lib/percentiles-mercado";
+import { calcularPercentilesMercado, calcularPercentilesTcr } from "@/lib/percentiles-mercado";
+import { elegirTendencia } from "@/lib/tendencia-compensacion";
 import { prisma } from "@/lib/prisma";
 import { safeParseCompanyInfo } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
@@ -48,7 +54,6 @@ type Cuerpo = {
   grados?: number[];
   config?: Partial<ConfiguracionInforme>;
   configSimulador?: Partial<ConfigSimulador>;
-  mercadoPorGrado?: Array<Record<string, unknown>>;
   /**
    * Los filtros del grupo de comparación, tal como viajan en la URL de
    * `/api/estudio/mercado`. Sirven para volver a contar las empresas del
@@ -59,37 +64,29 @@ type Cuerpo = {
   modo?: string;
 };
 
-function numeroONulo(v: unknown): number | null {
-  const n = Number(v);
-  return Number.isFinite(n) && n !== 0 ? n : null;
-}
-
 /**
- * Cuenta las empresas del grupo y responde si no llegan al mínimo. Devuelve
- * `null` cuando el grupo alcanza.
+ * El mercado contra el que se compara, calculado acá y no recibido del
+ * navegador.
+ *
+ * Es la misma fuente que alimenta la pantalla —`lib/percentiles-mercado`—, así
+ * que el Excel no puede decir algo distinto de lo que el cliente está viendo.
+ * Y viene con la matriz por grado ya suavizada.
  */
-async function grupoDemasiadoChico(snapshotId: string, filtros: string): Promise<Response | null> {
-  const [workspaces, { rate: bcv }] = await Promise.all([
+async function mercadoDelInforme(snapshotId: string, filtros: string, tcrType: TcrType | null) {
+  const [workspaces, bcv, bcvEur, binance, libre] = await Promise.all([
     prisma.userWorkspace.findMany({ select: { snapshotsJson: true, companyInfoJson: true } }),
-    getBcvRate(),
+    getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
   ]);
 
-  const { grupo } = calcularPercentilesMercado({
-    snapshotId,
-    filtros: leerFiltrosMercado(new URLSearchParams(filtros)),
-    workspaces,
-    bcvGeneral: bcv,
-  });
+  const parametros = { snapshotId, filtros: leerFiltrosMercado(new URLSearchParams(filtros)), workspaces };
 
-  if (grupo.empresasEnGrupo >= MINIMO_EMPRESAS_DEL_GRUPO) return null;
-
-  return Response.json(
-    {
-      message: `El grupo de comparación tiene ${grupo.empresasEnGrupo} ${grupo.empresasEnGrupo === 1 ? "empresa" : "empresas"} `
-        + `y hacen falta ${MINIMO_EMPRESAS_DEL_GRUPO}. Amplía alguno de los criterios.`,
-    },
-    { status: 400 },
-  );
+  return tcrType
+    ? calcularPercentilesTcr({
+        ...parametros,
+        tcrType,
+        globales: { bcv: bcv.rate, bcvEur: bcvEur.rate, binance: binance.rate, libreManual: libre.rate },
+      })
+    : calcularPercentilesMercado({ ...parametros, bcvGeneral: bcv.rate });
 }
 
 export async function POST(request: Request) {
@@ -104,16 +101,28 @@ export async function POST(request: Request) {
   const vetado = await asegurarCorte(acceso, snapshotId);
   if (vetado) return vetado;
 
+  const config: ConfiguracionInforme = { ...CONFIG_POR_DEFECTO, ...(body?.config ?? {}) };
+  const configSimulador: ConfigSimulador = { ...SIMULADOR_POR_DEFECTO, ...(body?.configSimulador ?? {}) };
+
+  const tipoTcrPedido = body?.tcr?.tipo;
+  const tcrType: TcrType | null =
+    tipoTcrPedido === "bcv" || tipoTcrPedido === "euro" || tipoTcrPedido === "libre" ? tipoTcrPedido : null;
+
+  const mercado = await mercadoDelInforme(snapshotId, body?.filtrosGrupo ?? "", tcrType);
+
   // El grupo de comparación necesita un mínimo de empresas para que nadie
   // deduzca el sueldo de una en particular. Lo fijó AC Consulting en doce
   // (2026-10-14) y no alcanza con esconder el botón.
-  if (!acceso.esAdmin) {
-    const faltan = await grupoDemasiadoChico(snapshotId, body?.filtrosGrupo ?? "");
-    if (faltan) return faltan;
+  if (!acceso.esAdmin && mercado.grupo.empresasEnGrupo < MINIMO_EMPRESAS_DEL_GRUPO) {
+    return Response.json(
+      {
+        message: `El grupo de comparación tiene ${mercado.grupo.empresasEnGrupo} `
+          + `${mercado.grupo.empresasEnGrupo === 1 ? "empresa" : "empresas"} y hacen falta `
+          + `${MINIMO_EMPRESAS_DEL_GRUPO}. Amplía alguno de los criterios.`,
+      },
+      { status: 400 },
+    );
   }
-
-  const config: ConfiguracionInforme = { ...CONFIG_POR_DEFECTO, ...(body?.config ?? {}) };
-  const configSimulador: ConfigSimulador = { ...SIMULADOR_POR_DEFECTO, ...(body?.configSimulador ?? {}) };
 
   // El cupo también se mira acá: si solo se controlara al guardar en el
   // historial, bastaría con no guardar para saltárselo. Un corte ya guardado
@@ -141,15 +150,26 @@ export async function POST(request: Request) {
     }
   }
 
+  // El informe va contra grados o contra cargos homologados, y cada variante
+  // rellena su propia plantilla.
+  const variante: VarianteInforme = body?.modo === "cargo" ? "cargos" : "grados";
+
   const mercadoPorGrado = new Map<number, PercentilesGrado>();
-  for (const g of body?.mercadoPorGrado ?? []) {
-    const grado = Number(g.grade);
-    if (!Number.isFinite(grado)) continue;
-    mercadoPorGrado.set(grado, {
-      p90: numeroONulo(g.p90), p75: numeroONulo(g.p75), p50: numeroONulo(g.p50),
-      p25: numeroONulo(g.p25), p10: numeroONulo(g.p10),
+  for (const g of mercado.grades) {
+    const m = g[config.concepto];
+    mercadoPorGrado.set(g.grade, {
+      p90: m.p90, p75: m.p75, p50: m.p50, p25: m.p25, p10: m.p10,
     });
   }
+
+  const mercadoPorCargo: MercadoPorCargo[] = mercado.cargos.map((c) => {
+    const m = c[config.concepto];
+    return {
+      tituloCargo: c.tituloCargo,
+      p90: m.p90, p75: m.p75, p50: m.p50, p25: m.p25, p10: m.p10,
+      promedio: m.promedio, minimo: m.min, maximo: m.max,
+    };
+  });
 
   const [cargos, empresa, workspace, { rate: bcvGeneral }, participantes, snapshot] = await Promise.all([
     prisma.estudioCargo.findMany({ where: { companyId: acceso.companyId } }),
@@ -252,7 +272,16 @@ export async function POST(request: Request) {
 
   const filas = construirFilas(ocupantes, nombreEmpresa, tasas, bcv, diasVac, diasUtil, config, opcionesTcr);
 
+  // La curva de la dispersión: de ella sale el punto medio de cada banda de
+  // equidad, así que se calcula una vez y se usa en los dos lados.
+  const tendencia = elegirTendencia(
+    filas
+      .filter((f) => f.grado !== null && f.compensacion > 0)
+      .map((f) => ({ x: f.grado as number, y: f.compensacion })),
+  );
+
   const buffer = await generarInformeEspecializado({
+    variante,
     cliente: nombreEmpresa,
     proyecto: snapshot?.label ?? snapshotId,
     fechaInforme: mesYAnioEsp(new Date()),
@@ -280,11 +309,13 @@ export async function POST(request: Request) {
     ),
     grupoComparacion: (body?.grupoComparacion ?? "").trim() || "Mercado general",
     dispersion: filas,
-    equidad: analizarEquidad(filas, config.aperturaBandas),
+    tendencia,
+    equidad: analizarEquidad(filas, config.aperturaBandas, tendencia),
     competitividad: analizarCompetitividad(filas, mercadoPorGrado),
     mapaCalor: analizarMapaCalor(filas, mercadoPorGrado),
     simulador: simularAjuste(filas, mercadoPorGrado, config.aperturaBandas, configSimulador),
     mercadoPorGrado,
+    mercadoPorCargo,
     // El mapeo solo puede armarse con los ocupantes que tienen grado: la
     // cuadrícula es grado × área funcional.
     mapeo: ocupantes

@@ -1,17 +1,28 @@
 /**
  * Informe del Estudio Especializado: rellena la plantilla del cliente.
  *
- * Se parchea el XML de la plantilla (ver `lib/xlsx-plantilla.ts`) en vez de
- * reescribir el libro. Así llegan intactos los 81 formatos condicionales, el
- * gráfico de la hoja de dispersión, los 21 cuadros de texto y las 18 imágenes.
+ * Son **dos** informes, no uno. AC Consulting partió la plantilla según contra
+ * qué se compara (2026-10-14):
  *
- * Sale como .xlsx y no .xlsm: se quita el proyecto VBA para que Excel no avise
- * de macros. El usuario decidió descartarlas (eran una comodidad para propagar
- * la configuración de comisiones entre hojas, y acá se escribe ya aplicada).
+ *  - **por grados CAPRI**: lleva Valoración, Mapeo de cargos, Dispersión y
+ *    Equidad Interna, y busca el mercado por grado;
+ *  - **por cargos homologados**: no lleva ninguna de esas cuatro, suma una
+ *    hoja de Información Empresa y busca el mercado por el nombre del cargo.
+ *
+ * Fuera de eso son hermanas: las mismas hojas con las mismas celdas, salvo que
+ * la de cargos no tiene la columna de grado y todo lo que va a su derecha se
+ * corre una posición. Por eso acá hay un solo generador con un mapa de celdas
+ * por variante, en vez de dos archivos que se irían separando solos.
+ *
+ * Se parchea el XML de la plantilla (ver `lib/xlsx-plantilla.ts`) en vez de
+ * reescribir el libro: así llegan intactos los formatos condicionales, el
+ * gráfico de dispersión, los cuadros de texto y las imágenes. Y la protección
+ * de hojas, que es lo que impide que el cliente vea las fórmulas.
  */
 import path from "node:path";
 
-import { MAX_BLOQUES_FIJOS, MAX_BLOQUES_VARIABLES, type DataEmpresa } from "@/lib/data-empresa";
+import { type DataEmpresa } from "@/lib/data-empresa";
+import { type Tendencia } from "@/lib/tendencia-compensacion";
 import { LibroPlantilla, type HojaPlantilla } from "@/lib/xlsx-plantilla";
 
 import {
@@ -26,6 +37,9 @@ import {
   type PercentilesGrado,
 } from "@/lib/analisis-especializado";
 
+/** Contra qué se compara el estudio. Decide qué plantilla se rellena. */
+export type VarianteInforme = "grados" | "cargos";
+
 export const HOJAS = {
   inicio: "Inicio",
   empresas: "Empresas Participantes",
@@ -38,32 +52,84 @@ export const HOJAS = {
   mapeo: "Mapeo de cargos",
   dataEmpresa: "Data Empresa",
   contenido: "Contenido",
-  listas: "Listas desplegables",
 } as const;
 
-/** Primera fila de datos de cada hoja, tomadas de la plantilla real. */
+/** Primera fila de datos de cada hoja, tomadas de las plantillas reales. */
 const PRIMERA_FILA = {
-  empresas: 28,
-  dispersion: 13,
-  equidad: 13,
-  competitividad: 13,
-  mapaCalor: 13,
+  empresas: 33,
+  dispersion: 10,
+  equidad: 11,
+  competitividad: 11,
+  mapaCalor: 11,
   mercado: 7,
-  // Las filas 15 y 16 son la leyenda de desempeño, no datos.
-  simulador: 17,
+  simulador: 15,
   dataEmpresa: 13,
 } as const;
 
-/** La hoja de data de la empresa llega hasta la columna AQ. */
-const COLS_DATA_EMPRESA = (() => {
+/** Hasta dónde llegan dibujadas las tablas de la plantilla. */
+const ULTIMA_FILA = {
+  empresas: 620,
+  analisis: 1010,
+  dataEmpresa: 1048,
+  mercado: 215,
+} as const;
+
+/** "A", "B", … "AQ". */
+const COLS = (() => {
   const cols: string[] = [];
-  for (let i = 1; i <= 43; i++) {
+  for (let i = 1; i <= 45; i++) {
     let n = i, s = "";
     while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
     cols.push(s);
   }
   return cols;
 })();
+
+/**
+ * Lo que cambia de una variante a la otra.
+ *
+ * La de cargos no tiene columna de grado, así que el monto y todo lo que sigue
+ * se corre una posición a la izquierda.
+ */
+type MapaVariante = {
+  archivo: string;
+  /** Columna donde va el grado en las hojas de análisis, o null. */
+  colGrado: string | null;
+  /** Columna del monto de la métrica. */
+  colMonto: string;
+  /** Columna del cargo homologado, solo en la variante por cargos. */
+  colHomologado: string | null;
+  dataEmpresa: {
+    /** Índice en COLS del primer bloque de compensación fija. */
+    primerFijo: number;
+    primerVariable: number;
+    colMetrica: string;
+    ultimaCol: string;
+    maxFijos: number;
+    maxVariables: number;
+  };
+  /** La hoja de mercado se indexa por grado o por nombre de cargo. */
+  mercadoPorCargo: boolean;
+};
+
+const VARIANTES: Record<VarianteInforme, MapaVariante> = {
+  grados: {
+    archivo: "informe-especializado-grados.xlsx",
+    colGrado: "E",
+    colMonto: "F",
+    colHomologado: null,
+    dataEmpresa: { primerFijo: 5, primerVariable: 30, colMetrica: "AO", ultimaCol: "AP", maxFijos: 5, maxVariables: 2 },
+    mercadoPorCargo: false,
+  },
+  cargos: {
+    archivo: "informe-especializado-cargos.xlsx",
+    colGrado: null,
+    colMonto: "E",
+    colHomologado: "F",
+    dataEmpresa: { primerFijo: 4, primerVariable: 29, colMetrica: "AN", ultimaCol: "AO", maxFijos: 5, maxVariables: 2 },
+    mercadoPorCargo: true,
+  },
+};
 
 /** Una empresa del corte, para la lista y los dos treemaps. */
 export type ParticipanteEspecializado = {
@@ -80,7 +146,16 @@ export type CargoMapeado = {
   reportaA: string;
 };
 
+/** Una fila de la hoja de mercado cuando se compara por cargo homologado. */
+export type MercadoPorCargo = PercentilesGrado & {
+  tituloCargo: string;
+  promedio: number | null;
+  minimo: number | null;
+  maximo: number | null;
+};
+
 export type DatosEspecializado = {
+  variante: VarianteInforme;
   cliente: string;
   proyecto: string;
   fechaInforme: string;
@@ -96,47 +171,53 @@ export type DatosEspecializado = {
   tcr?: { etiqueta: string; tasa: number } | null;
   dataEmpresa: DataEmpresa;
   dispersion: FilaAnalisis[];
+  /** La curva elegida para la dispersión, y con ella el punto medio de equidad. */
+  tendencia: Tendencia | null;
   equidad: { filas: FilaEquidad[]; indiceGlobal: number | null };
   competitividad: FilaCompetitividad[];
   mapaCalor: FilaMapaCalor[];
   simulador: FilaSimulador[];
   mercadoPorGrado: Map<number, PercentilesGrado>;
+  mercadoPorCargo: MercadoPorCargo[];
   mapeo: CargoMapeado[];
 };
 
 /** "JUNIO 2026", el formato que usa la plantilla. */
 export { mesYAnio as mesYAnioEsp } from "@/lib/informe-cortesia";
 
-export function rutaPlantillaEspecializado(): string {
-  return path.join(process.cwd(), "templates", "informe-especializado.xlsm");
+export function rutaPlantillaEspecializado(variante: VarianteInforme): string {
+  return path.join(process.cwd(), "templates", VARIANTES[variante].archivo);
 }
 
 function set(ws: HojaPlantilla | undefined, dir: string, valor: string | number | null) {
   ws?.set(dir, valor);
 }
 
-/** Escribe valores en columnas dadas, de una fila. */
 function setFila(ws: HojaPlantilla, fila: number, pares: Array<[string, string | number | null]>) {
   for (const [col, valor] of pares) ws.set(`${col}${fila}`, valor);
 }
 
 /** Borra las filas de ejemplo que queden debajo de lo escrito. */
-function limpiarDesde(ws: HojaPlantilla, desde: number, columnas: string[], cuantas = 160) {
-  for (let i = 0; i < cuantas; i++) {
-    for (const col of columnas) ws.set(`${col}${desde + i}`, null);
+function limpiarHasta(ws: HojaPlantilla, desde: number, hasta: number, columnas: string[]) {
+  for (let f = desde; f <= hasta; f++) {
+    for (const col of columnas) ws.set(`${col}${f}`, null);
   }
 }
-
-const COLS_ID = ["A", "B", "C", "D", "E", "F"];
-
-/**
- * Un importe de la hoja de data ocupa tres columnas seguidas: monto, moneda de
- * cuenta y moneda de pago.
- */
 
 function etiquetaConcepto(c: ConfiguracionInforme["concepto"]) {
   return CONCEPTOS.find((x) => x.clave === c)?.etiqueta ?? "";
 }
+
+/**
+ * El nombre corto de la métrica, el que va en la cabecera de la columna de
+ * montos. La plantilla trae ahí "TEM / TEMz / CIM / PCTA" como marcador.
+ */
+const SIGLA_METRICA: Record<ConfiguracionInforme["concepto"], string> = {
+  sinPasivosMensual:   "TEM",
+  directoMensualizado: "TEMz",
+  conPasivosMensual:   "CIM",
+  conPasivosAnual:     "PCTA",
+};
 
 /** El título con que la hoja de mercado encabeza sus percentiles. */
 const TITULO_METRICA: Record<ConfiguracionInforme["concepto"], string> = {
@@ -147,40 +228,27 @@ const TITULO_METRICA: Record<ConfiguracionInforme["concepto"], string> = {
 };
 
 /**
- * Las tres métricas mensuales se leen por mes y el PCTA por año. Las hojas
- * rotulan sus columnas con esto, así que tiene que seguir a la métrica
- * elegida o el informe diría "mensual" sobre cifras anuales.
- */
-function frecuenciaDe(c: ConfiguracionInforme["concepto"]): string {
-  return c === "conPasivosAnual" ? "USD Anual" : "USD Mensual";
-}
-
-
-/**
  * Hoja "Mapeo de cargos": la cuadrícula de grado × área funcional.
  *
- * Cada cargo ocupa cuatro filas — título, unidad funcional, "Reporta a:" y el
- * cargo padre — y los cargos de un mismo grado se apilan con una fila en
- * blanco entre ellos. La altura de la banda de un grado la marca el área que
- * más cargos tenga.
+ * Cada cargo ocupa cuatro filas — título, unidad funcional, "Reporta a:" y una
+ * en blanco — y los cargos de un mismo grado se apilan con una fila de
+ * separación. La altura de la banda de un grado la marca el área que más
+ * cargos tenga.
  *
  * Las áreas salen de las unidades funcionales de la propia empresa, no de las
- * de la plantilla. Y hay que rehacer las combinaciones: las 119 que trae el
- * archivo están atadas a la estructura del cliente del ejemplo.
+ * de la plantilla, así que hay que rehacer las combinaciones.
  */
 const MAPEO_PRIMERA_FILA = 5;
 const MAPEO_FILAS_POR_CARGO = 4;
 const MAPEO_COLUMNAS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
 
 function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
-  // Las combinaciones de la plantilla no sirven para otra empresa.
   ws.limpiarCombinaciones();
 
   const areas = [...new Set(cargos.map((c) => c.area || "Sin unidad"))]
     .sort((a, b) => a.localeCompare(b, "es"))
     .slice(0, MAPEO_COLUMNAS.length);
 
-  // Cabecera de áreas
   areas.forEach((area, i) => { ws.set(`${MAPEO_COLUMNAS[i]}4`, area); });
   for (let i = areas.length; i < MAPEO_COLUMNAS.length; i++) {
     ws.set(`${MAPEO_COLUMNAS[i]}4`, null);
@@ -213,21 +281,18 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
         const base = fila + idx * (MAPEO_FILAS_POR_CARGO + 1);
         ws.set(`${col}${base}`, c.tituloCargo);
         ws.set(`${col}${base + 1}`, c.unidadFuncional);
-        // Una sola celda: "Reporta a: Fulano". Antes iba la etiqueta en una
-        // fila y el nombre en la siguiente, y cuando el cliente no cargaba a
-        // quién reporta quedaba un "Reporta a:" suelto sin nadie detrás.
+        // Una sola celda: "Reporta a: Fulano". Si va la etiqueta en una fila y
+        // el nombre en la siguiente, cuando el cliente no lo cargó queda un
+        // "Reporta a:" suelto sin nadie detrás.
         ws.set(`${col}${base + 2}`, c.reportaA ? `Reporta a: ${c.reportaA}` : null);
         ws.set(`${col}${base + 3}`, null);
       });
 
-      // Lo que sobra de la banda se limpia y se combina, como en la plantilla.
       const ocupadas = lista.length * (MAPEO_FILAS_POR_CARGO + 1) - (lista.length > 0 ? 1 : 0);
       for (let f = fila + ocupadas; f < fila + alto; f++) ws.set(`${col}${f}`, null);
       if (lista.length === 0 && alto > 1) ws.combinar(`${col}${fila}:${col}${fila + alto - 1}`);
     });
 
-    // La fila separadora entre bandas también hay que limpiarla: si no, se
-    // asoman los datos del cliente de ejemplo que trae la plantilla.
     const separadora = fila + alto;
     ws.set(`A${separadora}`, null);
     for (const col of MAPEO_COLUMNAS) ws.set(`${col}${separadora}`, null);
@@ -235,7 +300,6 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
     fila += alto + 1;
   }
 
-  // Se borra lo que quede de la plantilla más abajo.
   for (let f = fila; f < fila + 160; f++) {
     ws.set(`A${f}`, null);
     for (const col of MAPEO_COLUMNAS) ws.set(`${col}${f}`, null);
@@ -245,165 +309,137 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
 }
 
 export async function generarInformeEspecializado(datos: DatosEspecializado): Promise<Buffer> {
-  const wb = await LibroPlantilla.abrir(rutaPlantillaEspecializado());
-  // La plantilla es .xlsm y se entrega como .xlsx: sin el proyecto VBA, Excel
-  // no avisa de macros. Todo lo demás —gráfico, formatos condicionales,
-  // cuadros de texto— viaja intacto.
-  wb.sinMacros();
+  const mapa = VARIANTES[datos.variante];
+  const wb = await LibroPlantilla.abrir(rutaPlantillaEspecializado(datos.variante));
 
-  // Si el estudio va en TCR, el concepto lo dice: si no, el informe parecería
+  // Si el estudio va en TCR, la métrica lo dice: si no, el informe parecería
   // estar en dólares BCV y los montos no cuadrarían con nada.
-  const concepto = datos.tcr
+  const metrica = datos.tcr
     ? `${etiquetaConcepto(datos.config.concepto)} — TCR ${datos.tcr.etiqueta}`
     : etiquetaConcepto(datos.config.concepto);
-  const comisiones = datos.config.incluirComisiones ? "Si" : "No";
+  const sigla = SIGLA_METRICA[datos.config.concepto];
 
-  // "General" cuando entran todas las empresas del corte; "Selecto" cuando se
-  // comparó contra un recorte. Lo pidió así AC Consulting.
-  const frecuencia = frecuenciaDe(datos.config.concepto);
+  /** Las columnas de identificación de las hojas de análisis. */
+  const colsId = ["A", "B", "C", "D", mapa.colMonto, ...(mapa.colGrado ? [mapa.colGrado] : []), ...(mapa.colHomologado ? [mapa.colHomologado] : [])];
 
-  const mercadoSeleccionado = datos.grupoComparacion.trim().toLowerCase() === "mercado general"
-    ? "General"
-    : "Selecto";
+  /** Lo que identifica a una fila en una hoja de análisis, en orden. */
+  const identidad = (f: FilaAnalisis): Array<[string, string | number | null]> => [
+    ["A", f.ocupanteId], ["B", f.unidadFuncional], ["C", f.reportaA || null], ["D", f.tituloCargo],
+    ...(mapa.colGrado ? ([[mapa.colGrado, f.grado]] as Array<[string, string | number | null]>) : []),
+    [mapa.colMonto, f.compensacion || null],
+    ...(mapa.colHomologado ? ([[mapa.colHomologado, f.cargoHomologado ?? f.tituloCargo]] as Array<[string, string | number | null]>) : []),
+  ];
 
   // ── Portada ──
   const inicio = wb.hoja(HOJAS.inicio);
   set(inicio, "B12", datos.proyecto);
   set(inicio, "B14", datos.fechaInforme);
   set(inicio, "B16", datos.fechaData);
-  set(inicio, "A18", datos.cliente ? "CLIENTE:" : null);
-  set(inicio, "B18", datos.cliente);
+  set(inicio, "B20", datos.cliente || null);
 
   // ── Empresas participantes ──
-  // Una tabla de empresa, sector y tamaño desde la fila 28. Los dos treemaps
-  // de arriba se dibujan con los COUNTIF de la plantilla sobre estas columnas,
-  // así que acá no se escribe ningún conteo.
+  // Los dos treemaps se dibujan con los COUNTIF de la plantilla sobre estas
+  // columnas, así que acá no se escribe ningún conteo.
   const hojaEmpresas = wb.hoja(HOJAS.empresas);
   if (hojaEmpresas) {
-    set(hojaEmpresas, "I25", `Total: ${datos.empresasParticipantes.length} empresas`);
     datos.empresasParticipantes.forEach((p, i) => {
       setFila(hojaEmpresas, PRIMERA_FILA.empresas + i, [
         ["A", p.empresa], ["B", p.sector || "ND"], ["C", p.tamano || "ND"],
       ]);
     });
-    limpiarDesde(hojaEmpresas, PRIMERA_FILA.empresas + datos.empresasParticipantes.length,
-      ["A", "B", "C", "G"], 200);
+    limpiarHasta(hojaEmpresas, PRIMERA_FILA.empresas + datos.empresasParticipantes.length,
+      ULTIMA_FILA.empresas, ["A", "B", "C"]);
   }
 
   // ── Dispersión ──
   const disp = wb.hoja(HOJAS.dispersion);
   if (disp) {
-    set(disp, "B5", mercadoSeleccionado);
-    set(disp, "B6", concepto);
-    set(disp, "B7", comisiones);
-    datos.dispersion.forEach((f, i) => {
-      setFila(disp, PRIMERA_FILA.dispersion + i, [
-        ["A", f.ocupanteId], ["B", f.unidadFuncional], ["C", f.reportaA || null],
-        ["D", f.tituloCargo], ["E", f.grado], ["F", f.compensacion || null],
-      ]);
-    });
-    limpiarDesde(disp, PRIMERA_FILA.dispersion + datos.dispersion.length, COLS_ID);
+    set(disp, "B5", metrica);
+    set(disp, `${mapa.colMonto}7`, sigla);
+    datos.dispersion.forEach((f, i) => setFila(disp, PRIMERA_FILA.dispersion + i, identidad(f)));
+    limpiarHasta(disp, PRIMERA_FILA.dispersion + datos.dispersion.length, ULTIMA_FILA.analisis, colsId);
+
+    // La ecuación de la curva y su bondad de ajuste, que es de donde sale el
+    // punto medio de las bandas de equidad.
+    set(disp, "I10", datos.tendencia?.formula ?? null);
+    set(disp, "I11", datos.tendencia ? Number(datos.tendencia.r2.toFixed(4)) : null);
   }
 
   // ── Equidad interna ──
   const eq = wb.hoja(HOJAS.equidad);
   if (eq) {
-    set(eq, "B5", mercadoSeleccionado);
-    set(eq, "B6", concepto);
-    set(eq, "B7", datos.config.aperturaBandas);
-    set(eq, "B8", comisiones);
-    set(eq, "K11", datos.equidad.indiceGlobal);
+    set(eq, "B5", metrica);
+    set(eq, "B6", datos.config.aperturaBandas);
+    set(eq, `${mapa.colMonto}8`, sigla);
+    set(eq, "K9", datos.equidad.indiceGlobal);
     datos.equidad.filas.forEach((f, i) => {
-      setFila(eq, PRIMERA_FILA.equidad + i, [
-        ["A", f.ocupanteId], ["B", f.unidadFuncional], ["C", f.reportaA || null],
-        ["D", f.tituloCargo], ["E", f.grado], ["F", f.compensacion || null],
-        ["G", f.banda?.minimo ?? null], ["H", f.banda?.media ?? null], ["I", f.banda?.maximo ?? null],
-        ["J", f.resultado], ["K", f.indice],
-      ]);
+      // El mínimo y el máximo los calcula la hoja a partir de la media y de la
+      // apertura; acá solo va la media, que es la curva evaluada en su grado.
+      setFila(eq, PRIMERA_FILA.equidad + i, [...identidad(f), ["H", f.banda?.media ?? null]]);
     });
-    limpiarDesde(eq, PRIMERA_FILA.equidad + datos.equidad.filas.length, [...COLS_ID, "G", "H", "I", "J", "K"]);
+    limpiarHasta(eq, PRIMERA_FILA.equidad + datos.equidad.filas.length, ULTIMA_FILA.analisis, [...colsId, "H"]);
   }
 
   // ── Competitividad ──
-  // De la H a la V la hoja se calcula sola: busca cada percentil en "Data
+  // De la G en adelante la hoja se calcula sola: busca cada percentil en "Data
   // Mercado" y saca la diferencia. Escribir esas columnas pisaría las fórmulas.
   const comp = wb.hoja(HOJAS.competitividad);
   if (comp) {
-    set(comp, "B5", mercadoSeleccionado);
-    set(comp, "B6", concepto);
-    set(comp, "B7", comisiones);
-    datos.competitividad.forEach((f, i) => {
-      setFila(comp, PRIMERA_FILA.competitividad + i, [
-        ["A", f.ocupanteId], ["B", f.unidadFuncional], ["C", f.reportaA || null],
-        ["D", f.tituloCargo], ["E", f.grado], ["F", f.compensacion || null], ["G", f.compensacion || null],
-      ]);
-    });
-    for (const col of ["H", "K", "N", "Q", "T"]) set(comp, `${col}12`, frecuencia);
-    limpiarDesde(comp, PRIMERA_FILA.competitividad + datos.competitividad.length, [...COLS_ID, "G"]);
+    set(comp, "B5", metrica);
+    set(comp, `${mapa.colMonto}7`, sigla);
+    datos.competitividad.forEach((f, i) => setFila(comp, PRIMERA_FILA.competitividad + i, identidad(f)));
+    limpiarHasta(comp, PRIMERA_FILA.competitividad + datos.competitividad.length, ULTIMA_FILA.analisis, colsId);
   }
 
   // ── Mapa de calor ──
   // Los cinco compa-ratios los calcula la hoja contra "Data Mercado".
-  const mapa = wb.hoja(HOJAS.mapaCalor);
-  if (mapa) {
-    set(mapa, "B5", mercadoSeleccionado);
-    set(mapa, "B6", concepto);
-    set(mapa, "B7", datos.config.margenMapaCalor);
-    set(mapa, "B8", comisiones);
-    datos.mapaCalor.forEach((f, i) => {
-      setFila(mapa, PRIMERA_FILA.mapaCalor + i, [
-        ["A", f.ocupanteId], ["B", f.unidadFuncional], ["C", f.reportaA || null],
-        ["D", f.tituloCargo], ["E", f.grado], ["F", f.compensacion || null],
-        ["G", f.compensacion || null],
-      ]);
-    });
-    for (const col of ["H", "I", "J", "K", "L"]) set(mapa, `${col}12`, frecuencia);
-    limpiarDesde(mapa, PRIMERA_FILA.mapaCalor + datos.mapaCalor.length, [...COLS_ID, "G"]);
+  const mapaCalor = wb.hoja(HOJAS.mapaCalor);
+  if (mapaCalor) {
+    set(mapaCalor, "B5", metrica);
+    set(mapaCalor, "B6", datos.config.margenMapaCalor);
+    set(mapaCalor, `${mapa.colMonto}8`, sigla);
+    datos.mapaCalor.forEach((f, i) => setFila(mapaCalor, PRIMERA_FILA.mapaCalor + i, identidad(f)));
+    limpiarHasta(mapaCalor, PRIMERA_FILA.mapaCalor + datos.mapaCalor.length, ULTIMA_FILA.analisis, colsId);
   }
 
-  // ── Data de mercado general ──
+  // ── Data de mercado ──
   const merc = wb.hoja(HOJAS.mercado);
   if (merc) {
     set(merc, "B4", TITULO_METRICA[datos.config.concepto]);
-    set(merc, "B6", frecuencia);
-    const grados = [...datos.mercadoPorGrado.keys()].sort((a, b) => b - a);
-    grados.forEach((grado, i) => {
-      const fila = PRIMERA_FILA.mercado + i;
-      const p = datos.mercadoPorGrado.get(grado)!;
-      setFila(merc, fila, [
-        ["A", grado],
-        ["B", p.p90], ["C", p.p75], ["D", p.p50], ["E", p.p25], ["F", p.p10],
-      ]);
-    });
-    limpiarDesde(merc, PRIMERA_FILA.mercado + grados.length, ["A", "B", "C", "D", "E", "F"], 40);
+
+    if (mapa.mercadoPorCargo) {
+      datos.mercadoPorCargo.forEach((c, i) => {
+        setFila(merc, PRIMERA_FILA.mercado + i, [
+          ["A", c.tituloCargo],
+          ["B", c.p90], ["C", c.p75], ["D", c.p50], ["E", c.p25], ["F", c.p10],
+          ["G", c.promedio], ["H", c.minimo], ["I", c.maximo],
+        ]);
+      });
+      limpiarHasta(merc, PRIMERA_FILA.mercado + datos.mercadoPorCargo.length, ULTIMA_FILA.mercado,
+        ["A", "B", "C", "D", "E", "F", "G", "H", "I"]);
+    } else {
+      const grados = [...datos.mercadoPorGrado.keys()].sort((a, b) => b - a);
+      grados.forEach((grado, i) => {
+        const p = datos.mercadoPorGrado.get(grado)!;
+        setFila(merc, PRIMERA_FILA.mercado + i, [
+          ["A", grado], ["B", p.p90], ["C", p.p75], ["D", p.p50], ["E", p.p25], ["F", p.p10],
+        ]);
+      });
+      limpiarHasta(merc, PRIMERA_FILA.mercado + grados.length, PRIMERA_FILA.mercado + 40,
+        ["A", "B", "C", "D", "E", "F"]);
+    }
   }
 
   // ── Simulador de ajuste salarial ──
+  // Solo su configuración: las columnas las resuelven las fórmulas de la hoja
+  // o las llena el cliente a mano (AC Consulting, 2026-10-14).
   const sim = wb.hoja(HOJAS.simulador);
   if (sim) {
-    set(sim, "B5", "Grados");
-    set(sim, "B6", concepto);
-    set(sim, "B7", datos.configSimulador.percentil.toUpperCase().replace("P", "P"));
+    set(sim, "B5", metrica);
+    set(sim, "B6", datos.configSimulador.percentil.toUpperCase());
     set(sim, "B8", datos.configSimulador.variacionGeneral);
     set(sim, "B9", datos.configSimulador.variacionMaxima);
-    set(sim, "B10", datos.configSimulador.delta);
-    set(sim, "B11", comisiones);
-    datos.simulador.forEach((f, i) => {
-      setFila(sim, PRIMERA_FILA.simulador + i, [
-        ["A", f.empresa], ["B", f.ocupanteId], ["C", f.unidadFuncional],
-        ["D", f.tituloCargo], ["E", f.grado], ["F", f.compensacion || null],
-        ["G", f.compensacion || null], ["H", f.mercadoReferencia], ["I", f.compaRatio],
-        ["J", f.indiceEquidad], ["K", f.indiceCompuesto],
-        // Un porcentaje por calificación de desempeño.
-        ["L", f.porcentajesPorDesempeno[0]], ["M", f.porcentajesPorDesempeno[1]],
-        ["N", f.porcentajesPorDesempeno[2]], ["O", f.porcentajesPorDesempeno[3]],
-        ["P", f.ajusteMinimo], ["Q", f.ajusteMaximo],
-      ]);
-    });
-    // No se tocan R, S ni T: R es el desempeño que llena el cliente a mano y
-    // S y T son las fórmulas que lo resuelven.
-    limpiarDesde(sim, PRIMERA_FILA.simulador + datos.simulador.length,
-      [...COLS_ID, "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"]);
+    set(sim, "B10", datos.config.incluirComisiones ? "Sí" : "No");
   }
 
   // ── Mapeo de cargos ──
@@ -412,66 +448,56 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
 
   // ── Data de la empresa ──
   // Solo se escriben las ENTRADAS: las columnas de totales llevan las fórmulas
-  // de la plantilla y Excel las recalcula al abrir. La nómina del cliente de
-  // ejemplo se borra entera, incluidas sus fórmulas, en las filas sobrantes.
+  // de la plantilla y Excel las recalcula al abrir.
   const dataEmpresa = wb.hoja(HOJAS.dataEmpresa);
   if (dataEmpresa) {
     const { diasVacaciones, diasUtilidades, bcv } = datos.parametros;
+    const de = mapa.dataEmpresa;
+
     set(dataEmpresa, "B5", diasVacaciones || null);
     set(dataEmpresa, "B6", diasUtilidades || null);
     set(dataEmpresa, "B7", datos.config.incluirComisiones ? "Sí" : "No");
     set(dataEmpresa, "B8", datos.tcr ? `TCR ${datos.tcr.etiqueta}` : "TCR BCV dólar");
     set(dataEmpresa, "C8", datos.tcr ? datos.tcr.tasa : bcv);
+    set(dataEmpresa, `${de.colMetrica}10`, sigla);
 
-    // Un bloque de cinco columnas por concepto que la empresa reportó. Los
-    // fijos arrancan en la F y los variables en la AE.
+    // Un bloque de cinco columnas por concepto que la empresa reportó.
     const { conceptosFijos, conceptosVariables, filas } = datos.dataEmpresa;
-
-    for (let i = 0; i < MAX_BLOQUES_FIJOS; i++) {
-      set(dataEmpresa, `${COLS_DATA_EMPRESA[5 + i * 5]}11`, conceptosFijos[i] ?? null);
+    for (let i = 0; i < de.maxFijos; i++) {
+      set(dataEmpresa, `${COLS[de.primerFijo + i * 5]}11`, conceptosFijos[i] ?? null);
     }
-    for (let i = 0; i < MAX_BLOQUES_VARIABLES; i++) {
-      set(dataEmpresa, `${COLS_DATA_EMPRESA[30 + i * 5]}11`, conceptosVariables[i] ?? null);
+    for (let i = 0; i < de.maxVariables; i++) {
+      set(dataEmpresa, `${COLS[de.primerVariable + i * 5]}11`, conceptosVariables[i] ?? null);
     }
 
-    const primera = PRIMERA_FILA.dataEmpresa;
-    limpiarDesde(dataEmpresa, primera, COLS_DATA_EMPRESA, filas.length + 60);
+    const hastaCol = COLS.indexOf(de.ultimaCol);
+    const columnas = COLS.slice(0, hastaCol + 1);
+    limpiarHasta(dataEmpresa, PRIMERA_FILA.dataEmpresa, ULTIMA_FILA.dataEmpresa, columnas);
 
     filas.forEach((f, i) => {
-      const fila = primera + i;
+      const fila = PRIMERA_FILA.dataEmpresa + i;
       setFila(dataEmpresa, fila, [
-        ["A", f.ocupanteId], ["B", f.unidadFuncional], ["C", f.reportaA || null],
-        ["D", f.tituloCargo], ["E", f.grado],
-        ["AO", f.metrica], ["AP", f.metricaTcr],
+        ["A", f.ocupanteId], ["B", f.unidadFuncional], ["C", f.reportaA || null], ["D", f.tituloCargo],
+        ...(mapa.colGrado ? ([[mapa.colGrado, f.grado]] as Array<[string, string | number | null]>) : []),
+        [de.colMetrica, f.metrica],
       ]);
-      const escribirBloque = (celda: { monto: number | null; cuenta: string | null; pago: string | null; impacto: string | null; frecuencia: string | null }, desde: number) => {
+
+      const escribirBloque = (
+        celda: { monto: number | null; cuenta: string | null; pago: string | null; impacto: string | null; frecuencia: string | null },
+        desde: number,
+      ) => {
         setFila(dataEmpresa, fila, [
-          [COLS_DATA_EMPRESA[desde],     celda.monto],
-          [COLS_DATA_EMPRESA[desde + 1], celda.cuenta],
-          [COLS_DATA_EMPRESA[desde + 2], celda.pago],
-          [COLS_DATA_EMPRESA[desde + 3], celda.impacto],
-          [COLS_DATA_EMPRESA[desde + 4], celda.frecuencia],
+          [COLS[desde], celda.monto],
+          [COLS[desde + 1], celda.cuenta],
+          [COLS[desde + 2], celda.pago],
+          [COLS[desde + 3], celda.impacto],
+          [COLS[desde + 4], celda.frecuencia],
         ]);
       };
-      f.fijos.forEach((celda, idx) => escribirBloque(celda, 5 + idx * 5));
-      f.variables.forEach((celda, idx) => escribirBloque(celda, 30 + idx * 5));
+      f.fijos.forEach((celda, idx) => escribirBloque(celda, de.primerFijo + idx * 5));
+      f.variables.forEach((celda, idx) => escribirBloque(celda, de.primerVariable + idx * 5));
     });
   }
-
-  // La lista del desplegable de "Compañía / Unidad" trae los grupos de
-  // comparación del cliente de ejemplo, con nombres de empresas reales.
-  const listas = wb.hoja(HOJAS.listas);
-  if (listas) {
-    set(listas, "D3", datos.grupoComparacion || "Mercado general");
-    for (const fila of [4, 5, 6, 7, 8]) set(listas, `D${fila}`, null);
-  }
-
-  // El título de esta hoja es un cuadro de texto, no una celda.
-  wb.reemplazarEnFormas("DATA SALARIAL: TEALCA", `DATA SALARIAL: ${datos.cliente || "—"}`);
-
-  // El índice también nombra al cliente de ejemplo.
-  const contenido = wb.hoja(HOJAS.contenido);
-  if (contenido) set(contenido, "C9", `DATA ${(datos.cliente || "—").toUpperCase()}`);
 
   return wb.aBuffer();
 }

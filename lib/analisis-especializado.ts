@@ -76,6 +76,14 @@ export type FilaAnalisis = {
   grado: number | null;
   nivel: string;
   compensacion: number;
+  /**
+   * Con qué cargo del mercado se compara esta fila.
+   *
+   * Solo lo usa el informe por cargos homologados, que busca el mercado por
+   * nombre en vez de por grado. Vacío significa que el cargo del cliente se
+   * llama igual que el del catálogo.
+   */
+  cargoHomologado?: string;
 };
 
 /**
@@ -151,10 +159,23 @@ export type FilaEquidad = FilaAnalisis & {
 };
 
 /**
- * La banda de un grado es la media de lo que cobran sus ocupantes, abierta
- * hacia arriba y hacia abajo por la mitad de la apertura configurada.
+ * El punto medio de la banda de cada grado.
+ *
+ * AC Consulting lo cambió (2026-10-14): ya no es el promedio de lo que cobran
+ * los ocupantes del grado, sino **la curva de tendencia evaluada en ese
+ * grado**, la misma que publica el Análisis de Dispersión. Con el promedio, un
+ * grado con un solo ocupante tenía por banda su propio sueldo y siempre daba
+ * "dentro de banda"; con la curva se compara contra la estructura de la
+ * empresa entera.
+ *
+ * Sin curva —pocos puntos, o ninguna que crezca— se vuelve al promedio, que es
+ * lo que había: es preferible a dejar la hoja vacía.
  */
-export function bandasPorGrado(filas: FilaAnalisis[], apertura: number): Map<number, Banda> {
+export function bandasPorGrado(
+  filas: FilaAnalisis[],
+  apertura: number,
+  tendencia?: { evaluar: (grado: number) => number } | null,
+): Map<number, Banda> {
   const porGrado = new Map<number, number[]>();
   for (const f of filas) {
     if (f.grado === null || !f.compensacion) continue;
@@ -165,7 +186,10 @@ export function bandasPorGrado(filas: FilaAnalisis[], apertura: number): Map<num
 
   const bandas = new Map<number, Banda>();
   for (const [grado, valores] of porGrado) {
-    const media = valores.reduce((s, v) => s + v, 0) / valores.length;
+    const proyectado = tendencia ? tendencia.evaluar(grado) : NaN;
+    const media = Number.isFinite(proyectado) && proyectado > 0
+      ? proyectado
+      : valores.reduce((s, v) => s + v, 0) / valores.length;
     bandas.set(grado, {
       minimo: media * (1 - apertura / 2),
       media,
@@ -175,8 +199,12 @@ export function bandasPorGrado(filas: FilaAnalisis[], apertura: number): Map<num
   return bandas;
 }
 
-export function analizarEquidad(filas: FilaAnalisis[], apertura: number): { filas: FilaEquidad[]; indiceGlobal: number | null } {
-  const bandas = bandasPorGrado(filas, apertura);
+export function analizarEquidad(
+  filas: FilaAnalisis[],
+  apertura: number,
+  tendencia?: { evaluar: (grado: number) => number } | null,
+): { filas: FilaEquidad[]; indiceGlobal: number | null } {
+  const bandas = bandasPorGrado(filas, apertura, tendencia);
 
   const resultado = filas.map((f) => {
     const banda = f.grado !== null ? bandas.get(f.grado) ?? null : null;
