@@ -222,10 +222,16 @@ export default function EstudioPage() {
   const router = useRouter();
   const isAdmin = session?.user?.role === "ADMIN";
 
+  // Esta pantalla quedó solo para el admin: es su consola de procesamiento.
+  // Lo que veía acá la empresa —posicionamiento por grado— era la forma
+  // anterior de armar los cortes del Estudio Especializado, y se retiró del
+  // menú (AC Consulting, 2026-10-14). Quien llegue por un enlace viejo va a
+  // donde corresponde.
   useEffect(() => {
-    if (status === "authenticated" && !isAdmin && !session?.user?.estudioEnabled) {
-      router.replace("/market-analyzer/resultados");
-    }
+    if (status !== "authenticated" || isAdmin) return;
+    router.replace(session?.user?.estudioEnabled
+      ? "/market-analyzer/estudio/cargos"
+      : "/market-analyzer/resultados");
   }, [status, isAdmin, session, router]);
   const [snapshots, setSnapshots] = useState<Record<string, Snapshot>>({});
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string>("");

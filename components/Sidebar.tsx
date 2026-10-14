@@ -40,25 +40,17 @@ const estudiosItem: MenuItem = { name: "Estudios", href: `${BASE}/estudios`, ico
  * del menú también cambia.
  *
  * El admin ve la consola donde procesa y publica un corte — su propio título es
- * "Procesamiento de data de mercado". La empresa ve su compensación frente al
- * mercado por grado CAPRI y TCR, que es posicionamiento.
+ * "Procesamiento de data de mercado".
  *
- * Ninguna de las dos es el Estudio Especializado: esa es la entrada al
- * recorrido (Mis cargos → Comparación, con el Historial aparte), que se hace
- * con la barra de pasos dentro de la propia pantalla.
+ * La empresa ya no la ve: lo que había ahí era posicionamiento por grado, la
+ * forma anterior de armar los cortes del Estudio Especializado, y tenerla
+ * junto al recorrido nuevo confundía.
  */
 const procesamientoItem: MenuItem = {
   name: "Procesamiento",
   href: `${BASE}/estudio`,
   icon: BookOpen,
   hint: "Procesar y publicar cortes",
-};
-
-const posicionamientoItem: MenuItem = {
-  name: "Posicionamiento",
-  href: `${BASE}/estudio`,
-  icon: BookOpen,
-  hint: "Por grado CAPRI y TCR",
 };
 
 const informeGeneralItem: MenuItem = {
@@ -131,8 +123,11 @@ export default function Sidebar() {
     return null;
   }
 
+  // La empresa con el estudio habilitado ve una sola entrada: el Estudio
+  // Especializado. "Posicionamiento" era la forma anterior de armar los
+  // cortes y tener las dos confundía (AC Consulting, 2026-10-14).
   const itemsEstudio = canSeeEstudio
-    ? [isAdmin ? procesamientoItem : posicionamientoItem, especializadoItem]
+    ? (isAdmin ? [procesamientoItem, especializadoItem] : [especializadoItem])
     : [];
 
   // El admin lo configura desde Administración, así que acá solo aparece para
