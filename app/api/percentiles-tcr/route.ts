@@ -11,7 +11,7 @@ import { authOptions } from "@/lib/auth";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { promedioLibre, type TcrType } from "@/lib/compensation";
 import { leerFiltrosMercado } from "@/lib/filtros-mercado";
-import { calcularPercentilesTcr, type TcrPercentilesResponse } from "@/lib/percentiles-mercado";
+import { calcularPercentilesTcr, usuariosQueEnviaron, type TcrPercentilesResponse } from "@/lib/percentiles-mercado";
 import { prisma } from "@/lib/prisma";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 import { getLibreRate } from "@/lib/tcr-config";
@@ -77,6 +77,9 @@ export async function GET(request: Request) {
     tcrType,
     filtros,
     workspaces,
+    // Solo las empresas que enviaron su data, igual que en el resto de los
+    // informes (AC Consulting, 2026-10-14).
+    enviaron: await usuariosQueEnviaron(snapshotId),
     globales: {
       bcv: globalBcvRate,
       bcvEur: globalBcvEurRate,

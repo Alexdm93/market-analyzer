@@ -6,6 +6,7 @@ import { computeRowTotals, computeMetricPercentiles, type MetricPercentiles } fr
 import { getBcvRate } from "@/lib/bcv";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 import { leerFiltrosMercado, localidadesDe, pasaFiltros } from "@/lib/filtros-mercado";
+import { usuariosQueEnviaron } from "@/lib/percentiles-mercado";
 
 export type CargoPercentiles = {
   tituloCargo: string;
@@ -83,7 +84,16 @@ export async function GET(request: Request) {
   const availableCompanies = new Set<string>();
   const availableLocalities = new Set<string>();
 
+  // Todo informe se calcula solo con las empresas que ENVIARON su data: una
+  // que la cargó y nunca la envió no confirmó sus números, así que no entra en
+  // el mercado de nadie (AC Consulting, 2026-10-14). Es la misma condición con
+  // la que el informe de cortesía arma su lista de participantes, y por eso el
+  // total de la portada coincide con el de la muestra.
+  const enviaron = await usuariosQueEnviaron(snapshotId);
+
   for (const workspace of workspaces) {
+    if (!enviaron.has(workspace.userId)) continue;
+
     const snapshots = safeParseSnapshots(workspace.snapshotsJson);
     const snapshot = snapshots[snapshotId];
     if (!snapshot?.rows?.length) continue;

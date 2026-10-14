@@ -162,12 +162,14 @@ export async function POST(request: Request) {
         tcrType,
         filtros: SIN_FILTROS,
         workspaces: datos.workspaces,
+        enviaron: datos.enviaron,
         globales: datos.tasas,
       })
     : calcularPercentilesMercado({
         snapshotId,
         filtros: SIN_FILTROS,
         workspaces: datos.workspaces,
+        enviaron: datos.enviaron,
         bcvGeneral: datos.tasas.bcv,
       });
 

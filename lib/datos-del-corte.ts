@@ -46,8 +46,14 @@ export type DatosDelCorte = {
    * catálogo. Lo que no esté en el catálogo del corte cae al final.
    */
   compararCargos: (a: CargoOrdenable, b: CargoOrdenable) => number;
-  /** Todos los workspaces, para calcular el mercado en TCR sin volver a leer. */
+  /** Todos los workspaces, para calcular el mercado sin volver a leer. */
   workspaces: WorkspaceParaTcr[];
+  /**
+   * Quiénes enviaron su data en el corte. Todo informe se calcula solo con
+   * ellos: una empresa que cargó y nunca envió no confirmó sus números
+   * (AC Consulting, 2026-10-14).
+   */
+  enviaron: Set<string>;
   tasas: TasasGlobales;
 };
 
@@ -169,6 +175,7 @@ export async function reunirDatosDelCorte(snapshotId: string): Promise<DatosDelC
       return a.tituloCargo.localeCompare(b.tituloCargo, "es");
     },
     workspaces,
+    enviaron: new Set(enviados.map((e) => e.userId)),
     tasas: { bcv, bcvEur, binance, libreManual },
   };
 }

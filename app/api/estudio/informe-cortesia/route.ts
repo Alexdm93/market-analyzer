@@ -134,6 +134,7 @@ export async function POST(request: Request) {
       tcrType: "bcv",
       filtros: { sectores: [], clasificaciones: [], empresas: [], localidades: [], tamanos: [] },
       workspaces: datos.workspaces,
+      enviaron: datos.enviaron,
       globales: datos.tasas,
     });
     for (const c of mercadoTcr.cargos) {
