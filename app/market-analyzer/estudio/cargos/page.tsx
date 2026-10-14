@@ -1,7 +1,8 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, Check, Download, Layers, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Download, FileSpreadsheet, Layers, Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 
 import { CapriWizardModal, ROLES as CAPRI_ROLES } from "@/components/CapriWizardModal";
 import { CompensacionEditor, ResumenCompensacion } from "@/components/CompensacionEditor";
@@ -10,6 +11,7 @@ import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals } from "@/lib/compensation";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
+import { parseOcupantesWorkbook, plantillaOcupantes } from "@/lib/import-ocupantes";
 import { isAdminRole } from "@/lib/roles";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
@@ -86,6 +88,8 @@ export default function MisCargosPage() {
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [importando, setImportando] = useState(false);
+  const archivoRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
 
   /** El admin trabaja en nombre de una empresa; la empresa, sobre la suya. */
@@ -240,6 +244,66 @@ export default function MisCargosPage() {
     if (!fue) { setError(mensaje); return; }
     setAviso(mensaje);
     await cargar();
+  }
+
+  function bajarPlantilla() {
+    XLSX.writeFile(plantillaOcupantes(), "Plantilla de ocupantes.xlsx");
+  }
+
+  /**
+   * El archivo se lee acá, en el navegador: la librería de Excel ya está
+   * cargada en esta pantalla y así el servidor no recibe megas de binario.
+   * Las filas interpretadas se mandan al servidor, que las vuelve a validar.
+   */
+  async function cargarDesdeExcel(archivo: File) {
+    setImportando(true);
+    setError("");
+    setAviso("");
+    try {
+      const libro = XLSX.read(await archivo.arrayBuffer(), { type: "array" });
+      const leido = parseOcupantesWorkbook(libro, companyInfo.tasas ?? []);
+
+      const errores = leido.issues.filter((i) => i.nivel === "error");
+      if (leido.filas.length === 0) {
+        setError(errores[0]?.mensaje ?? "El archivo no trae ninguna fila que se pueda cargar.");
+        return;
+      }
+
+      const reemplazar = cargos.length > 0 && await confirm({
+        title: "Ya tienes cargos en la lista",
+        message: `El archivo trae ${leido.filas.length} ${leido.filas.length === 1 ? "ocupante" : "ocupantes"}. `
+          + `¿Reemplazo los ${cargos.length} que ya están, o los agrego a los que hay?`,
+        confirmLabel: "Reemplazar",
+        cancelLabel: "Agregar",
+        tone: "warning",
+      });
+
+      const res = await fetch("/api/estudio/cargos/importar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(esAdmin && companyId ? { companyId } : {}),
+          reemplazar,
+          filas: leido.filas,
+        }),
+      });
+
+      const d = (await res.json().catch(() => null)) as
+        { message?: string; creados?: number; rechazadas?: Array<{ fila: number; motivo: string }> } | null;
+
+      if (!res.ok) { setError(d?.message ?? "No se pudo cargar el archivo."); return; }
+
+      const avisos = leido.issues.filter((i) => i.nivel === "aviso").length;
+      setAviso(`${d?.message ?? "Carga lista."}`
+        + (errores.length > 0 ? ` ${errores.length} ${errores.length === 1 ? "fila del archivo tenía" : "filas del archivo tenían"} problemas.` : "")
+        + (avisos > 0 ? ` ${avisos} ${avisos === 1 ? "aviso" : "avisos"} al leerlo.` : ""));
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo leer el archivo.");
+    } finally {
+      setImportando(false);
+      if (archivoRef.current) archivoRef.current.value = "";
+    }
   }
 
   async function importarDeCorte() {
@@ -419,6 +483,28 @@ export default function MisCargosPage() {
               className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {guardando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Importar del corte
+            </button>
+            <button
+              type="button"
+              onClick={bajarPlantilla}
+              className="btn btn-secondary"
+            >
+              <FileSpreadsheet size={16} /> Bajar plantilla
+            </button>
+            <input
+              ref={archivoRef}
+              type="file"
+              accept=".xlsx,.xlsm,.xls"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void cargarDesdeExcel(f); }}
+            />
+            <button
+              type="button"
+              onClick={() => archivoRef.current?.click()}
+              disabled={!puedeOperar || importando}
+              className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {importando ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} Cargar desde Excel
             </button>
             {cargando && <span className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…</span>}
           </div>

@@ -94,7 +94,7 @@ type ConceptBlock = {
   impactoFijo: boolean;
 };
 
-const BLOQUES: ConceptBlock[] = [
+export const BLOQUES: ConceptBlock[] = [
   {
     prefijo: "Sueldo básico",
     campoMonto: "sueldoBasico", campoFreq: "sueldoBasicoFreq",
@@ -142,7 +142,7 @@ export const OPCIONES = {
 // ── Normalización de valores ────────────────────────────────────────────────
 
 /** Sin acentos, en minúsculas y con cualquier guion tratado igual. */
-function norm(value: unknown): string {
+export function norm(value: unknown): string {
   return String(value ?? "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -152,7 +152,7 @@ function norm(value: unknown): string {
     .toLowerCase();
 }
 
-function text(value: unknown): string {
+export function text(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
@@ -264,7 +264,7 @@ export function familiasPosibles(grado: number): Array<"IC" | "LO" | "GE" | "EJ"
 
 // ── Lectura del archivo ─────────────────────────────────────────────────────
 
-function sheetToObjects(sheet: XLSX.WorkSheet): Array<Record<string, unknown>> {
+export function sheetToObjects(sheet: XLSX.WorkSheet): Array<Record<string, unknown>> {
   const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false, defval: "" });
   if (matrix.length === 0) return [];
 
@@ -284,11 +284,11 @@ function sheetToObjects(sheet: XLSX.WorkSheet): Array<Record<string, unknown>> {
   });
 }
 
-function pick(row: Record<string, unknown>, header: string): unknown {
+export function pick(row: Record<string, unknown>, header: string): unknown {
   return row[norm(header)];
 }
 
-function esFilaVacia(row: Record<string, unknown>): boolean {
+export function esFilaVacia(row: Record<string, unknown>): boolean {
   return Object.entries(row).every(([k, v]) => k === "__fila" || text(v).length === 0);
 }
 
@@ -303,7 +303,7 @@ function buildCatalogIndex(catalogo: CatalogCargo[]): Map<string, CatalogCargo[]
   return map;
 }
 
-function buildTasaIndex(tasas: ExchangeRate[]): Map<string, ExchangeRate> {
+export function buildTasaIndex(tasas: ExchangeRate[]): Map<string, ExchangeRate> {
   const map = new Map<string, ExchangeRate>();
   for (const t of tasas) {
     for (const alias of [t.nombre, t.referencia, t.id]) {
@@ -344,7 +344,7 @@ export function leerEmpresaDeclarada(workbook: XLSX.WorkBook): string | null {
  * con ese nombre, se respeta la suya y solo se avisa cuando el valor difiere.
  * Nunca se le pisa un número que ella cargó.
  */
-function parseTasasSheet(
+export function parseTasasSheet(
   workbook: XLSX.WorkBook,
   existentes: ExchangeRate[],
   issues: ImportIssue[],
@@ -411,6 +411,101 @@ function parseTasasSheet(
   });
 
   return nuevas;
+}
+
+/**
+ * Lee el grado CAPRI y su familia, con los avisos del caso.
+ *
+ * Vive aparte porque lo necesitan los dos importadores: el de la captura de
+ * mercado y el de los ocupantes del Estudio Especializado.
+ */
+export function aplicarGrado(
+  registro: Record<string, unknown>,
+  row: ExtendedMarketPosition,
+  issues: ImportIssue[],
+  fila: number,
+  hoja: string,
+) {
+  const gradoRaw = pick(registro, COL.grado);
+  const gradoTexto = text(gradoRaw);
+  if (!gradoTexto) return;
+
+  const grado = Math.round(parseAmount(gradoRaw).valor);
+  if (!Number.isFinite(grado) || grado < 8 || grado > 25) {
+    issues.push({ fila, hoja, nivel: "aviso", mensaje: `Grado CAPRI "${gradoTexto}" fuera del rango 8-25; se ignora.` });
+    return;
+  }
+
+  row.hayGrade = grado;
+  const familiaTexto = norm(pick(registro, COL.familia));
+  const posibles = familiasPosibles(grado);
+  const declarada = familiaTexto ? FAMILIA_ALIAS[familiaTexto] : undefined;
+
+  if (declarada && posibles.includes(declarada)) {
+    row.capriFamily = declarada;
+  } else if (declarada) {
+    issues.push({ fila, hoja, nivel: "aviso", mensaje: `La familia ${declarada} no aplica al grado ${grado}; se deja sin familia.` });
+  } else if (posibles.length === 1) {
+    row.capriFamily = posibles[0];
+  } else if (posibles.length > 1) {
+    issues.push({
+      fila, hoja, nivel: "aviso",
+      mensaje: `El grado ${grado} puede ser ${posibles.join(" o ")}. Sin la familia, el cargo no aparece en el gráfico por nivel del dashboard.`,
+    });
+  }
+}
+
+/** Llena los conceptos de compensación fija de una fila. */
+export function aplicarBloques(
+  registro: Record<string, unknown>,
+  row: ExtendedMarketPosition,
+  tasaIndex: Map<string, ExchangeRate>,
+  issues: ImportIssue[],
+  fila: number,
+  hoja: string,
+) {
+  const campos = row as unknown as Record<string, unknown>;
+
+  for (const bloque of BLOQUES) {
+    const montoRaw = pick(registro, bloque.prefijo);
+    const { valor: monto, ambiguo } = parseAmount(montoRaw);
+    if (ambiguo) {
+      issues.push({
+        fila, hoja, nivel: "aviso",
+        mensaje: `"${text(montoRaw)}" en ${bloque.prefijo} se leyó como ${monto}. Verifica si eran decimales.`,
+      });
+    }
+
+    const cuenta = parseCurrency(pick(registro, col(bloque.prefijo, SUF.cuenta)), "USD");
+    const pago = parseCurrency(pick(registro, col(bloque.prefijo, SUF.pago)), cuenta.valor);
+
+    if (monto !== 0) {
+      if (!cuenta.reconocido) issues.push({ fila, hoja, nivel: "aviso", mensaje: `Moneda del monto no reconocida en ${bloque.prefijo}; se usa USD.` });
+      if (!pago.reconocido) issues.push({ fila, hoja, nivel: "aviso", mensaje: `Moneda de pago no reconocida en ${bloque.prefijo}; se usa la del monto.` });
+    }
+
+    campos[bloque.campoMonto] = monto;
+    campos[bloque.campoCuenta] = cuenta.valor;
+    campos[bloque.campoPago] = pago.valor;
+    // La página tiene estos dos bloqueados; se escriben igual que ella.
+    campos[bloque.campoFreq] = "monthly" satisfies PaymentFrequency;
+    campos[bloque.campoImpacto] = bloque.impactoFijo;
+
+    const tasaTexto = text(pick(registro, col(bloque.prefijo, SUF.tasa)));
+    let tasaId = "";
+    if (tasaTexto) {
+      const tasa = tasaIndex.get(norm(tasaTexto));
+      if (tasa) {
+        tasaId = tasa.id;
+      } else if (monto !== 0) {
+        issues.push({
+          fila, hoja, nivel: "aviso",
+          mensaje: `La tasa "${tasaTexto}" no está registrada en la empresa; ${bloque.prefijo} se convierte con el BCV.`,
+        });
+      }
+    }
+    campos[bloque.campoTasa] = tasaId;
+  }
 }
 
 export function parseCargosWorkbook(
@@ -515,74 +610,9 @@ export function parseCargosWorkbook(
       additionalVariablePayments: [],
     };
 
-    // Grado y familia CAPRI
-    if (gradoTexto) {
-      const grado = Math.round(parseAmount(gradoRaw).valor);
-      if (!Number.isFinite(grado) || grado < 8 || grado > 25) {
-        issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `Grado CAPRI "${gradoTexto}" fuera del rango 8-25; se ignora.` });
-      } else {
-        row.hayGrade = grado;
-        const familiaTexto = norm(pick(registro, COL.familia));
-        const posibles = familiasPosibles(grado);
-        const declarada = familiaTexto ? FAMILIA_ALIAS[familiaTexto] : undefined;
+    aplicarGrado(registro, row, issues, fila, SHEET_CARGOS);
 
-        if (declarada && posibles.includes(declarada)) {
-          row.capriFamily = declarada;
-        } else if (declarada) {
-          issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `La familia ${declarada} no aplica al grado ${grado}; se deja sin familia.` });
-        } else if (posibles.length === 1) {
-          row.capriFamily = posibles[0];
-        } else if (posibles.length > 1) {
-          issues.push({
-            fila, hoja: SHEET_CARGOS, nivel: "aviso",
-            mensaje: `El grado ${grado} puede ser ${posibles.join(" o ")}. Sin la familia, el cargo no aparece en el gráfico por nivel del dashboard.`,
-          });
-        }
-      }
-    }
-
-    const campos = row as unknown as Record<string, unknown>;
-
-    for (const bloque of BLOQUES) {
-      const montoRaw = pick(registro, bloque.prefijo);
-      const { valor: monto, ambiguo } = parseAmount(montoRaw);
-      if (ambiguo) {
-        issues.push({
-          fila, hoja: SHEET_CARGOS, nivel: "aviso",
-          mensaje: `"${text(montoRaw)}" en ${bloque.prefijo} se leyó como ${monto}. Verifica si eran decimales.`,
-        });
-      }
-
-      const cuenta = parseCurrency(pick(registro, col(bloque.prefijo, SUF.cuenta)), "USD");
-      const pago = parseCurrency(pick(registro, col(bloque.prefijo, SUF.pago)), cuenta.valor);
-
-      if (monto !== 0) {
-        if (!cuenta.reconocido) issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `Moneda del monto no reconocida en ${bloque.prefijo}; se usa USD.` });
-        if (!pago.reconocido) issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: `Moneda de pago no reconocida en ${bloque.prefijo}; se usa la del monto.` });
-      }
-
-      campos[bloque.campoMonto] = monto;
-      campos[bloque.campoCuenta] = cuenta.valor;
-      campos[bloque.campoPago] = pago.valor;
-      // La página tiene estos dos bloqueados; se escriben igual que ella.
-      campos[bloque.campoFreq] = "monthly" satisfies PaymentFrequency;
-      campos[bloque.campoImpacto] = bloque.impactoFijo;
-
-      const tasaTexto = text(pick(registro, col(bloque.prefijo, SUF.tasa)));
-      let tasaId = "";
-      if (tasaTexto) {
-        const tasa = tasaIndex.get(norm(tasaTexto));
-        if (tasa) {
-          tasaId = tasa.id;
-        } else if (monto !== 0) {
-          issues.push({
-            fila, hoja: SHEET_CARGOS, nivel: "aviso",
-            mensaje: `La tasa "${tasaTexto}" no está registrada en la empresa; ${bloque.prefijo} se convierte con el BCV.`,
-          });
-        }
-      }
-      campos[bloque.campoTasa] = tasaId;
-    }
+    aplicarBloques(registro, row, tasaIndex, issues, fila, SHEET_CARGOS);
 
     if ((row.sueldoBasico ?? 0) <= 0) {
       issues.push({ fila, hoja: SHEET_CARGOS, nivel: "aviso", mensaje: "Sueldo básico en 0: la fila se carga, pero el corte no se puede enviar así." });

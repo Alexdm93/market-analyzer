@@ -1,127 +1,106 @@
 /**
- * F3 — Importar a la lista propia los cargos que la empresa ya reportó en un corte.
+ * Alta masiva de ocupantes del Estudio Especializado.
  *
- * Lo importado es una COPIA editable: se guarda `origen: "importado"` y de qué
- * corte salió, pero a partir de ahí vive por su cuenta. Editarla no toca la data
- * que la empresa envió a ese corte.
- *
- * El corte trae un cargo por empresa, así que cada cargo importado entra como
- * un ocupante. Se saltan los títulos que ya están en la lista para que importar
- * dos veces no duplique; si la empresa necesita varias personas en el mismo
- * cargo, las agrega a mano.
+ * El archivo lo lee el navegador —ahí ya está la librería de Excel— y acá
+ * llegan las filas ya interpretadas. El servidor vuelve a validarlas de todos
+ * modos: lo que manda el navegador nunca es la última palabra.
  */
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { asegurarCorte, homologarPorNombre, normalizarTitulo, resolverAcceso } from "@/lib/estudio-cargos";
+import { resolverAcceso, validarCargo, type EntradaCargo } from "@/lib/estudio-cargos";
 import { prisma } from "@/lib/prisma";
-import type { ExtendedMarketPosition } from "@/types/salary";
 
-type Cuerpo = { companyId?: string; snapshotId?: string; soloPrevisualizar?: boolean };
+export const maxDuration = 60;
+
+/** Tope por archivo. Más que esto no es una carga, es una migración. */
+const MAX_FILAS = 1000;
+
+type Cuerpo = {
+  companyId?: string;
+  filas?: EntradaCargo[];
+  /** Cuando es true, la lista actual se borra antes de cargar la nueva. */
+  reemplazar?: boolean;
+};
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Cuerpo | null;
-  const session = await getServerSession(authOptions).catch(() => null);
-  const acceso = resolverAcceso(session, body?.companyId?.trim() ?? "");
+  const acceso = resolverAcceso(await getServerSession(authOptions).catch(() => null), body?.companyId?.trim() ?? "");
   if (!acceso.ok) return acceso.response;
 
-  const snapshotId = body?.snapshotId?.trim() ?? "";
-  if (!snapshotId) return Response.json({ message: "Indica el corte del que importar." }, { status: 400 });
+  const entrada = Array.isArray(body?.filas) ? body.filas : [];
+  if (entrada.length === 0) return Response.json({ message: "El archivo no trae ninguna fila." }, { status: 400 });
+  if (entrada.length > MAX_FILAS) {
+    return Response.json({ message: `El archivo trae ${entrada.length} filas y el tope son ${MAX_FILAS}.` }, { status: 400 });
+  }
 
-  const vetado = await asegurarCorte(acceso, snapshotId);
-  if (vetado) return vetado;
-
-  const [posiciones, existentes] = await Promise.all([
-    prisma.userPosition.findMany({
-      where: { companyId: acceso.companyId, snapshotId },
-      select: { title: true, dataJson: true },
-      orderBy: { title: "asc" },
-    }),
-    prisma.estudioCargo.findMany({
-      where: { companyId: acceso.companyId },
-      select: { tituloCargo: true },
-    }),
-  ]);
-
-  const yaEstan = new Set(existentes.map((e) => normalizarTitulo(e.tituloCargo)));
-  const vistosEnElCorte = new Set<string>();
-
-  const nuevos: Array<{
+  const rechazadas: Array<{ fila: number; motivo: string }> = [];
+  const aCrear: Array<{
     ocupanteId: string | null; departamento: string; tituloCargo: string; descripcion: string;
-    hayGrade: number | null; capriFamily: string | null; dataJson: string;
+    reportaA: string; hayGrade: number | null; capriFamily: string | null; dataJson: string;
   }> = [];
-  const repetidos: string[] = [];
 
-  for (const posicion of posiciones) {
-    let fila: Partial<ExtendedMarketPosition>;
-    try {
-      fila = JSON.parse(posicion.dataJson) as Partial<ExtendedMarketPosition>;
-    } catch {
-      continue;
+  // Los identificadores ya usados: los del archivo y, si no se reemplaza, los
+  // que la empresa ya tenía.
+  const usados = new Set<string>();
+  if (!body?.reemplazar) {
+    const previos = await prisma.estudioCargo.findMany({
+      where: { companyId: acceso.companyId, ocupanteId: { not: null } },
+      select: { ocupanteId: true },
+    });
+    for (const p of previos) if (p.ocupanteId) usados.add(p.ocupanteId.toLowerCase());
+  }
+
+  entrada.forEach((cruda, i) => {
+    const validacion = validarCargo(cruda);
+    if (!validacion.ok) {
+      rechazadas.push({ fila: i + 1, motivo: validacion.mensaje });
+      return;
     }
 
-    const titulo = (posicion.title ?? fila.tituloCargo ?? "").replace(/\s+/g, " ").trim();
-    if (!titulo) continue;
-
-    const clave = normalizarTitulo(titulo);
-    // La empresa puede tener varios usuarios con la misma posición cargada.
-    if (vistosEnElCorte.has(clave)) continue;
-    vistosEnElCorte.add(clave);
-
-    if (yaEstan.has(clave)) {
-      repetidos.push(titulo);
-      continue;
+    const { ocupanteId } = validacion.valor;
+    if (ocupanteId) {
+      if (usados.has(ocupanteId.toLowerCase())) {
+        rechazadas.push({ fila: i + 1, motivo: `El identificador "${ocupanteId}" ya está en uso.` });
+        return;
+      }
+      usados.add(ocupanteId.toLowerCase());
     }
 
-    const familia = typeof fila.capriFamily === "string" ? fila.capriFamily : null;
-    nuevos.push({
-      // El corte no trae identificador de ocupante: se deja vacío y el cliente
-      // lo completa si lo usa.
-      ocupanteId: null,
-      departamento: (fila.departamento ?? "").trim(),
-      tituloCargo: titulo,
-      descripcion: (fila.descripcion ?? "").trim(),
-      hayGrade: typeof fila.hayGrade === "number" ? fila.hayGrade : null,
-      capriFamily: familia,
-      dataJson: JSON.stringify(fila),
+    aCrear.push({
+      ocupanteId: ocupanteId || null,
+      departamento: validacion.valor.departamento,
+      tituloCargo: validacion.valor.tituloCargo,
+      descripcion: validacion.valor.descripcion,
+      reportaA: validacion.valor.reportaA,
+      hayGrade: validacion.valor.hayGrade,
+      capriFamily: validacion.valor.capriFamily,
+      dataJson: JSON.stringify(validacion.valor.data),
     });
-  }
-
-  if (body?.soloPrevisualizar) {
-    return Response.json({
-      aImportar: nuevos.length,
-      yaEnLaLista: repetidos.length,
-      repetidos: repetidos.slice(0, 50),
-      cargos: nuevos.map((n) => ({ departamento: n.departamento, tituloCargo: n.tituloCargo, hayGrade: n.hayGrade })),
-    });
-  }
-
-  if (nuevos.length === 0) {
-    return Response.json({
-      message: repetidos.length > 0
-        ? "Todos los cargos de ese corte ya están en tu lista."
-        : "Ese corte no tiene cargos para importar.",
-      importados: 0,
-      yaEnLaLista: repetidos.length,
-    });
-  }
-
-  await prisma.estudioCargo.createMany({
-    data: nuevos.map((n) => ({
-      ...n,
-      companyId: acceso.companyId,
-      origen: "importado",
-      origenSnapshotId: snapshotId,
-    })),
   });
 
-  const homologados = await homologarPorNombre(acceso.companyId, snapshotId, nuevos);
+  if (aCrear.length === 0) {
+    return Response.json(
+      { message: "Ninguna fila del archivo se pudo cargar.", creados: 0, rechazadas },
+      { status: 400 },
+    );
+  }
+
+  // Reemplazar y cargar van juntos: si la carga falla a mitad de camino, la
+  // empresa no puede quedarse sin su lista anterior.
+  await prisma.$transaction(async (tx) => {
+    if (body?.reemplazar) {
+      await tx.estudioCargo.deleteMany({ where: { companyId: acceso.companyId } });
+    }
+    await tx.estudioCargo.createMany({
+      data: aCrear.map((c) => ({ ...c, companyId: acceso.companyId, origen: "importado" })),
+    });
+  });
 
   return Response.json({
-    message: `${nuevos.length} ${nuevos.length === 1 ? "cargo importado" : "cargos importados"}`
-      + (homologados > 0 ? `, ${homologados} homologados con el catálogo.` : "."),
-    importados: nuevos.length,
-    homologados,
-    yaEnLaLista: repetidos.length,
+    creados: aCrear.length,
+    rechazadas,
+    message: `Se cargaron ${aCrear.length} ${aCrear.length === 1 ? "ocupante" : "ocupantes"}.`
+      + (rechazadas.length > 0 ? ` ${rechazadas.length} ${rechazadas.length === 1 ? "fila quedó" : "filas quedaron"} fuera.` : ""),
   });
 }
