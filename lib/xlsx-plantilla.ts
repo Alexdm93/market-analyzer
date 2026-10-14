@@ -391,10 +391,19 @@ export class LibroPlantilla {
 
     // La cadena de cálculo puede quedar apuntando a celdas que ahora son
     // literales; Excel la reconstruye sola si no está.
+    //
+    // Hay que sacarla de los tres lados o el libro queda inconsistente: el
+    // archivo, su tipo declarado y la relación que lo nombra. Una relación que
+    // apunta a una parte que no existe es de las cosas que hacen que Excel
+    // ofrezca "recuperar" el libro al abrirlo.
     this.entradas = this.entradas.filter((e) => e.nombre !== "xl/calcChain.xml");
     this.reemplazar(
       "[Content_Types].xml",
       this.texto("[Content_Types].xml").replace(/<Override\b[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/g, ""),
+    );
+    this.reemplazar(
+      "xl/_rels/workbook.xml.rels",
+      this.texto("xl/_rels/workbook.xml.rels").replace(/<Relationship\b[^>]*calcChain\.xml"[^>]*\/>/g, ""),
     );
 
     this.abrirEnLaPrimeraHoja();
