@@ -3,8 +3,9 @@
  *
  * Tres pestañas, como las pidió AC Consulting (2026-10-14): la matriz cruda
  * que llegó del mercado, la que se le mostró al cliente, y la comparación
- * entre las dos en monto y en porcentaje. Más una cuarta con las series
- * puestas una al lado de la otra para graficarlas.
+ * entre las dos en monto y en porcentaje. Más una cuarta con las gráficas de
+ * control: por cada métrica, las cinco líneas crudas contra las cinco
+ * suavizadas, superpuestas.
  *
  * Sirve para auditar, meses más tarde, si las líneas de tendencia estaban
  * ajustando bien y si el algoritmo necesita cambios. Para el cliente todo esto
@@ -12,6 +13,7 @@
  */
 import ExcelJS from "exceljs";
 
+import { inyectarGraficas, type Grafica } from "@/lib/graficas-excel";
 import { PERCENTILES, type Diagnostico, type FilaGrado, type Percentil } from "@/lib/suavizado-percentiles";
 
 export type MetricaAuditada = string;
@@ -24,6 +26,16 @@ export type FichaAuditoria = {
   metrica: MetricaAuditada;
   generadoPor: string;
   fecha: Date;
+};
+
+/** Un color por percentil. Cruda y suavizada comparten color y se distinguen
+ *  por el trazo, que es lo que deja compararlas de un vistazo. */
+const COLOR_PERCENTIL: Record<string, string> = {
+  p90: "1B4965",
+  p75: "2E8BA6",
+  p50: "3E8E7E",
+  p25: "C28A2B",
+  p10: "A4505A",
 };
 
 const NOMBRE_METRICA: Record<string, string> = {
@@ -49,6 +61,9 @@ function estiloCabecera(fila: ExcelJS.Row) {
     celda.border = { bottom: { style: "thin", color: { argb: "FFBFCBD4" } } };
   });
 }
+
+/** "A", "B", … hasta donde llegan las columnas de la hoja de series. */
+const COLUMNAS = Array.from({ length: 12 }, (_, i) => String.fromCharCode(65 + i));
 
 function ordenarPorGrado(filas: FilaGrado[]): FilaGrado[] {
   return [...filas].sort((a, b) => b.grade - a.grade);
@@ -146,8 +161,10 @@ export async function construirReporteAuditoria(
   const series = wb.addWorksheet("4 - Series de control");
   series.columns = [{ width: 10 }, ...PERCENTILES.flatMap(() => [{ width: 14 }, { width: 14 }])];
   cabecera(series, "Línea de mercado: cruda contra suavizada", ficha);
-  series.addRow(["Selecciona un bloque y inserta un gráfico de líneas para ver las dos curvas."]).font = { italic: true };
+  series.addRow(["Cada percentil lleva su color; la línea punteada es la cruda y la continua la suavizada."]).font = { italic: true };
   series.addRow([]);
+
+  const graficas: Grafica[] = [];
 
   for (const [metrica, d] of Object.entries(diagnosticos)) {
     series.addRow([NOMBRE_METRICA[metrica] ?? metrica]).font = { bold: true };
@@ -156,6 +173,7 @@ export async function construirReporteAuditoria(
       ...PERCENTILES.flatMap((p) => [`${p.toUpperCase()} cruda`, `${p.toUpperCase()} suavizada`]),
     ]));
 
+    const primeraFila = series.rowCount + 1;
     const porGrado = new Map(d.procesada.map((f) => [f.grade, f]));
     for (const fila of ordenarPorGrado(d.cruda)) {
       const final = porGrado.get(fila.grade);
@@ -164,8 +182,39 @@ export async function construirReporteAuditoria(
         ...PERCENTILES.flatMap((p) => [fila[p] ?? null, final?.[p] ?? null]),
       ]);
     }
-    series.addRow([]);
+    const ultimaFila = series.rowCount;
+
+    if (ultimaFila >= primeraFila) {
+      graficas.push({
+        titulo: `${NOMBRE_METRICA[metrica] ?? metrica} · línea de mercado cruda contra suavizada`,
+        hoja: series.name,
+        categorias: `$A$${primeraFila}:$A$${ultimaFila}`,
+        series: PERCENTILES.flatMap((p, i) => {
+          // Cada percentil ocupa dos columnas: la cruda y la suavizada.
+          const colCruda = COLUMNAS[1 + i * 2];
+          const colSuave = COLUMNAS[2 + i * 2];
+          return [
+            {
+              nombre: `${p.toUpperCase()} cruda`, color: COLOR_PERCENTIL[p], punteada: true,
+              rango: `$${colCruda}$${primeraFila}:$${colCruda}$${ultimaFila}`,
+            },
+            {
+              nombre: `${p.toUpperCase()} suavizada`, color: COLOR_PERCENTIL[p],
+              rango: `$${colSuave}$${primeraFila}:$${colSuave}$${ultimaFila}`,
+            },
+          ];
+        }),
+        // A la derecha de la tabla, a la altura de su bloque.
+        ancla: { col: 12, fila: primeraFila - 2 },
+        tamano: { cols: 9, filas: Math.max(16, ultimaFila - primeraFila + 3) },
+      });
+    }
+
+    // Aire para que la gráfica del bloque siguiente no se monte sobre esta.
+    for (let i = 0; i < 4; i++) series.addRow([]);
   }
 
-  return Buffer.from(await wb.xlsx.writeBuffer());
+  const libro = Buffer.from(await wb.xlsx.writeBuffer());
+  // La hoja de series es la cuarta del libro.
+  return inyectarGraficas(libro, 4, graficas);
 }
