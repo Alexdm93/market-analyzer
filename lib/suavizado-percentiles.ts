@@ -198,3 +198,42 @@ export function suavizarMatriz(entrada: FilaGrado[]): MatrizSuavizada {
 
   return { filas, cruda, diagnostico };
 }
+
+/** Lo mínimo que tiene que traer una métrica para poder suavizarla. */
+export type ConPercentiles = Record<Percentil, number | null>;
+
+/**
+ * Suaviza la matriz por grado de varias métricas a la vez, en el sitio.
+ *
+ * Cada métrica tiene su propia curva, así que se recorre por separado. Vive
+ * acá y no en quien llama porque lo necesitan los dos caminos que publican
+ * percentiles por grado, y tienen que dar exactamente lo mismo: si uno
+ * suavizara y el otro no, la misma empresa vería dos P75 distintos según la
+ * pantalla.
+ */
+export function suavizarPorMetrica<M extends string>(
+  grades: Array<{ grade: number } & Record<M, ConPercentiles>>,
+  metricas: readonly M[],
+): Record<M, Diagnostico> {
+  const diagnosticos = {} as Record<M, Diagnostico>;
+
+  for (const metrica of metricas) {
+    const matriz: FilaGrado[] = grades.map((g) => ({
+      grade: g.grade,
+      p90: g[metrica].p90, p75: g[metrica].p75, p50: g[metrica].p50,
+      p25: g[metrica].p25, p10: g[metrica].p10,
+    }));
+
+    const { filas, diagnostico } = suavizarMatriz(matriz);
+    diagnosticos[metrica] = diagnostico;
+
+    const porGrado = new Map(filas.map((f) => [f.grade, f]));
+    for (const g of grades) {
+      const f = porGrado.get(g.grade);
+      if (!f) continue;
+      for (const p of PERCENTILES) g[metrica][p] = f[p];
+    }
+  }
+
+  return diagnosticos;
+}

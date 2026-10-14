@@ -29,7 +29,7 @@ import {
   type TcrType,
 } from "@/lib/compensation";
 import { localidadesDe, pasaFiltros, type FiltrosMercado } from "@/lib/filtros-mercado";
-import { PERCENTILES, suavizarMatriz, type Diagnostico, type FilaGrado } from "@/lib/suavizado-percentiles";
+import { suavizarPorMetrica, type Diagnostico } from "@/lib/suavizado-percentiles";
 import { safeParseCompanyInfo, safeParseSnapshots } from "@/lib/workspace";
 
 export type CargoPercentilesMercado = {
@@ -144,35 +144,11 @@ export type MetricaMercado = (typeof METRICAS_MERCADO)[number];
 
 /**
  * La matriz por grado sale con serruchos y huecos, así que se suaviza antes de
- * publicarla. Pasa con las cuatro métricas por separado, porque cada una tiene
- * su propia curva.
+ * publicarla, con las cuatro métricas por separado.
  *
  * Los cargos NO se tocan: entre dos cargos distintos no hay un orden que
  * respetar, y AC Consulting lo dejó explícito (2026-10-14).
  */
-function suavizar(grades: GradoPercentilesMercado[]): Record<MetricaMercado, Diagnostico> {
-  const diagnosticos = {} as Record<MetricaMercado, Diagnostico>;
-
-  for (const metrica of METRICAS_MERCADO) {
-    const matriz: FilaGrado[] = grades.map((g) => ({
-      grade: g.grade,
-      p90: g[metrica].p90, p75: g[metrica].p75, p50: g[metrica].p50,
-      p25: g[metrica].p25, p10: g[metrica].p10,
-    }));
-
-    const { filas, diagnostico } = suavizarMatriz(matriz);
-    diagnosticos[metrica] = diagnostico;
-
-    const porGrado = new Map(filas.map((f) => [f.grade, f]));
-    for (const g of grades) {
-      const f = porGrado.get(g.grade);
-      if (!f) continue;
-      for (const p of PERCENTILES) g[metrica][p] = f[p];
-    }
-  }
-
-  return diagnosticos;
-}
 
 function recorrer(params: {
   snapshotId: string;
@@ -252,7 +228,7 @@ function recorrer(params: {
   return {
     cargos,
     grades,
-    suavizado: suavizar(grades),
+    suavizado: suavizarPorMetrica(grades, METRICAS_MERCADO),
     grupo: {
       sectores: ordenar(sectores),
       clasificaciones: ordenar(clasificaciones),

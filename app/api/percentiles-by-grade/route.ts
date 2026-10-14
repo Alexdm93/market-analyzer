@@ -6,6 +6,7 @@ import { resolveRowTotals, computeMetricPercentiles, type MetricPercentiles } fr
 import { getBcvRate } from "@/lib/bcv";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 import { leerFiltrosMercado, pasaFiltros } from "@/lib/filtros-mercado";
+import { suavizarPorMetrica } from "@/lib/suavizado-percentiles";
 
 export type GradePercentiles = {
   grade: number;
@@ -21,6 +22,13 @@ export type PercentilesGradeResponse = {
   bcvRate: number | null;
   grupos: GradePercentiles[];
 };
+
+const METRICAS = [
+  "sinPasivosMensual",
+  "conPasivosMensual",
+  "conPasivosAnual",
+  "directoMensualizado",
+] as const;
 
 type GradeAccum = {
   grade: number;
@@ -130,6 +138,12 @@ export async function GET(request: Request) {
       directoMensualizado: computeMetricPercentiles(g.directoMensualizado),
     }))
     .sort((a, b) => a.grade - b.grade);
+
+  // La matriz por grado se publica suavizada, acá y en el Estudio
+  // Especializado, con el mismo código. Si una suavizara y la otra no, la
+  // misma empresa vería dos P75 distintos según la pantalla (AC Consulting,
+  // 2026-10-14).
+  suavizarPorMetrica(grupos, METRICAS);
 
   return Response.json({ snapshotId, bcvRate, grupos } satisfies PercentilesGradeResponse);
 }
