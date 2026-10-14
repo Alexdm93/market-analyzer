@@ -489,18 +489,21 @@ export default function ComparacionPage() {
     try {
       // El mercado del informe sale de la misma fuente que la pantalla, para
       // que el Excel no pueda decir algo distinto de lo que se está viendo.
-      const urlMercado = tcrActivo
-        ? `/api/percentiles-tcr?snapshotId=${encodeURIComponent(snapshotId)}&tcrType=${tcrTipo}${consultaFiltros ? `&${consultaFiltros}` : ""}`
-        : `/api/percentiles-by-grade?snapshotId=${encodeURIComponent(snapshotId)}${consultaFiltros ? `&${consultaFiltros}` : ""}`;
-      const resPct = await fetch(urlMercado, { cache: "no-store" });
-      const pct = (await resPct.json().catch(() => null)) as
-        | { grupos?: Array<{ grade: number } & Record<string, Percentiles>>;
-            grades?: Array<{ grade: number } & Record<string, Percentiles>>;
-            message?: string } | null;
-      if (!resPct.ok) { setError(pct?.message ?? "No se pudieron obtener los percentiles por grado."); return; }
+      // Esa fuente trae la matriz por grado ya suavizada.
+      const p = new URLSearchParams(consultaFiltros);
+      p.set("snapshotId", snapshotId);
+      if (esAdmin && companyId) p.set("companyId", companyId);
+      if (tcrActivo) p.set("tcrType", tcrTipo);
 
-      const mercadoPorGrado = ((tcrActivo ? pct?.grades : pct?.grupos) ?? []).map((g) => {
-        const m = g[metrica];
+      const resPct = await fetch(`/api/estudio/mercado?${p.toString()}`, { cache: "no-store" });
+      const pct = (await resPct.json().catch(() => null)) as (MercadoDelEstudio & { message?: string }) | null;
+      if (!resPct.ok || !pct || !("grades" in pct)) {
+        setError(pct?.message ?? "No se pudieron obtener los percentiles por grado.");
+        return;
+      }
+
+      const mercadoPorGrado = pct.grades.map((g) => {
+        const m = (g as unknown as Record<string, Percentiles>)[metrica];
         return { grade: g.grade, p90: m?.p90 ?? null, p75: m?.p75 ?? null, p50: m?.p50 ?? null, p25: m?.p25 ?? null, p10: m?.p10 ?? null };
       });
 
