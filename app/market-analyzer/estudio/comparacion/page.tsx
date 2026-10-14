@@ -158,7 +158,14 @@ export default function ComparacionPage() {
   const [disponibles, setDisponibles] = useState<{ sectores: string[]; clasificaciones: string[]; localidades: string[]; empresas: string[] }>(
     { sectores: [], clasificaciones: [], localidades: [], empresas: [] },
   );
-  const [abrirGrupo, setAbrirGrupo] = useState(false);
+  const [abrirGrupo, setAbrirGrupo] = useState(true);
+  /**
+   * El recorrido que pidió el CEO (2026-10-14): primero qué se mide, después
+   * contra quién, y recién al final el informe. Antes era un solo formulario
+   * largo donde se podía llegar al botón de descargar sin haber mirado el
+   * grupo de comparación.
+   */
+  const [paso, setPaso] = useState<1 | 2 | 3>(1);
   /**
    * Cuántas empresas quedaron dentro del grupo, y con qué filtros se contaron.
    * AC Consulting exige un mínimo de doce para que el cliente pueda seguir
@@ -600,11 +607,60 @@ export default function ComparacionPage() {
           <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
             Tus cargos contra el mercado del estudio, por cargo homologado o por grado.
           </p>
+
+          {/* Los tres pasos de esta pantalla. Se puede volver atrás siempre;
+              para avanzar hay que haber completado el anterior. */}
+          <ol className="mt-5 flex flex-wrap gap-2">
+            {[
+              { n: 1 as const, titulo: "Qué se mide", listo: listoElPaso1 },
+              { n: 2 as const, titulo: "Contra quién", listo: grupoValidado === true },
+              { n: 3 as const, titulo: "El informe", listo: false },
+            ].map((x) => {
+              const alcanzable = x.n === 1 || (x.n === 2 && listoElPaso1) || (x.n === 3 && grupoValidado === true);
+              return (
+                <li key={x.n}>
+                  <button
+                    type="button"
+                    onClick={() => alcanzable && setPaso(x.n)}
+                    disabled={!alcanzable}
+                    aria-current={paso === x.n ? "step" : undefined}
+                    className={`flex items-center gap-2 rounded-[1.15rem] border px-3 py-2 text-left transition ${
+                      paso === x.n
+                        ? "border-[#1B4965]/10 bg-[linear-gradient(135deg,rgba(27,73,101,0.14),rgba(21,58,82,0.06))] text-slate-900"
+                        : alcanzable
+                        ? "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/70"
+                        : "border-transparent text-slate-300 cursor-not-allowed"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[0.78rem] font-bold ${
+                        paso === x.n ? "bg-[#1B4965] text-white" : x.listo ? "bg-teal-100 text-teal-700" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {x.listo && paso !== x.n ? <Check size={13} /> : x.n}
+                    </span>
+                    <span className="font-display text-[0.85rem] font-bold leading-5">{x.titulo}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
         </section>
 
-        {/* Lo que se decidió en el paso 1 no se vuelve a preguntar: se muestra
-            hecho, con una salida para cambiarlo donde se eligió. */}
+        {/* ── Paso 1: qué se mide ───────────────────────────────────────
+            Lo que se decidió en Mis cargos no se vuelve a preguntar: se
+            muestra hecho, con una salida para cambiarlo donde se eligió. */}
+        {paso === 1 && (
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+          <div className="mb-5">
+            <div className="eyebrow mb-2">Paso 1 de 3</div>
+            <h2 className="font-display text-xl font-bold text-slate-900">Qué se mide</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              El estudio, la forma de comparar, la métrica y el tipo de cambio.
+            </p>
+          </div>
+
           <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl bg-slate-50 p-4">
             <div className="flex min-w-0 flex-wrap gap-x-8 gap-y-3">
               {esAdmin && (
@@ -753,8 +809,33 @@ export default function ComparacionPage() {
             )}
           </div>
 
-          {/* ── Grupo de comparación ──────────────────────────────────── */}
-          <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setPaso(2)}
+              disabled={!listoElPaso1}
+              className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Elegir contra quién comparar
+            </button>
+          </div>
+          </>
+          )}
+        </section>
+        )}
+
+        {/* ── Paso 2: contra quién se compara ───────────────────────────── */}
+        {paso === 2 && (
+        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+          <div className="mb-5">
+            <div className="eyebrow mb-2">Paso 2 de 3</div>
+            <h2 className="font-display text-xl font-bold text-slate-900">Grupo de comparación</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Contra qué empresas del estudio se mide tu nómina. Puedes combinar los criterios que quieras.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 p-4">
             <button
               type="button"
               onClick={() => setAbrirGrupo((v) => !v)}
@@ -858,6 +939,38 @@ export default function ComparacionPage() {
           {cargando && <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…</p>}
           {error && <p className="mt-4 flex items-center gap-1.5 text-sm text-red-700"><AlertTriangle className="h-4 w-4" /> {error}</p>}
 
+          <div className="mt-6 flex flex-wrap justify-between gap-2">
+            <button type="button" onClick={() => setPaso(1)} className="btn btn-secondary">
+              <ArrowLeft size={14} /> Volver a la configuración
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaso(3)}
+              disabled={grupoValidado !== true}
+              className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Emitir el informe
+            </button>
+          </div>
+        </section>
+        )}
+
+        {/* ── Paso 3: el informe ────────────────────────────────────────── */}
+        {paso === 3 && (
+        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="eyebrow mb-2">Paso 3 de 3</div>
+              <h2 className="font-display text-xl font-bold text-slate-900">Cargos a comparar</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Contra <strong>{descripcionGrupo}</strong>, con {empresasEnGrupo ?? "—"} empresas.
+              </p>
+            </div>
+            <button type="button" onClick={() => setPaso(2)} className="btn btn-secondary">
+              <ArrowLeft size={14} /> Cambiar el grupo
+            </button>
+          </div>
+
           {snapshotId && cargos.length > 0 && (
             <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {[
@@ -872,12 +985,8 @@ export default function ComparacionPage() {
               ))}
             </dl>
           )}
-          </>
-          )}
-        </section>
 
-        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="mb-5 flex items-center gap-2.5">
+          <div className="mt-6 mb-5 flex items-center gap-2.5">
             <div className="rounded-full bg-slate-100 p-2 text-slate-700"><BarChart3 size={16} /></div>
             <h2 className="font-display text-xl font-bold text-slate-900">Posicionamiento · {sigla}</h2>
           </div>
@@ -1070,6 +1179,7 @@ export default function ComparacionPage() {
             montos y sin columnas de mercado.
           </p>
         </section>
+        )}
       </div>
     </main>
   );
