@@ -214,28 +214,34 @@ export default function InformesPage() {
             {!abierto.datos?.criterios?.snapshotId && (
               <p className="mt-4 flex items-start gap-1.5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                Este informe se generó antes de que se guardaran los criterios de comparación, así que no se puede
-                volver a emitir el documento completo. Genera uno nuevo desde Comparación.
+                Este informe se generó antes del 14 de octubre de 2026, cuando la plataforma todavía no guardaba
+                los criterios de comparación. Sin ellos no se puede reconstruir el documento completo sin inventar
+                la configuración, así que hay que generar uno nuevo desde Comparación. Los informes posteriores sí
+                se vuelven a emitir desde aquí.
               </p>
             )}
 
+            {/* Lo que no se guardó se dice que no se guardó. Mostrar los
+                valores por defecto como si fueran los del informe sería
+                inventarle una configuración que nunca tuvo. */}
             <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { k: "Comparado por", v: datos?.modo === "grado" ? "Grado CAPRI" : "Cargo homologado" },
-                { k: "Métrica", v: sigla },
-                { k: "Tipo de cambio", v: datos?.criterios?.tcr ? `TCR ${datos.criterios.tcr}` : "Moneda base" },
-                { k: "Comisiones", v: datos?.criterios?.comisiones ? "Incluidas" : "Excluidas" },
-                { k: "Grupo de comparación", v: datos?.criterios?.grupoComparacion || "Mercado general" },
-                {
-                  k: "Grados analizados",
-                  v: (datos?.criterios?.grados?.length ?? 0) > 0
-                    ? datos!.criterios!.grados.join(", ")
-                    : "Todos",
-                },
-              ].map((i) => (
+              {(() => {
+                const c = datos?.criterios;
+                const sinRegistrar = "Sin registrar";
+                return [
+                  { k: "Comparado por", v: datos?.modo === "grado" ? "Grado CAPRI" : "Cargo homologado" },
+                  { k: "Métrica", v: sigla },
+                  { k: "Tipo de cambio", v: !c ? sinRegistrar : c.tcr ? `TCR ${c.tcr}` : "Moneda base" },
+                  { k: "Comisiones", v: !c ? sinRegistrar : c.comisiones ? "Incluidas" : "Excluidas" },
+                  { k: "Grupo de comparación", v: !c ? sinRegistrar : c.grupoComparacion || "Mercado general" },
+                  { k: "Grados analizados", v: !c ? sinRegistrar : c.grados.length > 0 ? c.grados.join(", ") : "Todos" },
+                ];
+              })().map((i) => (
                 <div key={i.k} className="rounded-2xl bg-slate-50 p-4">
                   <dt className="text-xs text-slate-500">{i.k}</dt>
-                  <dd className="mt-1 text-sm font-semibold text-slate-900">{i.v}</dd>
+                  <dd className={`mt-1 text-sm font-semibold ${i.v === "Sin registrar" ? "text-slate-400" : "text-slate-900"}`}>
+                    {i.v}
+                  </dd>
                 </div>
               ))}
             </dl>
