@@ -5,10 +5,14 @@
  *
  * El trabajo son dos pasos con orden: cargar los ocupantes y contrastarlos con
  * el mercado. El Historial no es un paso — es donde quedan guardados los
- * informes que se congelan en el paso 2 — así que va aparte y sin número, para
+ * informes que se generan en el paso 2 — así que va aparte y sin número, para
  * no dar a entender que hay que pasar por ahí para terminar.
+ *
+ * Dentro de Comparación hay a su vez tres momentos; se muestran acá colgando
+ * de ese paso en vez de en una segunda barra. Dos barras de pasos apiladas era
+ * lo que hacía que la pantalla no se entendiera (AC Consulting, 2026-10-14).
  */
-import { ChevronRight, History } from "lucide-react";
+import { Check, ChevronRight, History } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment } from "react";
@@ -24,7 +28,16 @@ const PASOS = [
 
 const HISTORIAL = { href: `${BASE}/informes`, nombre: "Historial", detalle: "Informes guardados" };
 
-export function PasosEstudio() {
+export type SubPaso = { n: number; titulo: string; listo: boolean; alcanzable: boolean };
+
+export function PasosEstudio({
+  subPasos, subPasoActivo, onSubPaso,
+}: {
+  /** Los momentos de la pantalla actual, si los tiene. */
+  subPasos?: SubPaso[];
+  subPasoActivo?: number;
+  onSubPaso?: (n: number) => void;
+} = {}) {
   const pathname = usePathname();
   const triggerNavigation = useNavigationTrigger();
 
@@ -58,9 +71,45 @@ export function PasosEstudio() {
               </span>
               <span className="min-w-0">
                 <span className="font-display block truncate text-[0.85rem] font-bold leading-5">{paso.nombre}</span>
-                <span className="block truncate text-[0.7rem] leading-4 text-slate-500">{paso.detalle}</span>
+                <span className="block truncate text-[0.7rem] leading-4 text-slate-500">
+                  {activo && subPasos?.length ? `Paso ${subPasoActivo ?? 1} de ${subPasos.length}` : paso.detalle}
+                </span>
               </span>
             </Link>
+
+            {activo && subPasos?.length ? (
+              <span className="flex min-w-0 shrink-0 items-center gap-1">
+                {subPasos.map((sp) => (
+                  <button
+                    key={sp.n}
+                    type="button"
+                    onClick={() => sp.alcanzable && onSubPaso?.(sp.n)}
+                    disabled={!sp.alcanzable}
+                    aria-current={subPasoActivo === sp.n ? "step" : undefined}
+                    title={sp.titulo}
+                    className={`flex items-center gap-1.5 rounded-[1.15rem] px-2.5 py-1.5 text-[0.78rem] font-semibold transition ${
+                      subPasoActivo === sp.n
+                        ? "bg-white text-slate-900 shadow-[0_1px_6px_rgba(27,73,101,0.14)]"
+                        : sp.alcanzable
+                        ? "text-slate-500 hover:bg-white/70"
+                        : "cursor-not-allowed text-slate-300"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[0.65rem] font-bold ${
+                        subPasoActivo === sp.n
+                          ? "bg-[#1B4965] text-white"
+                          : sp.listo ? "bg-teal-100 text-teal-700" : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {sp.listo && subPasoActivo !== sp.n ? <Check size={11} /> : sp.n}
+                    </span>
+                    <span className="hidden truncate lg:inline">{sp.titulo}</span>
+                  </button>
+                ))}
+              </span>
+            ) : null}
           </Fragment>
         );
       })}

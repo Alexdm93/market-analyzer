@@ -622,7 +622,15 @@ export default function ComparacionPage() {
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
-        <PasosEstudio />
+        <PasosEstudio
+          subPasos={[
+            { n: 1, titulo: "Qué se mide", listo: listoElPaso1, alcanzable: true },
+            { n: 2, titulo: "Contra quién", listo: grupoValidado === true, alcanzable: listoElPaso1 },
+            { n: 3, titulo: "El informe", listo: false, alcanzable: grupoValidado === true },
+          ]}
+          subPasoActivo={paso}
+          onSubPaso={(n) => setPaso(n as 1 | 2 | 3)}
+        />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio Especializado</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Comparación.</h1>
@@ -630,44 +638,6 @@ export default function ComparacionPage() {
             Tus cargos contra el mercado del estudio, por cargo homologado o por grado.
           </p>
 
-          {/* Los tres pasos de esta pantalla. Se puede volver atrás siempre;
-              para avanzar hay que haber completado el anterior. */}
-          <ol className="mt-5 flex flex-wrap gap-2">
-            {[
-              { n: 1 as const, titulo: "Qué se mide", listo: listoElPaso1 },
-              { n: 2 as const, titulo: "Contra quién", listo: grupoValidado === true },
-              { n: 3 as const, titulo: "El informe", listo: false },
-            ].map((x) => {
-              const alcanzable = x.n === 1 || (x.n === 2 && listoElPaso1) || (x.n === 3 && grupoValidado === true);
-              return (
-                <li key={x.n}>
-                  <button
-                    type="button"
-                    onClick={() => alcanzable && setPaso(x.n)}
-                    disabled={!alcanzable}
-                    aria-current={paso === x.n ? "step" : undefined}
-                    className={`flex items-center gap-2 rounded-[1.15rem] border px-3 py-2 text-left transition ${
-                      paso === x.n
-                        ? "border-[#1B4965]/10 bg-[linear-gradient(135deg,rgba(27,73,101,0.14),rgba(21,58,82,0.06))] text-slate-900"
-                        : alcanzable
-                        ? "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/70"
-                        : "border-transparent text-slate-300 cursor-not-allowed"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[0.78rem] font-bold ${
-                        paso === x.n ? "bg-[#1B4965] text-white" : x.listo ? "bg-teal-100 text-teal-700" : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {x.listo && paso !== x.n ? <Check size={13} /> : x.n}
-                    </span>
-                    <span className="font-display text-[0.85rem] font-bold leading-5">{x.titulo}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
         </section>
 
         {/* ── Paso 1: qué se mide ───────────────────────────────────────
