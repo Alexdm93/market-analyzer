@@ -264,8 +264,16 @@ export async function POST(request: Request) {
       select: { userId: true, companyInfoJson: true },
     })).map((w) => [w.userId, safeParseCompanyInfo(w.companyInfoJson)]),
   );
+  // La hoja lista el GRUPO DE COMPARACIÓN, no el corte entero: si el informe
+  // se emitió contra Tecnología / empresas grandes, ahí van esas y no las 128
+  // del corte (AC Consulting, 2026-10-18).
+  const nombresDelGrupo = new Set(mercado.grupo.nombresEnGrupo);
+  const usuariosDelGrupo = new Set(mercado.grupo.usuariosEnGrupo);
+  const enElGrupo = (p: { userId: string; company: { name: string } | null }) =>
+    usuariosDelGrupo.has(p.userId) || nombresDelGrupo.has((p.company?.name ?? "").trim().toLowerCase());
+
   const participantesConPerfil = participantes
-    .filter((p) => p.company?.name)
+    .filter((p) => p.company?.name && enElGrupo(p))
     .map((p) => {
       const suya = infoPorUsuario.get(p.userId);
       const tamano = tamanoDeEmpresa(suya?.headcount || p.company?.headcount || "");

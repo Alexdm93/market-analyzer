@@ -146,6 +146,17 @@ export type GrupoDelMercado = {
    * donde solo habían enviado 128 (AC Consulting, 2026-10-14).
    */
   empresasEnGrupo: number;
+  /**
+   * Quiénes quedaron dentro: el nombre normalizado de cada empresa y el id de
+   * cada usuario que pasó los filtros.
+   *
+   * Son dos llaves para lo mismo porque el nombre que la empresa declaró al
+   * enviar su data y el que tiene en su ficha pueden no coincidir, y la hoja
+   * de Empresas Participantes del informe tiene que listar exactamente a las
+   * del grupo de comparación (AC Consulting, 2026-10-18).
+   */
+  nombresEnGrupo: string[];
+  usuariosEnGrupo: string[];
 };
 
 export type MercadoDelCorte = {
@@ -198,6 +209,7 @@ function recorrer(params: {
   const empresas = new Set<string>();
   const localidades = new Set<string>();
   const enElGrupo = new Set<string>();
+  const usuariosDelGrupo = new Set<string>();
 
   for (const workspace of workspaces) {
     if (enviaron && !(workspace.userId && enviaron.has(workspace.userId))) continue;
@@ -218,6 +230,7 @@ function recorrer(params: {
 
     if (!pasaFiltros(companyInfo, filtros)) continue;
     if (companyInfo.companyName) enElGrupo.add(companyInfo.companyName.trim().toLowerCase());
+    if (workspace.userId) usuariosDelGrupo.add(workspace.userId);
 
     // Una observación por empresa por cargo/grado —igual que percentiles y
     // percentiles-by-grade— para que una sola empresa con muchos empleados en
@@ -269,6 +282,8 @@ function recorrer(params: {
       empresas: ordenar(empresas),
       localidades: ordenar(localidades),
       empresasEnGrupo: enElGrupo.size,
+      nombresEnGrupo: [...enElGrupo],
+      usuariosEnGrupo: [...usuariosDelGrupo],
     },
   };
 }

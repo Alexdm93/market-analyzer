@@ -89,9 +89,36 @@ function r2De(puntos: Punto[], f: (x: number) => number): number {
 }
 
 /** "0,1022" — con coma, como lo escribe Excel en español. */
-function num(v: number, decimales = 4): string {
-  const redondeado = Math.abs(v) >= 1000 ? v.toFixed(0) : v.toFixed(decimales);
-  return redondeado.replace(".", ",");
+/**
+ * Cuántas cifras significativas se conservan de cada coeficiente.
+ *
+ * La ecuación que se publica tiene que poder aplicarse a mano y dar el MISMO
+ * monto que la columna de equidad interna; AC Consulting lo probó y no
+ * cuadraba (2026-10-18). Antes se redondeaba a cuatro decimales —y a entero
+ * por encima de mil— solo para que se viera corta, pero en un polinomio de
+ * grado 6 el término mayor se multiplica por 25^6, así que recortar el
+ * coeficiente movía el resultado en decenas.
+ *
+ * Ahora se redondea una sola vez, acá, y TODO usa el coeficiente redondeado:
+ * la curva, el R² y la ecuación impresa. Con diez cifras el error del término
+ * mayor queda por debajo de la milésima.
+ */
+const CIFRAS = 10;
+
+function redondear(v: number): number {
+  if (!Number.isFinite(v) || v === 0) return 0;
+  const escala = 10 ** (CIFRAS - Math.ceil(Math.log10(Math.abs(v))));
+  return Math.round(v * escala) / escala;
+}
+
+/** El número tal cual quedó, sin notación científica y con coma decimal. */
+function num(v: number): string {
+  if (!Number.isFinite(v)) return "0";
+  let texto = String(v);
+  if (texto.includes("e") || texto.includes("E")) {
+    texto = v.toFixed(20).replace(/0+$/, "").replace(/\.$/, "");
+  }
+  return texto.replace(".", ",");
 }
 
 function formulaPolinomica(c: number[]): string {
@@ -154,7 +181,7 @@ export function elegirTendencia(puntos: Punto[]): Tendencia | null {
   // Exponencial: y = a·e^(b·x)
   const exp = ajusteLineal(utiles, (x) => x, (y) => Math.log(y));
   if (exp) {
-    const a = Math.exp(exp.a), b = exp.b;
+    const a = redondear(Math.exp(exp.a)), b = redondear(exp.b);
     const evaluar = (x: number) => a * Math.exp(b * x);
     candidatas.push({
       tipo: "exponencial", coeficientes: [a, b], r2: r2De(utiles, evaluar),
@@ -165,7 +192,7 @@ export function elegirTendencia(puntos: Punto[]): Tendencia | null {
   // Logarítmica: y = a + b·ln(x)
   const log = ajusteLineal(utiles, (x) => Math.log(x), (y) => y);
   if (log) {
-    const { a, b } = log;
+    const a = redondear(log.a), b = redondear(log.b);
     const evaluar = (x: number) => a + b * Math.log(x);
     candidatas.push({
       tipo: "logaritmica", coeficientes: [a, b], r2: r2De(utiles, evaluar),
@@ -176,7 +203,7 @@ export function elegirTendencia(puntos: Punto[]): Tendencia | null {
   // Potencial: y = a·x^b
   const pot = ajusteLineal(utiles, (x) => Math.log(x), (y) => Math.log(y));
   if (pot) {
-    const a = Math.exp(pot.a), b = pot.b;
+    const a = redondear(Math.exp(pot.a)), b = redondear(pot.b);
     const evaluar = (x: number) => a * x ** b;
     candidatas.push({
       tipo: "potencial", coeficientes: [a, b], r2: r2De(utiles, evaluar),
@@ -186,8 +213,9 @@ export function elegirTendencia(puntos: Punto[]): Tendencia | null {
 
   // Polinómica, de grado 2 al 6: se queda la de mejor R² que crezca.
   for (let g = 2; g <= 6; g++) {
-    const c = polinomio(utiles, g);
-    if (!c) continue;
+    const crudo = polinomio(utiles, g);
+    if (!crudo) continue;
+    const c = crudo.map(redondear);
     const evaluar = (x: number) => c.reduce((s, coef, i) => s + coef * x ** i, 0);
     candidatas.push({
       tipo: "polinomica", coeficientes: c, r2: r2De(utiles, evaluar),
