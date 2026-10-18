@@ -11,7 +11,7 @@ import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals } from "@/lib/compensation";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
-import { parseOcupantesWorkbook, plantillaOcupantes } from "@/lib/import-ocupantes";
+import { parsePlanillaWorkbook, type ImportPlanilla } from "@/lib/import-ocupantes";
 import { isAdminRole } from "@/lib/roles";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { PasosEstudio } from "@/components/PasosEstudio";
@@ -89,6 +89,7 @@ export default function MisCargosPage() {
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState("");
   const [importando, setImportando] = useState(false);
+  const [bajandoPlantilla, setBajandoPlantilla] = useState(false);
   const archivoRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
 
@@ -246,8 +247,36 @@ export default function MisCargosPage() {
     await cargar();
   }
 
-  function bajarPlantilla() {
-    XLSX.writeFile(plantillaOcupantes(), "Plantilla de ocupantes.xlsx");
+  /**
+   * La planilla no es un archivo fijo: la arma el servidor con la estructura de
+   * compensación de la empresa, sus tasas y el catálogo del corte elegido. Por
+   * eso exige un corte y por eso puede responder que falta algo en la ficha.
+   */
+  async function bajarPlantilla() {
+    if (!snapshotId) { setError("Elige primero el corte de referencia: la planilla trae su catálogo."); return; }
+    setBajandoPlantilla(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/estudio/planilla?${qs({ snapshotId })}`);
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(d?.message ?? `No se pudo armar la planilla (error ${res.status}).`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Planilla de carga.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo armar la planilla.");
+    } finally {
+      setBajandoPlantilla(false);
+    }
   }
 
   /**
@@ -261,7 +290,10 @@ export default function MisCargosPage() {
     setAviso("");
     try {
       const libro = XLSX.read(await archivo.arrayBuffer(), { type: "array" });
-      const leido = parseOcupantesWorkbook(libro, companyInfo.tasas ?? []);
+      const leido: ImportPlanilla = parsePlanillaWorkbook(libro, {
+        tasas: companyInfo.tasas ?? [],
+        revenueUSD: companyInfo.revenueUSD ?? "",
+      });
 
       const errores = leido.issues.filter((i) => i.nivel === "error");
       if (leido.filas.length === 0) {
@@ -283,6 +315,9 @@ export default function MisCargosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(esAdmin && companyId ? { companyId } : {}),
+          // Con el corte elegido, las homologaciones que traiga la planilla se
+          // guardan en el mismo viaje.
+          ...(snapshotId ? { snapshotId } : {}),
           reemplazar,
           filas: leido.filas,
         }),
@@ -486,10 +521,12 @@ export default function MisCargosPage() {
             </button>
             <button
               type="button"
-              onClick={bajarPlantilla}
-              className="btn btn-secondary"
+              onClick={() => void bajarPlantilla()}
+              disabled={!puedeOperar || !snapshotId || bajandoPlantilla}
+              className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+              title={snapshotId ? "" : "Elige primero el corte de referencia"}
             >
-              <FileSpreadsheet size={16} /> Bajar plantilla
+              {bajandoPlantilla ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />} Bajar planilla
             </button>
             <input
               ref={archivoRef}
