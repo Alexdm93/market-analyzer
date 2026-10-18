@@ -41,7 +41,7 @@ import {
 export type VarianteInforme = "grados" | "cargos";
 
 export const HOJAS = {
-  inicio: "Inicio",
+  portada: "Portada",
   empresas: "Empresas Participantes",
   dispersion: "Analisis de Dispersión",
   equidad: "Analisis de Equidad Interna",
@@ -52,6 +52,7 @@ export const HOJAS = {
   mapeo: "Mapeo de cargos",
   dataEmpresa: "Data Empresa",
   contenido: "Contenido",
+  distribucion: "Distribución de Compensación",
 } as const;
 
 /** Primera fila de datos de cada hoja, tomadas de las plantillas reales. */
@@ -114,7 +115,7 @@ type MapaVariante = {
 
 const VARIANTES: Record<VarianteInforme, MapaVariante> = {
   grados: {
-    archivo: "informe-especializado-grados.xlsx",
+    archivo: "informe-competitividad-grados.xlsx",
     colGrado: "E",
     colMonto: "F",
     colHomologado: null,
@@ -122,7 +123,7 @@ const VARIANTES: Record<VarianteInforme, MapaVariante> = {
     mercadoPorCargo: false,
   },
   cargos: {
-    archivo: "informe-especializado-cargos.xlsx",
+    archivo: "informe-competitividad-cargos.xlsx",
     colGrado: null,
     colMonto: "E",
     colHomologado: "F",
@@ -331,11 +332,14 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   ];
 
   // ── Portada ──
-  const inicio = wb.hoja(HOJAS.inicio);
-  set(inicio, "B12", datos.proyecto);
-  set(inicio, "B14", datos.fechaInforme);
-  set(inicio, "B16", datos.fechaData);
-  set(inicio, "B20", datos.cliente || null);
+  // El título ya viene escrito en la plantilla; acá van los cuatro datos del
+  // informe. Las etiquetas corrieron una fila al entrar "ORIGEN DATA"
+  // (AC Consulting, 2026-10-18).
+  const portada = wb.hoja(HOJAS.portada);
+  set(portada, "B14", datos.proyecto);
+  set(portada, "B16", datos.fechaData);
+  set(portada, "B18", datos.fechaInforme);
+  set(portada, "B22", datos.cliente || null);
 
   // ── Empresas participantes ──
   // Los dos treemaps se dibujan con los COUNTIF de la plantilla sobre estas
