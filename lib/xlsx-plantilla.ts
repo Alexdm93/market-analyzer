@@ -273,6 +273,19 @@ export class HojaPlantilla {
         atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "") + ` s="${derivado}"`;
       }
 
+      // Escribir encima de la maestra de una fórmula compartida se lleva por
+      // delante su declaración y deja huérfanas a todas sus hijas: el archivo
+      // abre con el aviso de "recuperar contenido" de Excel y las columnas
+      // salen vacías. Pasó una vez con la hoja de Competitividad y no se ve
+      // hasta que alguien abre el informe, así que acá se corta (2026-10-18).
+      if (previa?.cuerpo && /<f\b[^>]*\bt="shared"[^>]*>[^<]/.test(previa.cuerpo)) {
+        throw new Error(
+          `La celda ${ref} de la hoja "${this.nombre}" es la maestra de una fórmula compartida: `
+          + "escribirle encima rompería las celdas que dependen de ella. "
+          + "Cambia la plantilla para que esa celda no sea compartida.",
+        );
+      }
+
       const xmlCelda = escribirCelda(ref, atributosPrevios, valor);
       const partes = /<c\b([^>]*?)(\/>|>([\s\S]*?)<\/c>)/.exec(xmlCelda);
       if (!partes) continue;
