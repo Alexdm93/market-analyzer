@@ -169,10 +169,19 @@ export async function refreshAllRates() {
 
 // ─── System tasa builders ────────────────────────────────────────────────────
 
+/**
+ * Cómo se llaman las tasas del sistema. Son texto visible —salen en la ficha
+ * de la empresa y en la planilla de carga— así que estaban escritas a mano en
+ * tres sitios; con que una se desalineara, la planilla ofrecería una tasa que
+ * la plataforma no reconoce al releerla.
+ */
+export const BCV_TASA_NOMBRE = "Tasa BCV (Bs./USD)";
+export const BCV_EUR_TASA_NOMBRE = "Tasa BCV (Bs./EUR)";
+
 export function buildBcvTasa(rate: number | null, updatedAt: string | null) {
   return {
     id: BCV_TASA_ID,
-    nombre: "Tasa BCV (Bs./USD)",
+    nombre: BCV_TASA_NOMBRE,
     referencia: "BCV oficial",
     valor: rate !== null ? String(rate) : "",
     isSystem: true as const,
@@ -183,7 +192,7 @@ export function buildBcvTasa(rate: number | null, updatedAt: string | null) {
 export function buildBcvEurTasa(rate: number | null, updatedAt: string | null) {
   return {
     id: BCV_EUR_TASA_ID,
-    nombre: "Tasa BCV (Bs./EUR)",
+    nombre: BCV_EUR_TASA_NOMBRE,
     referencia: "BCV oficial EUR",
     valor: rate !== null ? String(rate) : "",
     isSystem: true as const,

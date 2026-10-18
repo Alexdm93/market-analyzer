@@ -227,7 +227,9 @@ export function parsePlanillaWorkbook(
 
   const { nombre: hoja, filas } = carga;
   const bloques = bloquesDePago(filas[0] ?? [], configuracionDePagos(workbook));
-  const porTasa = new Map(opciones.tasas.map((t) => [normalizarTitulo(t.nombre), t.id]));
+  // Las del sistema valen "" y no su id: así es como la plataforma escribe
+  // "convertir con el BCV", y es la opción que muestra el editor en pantalla.
+  const porTasa = new Map(opciones.tasas.map((t) => [normalizarTitulo(t.nombre), t.isSystem ? "" : t.id]));
 
   const resultado: FilaPlanilla[] = [];
   const vistos = new Map<string, number>();
@@ -305,7 +307,7 @@ export function parsePlanillaWorkbook(
       const nombreTasa = texto(fila[bloque.col + 3]);
       const tasaId = nombreTasa ? porTasa.get(normalizarTitulo(nombreTasa)) : undefined;
 
-      if (nombreTasa && !tasaId) {
+      if (nombreTasa && tasaId === undefined) {
         issues.push({
           fila: numeroDeFila, hoja, nivel: "aviso",
           mensaje: `La tasa "${nombreTasa}" no está entre las tuyas: el monto de "${bloque.concepto}" se convierte con el BCV.`,

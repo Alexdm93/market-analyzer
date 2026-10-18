@@ -11,7 +11,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { getBcvRate, getBcvEuroRate } from "@/lib/bcv";
+import { BCV_EUR_TASA_NOMBRE, BCV_TASA_NOMBRE, getBcvRate, getBcvEuroRate } from "@/lib/bcv";
 import { FREQUENCY_OPTIONS, SYSTEM_FIXED_CONCEPTS, VARIABLE_BONUS_TYPES } from "@/lib/compensation-options";
 import { asegurarCorte, catalogoDelCorte, normalizarTitulo, resolverAcceso } from "@/lib/estudio-cargos";
 import { FILAS_PLANILLA } from "@/lib/planilla-formato";
@@ -133,15 +133,17 @@ export async function GET(request: Request) {
   }
 
   const tasas: TasaPlanilla[] = [
-    { nombre: "Tasa BCV (Bs./USD)", referencia: "BCV oficial", valor: bcv.rate !== null ? String(bcv.rate) : "" },
-    { nombre: "Tasa BCV (Bs./EUR)", referencia: "BCV oficial EUR", valor: bcvEur.rate !== null ? String(bcvEur.rate) : "" },
+    { nombre: BCV_TASA_NOMBRE, referencia: "BCV oficial", valor: bcv.rate !== null ? String(bcv.rate) : "" },
+    { nombre: BCV_EUR_TASA_NOMBRE, referencia: "BCV oficial EUR", valor: bcvEur.rate !== null ? String(bcvEur.rate) : "" },
     ...(info.tasas ?? [])
       .filter((t) => !t.isSystem && t.nombre.trim())
       .map((t) => ({ nombre: t.nombre.trim(), referencia: t.referencia ?? "", valor: t.valor ?? "" })),
   ];
 
+  // Solo las propias: una tasa del sistema no se guarda por id en el concepto,
+  // se deja vacía y se entiende como BCV.
   const nombreDeLaTasa = (id: string | undefined): string =>
-    (info.tasas ?? []).find((t) => t.id === id)?.nombre?.trim() ?? "";
+    (info.tasas ?? []).find((t) => t.id === id && !t.isSystem)?.nombre?.trim() ?? "";
 
   const homologado = new Map(equivalencias.map((e) => [e.tituloCargoKey, e.tituloCatalogo]));
 
@@ -155,7 +157,7 @@ export async function GET(request: Request) {
       reportaA: c.reportaA,
       homologado: homologado.get(normalizarTitulo(c.tituloCargo)) ?? "",
       grado: c.hayGrade ?? null,
-      pagos: pagosDelOcupante(data, nombreDeLaTasa),
+      pagos: pagosDelOcupante(data, { nombreDeLaTasa, tasaPorDefecto: BCV_TASA_NOMBRE }),
     };
   });
 

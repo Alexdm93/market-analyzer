@@ -164,7 +164,12 @@ export function monedaDePlanilla(c: "USD" | "VES" | undefined): string {
  */
 export function pagosDelOcupante(
   data: Partial<ExtendedMarketPosition>,
-  nombreDeLaTasa: (id: string | undefined) => string,
+  opciones: {
+    /** El nombre de una tasa propia de la empresa, o "" si no la encuentra. */
+    nombreDeLaTasa: (id: string | undefined) => string;
+    /** Con qué se convierte cuando el concepto no eligió tasa propia. */
+    tasaPorDefecto: string;
+  },
 ): PagoPrecargado[] {
   const pagos: PagoPrecargado[] = [];
 
@@ -176,13 +181,18 @@ export function pagosDelOcupante(
     tasaId: string | undefined,
   ) => {
     if (!concepto || !monto) return;
-    pagos.push({
-      concepto,
-      monto,
-      cuenta: monedaDePlanilla(cuenta),
-      pago: monedaDePlanilla(pago),
-      tasa: nombreDeLaTasa(tasaId),
-    });
+    const cuentaTexto = monedaDePlanilla(cuenta) || "USD";
+    const pagoTexto = monedaDePlanilla(pago) || cuentaTexto;
+
+    // La tasa solo existe cuando se cobra en una moneda y se paga en otra.
+    // Si el concepto no eligió una propia, la plataforma convierte con el BCV
+    // —el selector lo dice así, "Sin tasa (BCV)"— y la planilla tiene que
+    // mostrar esa, no una celda vacía (AC Consulting, 2026-10-17).
+    const tasa = cuentaTexto === pagoTexto
+      ? ""
+      : opciones.nombreDeLaTasa(tasaId) || opciones.tasaPorDefecto;
+
+    pagos.push({ concepto, monto, cuenta: cuentaTexto, pago: pagoTexto, tasa });
   };
 
   agregar("Sueldo Básico", data.sueldoBasico, data.sueldoBasicoCuentaMoneda, data.sueldoBasicoMonedaPago, data.sueldoBasicoTasaId);
