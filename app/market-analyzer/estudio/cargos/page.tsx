@@ -278,7 +278,7 @@ export default function MisCargosPage() {
         tone: "warning",
       });
 
-      const res = await fetch("/api/estudio/cargos/importar", {
+      const res = await fetch("/api/estudio/cargos/importar/excel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -311,7 +311,7 @@ export default function MisCargosPage() {
     setGuardando(true);
     setError("");
     try {
-      const previa = await fetch("/api/estudio/cargos/importar", {
+      const previa = await fetch("/api/estudio/cargos/importar/corte", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...cuerpoBase(), snapshotId, soloPrevisualizar: true }),
@@ -341,7 +341,7 @@ export default function MisCargosPage() {
       });
       if (!confirmado) return;
 
-      const res = await fetch("/api/estudio/cargos/importar", {
+      const res = await fetch("/api/estudio/cargos/importar/corte", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...cuerpoBase(), snapshotId }),

@@ -4,6 +4,9 @@
  * El archivo lo lee el navegador —ahí ya está la librería de Excel— y acá
  * llegan las filas ya interpretadas. El servidor vuelve a validarlas de todos
  * modos: lo que manda el navegador nunca es la última palabra.
+ *
+ * Importar desde un corte es la otra forma de llenar la lista y vive en
+ * `../corte`, no acá.
  */
 import { getServerSession } from "next-auth";
 
