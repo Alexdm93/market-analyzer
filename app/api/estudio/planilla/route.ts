@@ -14,8 +14,8 @@ import { authOptions } from "@/lib/auth";
 import { getBcvRate, getBcvEuroRate } from "@/lib/bcv";
 import { FREQUENCY_OPTIONS, SYSTEM_FIXED_CONCEPTS, VARIABLE_BONUS_TYPES } from "@/lib/compensation-options";
 import { asegurarCorte, catalogoDelCorte, normalizarTitulo, resolverAcceso } from "@/lib/estudio-cargos";
+import { FILAS_PLANILLA } from "@/lib/planilla-formato";
 import {
-  FILAS_PLANILLA,
   generarPlanilla,
   pagosDelOcupante,
   type ConceptoPlanilla,

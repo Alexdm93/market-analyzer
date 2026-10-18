@@ -4,7 +4,11 @@
  * Es la contraparte de `lib/planilla-competitividad`: lee el mismo archivo que
  * ese módulo genera. Las dos mitades tienen que moverse juntas, así que las
  * constantes de forma —qué columna es cuál, desde qué fila empiezan los datos—
- * viven una sola vez, allá.
+ * viven una sola vez, en `lib/planilla-formato`.
+ *
+ * Esto corre EN EL NAVEGADOR, así que no puede importar ni el generador (trae
+ * exceljs) ni `lib/estudio-cargos` (habla con Prisma). Por eso la forma y la
+ * normalización de títulos viven en módulos propios y sin dependencias.
  *
  * Dos cosas no se le creen al archivo:
  *
@@ -20,7 +24,6 @@ import * as XLSX from "xlsx";
 
 import { gradoDesdeLaPlanilla, type Familia } from "@/lib/capri-evaluacion";
 import type { ImportIssue } from "@/lib/import-cargos";
-import { normalizarTitulo } from "@/lib/estudio-cargos";
 import {
   CABECERAS_BASE,
   HOJA_CATALOGO,
@@ -29,7 +32,8 @@ import {
   HOJA_METODOLOGIA,
   PRIMERA_COL_PAGO,
   PRIMERA_FILA,
-} from "@/lib/planilla-competitividad";
+} from "@/lib/planilla-formato";
+import { normalizarTitulo } from "@/lib/texto";
 import type { ExchangeRate } from "@/lib/workspace";
 import type { CompensationConcept, ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 

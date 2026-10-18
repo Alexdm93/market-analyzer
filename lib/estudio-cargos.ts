@@ -13,7 +13,12 @@
 import type { Session } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
+import { normalizarTitulo } from "@/lib/texto";
 import type { ExtendedMarketPosition } from "@/types/salary";
+
+// Quien ya la importaba de acá la sigue encontrando; vive en lib/texto porque
+// el navegador también la necesita y este módulo habla con Prisma.
+export { normalizarTitulo };
 
 export type EstudioCargoDTO = {
   id: string;
@@ -32,10 +37,6 @@ export type EstudioCargoDTO = {
   updatedAt: string;
 };
 
-/** Sin acentos, en minúsculas: para comparar títulos como hace el resto del sistema. */
-export function normalizarTitulo(valor: string): string {
-  return valor.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
-}
 
 type Acceso =
   | { ok: true; companyId: string; esAdmin: boolean }

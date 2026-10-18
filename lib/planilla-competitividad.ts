@@ -23,6 +23,21 @@
 import ExcelJS from "exceljs";
 
 import { CAPRI_ROLES } from "@/lib/capri";
+import {
+  CABECERAS_BASE,
+  COL_GRADO,
+  COL_ROL,
+  FILAS_PLANILLA,
+  HOJA_CATALOGO,
+  HOJA_CONFIG,
+  HOJA_INSTRUCCIONES,
+  HOJA_METODOLOGIA,
+  HOJA_SYS,
+  MONEDAS,
+  PRIMERA_COL_PAGO,
+  PRIMERA_FILA,
+  SUBCOLUMNAS_PAGO,
+} from "@/lib/planilla-formato";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import {
   FACT_RULES,
@@ -32,39 +47,6 @@ import {
   revenueToIndex,
   type Familia,
 } from "@/lib/capri-evaluacion";
-
-/** Hasta dónde llegan las fórmulas y las listas de la hoja de carga. */
-export const FILAS_PLANILLA = 500;
-/** La primera fila de datos: arriba van dos filas de encabezado. */
-export const PRIMERA_FILA = 3;
-
-export const HOJA_INSTRUCCIONES = "Instrucciones";
-export const HOJA_CONFIG = "Configuracion";
-export const HOJA_CATALOGO = "Catalogo cargo del corte";
-export const HOJA_METODOLOGIA = "Metodologia CAPRI";
-const HOJA_SYS = "sysCAPRI";
-
-/** Las trece columnas que no dependen de la empresa. */
-export const CABECERAS_BASE = [
-  "ID / Ocupante",
-  "Departamento o Unidad Funcional",
-  "Nombre del Cargo",
-  "Supervisor Inmediato",
-  "Cargo Homologado (Opcional)",
-  "Ruta CAPRI",
-  "Variable 1", "Variable 2", "Variable 3", "Variable 4", "Variable 5",
-  "Grado CAPRI", "Rol CAPRI",
-] as const;
-
-/** Las cuatro columnas que lleva cada elemento de pago. */
-export const SUBCOLUMNAS_PAGO = ["Monto", "Moneda Cta.", "Moneda Pago", "Tasa de Cambio"] as const;
-
-/** Lo que la plataforma sabe guardar; no se ofrece lo que no se puede leer. */
-export const MONEDAS = ["USD", "Bs."] as const;
-
-export const COL_GRADO = 12;   // L
-export const COL_ROL = 13;     // M
-export const PRIMERA_COL_PAGO = 14; // N
 
 export type ConceptoPlanilla = {
   nombre: string;
