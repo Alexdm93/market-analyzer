@@ -1,18 +1,23 @@
 "use client";
 
 /**
- * El recorrido del Estudio de Competitividad.
+ * El recorrido del Estudio de Competitividad, en cuatro pasos planos.
  *
- * El trabajo son dos pasos con orden: cargar los ocupantes y contrastarlos con
- * el mercado. El Historial no es un paso — es donde quedan guardados los
- * informes que se generan en el paso 2 — así que va aparte y sin número, para
- * no dar a entender que hay que pasar por ahí para terminar.
+ * Antes eran dos pasos con tres momentos colgando del segundo, y no se
+ * entendía dónde estaba uno: la barra decía "paso 2 de 2" mientras la pantalla
+ * pedía la tercera decisión. El CEO pidió verlo como un solo recorrido
+ * (2026-10-17), que además es la forma en que la gente lo cuenta: primero mis
+ * cargos, después qué mido, después contra quién, y al final emito.
  *
- * Dentro de Comparación hay a su vez tres momentos; se muestran acá colgando
- * de ese paso en vez de en una segunda barra. Dos barras de pasos apiladas era
- * lo que hacía que la pantalla no se entendiera (AC Consulting, 2026-10-14).
+ * Los dos primeros pasos viven en pantallas distintas y los tres últimos en la
+ * misma, pero eso es un detalle de implementación: el componente no navega, le
+ * avisa a la pantalla qué paso se pidió y ella decide si cambia de ruta o de
+ * sección.
+ *
+ * El Historial no es un paso —es donde quedan los informes ya emitidos— así
+ * que va aparte y sin número.
  */
-import { Check, ChevronRight, History } from "lucide-react";
+import { Check, History } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment } from "react";
@@ -21,130 +26,110 @@ import { useNavigationTrigger } from "./NavigationProgress";
 
 const BASE = "/market-analyzer/estudio";
 
-const PASOS = [
-  { href: `${BASE}/cargos`,      nombre: "Mis cargos",  detalle: "Carga tus ocupantes" },
-  { href: `${BASE}/comparacion`, nombre: "Comparación", detalle: "Genera y descarga" },
-];
+export const PASOS_ESTUDIO = [
+  { n: 1, titulo: "Mis cargos" },
+  { n: 2, titulo: "Métrica a medir" },
+  { n: 3, titulo: "Filtros de mercado" },
+  { n: 4, titulo: "Emisión" },
+] as const;
 
-const HISTORIAL = { href: `${BASE}/informes`, nombre: "Historial", detalle: "Informes guardados" };
-
-export type SubPaso = { n: number; titulo: string; listo: boolean; alcanzable: boolean };
+const HISTORIAL = { href: `${BASE}/informes`, nombre: "Historial" };
 
 export function PasosEstudio({
-  subPasos, subPasoActivo, onSubPaso,
+  activo,
+  listos = [],
+  alcanzables = [],
+  onPaso,
 }: {
-  /** Los momentos de la pantalla actual, si los tiene. */
-  subPasos?: SubPaso[];
-  subPasoActivo?: number;
-  onSubPaso?: (n: number) => void;
-} = {}) {
+  /** El paso en el que está la pantalla, de 1 a 4. */
+  activo: number;
+  /** Los que ya quedaron resueltos: se marcan con un visto. */
+  listos?: number[];
+  /** A cuáles se puede saltar desde acá. El activo siempre lo es. */
+  alcanzables?: number[];
+  onPaso?: (n: number) => void;
+}) {
   const pathname = usePathname();
-  const triggerNavigation = useNavigationTrigger();
+  const enHistorial = pathname === HISTORIAL.href;
 
   return (
     <nav
       aria-label="Recorrido del Estudio de Competitividad"
-      className="surface-panel flex flex-wrap items-center gap-1 rounded-[1.5rem] p-2"
+      className="surface-panel flex flex-wrap items-center gap-y-2 rounded-[1.5rem] px-3 py-3"
     >
-      {PASOS.map((paso, i) => {
-        const activo = pathname === paso.href;
+      {PASOS_ESTUDIO.map((paso, i) => {
+        const esActivo = !enHistorial && paso.n === activo;
+        const listo = listos.includes(paso.n) && !esActivo;
+        const puede = !!onPaso && (esActivo || alcanzables.includes(paso.n));
+
         return (
-          <Fragment key={paso.href}>
-            {i > 0 && <ChevronRight size={15} aria-hidden className="shrink-0 text-slate-300" />}
-            <Link
-              href={paso.href}
-              onClick={activo ? undefined : triggerNavigation}
-              aria-current={activo ? "step" : undefined}
-              className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-[1.15rem] border px-3 py-2 transition ${
-                activo
-                  ? "border-[#1B4965]/10 bg-[linear-gradient(135deg,rgba(27,73,101,0.14),rgba(21,58,82,0.06))] text-slate-900 shadow-[0_2px_10px_rgba(27,73,101,0.18)]"
-                  : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/70"
+          <Fragment key={paso.n}>
+            {i > 0 && (
+              <span
+                aria-hidden
+                className={`mx-1 hidden h-px min-w-4 flex-1 sm:block ${listo || esActivo ? "bg-[#1B4965]/25" : "bg-slate-200"}`}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => puede && !esActivo && onPaso?.(paso.n)}
+              disabled={!puede || esActivo}
+              aria-current={esActivo ? "step" : undefined}
+              className={`flex min-w-0 items-center gap-2 rounded-[1.15rem] px-2.5 py-1.5 text-left transition ${
+                esActivo
+                  ? "bg-[linear-gradient(135deg,rgba(27,73,101,0.14),rgba(21,58,82,0.06))] text-slate-900"
+                  : puede
+                  ? "text-slate-600 hover:bg-white/70"
+                  : "cursor-not-allowed text-slate-400"
               }`}
             >
               <span
                 aria-hidden
                 className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-[0.78rem] font-bold ${
-                  activo ? "bg-[#1B4965] text-white" : "bg-slate-100 text-slate-500"
+                  esActivo ? "bg-[#1B4965] text-white"
+                    : listo ? "bg-teal-100 text-teal-700"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
-                {i + 1}
+                {listo ? <Check size={14} /> : paso.n}
               </span>
-              <span className="min-w-0">
-                <span className="font-display block truncate text-[0.85rem] font-bold leading-5">{paso.nombre}</span>
-                <span className="block truncate text-[0.7rem] leading-4 text-slate-500">
-                  {activo && subPasos?.length ? `Paso ${subPasoActivo ?? 1} de ${subPasos.length}` : paso.detalle}
-                </span>
+              <span className="hidden truncate text-[0.7rem] font-bold uppercase tracking-wide md:inline">
+                {paso.titulo}
               </span>
-            </Link>
-
-            {activo && subPasos?.length ? (
-              <span className="flex min-w-0 shrink-0 items-center gap-1">
-                {subPasos.map((sp) => (
-                  <button
-                    key={sp.n}
-                    type="button"
-                    onClick={() => sp.alcanzable && onSubPaso?.(sp.n)}
-                    disabled={!sp.alcanzable}
-                    aria-current={subPasoActivo === sp.n ? "step" : undefined}
-                    title={sp.titulo}
-                    className={`flex items-center gap-1.5 rounded-[1.15rem] px-2.5 py-1.5 text-[0.78rem] font-semibold transition ${
-                      subPasoActivo === sp.n
-                        ? "bg-white text-slate-900 shadow-[0_1px_6px_rgba(27,73,101,0.14)]"
-                        : sp.alcanzable
-                        ? "text-slate-500 hover:bg-white/70"
-                        : "cursor-not-allowed text-slate-300"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[0.65rem] font-bold ${
-                        subPasoActivo === sp.n
-                          ? "bg-[#1B4965] text-white"
-                          : sp.listo ? "bg-teal-100 text-teal-700" : "bg-slate-200 text-slate-500"
-                      }`}
-                    >
-                      {sp.listo && subPasoActivo !== sp.n ? <Check size={11} /> : sp.n}
-                    </span>
-                    <span className="hidden truncate lg:inline">{sp.titulo}</span>
-                  </button>
-                ))}
-              </span>
-            ) : null}
+            </button>
           </Fragment>
         );
       })}
 
       {/* Separado de los pasos: es un destino, no una etapa del trabajo. */}
-      <span aria-hidden className="mx-1 hidden h-8 w-px shrink-0 bg-slate-200 sm:block" />
-
-      {(() => {
-        const activo = pathname === HISTORIAL.href;
-        return (
-          <Link
-            href={HISTORIAL.href}
-            onClick={activo ? undefined : triggerNavigation}
-            aria-current={activo ? "page" : undefined}
-            className={`flex min-w-0 items-center gap-2.5 rounded-[1.15rem] border px-3 py-2 transition ${
-              activo
-                ? "border-[#1B4965]/10 bg-[linear-gradient(135deg,rgba(27,73,101,0.14),rgba(21,58,82,0.06))] text-slate-900 shadow-[0_2px_10px_rgba(27,73,101,0.18)]"
-                : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/70"
-            }`}
-          >
-            <span
-              aria-hidden
-              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                activo ? "bg-[#1B4965] text-white" : "bg-slate-100 text-slate-500"
-              }`}
-            >
-              <History size={14} />
-            </span>
-            <span className="min-w-0">
-              <span className="font-display block truncate text-[0.85rem] font-bold leading-5">{HISTORIAL.nombre}</span>
-              <span className="block truncate text-[0.7rem] leading-4 text-slate-500">{HISTORIAL.detalle}</span>
-            </span>
-          </Link>
-        );
-      })()}
+      <span aria-hidden className="mx-2 hidden h-7 w-px shrink-0 bg-slate-200 sm:block" />
+      <EnlaceHistorial activo={enHistorial} />
     </nav>
+  );
+}
+
+function EnlaceHistorial({ activo }: { activo: boolean }) {
+  const triggerNavigation = useNavigationTrigger();
+  return (
+    <Link
+      href={HISTORIAL.href}
+      onClick={activo ? undefined : triggerNavigation}
+      aria-current={activo ? "page" : undefined}
+      className={`flex shrink-0 items-center gap-2 rounded-[1.15rem] px-2.5 py-1.5 transition ${
+        activo
+          ? "bg-[linear-gradient(135deg,rgba(27,73,101,0.14),rgba(21,58,82,0.06))] text-slate-900"
+          : "text-slate-600 hover:bg-white/70"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+          activo ? "bg-[#1B4965] text-white" : "bg-slate-100 text-slate-500"
+        }`}
+      >
+        <History size={14} />
+      </span>
+      <span className="hidden text-[0.7rem] font-bold uppercase tracking-wide md:inline">{HISTORIAL.nombre}</span>
+    </Link>
   );
 }

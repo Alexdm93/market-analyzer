@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { AlertTriangle, ArrowLeft, BarChart3, Check, Download, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals, computeTCRTotals, tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
@@ -12,6 +13,7 @@ import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { ExtendedMarketPosition } from "@/types/salary";
+import { useNavigationTrigger } from "@/components/NavigationProgress";
 import { PasosEstudio } from "@/components/PasosEstudio";
 import { useEstudio } from "@/contexts/EstudioContext";
 import type { MercadoDelEstudio } from "@/app/api/estudio/mercado/route";
@@ -169,6 +171,8 @@ export default function ComparacionPage() {
    * grupo de comparación.
    */
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
+  const router = useRouter();
+  const triggerNavigation = useNavigationTrigger();
   /**
    * Cuántas empresas quedaron dentro del grupo, y con qué filtros se contaron.
    * AC Consulting exige un mínimo de doce para que el cliente pueda seguir
@@ -623,13 +627,22 @@ export default function ComparacionPage() {
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
         <PasosEstudio
-          subPasos={[
-            { n: 1, titulo: "Qué se mide", listo: listoElPaso1, alcanzable: true },
-            { n: 2, titulo: "Contra quién", listo: grupoValidado === true, alcanzable: listoElPaso1 },
-            { n: 3, titulo: "El informe", listo: false, alcanzable: grupoValidado === true },
+          activo={paso + 1}
+          listos={[
+            1,
+            ...(listoElPaso1 ? [2] : []),
+            ...(grupoValidado === true ? [3] : []),
           ]}
-          subPasoActivo={paso}
-          onSubPaso={(n) => setPaso(n as 1 | 2 | 3)}
+          alcanzables={[
+            1,
+            2,
+            ...(listoElPaso1 ? [3] : []),
+            ...(grupoValidado === true ? [4] : []),
+          ]}
+          onPaso={(n) => {
+            if (n === 1) { triggerNavigation(); router.push("/market-analyzer/estudio/cargos"); return; }
+            setPaso((n - 1) as 1 | 2 | 3);
+          }}
         />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio de Competitividad</div>
@@ -801,7 +814,14 @@ export default function ComparacionPage() {
             )}
           </div>
 
-          <div className="mt-6 flex justify-end">
+          <div className="mt-6 flex flex-wrap justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => { triggerNavigation(); router.push("/market-analyzer/estudio/cargos"); }}
+              className="btn btn-secondary"
+            >
+              <ArrowLeft size={14} /> Volver a mis cargos
+            </button>
             <button
               type="button"
               onClick={() => setPaso(2)}
@@ -933,7 +953,7 @@ export default function ComparacionPage() {
 
           <div className="mt-6 flex flex-wrap justify-between gap-2">
             <button type="button" onClick={() => setPaso(1)} className="btn btn-secondary">
-              <ArrowLeft size={14} /> Volver a la configuración
+              <ArrowLeft size={14} /> Volver a la métrica
             </button>
             <button
               type="button"

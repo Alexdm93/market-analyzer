@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { AlertTriangle, ArrowLeft, ArrowRight, Download, FileText, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { METRICAS_INFORME, posicionEnMercado, type DatosInforme } from "@/lib/estudio-informes";
 import { isAdminRole } from "@/lib/roles";
+import { useNavigationTrigger } from "@/components/NavigationProgress";
 import { PasosEstudio } from "@/components/PasosEstudio";
 import { SelectorBuscador } from "@/components/SelectorBuscador";
 import { useEstudio } from "@/contexts/EstudioContext";
@@ -36,6 +38,8 @@ export default function InformesPage() {
   const { data: session, status } = useSession();
   const esAdmin = isAdminRole(session?.user?.role);
 
+  const router = useRouter();
+  const triggerNavigation = useNavigationTrigger();
   const [empresas, setEmpresas] = useState<CompanyOption[]>([]);
   const { companyId, setCompanyId } = useEstudio();
   const [informes, setInformes] = useState<InformeResumen[]>([]);
@@ -315,7 +319,14 @@ export default function InformesPage() {
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
-        <PasosEstudio />
+        <PasosEstudio
+          activo={0}
+          alcanzables={[1, 2]}
+          onPaso={(n) => {
+            triggerNavigation();
+            router.push(n === 1 ? "/market-analyzer/estudio/cargos" : "/market-analyzer/estudio/comparacion");
+          }}
+        />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio de Competitividad</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Historial.</h1>

@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { useSession } from "next-auth/react";
-import { AlertTriangle, Check, Download, FileSpreadsheet, Layers, Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, ArrowRight, Check, ChevronDown, Download, FileSpreadsheet, Layers, Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 
 import { CapriWizardModal, ROLES as CAPRI_ROLES } from "@/components/CapriWizardModal";
 import { CompensacionEditor, ResumenCompensacion } from "@/components/CompensacionEditor";
@@ -14,6 +15,7 @@ import { fetchWorkspace } from "@/lib/workspace-client";
 import { parsePlanillaWorkbook, type ImportPlanilla } from "@/lib/import-ocupantes";
 import { isAdminRole } from "@/lib/roles";
 import type { ExtendedMarketPosition } from "@/types/salary";
+import { useNavigationTrigger } from "@/components/NavigationProgress";
 import { PasosEstudio } from "@/components/PasosEstudio";
 import { SelectorBuscador } from "@/components/SelectorBuscador";
 import { useEstudio } from "@/contexts/EstudioContext";
@@ -70,6 +72,34 @@ async function leerRespuesta(res: Response): Promise<{ ok: boolean; data: Record
   return { ok: false, data, mensaje: String(data?.message ?? `Error ${res.status}.`) };
 }
 
+
+/** Una entrada del menú de importación: qué hace y para qué sirve. */
+function OpcionDeImportacion({
+  icono, titulo, detalle, deshabilitado, onClick,
+}: {
+  icono: React.ReactNode;
+  titulo: string;
+  detalle: string;
+  deshabilitado?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      disabled={deshabilitado}
+      className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+    >
+      <span className="mt-0.5 shrink-0 text-slate-400">{icono}</span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-slate-800">{titulo}</span>
+        <span className="block text-xs leading-4 text-slate-500">{detalle}</span>
+      </span>
+    </button>
+  );
+}
+
 export default function MisCargosPage() {
   const { data: session, status } = useSession();
   const esAdmin = isAdminRole(session?.user?.role);
@@ -88,8 +118,11 @@ export default function MisCargosPage() {
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState("");
+  const router = useRouter();
+  const triggerNavigation = useNavigationTrigger();
   const [importando, setImportando] = useState(false);
   const [bajandoPlantilla, setBajandoPlantilla] = useState(false);
+  const [menuImportar, setMenuImportar] = useState(false);
   const archivoRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
 
@@ -457,7 +490,12 @@ export default function MisCargosPage() {
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
-        <PasosEstudio />
+        <PasosEstudio
+          activo={1}
+          listos={cargos.length > 0 ? [1] : []}
+          alcanzables={[2]}
+          onPaso={() => { triggerNavigation(); router.push("/market-analyzer/estudio/comparacion"); }}
+        />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="eyebrow mb-3">Estudio de Competitividad</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Mis cargos.</h1>
@@ -511,23 +549,62 @@ export default function MisCargosPage() {
             >
               <Plus size={16} /> Agregar cargo
             </button>
-            <button
-              type="button"
-              onClick={() => void importarDeCorte()}
-              disabled={!puedeOperar || !snapshotId || guardando}
-              className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {guardando ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Importar del corte
-            </button>
-            <button
-              type="button"
-              onClick={() => void bajarPlantilla()}
-              disabled={!puedeOperar || !snapshotId || bajandoPlantilla}
-              className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
-              title={snapshotId ? "" : "Elige primero el corte de referencia"}
-            >
-              {bajandoPlantilla ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />} Bajar planilla
-            </button>
+
+            {/*
+              Las tres formas de llenar la lista en un solo menú: puestas una al
+              lado de la otra competían con "Agregar cargo", que es la acción
+              que la pantalla quiere ofrecer primero.
+            */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuImportar((v) => !v)}
+                disabled={!puedeOperar}
+                aria-expanded={menuImportar}
+                aria-haspopup="menu"
+                className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Upload size={16} /> Opciones de importación <ChevronDown size={14} />
+              </button>
+
+              {menuImportar && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Cerrar menú"
+                    className="fixed inset-0 z-10 cursor-default"
+                    onClick={() => setMenuImportar(false)}
+                  />
+                  <div
+                    role="menu"
+                    className="surface-panel absolute left-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl p-1.5 shadow-lg"
+                  >
+                    <OpcionDeImportacion
+                      icono={<Download size={15} />}
+                      titulo="Importar del corte"
+                      detalle="Trae los cargos que ya reportaste en el corte elegido."
+                      deshabilitado={!snapshotId || guardando}
+                      onClick={() => { setMenuImportar(false); void importarDeCorte(); }}
+                    />
+                    <OpcionDeImportacion
+                      icono={<FileSpreadsheet size={15} />}
+                      titulo="Bajar planilla"
+                      detalle="Excel armado con tu estructura de pago y el catálogo del corte."
+                      deshabilitado={!snapshotId || bajandoPlantilla}
+                      onClick={() => { setMenuImportar(false); void bajarPlantilla(); }}
+                    />
+                    <OpcionDeImportacion
+                      icono={<Upload size={15} />}
+                      titulo="Cargar planilla llena"
+                      detalle="Sube el archivo y se cargan los ocupantes con su grado."
+                      deshabilitado={importando}
+                      onClick={() => { setMenuImportar(false); archivoRef.current?.click(); }}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
             <input
               ref={archivoRef}
               type="file"
@@ -535,14 +612,11 @@ export default function MisCargosPage() {
               className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) void cargarDesdeExcel(f); }}
             />
-            <button
-              type="button"
-              onClick={() => archivoRef.current?.click()}
-              disabled={!puedeOperar || importando}
-              className="btn btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {importando ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />} Cargar desde Excel
-            </button>
+            {(guardando || importando || bajandoPlantilla) && (
+              <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Trabajando…
+              </span>
+            )}
             {cargando && <span className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…</span>}
           </div>
 
@@ -727,6 +801,28 @@ export default function MisCargosPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/*
+            El paso termina acá: la lista se guarda sola, así que lo único que
+            queda por decidir es seguir. El botón vive al pie de la pantalla y
+            no en la barra de pasos, que es para ubicarse, no para avanzar.
+          */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+            <span className="flex items-center gap-1.5 text-xs text-slate-500">
+              {cargando
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…</>
+                : <><Check className="h-3.5 w-3.5 text-teal-600" /> Lista guardada automáticamente</>}
+            </span>
+            <button
+              type="button"
+              onClick={() => { triggerNavigation(); router.push("/market-analyzer/estudio/comparacion"); }}
+              disabled={!puedeOperar || cargos.length === 0}
+              className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+              title={cargos.length === 0 ? "Carga al menos un ocupante para comparar" : ""}
+            >
+              Siguiente <ArrowRight size={16} />
+            </button>
           </div>
         </section>
       </div>
