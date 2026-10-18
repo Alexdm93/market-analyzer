@@ -26,6 +26,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
+import { CATEGORIAS, calcularDistribucion, calcularMonedaPorNivel } from "@/lib/distribucion-compensacion";
 import { getLibreRate } from "@/lib/tcr-config";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import {
@@ -278,6 +279,26 @@ export async function POST(request: Request) {
 
   const filas = construirFilas(ocupantes, nombreEmpresa, tasas, bcv, diasVac, diasUtil, config, opcionesTcr);
 
+  // La hoja de distribución mira a los ocupantes DEL INFORME, no al mercado:
+  // es el reparto de la compensación de la propia empresa, por nivel y por
+  // elemento de pago (AC Consulting, 2026-10-18).
+  const paraDistribucion = ocupantes.map((o) => ({
+    fila: o.data as ExtendedMarketPosition,
+    tasas,
+    bcv,
+  }));
+  const distribucion = calcularDistribucion(paraDistribucion).map((f) => ({
+    nivel: f.nivel.toUpperCase(),
+    valores: CATEGORIAS.map((c) => f.porcentajes[c]),
+  }));
+  const monedaPorNivel = calcularMonedaPorNivel(paraDistribucion).map((f) => ({
+    nivel: f.nivel.toUpperCase(),
+    cuentaVES: CATEGORIAS.map((c) => f.cuentaVES[c]),
+    cuentaUSD: CATEGORIAS.map((c) => f.cuentaUSD[c]),
+    pagoVES: CATEGORIAS.map((c) => f.pagoVES[c]),
+    pagoUSD: CATEGORIAS.map((c) => f.pagoUSD[c]),
+  }));
+
   // La curva de la dispersión: de ella sale el punto medio de cada banda de
   // equidad, así que se calcula una vez y se usa en los dos lados.
   const tendencia = elegirTendencia(
@@ -293,6 +314,9 @@ export async function POST(request: Request) {
     fechaInforme: mesYAnioEsp(new Date()),
     fechaData: mesYAnioEsp(snapshot?.processedAt ?? snapshot?.date ?? new Date()),
     empresasParticipantes: participantesConPerfil,
+    distribucion,
+    moneda: monedaPorNivel,
+    categoriasDistribucion: [...CATEGORIAS],
     config,
     configSimulador,
     parametros: { diasVacaciones: diasVac, diasUtilidades: diasUtil, bcv },

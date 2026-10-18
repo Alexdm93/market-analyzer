@@ -155,10 +155,15 @@ function atributosHeredados(filas: Map<number, Fila>, fila: number): string {
 }
 
 export class HojaPlantilla {
-  private cambios = new Map<string, { valor: Valor; estiloDe?: string; sinFormato?: boolean }>();
+  private cambios = new Map<string, { valor: Valor; estiloDe?: string; sinFormato?: boolean; numFmt?: number }>();
   private combinaciones: string[] | null = null;
 
-  constructor(readonly nombre: string, private xml: string) {}
+  constructor(
+    readonly nombre: string,
+    private xml: string,
+    /** Del libro: clona un estilo cambiándole el formato de número. */
+    private derivarEstilo?: (estiloBase: number, numFmtId: number) => number,
+  ) {}
 
   /**
    * Las celdas combinadas de la plantilla están atadas a su contenido de
@@ -184,6 +189,19 @@ export class HojaPlantilla {
    */
   set(ref: string, valor: Valor, estiloDe?: string): void {
     this.cambios.set(ref.toUpperCase(), { valor, estiloDe: estiloDe?.toUpperCase() });
+  }
+
+  /**
+   * Escribe el valor cambiándole a la celda SOLO el formato de número.
+   *
+   * El resto del estilo —fuente, bordes, relleno, el candado de fórmulas— se
+   * conserva, porque la celda ya viene formateada de la plantilla y lo único
+   * que no puede estar fijo ahí es la moneda: el mismo bloque de columnas
+   * lleva montos en bolívares y en dólares según lo que declaró la empresa
+   * (AC Consulting, 2026-10-18).
+   */
+  setConFormato(ref: string, valor: Valor, numFmtId: number): void {
+    this.cambios.set(ref.toUpperCase(), { valor, numFmt: numFmtId });
   }
 
   /**
@@ -227,7 +245,7 @@ export class HojaPlantilla {
       }
     }
 
-    for (const [ref, { valor, estiloDe, sinFormato }] of ordenados) {
+    for (const [ref, { valor, estiloDe, sinFormato, numFmt }] of ordenados) {
       const { fila: numero } = partesRef(ref);
       const { columna } = partesRef(ref);
       // Vaciar una celda que la plantilla no trae no es nada: crearla solo
@@ -247,6 +265,12 @@ export class HojaPlantilla {
         atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "") + ` s="${copiado}"`;
       } else if (sinFormato) {
         atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "");
+      }
+
+      if (numFmt !== undefined && this.derivarEstilo) {
+        const base = Number(/\bs="(\d+)"/.exec(atributosPrevios)?.[1] ?? 0);
+        const derivado = this.derivarEstilo(base, numFmt);
+        atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "") + ` s="${derivado}"`;
       }
 
       const xmlCelda = escribirCelda(ref, atributosPrevios, valor);
@@ -279,11 +303,23 @@ export class HojaPlantilla {
   }
 }
 
+/** Los `<xf>` de un bloque de estilos, enteros. */
+function leerXfs(bloque: string): string[] {
+  // La alternativa importa: `<xf ...>` con hijos termina en `</xf>`, y un
+  // patrón perezoso que acepte `/>` corta en el primer `<alignment/>` y deja
+  // styles.xml partido. Eso ya rompió los informes una vez.
+  return bloque.match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g) ?? [];
+}
+
 export class LibroPlantilla {
   private hojas = new Map<string, HojaPlantilla>();
   private rutaDeHoja = new Map<string, string>();
   /** Las hojas en el orden del libro, con repetidas y todo. */
   private rutasEnOrden: string[] = [];
+  /** `estiloBase|numFmtId` -> índice del clon, para no repetirlos. */
+  private estilosDerivados = new Map<string, number>();
+  /** Los `<xf>` de cellXfs, cargados la primera vez que hace falta clonar. */
+  private cellXfs: string[] | null = null;
 
   private constructor(private entradas: EntradaZip[]) {}
 
@@ -341,9 +377,54 @@ export class LibroPlantilla {
     const ruta = this.rutaDeHoja.get(nombre);
     if (!ruta || !this.buscar(ruta)) return undefined;
 
-    const hoja = new HojaPlantilla(nombre, this.texto(ruta));
+    const hoja = new HojaPlantilla(nombre, this.texto(ruta), (base, numFmtId) =>
+      this.estiloConFormato(base, numFmtId));
     this.hojas.set(nombre, hoja);
     return hoja;
+  }
+
+  /**
+   * El índice de un estilo igual al base pero con otro formato de número.
+   *
+   * Se clona el `<xf>` entero y solo se le cambia `numFmtId`, así que el clon
+   * hereda fuente, bordes, alineación y la protección que esconde las
+   * fórmulas. Si ya se pidió ese par, se devuelve el mismo índice.
+   */
+  private estiloConFormato(estiloBase: number, numFmtId: number): number {
+    const clave = `${estiloBase}|${numFmtId}`;
+    const ya = this.estilosDerivados.get(clave);
+    if (ya !== undefined) return ya;
+
+    if (!this.cellXfs) {
+      const bloque = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(this.texto("xl/styles.xml"));
+      this.cellXfs = bloque ? leerXfs(bloque[1]) : [];
+    }
+
+    const original = this.cellXfs[estiloBase];
+    // Sin estilo base del que partir no hay nada que clonar: se deja como está
+    // antes que inventar un formato que no case con la hoja.
+    if (!original) return estiloBase;
+
+    const clon = (/\bnumFmtId="\d+"/.test(original)
+      ? original.replace(/\bnumFmtId="\d+"/, `numFmtId="${numFmtId}"`)
+      : original.replace(/^<xf\b/, `<xf numFmtId="${numFmtId}"`))
+      .replace(/\s*\bapplyNumberFormat="\d"/, "")
+      .replace(/^<xf\b/, `<xf applyNumberFormat="1"`);
+
+    const indice = this.cellXfs.length;
+    this.cellXfs.push(clon);
+    this.estilosDerivados.set(clave, indice);
+    return indice;
+  }
+
+  /** Vuelca a styles.xml los estilos que se clonaron al escribir. */
+  private guardarEstilos(): void {
+    if (!this.cellXfs || this.estilosDerivados.size === 0) return;
+    const xml = this.texto("xl/styles.xml");
+    const m = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml);
+    if (!m) return;
+    const nuevo = `<cellXfs count="${this.cellXfs.length}">${this.cellXfs.join("")}</cellXfs>`;
+    this.reemplazar("xl/styles.xml", xml.replace(m[0], nuevo));
   }
 
   /**
@@ -362,6 +443,37 @@ export class LibroPlantilla {
       if (!xml.includes(de)) continue;
       this.reemplazar(entrada.nombre, xml.replace(/<a:t>([^<]*)<\/a:t>/g, (todo, texto: string) =>
         texto.includes(de) ? `<a:t>${texto.split(de).join(destino)}</a:t>` : todo));
+    }
+  }
+
+  /**
+   * Cambia el modelo de la línea de tendencia de los gráficos del libro.
+   *
+   * La curva la elige el sistema mirando cuál ajusta mejor, pero el gráfico
+   * traía el modelo fijo en la plantilla: la ecuación impresa arriba de la
+   * hoja y la que Excel dibujaba dentro del gráfico no eran la misma
+   * (AC Consulting, 2026-10-18). Acá se le escribe al gráfico la que ganó.
+   *
+   * `orden` solo aplica al polinomio; en los demás modelos Excel rechaza el
+   * elemento, así que se quita.
+   */
+  ajustarLineaDeTendencia(tipo: "exp" | "log" | "poly" | "power", orden?: number): void {
+    for (const entrada of [...this.entradas]) {
+      if (!entrada.nombre.startsWith("xl/charts/chart") || !entrada.nombre.endsWith(".xml")) continue;
+      const xml = contenido(entrada).toString("utf8");
+      if (!xml.includes("<c:trendline>")) continue;
+
+      const nuevo = xml.replace(/<c:trendline>[\s\S]*?<\/c:trendline>/g, (bloque) => {
+        // El orden de los hijos lo fija el esquema: `c:order` va justo
+        // después de `c:trendlineType`.
+        const sinOrden = bloque.replace(/<c:order\b[^>]*\/>/g, "");
+        return sinOrden.replace(
+          /<c:trendlineType\b[^>]*\/>/,
+          `<c:trendlineType val="${tipo}"/>`
+            + (tipo === "poly" && orden ? `<c:order val="${orden}"/>` : ""),
+        );
+      });
+      this.reemplazar(entrada.nombre, nuevo);
     }
   }
 
@@ -388,6 +500,8 @@ export class LibroPlantilla {
       const ruta = this.rutaDeHoja.get(nombre)!;
       this.reemplazar(ruta, hoja.aplicar());
     }
+    // Después de las hojas: es al aplicarlas cuando se piden los clones.
+    this.guardarEstilos();
 
     // La cadena de cálculo puede quedar apuntando a celdas que ahora son
     // literales; Excel la reconstruye sola si no está.

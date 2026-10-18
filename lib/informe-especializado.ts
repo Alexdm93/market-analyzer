@@ -22,7 +22,12 @@
 import path from "node:path";
 
 import { type DataEmpresa } from "@/lib/data-empresa";
-import { type Tendencia } from "@/lib/tendencia-compensacion";
+import { type Tendencia, type TipoTendencia } from "@/lib/tendencia-compensacion";
+import {
+  escribirDistribucion,
+  type FilaDistribucionInforme,
+  type FilaMonedaInforme,
+} from "@/lib/informe-hojas-comunes";
 import { LibroPlantilla, type HojaPlantilla } from "@/lib/xlsx-plantilla";
 
 import {
@@ -55,6 +60,28 @@ export const HOJAS = {
   distribucion: "Distribución de Compensación",
 } as const;
 
+/** Cómo llama Excel a cada uno de los cuatro modelos de tendencia. */
+const MODELO_EXCEL: Record<TipoTendencia, "exp" | "log" | "poly" | "power"> = {
+  exponencial: "exp",
+  logaritmica: "log",
+  polinomica: "poly",
+  potencial: "power",
+};
+
+/**
+ * Los formatos contables que ya trae la plantilla, por moneda de cuenta.
+ *
+ * Las celdas de monto vienen con el de bolívares fijo, pero el mismo bloque de
+ * columnas lleva montos en las dos monedas según lo que declaró la empresa, así
+ * que el formato se decide fila por fila (AC Consulting, 2026-10-18). Los dos
+ * ids viven en el `<numFmts>` de las dos plantillas; si alguna vez se rehacen
+ * desde cero, hay que volver a mirarlos.
+ */
+const FORMATO_POR_MONEDA: Record<string, number> = {
+  "Bolívares": 165,
+  "Dólares": 170,
+};
+
 /** Primera fila de datos de cada hoja, tomadas de las plantillas reales. */
 const PRIMERA_FILA = {
   empresas: 33,
@@ -71,6 +98,7 @@ const PRIMERA_FILA = {
 const ULTIMA_FILA = {
   empresas: 620,
   analisis: 1010,
+  simulador: 1014,
   dataEmpresa: 1048,
   mercado: 215,
 } as const;
@@ -178,6 +206,15 @@ export type DatosEspecializado = {
   competitividad: FilaCompetitividad[];
   mapaCalor: FilaMapaCalor[];
   simulador: FilaSimulador[];
+  /**
+   * La distribución de compensación de los ocupantes DEL INFORME, no del
+   * mercado: la hoja la pidió AC Consulting "con la data de la selección"
+   * (2026-10-18). El cuadro es el mismo que el del informe de cortesía, así
+   * que lo escribe la misma función.
+   */
+  distribucion: FilaDistribucionInforme[];
+  moneda: FilaMonedaInforme[];
+  categoriasDistribucion: string[];
   mercadoPorGrado: Map<number, PercentilesGrado>;
   mercadoPorCargo: MercadoPorCargo[];
   mapeo: CargoMapeado[];
@@ -367,6 +404,16 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
     // punto medio de las bandas de equidad.
     set(disp, "I10", datos.tendencia?.formula ?? null);
     set(disp, "I11", datos.tendencia ? Number(datos.tendencia.r2.toFixed(4)) : null);
+
+    // Y la misma curva dentro del gráfico: la plantilla traía un polinomio
+    // fijo, así que la ecuación impresa y la dibujada no coincidían.
+    if (datos.tendencia) {
+      const { tipo, coeficientes } = datos.tendencia;
+      wb.ajustarLineaDeTendencia(
+        MODELO_EXCEL[tipo],
+        tipo === "polinomica" ? coeficientes.length - 1 : undefined,
+      );
+    }
   }
 
   // ── Equidad interna ──
@@ -435,8 +482,10 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
   }
 
   // ── Simulador de ajuste salarial ──
-  // Solo su configuración: las columnas las resuelven las fórmulas de la hoja
-  // o las llena el cliente a mano (AC Consulting, 2026-10-14).
+  // Su configuración y la identificación de cada ocupante. El resto de la hoja
+  // —mercado, compa-ratio, índices y el ajuste propuesto— lo resuelven sus
+  // fórmulas a partir de estas columnas; lo único que queda al cliente es la
+  // calificación de desempeño, que no capturamos (AC Consulting, 2026-10-18).
   const sim = wb.hoja(HOJAS.simulador);
   if (sim) {
     set(sim, "B5", metrica);
@@ -444,7 +493,13 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
     set(sim, "B8", datos.configSimulador.variacionGeneral);
     set(sim, "B9", datos.configSimulador.variacionMaxima);
     set(sim, "B10", datos.config.incluirComisiones ? "Sí" : "No");
+
+    datos.simulador.forEach((f, i) => setFila(sim, PRIMERA_FILA.simulador + i, identidad(f)));
+    limpiarHasta(sim, PRIMERA_FILA.simulador + datos.simulador.length, ULTIMA_FILA.simulador, colsId);
   }
+
+  // ── Distribución de compensación ──
+  escribirDistribucion(wb, datos.categoriasDistribucion, datos.distribucion, datos.moneda);
 
   // ── Mapeo de cargos ──
   const mapeo = wb.hoja(HOJAS.mapeo);
@@ -490,8 +545,15 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
         celda: { monto: number | null; cuenta: string | null; pago: string | null; impacto: string | null; frecuencia: string | null },
         desde: number,
       ) => {
+        // El monto va aparte de los demás: su símbolo lo manda la moneda de
+        // cuenta de ESA fila, no el formato que la plantilla trae puesto.
+        const formato = celda.cuenta ? FORMATO_POR_MONEDA[celda.cuenta] : undefined;
+        if (celda.monto !== null && formato !== undefined) {
+          dataEmpresa.setConFormato(`${COLS[desde]}${fila}`, celda.monto, formato);
+        } else {
+          dataEmpresa.set(`${COLS[desde]}${fila}`, celda.monto);
+        }
         setFila(dataEmpresa, fila, [
-          [COLS[desde], celda.monto],
           [COLS[desde + 1], celda.cuenta],
           [COLS[desde + 2], celda.pago],
           [COLS[desde + 3], celda.impacto],
