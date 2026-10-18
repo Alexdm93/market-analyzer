@@ -506,7 +506,13 @@ export default function MisCargosPage() {
         </section>
 
         {/* ── Controles ─────────────────────────────────────────────────── */}
-        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+        {/*
+          `relative z-30`: todo .surface-panel lleva backdrop-filter, que crea
+          contexto de apilamiento propio, así que el menú de importación —por
+          alto que sea su z-index— queda encerrado en el de esta sección y la
+          tarjeta de abajo, que viene después en el DOM, lo tapaba.
+        */}
+        <section className="surface-panel relative z-30 rounded-[2rem] p-6 md:p-8">
           <div className="grid gap-4 md:grid-cols-2">
             {esAdmin && (
               <div>
@@ -577,7 +583,7 @@ export default function MisCargosPage() {
                   />
                   <div
                     role="menu"
-                    className="surface-panel absolute left-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl p-1.5 shadow-lg"
+                    className="surface-card absolute left-0 z-20 mt-2 w-72 max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-2xl p-1.5"
                   >
                     <OpcionDeImportacion
                       icono={<Download size={15} />}
