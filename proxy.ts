@@ -11,11 +11,11 @@ const protectedPages = new Set([
   `${BASE}/inicio`, `${BASE}/dashboard`, `${BASE}/data`, `${BASE}/estudio`,
   `${BASE}/estudios`, `${BASE}/informacion`, `${BASE}/empresas`, `${BASE}/resultados`,
   `${BASE}/valoracion`, `${BASE}/admin`, `${BASE}/admin/anuncios`,
-  `${BASE}/admin/estudio-especializado`, `${BASE}/admin/telemetry`,
+  `${BASE}/admin/estudio-competitividad`, `${BASE}/admin/telemetry`,
 ]);
 const adminPages = new Set([
   `${BASE}/admin`, `${BASE}/admin/anuncios`,
-  `${BASE}/admin/estudio-especializado`, `${BASE}/admin/telemetry`,
+  `${BASE}/admin/estudio-competitividad`, `${BASE}/admin/telemetry`,
   `${BASE}/register`,
 ]);
 const empresasPages = new Set([`${BASE}/empresas`]);

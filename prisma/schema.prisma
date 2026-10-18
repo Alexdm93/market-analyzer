@@ -58,7 +58,7 @@ model Company {
   solicitudesInforme   SolicitudInforme[]
   auditoriasSuavizado  AuditoriaSuavizado[]
   /// Informe General de Tendencias Salariales: se habilita y se elige qué
-  /// cortes puede descargar, igual que el Estudio Especializado.
+  /// cortes puede descargar, igual que el Estudio de Competitividad.
   generalEnabled       Boolean               @default(false)
   generalSnapshotIds   String                @default("[]")
   /// Qué informes de beneficios no salariales tiene autorizados. Son globales,
@@ -251,9 +251,9 @@ model Announcement {
   updatedAt   DateTime  @updatedAt
 }
 
-/// Un ocupante de la lista propia de una empresa para el Estudio Especializado.
+/// Un ocupante de la lista propia de una empresa para el Estudio de Competitividad.
 ///
-/// La fila es la PERSONA, no el cargo: en el estudio especializado una empresa
+/// La fila es la PERSONA, no el cargo: en el estudio de competitividad una empresa
 /// puede tener tres analistas con sueldos distintos, y el Análisis de Equidad
 /// Interna existe justamente para compararlos entre sí. En el estudio de
 /// mercado eso no pasa — ahí va un cargo por empresa, y de eso se encarga
@@ -269,7 +269,7 @@ model EstudioCargo {
   departamento     String   @default("")
   tituloCargo      String
   descripcion      String   @default("")
-  /// A qué cargo reporta. Lo pide el informe especializado para armar el mapeo
+  /// A qué cargo reporta. Lo pide el informe de competitividad para armar el mapeo
   /// de cargos; solo aplica a este estudio, no a la captura del mercado.
   reportaA         String   @default("")
   hayGrade         Int?

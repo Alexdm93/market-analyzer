@@ -3,7 +3,7 @@
  *
  * Dos cosas distintas que se configuran en la misma pantalla:
  *  - el informe general se habilita por empresa y por corte, igual que el
- *    Estudio Especializado;
+ *    Estudio de Competitividad;
  *  - el informe de beneficios no salariales es global y no depende del corte:
  *    se elige cuál de los PDF cargados tiene autorizado bajar cada empresa.
  */

@@ -1,5 +1,5 @@
 /**
- * El mercado de un corte para el Estudio Especializado.
+ * El mercado de un corte para el Estudio de Competitividad.
  *
  * Existe aparte de `/api/percentiles` porque las dos pantallas tienen reglas
  * de acceso distintas. Esa ruta es la del estudio de cortesía: exige que el

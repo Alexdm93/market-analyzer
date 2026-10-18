@@ -229,7 +229,7 @@ export default function ComparacionPage() {
       setCargos(data?.cargos ?? []);
       if (workspace) setCompanyInfo(workspace.companyInfo);
       // Los cortes salen de la API, no del workspace: son solo los que el
-      // admin incluyó en el Estudio Especializado de esta empresa.
+      // admin incluyó en el Estudio de Competitividad de esta empresa.
       if (!esAdmin) {
         const resCortes = await fetch("/api/estudio/cortes", { cache: "no-store" }).catch(() => null);
         const cortes = (await resCortes?.json().catch(() => null)) as { cortes?: SnapshotOption[] } | null;
@@ -559,7 +559,7 @@ export default function ComparacionPage() {
       // El mercado ya no se pide acá: lo calcula la ruta del informe con la
       // misma fuente que alimenta esta pantalla. Mandarlo desde el navegador
       // abría la puerta a que el Excel dijera algo distinto de lo que se ve.
-      const res = await fetch("/api/estudio/informe-especializado", {
+      const res = await fetch("/api/estudio/informe-competitividad", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -584,7 +584,7 @@ export default function ComparacionPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "Informe especializado.xlsx";
+      a.download = "Informe de competitividad.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -613,7 +613,7 @@ export default function ComparacionPage() {
       <main className="page-wrap">
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <h1 className="dashboard-title font-display font-bold text-slate-900">Comparación.</h1>
-          <p className="dashboard-lead mt-3 text-slate-600">Tu empresa no tiene el Estudio Especializado habilitado.</p>
+          <p className="dashboard-lead mt-3 text-slate-600">Tu empresa no tiene el Estudio de Competitividad habilitado.</p>
         </section>
       </main>
     );
@@ -632,7 +632,7 @@ export default function ComparacionPage() {
           onSubPaso={(n) => setPaso(n as 1 | 2 | 3)}
         />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="eyebrow mb-3">Estudio Especializado</div>
+          <div className="eyebrow mb-3">Estudio de Competitividad</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Comparación.</h1>
           <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
             Tus cargos contra el mercado del estudio, por cargo homologado o por grado.

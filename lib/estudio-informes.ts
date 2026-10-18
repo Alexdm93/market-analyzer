@@ -1,5 +1,5 @@
 /**
- * Informes del Estudio Especializado.
+ * Informes del Estudio de Competitividad.
  *
  * Un informe es una FOTO CONGELADA. Guarda los números tal como se le mostraron
  * al cliente en el momento de generarlo, no referencias a los cargos: si

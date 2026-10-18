@@ -412,7 +412,7 @@ export default function MisCargosPage() {
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <h1 className="dashboard-title font-display font-bold text-slate-900">Mis cargos.</h1>
           <p className="dashboard-lead mt-3 text-slate-600">
-            Tu empresa no tiene el Estudio Especializado habilitado.
+            Tu empresa no tiene el Estudio de Competitividad habilitado.
           </p>
         </section>
       </main>
@@ -424,7 +424,7 @@ export default function MisCargosPage() {
       <div className="flex w-full flex-col gap-6">
         <PasosEstudio />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="eyebrow mb-3">Estudio Especializado</div>
+          <div className="eyebrow mb-3">Estudio de Competitividad</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Mis cargos.</h1>
           <p className="dashboard-lead mt-3 max-w-2xl text-slate-600">
             Tu lista de cargos, con tus propios nombres. Es independiente de la data que reportas al mercado y se

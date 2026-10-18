@@ -417,7 +417,7 @@ export function parseTasasSheet(
  * Lee el grado CAPRI y su familia, con los avisos del caso.
  *
  * Vive aparte porque lo necesitan los dos importadores: el de la captura de
- * mercado y el de los ocupantes del Estudio Especializado.
+ * mercado y el de los ocupantes del Estudio de Competitividad.
  */
 export function aplicarGrado(
   registro: Record<string, unknown>,

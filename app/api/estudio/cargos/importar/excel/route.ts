@@ -1,5 +1,5 @@
 /**
- * Alta masiva de ocupantes del Estudio Especializado.
+ * Alta masiva de ocupantes del Estudio de Competitividad.
  *
  * El archivo lo lee el navegador —ahí ya está la librería de Excel— y acá
  * llegan las filas ya interpretadas. El servidor vuelve a validarlas de todos

@@ -3,7 +3,7 @@
 /**
  * Control de calidad del mercado.
  *
- * Cada informe del Estudio Especializado deja la foto de su matriz: la cruda
+ * Cada informe del Estudio de Competitividad deja la foto de su matriz: la cruda
  * que llegó del corte y la suavizada que vio el cliente. Acá se buscan y se
  * baja el Excel de control, que las enfrenta y muestra qué tocó el algoritmo.
  */

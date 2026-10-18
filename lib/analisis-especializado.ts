@@ -1,5 +1,5 @@
 /**
- * Cálculos del informe del Estudio Especializado.
+ * Cálculos del informe del Estudio de Competitividad.
  *
  * Los cuatro análisis (dispersión, equidad interna, competitividad y mapa de
  * calor) salen de la misma base: la compensación de cada ocupante bajo un

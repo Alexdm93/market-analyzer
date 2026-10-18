@@ -8,7 +8,7 @@ import type { ExchangeRate } from "@/lib/workspace";
 import type { CompensationConcept, ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
 
 /**
- * Editor de la estructura de compensación de un cargo del Estudio Especializado.
+ * Editor de la estructura de compensación de un cargo del Estudio de Competitividad.
  *
  * Trabaja sobre la MISMA forma de datos que la pantalla de Data
  * (`ExtendedMarketPosition`), para que el cálculo de totales y el resto del

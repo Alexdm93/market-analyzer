@@ -106,7 +106,7 @@ export default function InformesPage() {
       <main className="page-wrap">
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <h1 className="dashboard-title font-display font-bold text-slate-900">Historial.</h1>
-          <p className="dashboard-lead mt-3 text-slate-600">Tu empresa no tiene el Estudio Especializado habilitado.</p>
+          <p className="dashboard-lead mt-3 text-slate-600">Tu empresa no tiene el Estudio de Competitividad habilitado.</p>
         </section>
       </main>
     );
@@ -135,7 +135,7 @@ export default function InformesPage() {
     setBajando(true);
     setError("");
     try {
-      const res = await fetch("/api/estudio/informe-especializado", {
+      const res = await fetch("/api/estudio/informe-competitividad", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -317,7 +317,7 @@ export default function InformesPage() {
       <div className="flex w-full flex-col gap-6">
         <PasosEstudio />
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <div className="eyebrow mb-3">Estudio Especializado</div>
+          <div className="eyebrow mb-3">Estudio de Competitividad</div>
           <h1 className="dashboard-title font-display font-bold tracking-tight text-slate-900">Historial.</h1>
         </section>
 

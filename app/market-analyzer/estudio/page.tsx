@@ -224,7 +224,7 @@ export default function EstudioPage() {
 
   // Esta pantalla quedó solo para el admin: es su consola de procesamiento.
   // Lo que veía acá la empresa —posicionamiento por grado— era la forma
-  // anterior de armar los cortes del Estudio Especializado, y se retiró del
+  // anterior de armar los cortes del Estudio de Competitividad, y se retiró del
   // menú (AC Consulting, 2026-10-14). Quien llegue por un enlace viejo va a
   // donde corresponde.
   useEffect(() => {

@@ -1,5 +1,5 @@
 /**
- * Carga de ocupantes del Estudio Especializado desde Excel.
+ * Carga de ocupantes del Estudio de Competitividad desde Excel.
  *
  * Hasta ahora la lista de "Mis cargos" solo se podía llenar a mano, uno por
  * uno. Para una empresa de doscientas personas eso no es una opción, y el CEO
@@ -36,7 +36,7 @@ import type { ExtendedMarketPosition } from "@/types/salary";
 
 export const HOJA_OCUPANTES = "Ocupantes";
 
-/** Las columnas propias del Estudio Especializado. */
+/** Las columnas propias del Estudio de Competitividad. */
 export const COL_OCUPANTE = "Ocupante / ID";
 export const COL_REPORTA = "A quién reporta";
 export const COL_UNIDAD = "Unidad funcional";
@@ -166,7 +166,7 @@ export function plantillaOcupantes(): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
 
   const instrucciones = [
-    ["Carga de ocupantes — Estudio Especializado"],
+    ["Carga de ocupantes — Estudio de Competitividad"],
     [],
     ["Una fila por PERSONA, no por cargo: si tres personas tienen el mismo título, van tres filas."],
     ["El identificador de ocupante es opcional, pero si lo usas no puede repetirse."],

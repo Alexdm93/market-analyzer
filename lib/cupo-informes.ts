@@ -1,5 +1,5 @@
 /**
- * El cupo de informes del Estudio Especializado.
+ * El cupo de informes del Estudio de Competitividad.
  *
  * Lo que el cupo limita no son las descargas: es **cuántos cortes de data
  * distintos** puede configurar una empresa dentro de un estudio. Si configuró

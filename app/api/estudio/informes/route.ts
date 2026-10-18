@@ -1,5 +1,5 @@
 /**
- * Informes guardados del Estudio Especializado.
+ * Informes guardados del Estudio de Competitividad.
  *
  * El cliente genera los que quiera, eligiendo qué cargos entran, y los va
  * guardando y borrando: es self-service. Cada informe queda congelado.

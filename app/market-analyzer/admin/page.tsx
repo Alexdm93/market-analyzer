@@ -24,9 +24,9 @@ const adminActions = [
     icon: Activity,
   },
   {
-    title: "Estudio Especializado",
-    description: "Habilita o deshabilita el acceso al Estudio Especializado por empresa.",
-    href: "/market-analyzer/admin/estudio-especializado",
+    title: "Estudio de Competitividad",
+    description: "Habilita o deshabilita el acceso al Estudio de Competitividad por empresa.",
+    href: "/market-analyzer/admin/estudio-competitividad",
     icon: BookOpen,
   },
   {

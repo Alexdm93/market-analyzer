@@ -1,5 +1,5 @@
 /**
- * Informe del Estudio Especializado de una empresa.
+ * Informe del Estudio de Competitividad de una empresa.
  *
  * Los percentiles de mercado por grado los manda quien llama, sacados de
  * `/api/percentiles-by-grade`, por la misma razón que en el resto: esa es la
@@ -356,7 +356,7 @@ export async function POST(request: Request) {
     // Sin auditoría, pero con informe.
   }
 
-  const nombre = `Informe especializado - ${nombreEmpresa} - ${snapshot?.label ?? snapshotId}.xlsx`;
+  const nombre = `Informe de competitividad - ${nombreEmpresa} - ${snapshot?.label ?? snapshotId}.xlsx`;
 
   return new Response(new Uint8Array(buffer), {
     headers: {

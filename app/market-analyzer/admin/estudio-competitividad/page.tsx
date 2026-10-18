@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { BookOpen, Building2, CalendarDays, RefreshCw, X } from "lucide-react";
-import type { EstudioCompany, GlobalSnapshot } from "@/app/api/admin/estudio-especializado/route";
+import type { EstudioCompany, GlobalSnapshot } from "@/app/api/admin/estudio-competitividad/route";
 import type { SolicitudInformeDto } from "@/app/api/estudio/solicitudes-informe/route";
 
 type ModalState = {
@@ -35,7 +35,7 @@ export default function EstudioEspecializadoPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/estudio-especializado");
+      const res = await fetch("/api/admin/estudio-competitividad");
       if (res.ok) {
         const json = (await res.json()) as { companies: EstudioCompany[]; snapshots: GlobalSnapshot[] };
         setCompanies(json.companies);
@@ -76,7 +76,7 @@ export default function EstudioEspecializadoPage() {
     setModal(null);
     setSaving(company.id);
     try {
-      await fetch("/api/admin/estudio-especializado", {
+      await fetch("/api/admin/estudio-competitividad", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,7 +113,7 @@ export default function EstudioEspecializadoPage() {
   async function guardarCupo(company: EstudioCompany, snapshotId: string, valor: number) {
     setSaving(company.id);
     try {
-      await fetch("/api/admin/estudio-especializado", {
+      await fetch("/api/admin/estudio-competitividad", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId: company.id, cupo: { snapshotId, valor } }),
@@ -129,7 +129,7 @@ export default function EstudioEspecializadoPage() {
   async function disable(company: EstudioCompany) {
     setSaving(company.id);
     try {
-      await fetch("/api/admin/estudio-especializado", {
+      await fetch("/api/admin/estudio-competitividad", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyId: company.id, enabled: false, snapshotIds: [] }),
@@ -156,10 +156,10 @@ export default function EstudioEspecializadoPage() {
             <div>
               <div className="eyebrow mb-1.5">Admin · Accesos</div>
               <h1 className="font-display text-[1.2rem] font-bold tracking-tight text-slate-900 md:text-[1.35rem]">
-                Estudio Especializado
+                Estudio de Competitividad
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Habilita el acceso al Estudio Especializado por empresa y selecciona los cortes disponibles.
+                Habilita el acceso al Estudio de Competitividad por empresa y selecciona los cortes disponibles.
               </p>
             </div>
             <button type="button" onClick={() => void load()} disabled={loading} className="btn btn-secondary flex items-center gap-1.5">

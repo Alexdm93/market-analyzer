@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Lo que el Estudio Especializado arrastra de un paso al siguiente: la empresa
+ * Lo que el Estudio de Competitividad arrastra de un paso al siguiente: la empresa
  * sobre la que se trabaja y el corte contra el que se compara.
  *
  * Vive en el layout de `/estudio`, que no se desmonta al pasar de "Mis cargos"

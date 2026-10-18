@@ -43,7 +43,7 @@ const estudiosItem: MenuItem = { name: "Estudios", href: `${BASE}/estudios`, ico
  * "Procesamiento de data de mercado".
  *
  * La empresa ya no la ve: lo que había ahí era posicionamiento por grado, la
- * forma anterior de armar los cortes del Estudio Especializado, y tenerla
+ * forma anterior de armar los cortes del Estudio de Competitividad, y tenerla
  * junto al recorrido nuevo confundía.
  */
 const procesamientoItem: MenuItem = {
@@ -61,7 +61,7 @@ const informeGeneralItem: MenuItem = {
 };
 
 const especializadoItem: MenuItem = {
-  name: "Estudio especializado",
+  name: "Estudio de Competitividad",
   href: `${BASE}/estudio/cargos`,
   icon: ListChecks,
   hint: "Cargos, comparación e historial",

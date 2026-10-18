@@ -1,5 +1,5 @@
 /**
- * La hoja "Data Empresa" del informe especializado: la nómina del cliente con
+ * La hoja "Data Empresa" del informe de competitividad: la nómina del cliente con
  * el desglose de cada elemento de pago.
  *
  * Los bloques de columnas no son fijos. Antes la plantilla tenía una columna

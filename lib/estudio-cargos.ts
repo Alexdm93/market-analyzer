@@ -1,5 +1,5 @@
 /**
- * Lista de ocupantes de una empresa para el Estudio Especializado.
+ * Lista de ocupantes de una empresa para el Estudio de Competitividad.
  *
  * La fila es la PERSONA, no el cargo: una empresa puede tener tres analistas
  * con sueldos distintos, y el Análisis de Equidad Interna existe para
@@ -46,7 +46,7 @@ type Acceso =
  *
  * El admin puede operar en nombre de cualquier empresa pasando `companyId`,
  * igual que ya hace la pantalla de Data. Una empresa solo puede tocar la suya,
- * y solo si tiene el Estudio Especializado habilitado.
+ * y solo si tiene el Estudio de Competitividad habilitado.
  */
 export function resolverAcceso(session: Session | null, companyIdPedido: string): Acceso {
   const userId = session?.user?.id;
@@ -70,7 +70,7 @@ export function resolverAcceso(session: Session | null, companyIdPedido: string)
   if (!session.user.estudioEnabled) {
     return {
       ok: false,
-      response: Response.json({ message: "Tu empresa no tiene el Estudio Especializado habilitado." }, { status: 403 }),
+      response: Response.json({ message: "Tu empresa no tiene el Estudio de Competitividad habilitado." }, { status: 403 }),
     };
   }
 
@@ -130,7 +130,7 @@ export async function asegurarCorte(
   const permitidos = await cortesPermitidos(acceso.companyId);
   if (permitidos.includes(snapshotId)) return null;
   return Response.json(
-    { message: "Ese estudio no está incluido en tu Estudio Especializado." },
+    { message: "Ese estudio no está incluido en tu Estudio de Competitividad." },
     { status: 403 },
   );
 }
@@ -230,7 +230,7 @@ export function validarCargo(entrada: EntradaCargo): Validacion {
 /**
  * El identificador de ocupante, si se usa, no puede repetirse dentro de la
  * empresa. El título del cargo SÍ puede repetirse: son personas distintas en el
- * mismo cargo, que es exactamente lo que el estudio especializado necesita ver.
+ * mismo cargo, que es exactamente lo que el estudio de competitividad necesita ver.
  */
 export async function ocupanteYaExiste(companyId: string, ocupanteId: string, excluirId?: string): Promise<boolean> {
   const limpio = ocupanteId.trim();

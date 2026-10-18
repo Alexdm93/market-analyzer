@@ -1,5 +1,5 @@
 /**
- * Los cortes que la empresa puede usar en el Estudio Especializado.
+ * Los cortes que la empresa puede usar en el Estudio de Competitividad.
  *
  * Son los que el admin le incluyó en el estudio contratado, y nada más. Antes
  * se exigía además haber participado en el corte, pero AC Consulting pidió que

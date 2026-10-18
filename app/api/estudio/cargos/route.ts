@@ -1,5 +1,5 @@
 /**
- * Lista de cargos propia de la empresa para el Estudio Especializado.
+ * Lista de cargos propia de la empresa para el Estudio de Competitividad.
  *
  * La empresa maneja la suya; el admin puede operar en nombre de cualquiera
  * pasando `companyId`, igual que ya hace la pantalla de Data.

@@ -33,7 +33,7 @@ export function tamanoDeEmpresa(headcount: string | undefined): "pequeña" | "me
 
 /**
  * El mínimo de empresas que tiene que tener el grupo de comparación del
- * Estudio Especializado.
+ * Estudio de Competitividad.
  *
  * Con menos, el cliente estaría mirando el sueldo de un puñado de empresas
  * identificables. AC Consulting lo fijó en doce (2026-10-14) y no importa cómo

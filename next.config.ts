@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/estudio/informe-cortesia": ["./templates/**"],
     "/api/estudio/informe-general": ["./templates/**"],
-    "/api/estudio/informe-especializado": ["./templates/**"],
+    "/api/estudio/informe-competitividad": ["./templates/**"],
   },
 
   async headers() {

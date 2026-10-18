@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * El recorrido del Estudio Especializado.
+ * El recorrido del Estudio de Competitividad.
  *
  * El trabajo son dos pasos con orden: cargar los ocupantes y contrastarlos con
  * el mercado. El Historial no es un paso — es donde quedan guardados los
@@ -43,7 +43,7 @@ export function PasosEstudio({
 
   return (
     <nav
-      aria-label="Recorrido del Estudio Especializado"
+      aria-label="Recorrido del Estudio de Competitividad"
       className="surface-panel flex flex-wrap items-center gap-1 rounded-[1.5rem] p-2"
     >
       {PASOS.map((paso, i) => {

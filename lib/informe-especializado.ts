@@ -1,5 +1,5 @@
 /**
- * Informe del Estudio Especializado: rellena la plantilla del cliente.
+ * Informe del Estudio de Competitividad: rellena la plantilla del cliente.
  *
  * Son **dos** informes, no uno. AC Consulting partió la plantilla según contra
  * qué se compara (2026-10-14):
