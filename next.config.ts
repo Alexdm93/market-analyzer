@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
     "/api/estudio/informe-cortesia": ["./templates/**"],
     "/api/estudio/informe-general": ["./templates/**"],
     "/api/estudio/informe-competitividad": ["./templates/**"],
+    // pdfkit lee del disco las métricas de las fuentes estándar. Como las
+    // abre en tiempo de ejecución y nadie las importa, el rastreo tampoco las
+    // ve y el PDF saldría sin texto al desplegar.
+    "/api/radar/pdf": ["./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/data/**"],
   },
 
   async headers() {

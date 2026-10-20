@@ -12,7 +12,7 @@
  * habilitado, que la ficha de la empresa y el contacto de RR.HH. estén
  * completos, y que quede cupo en el trimestre (AC Consulting, 2026-10-20).
  */
-import { AlertTriangle, ArrowRight, Layers, Loader2, Radar as RadarIcon, Search } from "lucide-react";
+import { AlertTriangle, ArrowRight, Download, Layers, Loader2, Radar as RadarIcon, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -25,6 +25,7 @@ import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import type { ContextoRadar, InformeRadar } from "@/app/api/radar/route";
+import type { InformeDelHistorial } from "@/app/api/radar/informes/route";
 import type { EstadoCupoRadar } from "@/lib/radar";
 
 type Familia = "IC" | "LO" | "GE" | "EJ";
@@ -50,16 +51,22 @@ export default function RadarPage() {
   const [familia, setFamilia] = useState<Familia | null>(null);
 
   const [informe, setInforme] = useState<InformeRadar | null>(null);
+  const [informeId, setInformeId] = useState<string | null>(null);
   const [generando, setGenerando] = useState(false);
+  const [bajando, setBajando] = useState("");
+  const [historial, setHistorial] = useState<InformeDelHistorial[]>([]);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setError("");
     try {
-      const [res, workspace] = await Promise.all([
+      const [res, workspace, hist] = await Promise.all([
         fetch("/api/radar", { cache: "no-store" }),
         fetchWorkspace().catch(() => null),
+        fetch("/api/radar/informes", { cache: "no-store" }).catch(() => null),
       ]);
+      const h = (await hist?.json().catch(() => null)) as { informes?: InformeDelHistorial[] } | null;
+      setHistorial(h?.informes ?? []);
       const d = (await res.json().catch(() => null)) as (ContextoRadar & { message?: string }) | null;
       if (!res.ok) { setError(d?.message ?? "No se pudo cargar el Radar."); return; }
       setCtx(d);
@@ -89,10 +96,12 @@ export default function RadarPage() {
         }),
       });
       const d = (await res.json().catch(() => null)) as
-        { informe?: InformeRadar; cupo?: EstadoCupoRadar; message?: string } | null;
+        { informe?: InformeRadar; id?: string | null; cupo?: EstadoCupoRadar; message?: string } | null;
       if (!res.ok) { setError(d?.message ?? "No se pudo generar el reporte."); return; }
       setInforme(d?.informe ?? null);
+      setInformeId(d?.id ?? null);
       if (d?.cupo && ctx) setCtx({ ...ctx, cupo: d.cupo });
+      void refrescarHistorial();
       // El informe queda abajo; sin esto en móvil parecería que no pasó nada.
       requestAnimationFrame(() => {
         document.getElementById("radar-informe")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -101,6 +110,46 @@ export default function RadarPage() {
       setError(e instanceof Error ? e.message : "No se pudo generar el reporte.");
     } finally {
       setGenerando(false);
+    }
+  }
+
+  async function refrescarHistorial() {
+    const res = await fetch("/api/radar/informes", { cache: "no-store" }).catch(() => null);
+    const d = (await res?.json().catch(() => null)) as { informes?: InformeDelHistorial[] } | null;
+    setHistorial(d?.informes ?? []);
+  }
+
+  /**
+   * El PDF se pide por el id del informe guardado. El admin no guarda nada
+   * —su vista previa no gasta cupo— así que manda el informe que está viendo.
+   */
+  async function bajarPdf(id: string | null, datos?: InformeRadar) {
+    setBajando(id ?? "vista");
+    setError("");
+    try {
+      const res = await fetch("/api/radar/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(id ? { id } : { informe: datos }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(d?.message ?? `No se pudo bajar el PDF (error ${res.status}).`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Radar Salarial.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo bajar el PDF.");
+    } finally {
+      setBajando("");
     }
   }
 
@@ -337,9 +386,70 @@ export default function RadarPage() {
         </section>
 
         {informe && (
-          <div id="radar-informe" className="scroll-mt-6">
+          <div id="radar-informe" className="scroll-mt-6 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-500">
+                {informeId
+                  ? "Queda guardado en tu historial: puedes volver a bajarlo sin gastar otro informe."
+                  : "Vista previa de administrador: no se guarda ni consume cupo."}
+              </p>
+              <button
+                type="button"
+                onClick={() => void bajarPdf(informeId, informe)}
+                disabled={bajando !== ""}
+                className="btn btn-primary disabled:opacity-50"
+              >
+                {bajando !== "" ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                Descargar PDF
+              </button>
+            </div>
             <InformeRadarVista informe={informe} />
           </div>
+        )}
+
+        {historial.length > 0 && (
+          <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+            <h2 className="font-display mb-5 text-xl font-bold text-slate-900">Informes generados</h2>
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full min-w-[36rem] text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2.5 font-semibold">Cargo</th>
+                    <th className="px-4 py-2.5 font-semibold">Tipo</th>
+                    <th className="px-4 py-2.5 font-semibold">Estudio</th>
+                    <th className="px-4 py-2.5 font-semibold">Fecha</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {historial.map((h) => (
+                    <tr key={h.id}>
+                      <td className="px-4 py-2.5 text-slate-800">{h.titulo}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">
+                        {h.modo === "cargo" ? "Por cargo" : "Por valoración"}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{h.corte}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-slate-500">{h.fecha}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void bajarPdf(h.id)}
+                          disabled={bajando !== ""}
+                          className="btn btn-secondary px-3 py-1.5 text-xs disabled:opacity-50"
+                        >
+                          {bajando === h.id ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                          PDF
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 text-xs text-slate-500">
+              Volver a bajar uno de estos no consume cupo: el informe guarda sus propias cifras.
+            </p>
+          </section>
         )}
 
         {esAdmin && (

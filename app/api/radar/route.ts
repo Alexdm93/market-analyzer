@@ -317,5 +317,24 @@ export async function POST(request: Request) {
     ],
   };
 
-  return Response.json({ informe, cupo });
+  // El informe se guarda entero y consume cupo. El admin que entra a revisar
+  // no guarda nada: su vista previa no es un informe de la empresa ni puede
+  // gastarle el trimestre (AC Consulting, 2026-10-20).
+  if (esAdmin) return Response.json({ informe, cupo, id: null });
+
+  const guardado = await prisma.radarInforme.create({
+    data: {
+      companyId,
+      generadoPor: session.user.email ?? session.user.id,
+      snapshotId,
+      snapshotLabel: informe.corte.label,
+      modo,
+      trimestre: cupo.trimestre,
+      titulo: tituloCargo,
+      datosJson: JSON.stringify(informe),
+    },
+    select: { id: true },
+  });
+
+  return Response.json({ informe, id: guardado.id, cupo: await estadoDelCupo(companyId) });
 }
