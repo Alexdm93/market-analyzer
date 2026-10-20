@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChartBar, ScanSearch, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, Radar, ChartBar, ScanSearch, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { Fragment, useEffect, useState } from "react";
@@ -67,6 +67,13 @@ const especializadoItem: MenuItem = {
   hint: "Cargos, comparación e historial",
 };
 
+const radarItem: MenuItem = {
+  name: "Radar Salarial",
+  href: `${BASE}/radar`,
+  icon: Radar,
+  hint: "Un cargo o un grado, contra el mercado",
+};
+
 const grupoAdmin: MenuGroup = {
   key: "admin",
   label: "Administración",
@@ -81,6 +88,7 @@ const grupoAdmin: MenuGroup = {
     { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
     { name: "Informe general", href: `${BASE}/admin/informe-general`, icon: FileSpreadsheet, hint: "Habilitar y repartir informes" },
     { name: "Control de calidad", href: `${BASE}/admin/auditoria`, icon: ScanSearch, hint: "Suavizado del mercado" },
+    { name: "Radar Salarial", href: `${BASE}/admin/radar`, icon: Radar, hint: "Habilitar, cupo y corte" },
   ],
 };
 
@@ -93,6 +101,7 @@ export default function Sidebar() {
   const isCoordinator = isCoordinatorRole(role);
   const canSeeEstudio = isAdmin || session?.user?.estudioEnabled === true;
   const canSeeInformeGeneral = isAdmin || session?.user?.generalEnabled === true;
+  const canSeeRadar = isAdmin || session?.user?.radarEnabled === true;
   const triggerNavigation = useNavigationTrigger();
   const [signingOut, setSigningOut] = useState(false);
   const { hasUnread } = useAnnouncements();
@@ -133,10 +142,11 @@ export default function Sidebar() {
   // El admin lo configura desde Administración, así que acá solo aparece para
   // la empresa que lo tiene habilitado.
   const itemsInformeGeneral = !isAdmin && canSeeInformeGeneral ? [informeGeneralItem] : [];
+  const itemsRadar = !isAdmin && canSeeRadar ? [radarItem] : [];
 
   const itemsPlanos = isAdmin
     ? [...itemsBaseAdmin, ...itemsEstudio]
-    : [...itemsBase, ...itemsInformeGeneral, ...itemsEstudio, ...(isCoordinator ? [estudiosItem] : [])];
+    : [...itemsBase, ...itemsInformeGeneral, ...itemsRadar, ...itemsEstudio, ...(isCoordinator ? [estudiosItem] : [])];
 
   const grupos: MenuGroup[] = isAdmin ? [grupoAdmin] : [];
 

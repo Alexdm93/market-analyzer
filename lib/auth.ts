@@ -103,6 +103,7 @@ export const authOptions: NextAuthOptions = {
           token.companyId = undefined;
           token.estudioEnabled = undefined;
           token.generalEnabled = undefined;
+          token.radarEnabled = undefined;
           token.sessionVersion = undefined;
           token.error = USER_DELETED_ERROR;
           return token;
@@ -119,6 +120,7 @@ export const authOptions: NextAuthOptions = {
           token.companyId = undefined;
           token.estudioEnabled = undefined;
           token.generalEnabled = undefined;
+          token.radarEnabled = undefined;
           token.sessionVersion = undefined;
           token.error = "SessionExpired";
           return token;
@@ -134,14 +136,16 @@ export const authOptions: NextAuthOptions = {
         try {
           const company = await prisma.company.findUnique({
             where: { id: existingUser.companyId },
-            select: { estudioEnabled: true, generalEnabled: true, name: true },
+            select: { estudioEnabled: true, generalEnabled: true, radarEnabled: true, name: true },
           });
           token.estudioEnabled = company?.estudioEnabled ?? false;
           token.generalEnabled = company?.generalEnabled ?? false;
+          token.radarEnabled = company?.radarEnabled ?? false;
           token.companyName = company?.name ?? undefined;
         } catch {
           token.estudioEnabled = false;
           token.generalEnabled = false;
+          token.radarEnabled = false;
         }
       }
 
@@ -157,6 +161,7 @@ export const authOptions: NextAuthOptions = {
         session.user.companyName = typeof token.companyName === "string" ? token.companyName : undefined;
         session.user.estudioEnabled = typeof token.estudioEnabled === "boolean" ? token.estudioEnabled : false;
         session.user.generalEnabled = typeof token.generalEnabled === "boolean" ? token.generalEnabled : false;
+        session.user.radarEnabled = typeof token.radarEnabled === "boolean" ? token.radarEnabled : false;
       }
 
       session.error = typeof token.error === "string" ? token.error : undefined;

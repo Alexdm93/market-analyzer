@@ -10,7 +10,7 @@ const authPages = new Set([`${BASE}/signin`, `${BASE}/register`]);
 const protectedPages = new Set([
   `${BASE}/inicio`, `${BASE}/dashboard`, `${BASE}/data`, `${BASE}/estudio`,
   `${BASE}/estudios`, `${BASE}/informacion`, `${BASE}/empresas`, `${BASE}/resultados`,
-  `${BASE}/valoracion`, `${BASE}/admin`, `${BASE}/admin/anuncios`,
+  `${BASE}/valoracion`, `${BASE}/radar`, `${BASE}/admin`, `${BASE}/admin/anuncios`,
   `${BASE}/admin/estudio-competitividad`, `${BASE}/admin/telemetry`,
   `${BASE}/admin/radar`,
 ]);
