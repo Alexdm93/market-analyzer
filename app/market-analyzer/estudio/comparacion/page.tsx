@@ -356,6 +356,7 @@ export default function ComparacionPage() {
       const p = new URLSearchParams(consultaFiltros);
       p.set("snapshotId", snapshotId);
       if (esAdmin && companyId) p.set("companyId", companyId);
+      if (!comisiones) p.set("comisiones", "no");
       const res = await fetch(`/api/estudio/mercado?${p.toString()}`, { cache: "no-store" });
       const d = (await res.json().catch(() => null)) as MercadoDelEstudio | null;
       if (d && "grupo" in d) {
@@ -365,7 +366,7 @@ export default function ComparacionPage() {
     } finally {
       setValidandoGrupo(false);
     }
-  }, [snapshotId, consultaFiltros, esAdmin, companyId]);
+  }, [snapshotId, consultaFiltros, esAdmin, companyId, comisiones]);
 
   /**
    * El mercado del corte sale de `/api/estudio/mercado`, no de `/api/percentiles`.
@@ -380,6 +381,7 @@ export default function ComparacionPage() {
     p.set("snapshotId", snapshotId);
     if (esAdmin && companyId) p.set("companyId", companyId);
     if (tcrActivo) p.set("tcrType", tcrTipo);
+    if (!comisiones) p.set("comisiones", "no");
 
     void fetch(`/api/estudio/mercado?${p.toString()}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
@@ -401,7 +403,7 @@ export default function ComparacionPage() {
       .catch(() => { if (!ignorar) { setPorCargo([]); setPorGrado([]); } });
 
     return () => { ignorar = true; };
-  }, [snapshotId, consultaFiltros, tcrActivo, tcrTipo, esAdmin, companyId]);
+  }, [snapshotId, consultaFiltros, tcrActivo, tcrTipo, esAdmin, companyId, comisiones]);
 
   const tasas = useMemo(() => (companyInfo.tasas ?? []).filter((t) => !t.isSystem), [companyInfo.tasas]);
   const bcv = useMemo(() => {

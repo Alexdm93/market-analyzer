@@ -90,7 +90,18 @@ export type FilaAnalisis = {
  * Quita las comisiones de una fila sin tocar nada más, para poder pedirle el
  * total al cálculo canónico con y sin ellas.
  */
-function sinComisiones(data: Partial<ExtendedMarketPosition>): Partial<ExtendedMarketPosition> {
+/**
+ * La fila sin lo que se paga por comisiones.
+ *
+ * Quita el campo propio de comisiones y los conceptos variables marcados como
+ * "por comisión". Los de desempeño se quedan: la casilla del informe dice
+ * "incluir comisiones", no "incluir variable".
+ *
+ * La usan el cálculo del cliente Y el del mercado. Antes solo el del cliente,
+ * así que con la casilla desmarcada se comparaba una nómina sin comisiones
+ * contra un mercado que sí las traía (AC Consulting, 2026-10-20).
+ */
+export function sinComisiones(data: Partial<ExtendedMarketPosition>): Partial<ExtendedMarketPosition> {
   return {
     ...data,
     comisiones: 0,
