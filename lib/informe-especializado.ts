@@ -280,6 +280,23 @@ const MAPEO_PRIMERA_FILA = 5;
 const MAPEO_FILAS_POR_CARGO = 4;
 const MAPEO_COLUMNAS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
 
+/**
+ * De dónde sale el formato de cada fila que escribe el mapeo.
+ *
+ * La plantilla trae el primer bloque bien dibujado —fila de título, tres de
+ * detalle y una separadora— pero de la fila 15 en adelante los estilos ya no
+ * son los mismos, así que los cargos que caían ahí salían en texto plano
+ * (AC Consulting, 2026-10-20). En vez de confiar en lo que haya debajo, cada
+ * bloque copia el formato del primero.
+ */
+const MAPEO_MODELO = {
+  /** Las cuatro filas de un cargo: la del título y las tres de detalle. */
+  cargo: [MAPEO_PRIMERA_FILA, MAPEO_PRIMERA_FILA + 1, MAPEO_PRIMERA_FILA + 2, MAPEO_PRIMERA_FILA + 3],
+  separadora: MAPEO_PRIMERA_FILA + 4,
+  /** La celda del grado de una banda que no es la primera. */
+  grado: MAPEO_PRIMERA_FILA + 5,
+} as const;
+
 function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
   ws.limpiarCombinaciones();
 
@@ -308,7 +325,7 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
     const maxApilados = Math.max(...[...porArea.values()].map((l) => l.length));
     const alto = maxApilados * MAPEO_FILAS_POR_CARGO + (maxApilados - 1);
 
-    ws.set(`A${fila}`, grado);
+    ws.set(`A${fila}`, grado, fila === MAPEO_PRIMERA_FILA ? undefined : `A${MAPEO_MODELO.grado}`);
     if (alto > 1) ws.combinar(`A${fila}:A${fila + alto - 1}`);
 
     areas.forEach((area, i) => {
@@ -317,23 +334,34 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
 
       lista.forEach((c, idx) => {
         const base = fila + idx * (MAPEO_FILAS_POR_CARGO + 1);
-        ws.set(`${col}${base}`, c.tituloCargo);
-        ws.set(`${col}${base + 1}`, c.unidadFuncional);
+        const comoEl = (k: number) => `${col}${MAPEO_MODELO.cargo[k]}`;
+        ws.set(`${col}${base}`, c.tituloCargo, comoEl(0));
+        ws.set(`${col}${base + 1}`, c.unidadFuncional, comoEl(1));
         // Una sola celda: "Reporta a: Fulano". Si va la etiqueta en una fila y
         // el nombre en la siguiente, cuando el cliente no lo cargó queda un
         // "Reporta a:" suelto sin nadie detrás.
-        ws.set(`${col}${base + 2}`, c.reportaA ? `Reporta a: ${c.reportaA}` : null);
-        ws.set(`${col}${base + 3}`, null);
+        ws.set(`${col}${base + 2}`, c.reportaA ? `Reporta a: ${c.reportaA}` : null, comoEl(2));
+        ws.set(`${col}${base + 3}`, null, comoEl(3));
+        // La separadora entre dos cargos apilados de la misma banda.
+        if (idx < lista.length - 1) {
+          ws.set(`${col}${base + 4}`, null, `${col}${MAPEO_MODELO.separadora}`);
+        }
       });
 
+      // Lo que sobra de la banda, con el formato de las filas de detalle para
+      // que la columna no se corte a media altura.
       const ocupadas = lista.length * (MAPEO_FILAS_POR_CARGO + 1) - (lista.length > 0 ? 1 : 0);
-      for (let f = fila + ocupadas; f < fila + alto; f++) ws.set(`${col}${f}`, null);
+      for (let f = fila + ocupadas; f < fila + alto; f++) {
+        ws.set(`${col}${f}`, null, `${col}${MAPEO_MODELO.cargo[3]}`);
+      }
       if (lista.length === 0 && alto > 1) ws.combinar(`${col}${fila}:${col}${fila + alto - 1}`);
     });
 
     const separadora = fila + alto;
-    ws.set(`A${separadora}`, null);
-    for (const col of MAPEO_COLUMNAS) ws.set(`${col}${separadora}`, null);
+    ws.set(`A${separadora}`, null, `A${MAPEO_MODELO.separadora}`);
+    for (const col of MAPEO_COLUMNAS) {
+      ws.set(`${col}${separadora}`, null, `${col}${MAPEO_MODELO.separadora}`);
+    }
 
     fila += alto + 1;
   }
