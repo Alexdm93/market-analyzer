@@ -127,6 +127,34 @@ export function piezasDe(
   return piezas;
 }
 
+/**
+ * Qué porción de la compensación se lleva cada categoría, para UNA muestra.
+ *
+ * Es la fila que publica el Radar Salarial —un cargo o un grado, sin separar
+ * por nivel— y es también la cuenta que hace `calcularDistribucion` dentro de
+ * cada nivel, para que las dos no puedan dar porcentajes distintos sobre la
+ * misma data (AC Consulting, 2026-10-20).
+ */
+export function composicionDe(
+  filas: Array<{ fila: ExtendedMarketPosition; tasas: ExchangeRate[]; bcv: number | null }>,
+): Record<Categoria, number> {
+  const acc = acumuladorVacio();
+  for (const { fila, tasas, bcv } of filas) {
+    for (const pieza of piezasDe(fila, tasas, bcv)) acc[pieza.categoria] += pieza.montoUSD;
+  }
+  return porcentajesDe(acc);
+}
+
+/** Reparte un acumulado en porcentajes que suman 1, o en ceros si no hay nada. */
+function porcentajesDe(acc: Acumulador): Record<Categoria, number> {
+  const porcentajes = Object.fromEntries(CATEGORIAS.map((c) => [c, 0])) as Record<Categoria, number>;
+  const total = CATEGORIAS.reduce((s, c) => s + acc[c], 0);
+  if (total > 0) {
+    for (const c of CATEGORIAS) porcentajes[c] = acc[c] / total;
+  }
+  return porcentajes;
+}
+
 export function calcularDistribucion(
   filas: Array<{ fila: ExtendedMarketPosition; tasas: ExchangeRate[]; bcv: number | null }>,
 ): FilaDistribucion[] {
@@ -144,16 +172,11 @@ export function calcularDistribucion(
 
   return NIVELES.map((nivel) => {
     const datos = porNivel.get(nivel);
-    const porcentajes = Object.fromEntries(CATEGORIAS.map((c) => [c, 0])) as Record<Categoria, number>;
-
-    if (datos) {
-      const total = CATEGORIAS.reduce((s, c) => s + datos.acc[c], 0);
-      if (total > 0) {
-        for (const c of CATEGORIAS) porcentajes[c] = datos.acc[c] / total;
-      }
-    }
-
-    return { nivel, porcentajes, ocupantes: datos?.ocupantes ?? 0 };
+    return {
+      nivel,
+      porcentajes: porcentajesDe(datos?.acc ?? acumuladorVacio()),
+      ocupantes: datos?.ocupantes ?? 0,
+    };
   });
 }
 

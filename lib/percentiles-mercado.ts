@@ -32,6 +32,7 @@ import { localidadesDe, pasaFiltros, type FiltrosMercado } from "@/lib/filtros-m
 import { prisma } from "@/lib/prisma";
 import { suavizarPorMetrica, type Diagnostico } from "@/lib/suavizado-percentiles";
 import { safeParseCompanyInfo, safeParseSnapshots } from "@/lib/workspace";
+import type { ExtendedMarketPosition } from "@/types/salary";
 
 export type CargoPercentilesMercado = {
   tituloCargo: string;
@@ -185,6 +186,24 @@ export type MetricaMercado = (typeof METRICAS_MERCADO)[number];
  * respetar, y AC Consulting lo dejó explícito (2026-10-14).
  */
 
+/**
+ * Una observación tal como el mercado la cuenta.
+ *
+ * La publica el recorrido para quien necesite describir la MUESTRA y no solo
+ * sus percentiles: el Radar Salarial dice de qué sectores y de qué tamaños de
+ * empresa salió el número, y cómo se reparte la compensación. Si se recorriera
+ * aparte, la muestra descrita y la calculada podrían no ser la misma.
+ */
+export type ObservacionMercado = {
+  tipo: "cargo" | "grado";
+  /** El título en minúsculas, o el grado. */
+  clave: string | number;
+  fila: ExtendedMarketPosition;
+  companyInfo: ReturnType<typeof safeParseCompanyInfo>;
+};
+
+export type Observador = (o: ObservacionMercado) => void;
+
 function recorrer(params: {
   snapshotId: string;
   filtros: FiltrosMercado;
@@ -198,8 +217,10 @@ function recorrer(params: {
    * participantes, y por eso los dos dan el mismo total.
    */
   enviaron?: Set<string>;
+  /** Se llama por cada observación contada, en el mismo punto que se cuenta. */
+  observar?: Observador;
 }): MercadoDelCorte {
-  const { snapshotId, filtros, workspaces, totalizar, enviaron } = params;
+  const { snapshotId, filtros, workspaces, totalizar, enviaron, observar } = params;
 
   const porCargo = new Map<string, { tituloCargo: string; acc: Acumulado }>();
   const porGrado = new Map<number, Acumulado>();
@@ -250,6 +271,7 @@ function recorrer(params: {
         const actual = porCargo.get(clave) ?? { tituloCargo: titulo, acc: acumuladoVacio() };
         agregar(actual.acc, totals);
         porCargo.set(clave, actual);
+        observar?.({ tipo: "cargo", clave, fila: row, companyInfo });
       }
 
       const grade = row.hayGrade;
@@ -258,6 +280,7 @@ function recorrer(params: {
         const actual = porGrado.get(grade) ?? acumuladoVacio();
         agregar(actual, totals);
         porGrado.set(grade, actual);
+        observar?.({ tipo: "grado", clave: grade, fila: row, companyInfo });
       }
     }
   }
@@ -296,6 +319,7 @@ export function calcularPercentilesMercado(params: {
   /** La tasa BCV del sistema, para la empresa que no guardó la suya. */
   bcvGeneral: number | null;
   enviaron?: Set<string>;
+  observar?: Observador;
 }) {
   return recorrer({
     ...params,
@@ -318,6 +342,7 @@ export function calcularPercentilesTcr(params: {
   workspaces: WorkspaceParaTcr[];
   globales: TasasGlobales;
   enviaron?: Set<string>;
+  observar?: Observador;
 }): MercadoDelCorte {
   return recorrer({
     ...params,
