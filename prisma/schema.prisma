@@ -65,8 +65,14 @@ model Company {
   /// no dependen del corte, y pueden ser varios: una empresa puede comprar el
   /// del mercado general y el de su sector.
   beneficiosInformeIds String                @default("[]")
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+
+  /// Radar Salarial: el reporte suelto de UN cargo o UN grado.
+  radarEnabled        Boolean        @default(false)
+  /// Cuántos puede bajar por trimestre. Null = el tope general del sistema.
+  radarCupoTrimestral Int?
+  radarInformes       RadarInforme[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 }
 
 model User {
@@ -334,5 +340,34 @@ model EstudioInforme {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  @@index([companyId, createdAt])
+}
+
+/// Un informe del Radar Salarial, congelado tal como se emitió.
+///
+/// Se guarda entero y no por referencia: el corte del que se saca el Radar lo
+/// cambia el administrador cada tanto, y un informe ya entregado no puede
+/// cambiar de cifras porque el corte de origen dejó de ser el vigente.
+model RadarInforme {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Quién lo generó, para el historial.
+  generadoPor   String   @default("")
+  snapshotId    String
+  snapshotLabel String   @default("")
+  /// "cargo" cuando sale del catálogo, "grado" cuando se valoró con CAPRI.
+  modo          String
+  /// El trimestre que consume, escrito "2026-T4": el cupo es trimestral y así
+  /// se cuenta sin volver a calcular fechas en cada consulta.
+  trimestre     String
+  /// Cómo se llama en el historial: el cargo, o el cargo valorado.
+  titulo        String
+  /// El informe completo —perfil, muestra y percentiles— para poder volver a
+  /// bajarlo sin recalcular nada.
+  datosJson     String
+  createdAt     DateTime @default(now())
+
+  @@index([companyId, trimestre])
   @@index([companyId, createdAt])
 }
