@@ -86,6 +86,8 @@ export type ImportPlanilla = {
   filasDescartadas: number;
   /** El nombre de la hoja de carga, para nombrarla en los mensajes. */
   hoja: string;
+  /** Las tasas de la hoja de configuración, con el valor que traiga el archivo. */
+  tasas: TasaDeLaPlanilla[];
 };
 
 function texto(v: unknown): string {
@@ -179,6 +181,34 @@ function configuracionDePagos(wb: XLSX.WorkBook): Map<string, ConfigConcepto> {
   return mapa;
 }
 
+/**
+ * Las tasas tal como quedaron en la hoja de configuración.
+ *
+ * La planilla las baja con el valor que la empresa tenía, y si lo corrige ahí
+ * el cambio tiene que volver a su ficha: si no, el informe se calcularía con
+ * una tasa y la pantalla mostraría otra (AC Consulting, 2026-10-20).
+ */
+export type TasaDeLaPlanilla = { nombre: string; valor: string };
+
+function tasasDeLaConfiguracion(wb: XLSX.WorkBook): TasaDeLaPlanilla[] {
+  const hoja = wb.Sheets[HOJA_CONFIG];
+  if (!hoja) return [];
+
+  const filas = filasDeLaHoja(hoja);
+  const tasas: TasaDeLaPlanilla[] = [];
+  let dentro = false;
+  for (const fila of filas) {
+    const b = texto(fila?.[1]);
+    if (!dentro) {
+      if (b.toLowerCase().startsWith("nombre de la tasa")) dentro = true;
+      continue;
+    }
+    if (!b) break;
+    tasas.push({ nombre: b, valor: texto(fila?.[3]) });
+  }
+  return tasas;
+}
+
 type Bloque = { concepto: string; col: number; config: ConfigConcepto };
 
 const CONFIG_POR_DEFECTO: ConfigConcepto = {
@@ -221,7 +251,7 @@ export function parsePlanillaWorkbook(
         fila: null, hoja: "", nivel: "error",
         mensaje: "El archivo no tiene la hoja de carga de la planilla. Descarga la planilla desde \"Bajar planilla\" y llena esa.",
       }],
-      filasLeidas: 0, filasVacias: 0, filasDescartadas: 0, hoja: "",
+      filasLeidas: 0, filasVacias: 0, filasDescartadas: 0, hoja: "", tasas: [],
     };
   }
 
@@ -369,5 +399,8 @@ export function parsePlanillaWorkbook(
     });
   }
 
-  return { filas: resultado, issues, filasLeidas: leidas, filasVacias: vacias, filasDescartadas: descartadas, hoja };
+  return {
+    filas: resultado, issues, filasLeidas: leidas, filasVacias: vacias,
+    filasDescartadas: descartadas, hoja, tasas: tasasDeLaConfiguracion(workbook),
+  };
 }

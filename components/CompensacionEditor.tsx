@@ -3,6 +3,12 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { FmtMoney } from "@/components/FmtMoney";
 import { NumericInput } from "@/components/NumericInput";
+import {
+  BCV_EUR_TASA_ID,
+  BCV_EUR_TASA_NOMBRE,
+  BCV_TASA_ID,
+  BCV_TASA_NOMBRE,
+} from "@/lib/tasas-sistema";
 import { FREQUENCY_OPTIONS, VARIABLE_BONUS_TYPES } from "@/lib/compensation-options";
 import type { ExchangeRate } from "@/lib/workspace";
 import type { CompensationConcept, ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
@@ -35,6 +41,25 @@ const MONEDAS: Array<{ value: "USD" | "VES"; label: string }> = [
 
 
 /**
+ * Las dos tasas del BCV se ofrecen siempre, con su nombre.
+ *
+ * Antes la lista decía "Sin tasa (BCV)" y debajo las tasas propias de la
+ * empresa, así que no había forma de pedir la del euro ni de saber cuál era
+ * la que se estaba aplicando (AC Consulting, 2026-10-20). "Sin tasa" tampoco
+ * describía lo que pasaba: cuando las monedas difieren siempre se convierte
+ * con alguna.
+ */
+function opcionesDeTasa(tasas: ExchangeRate[]): ExchangeRate[] {
+  const propias = tasas.filter((t) => !t.isSystem);
+  const delSistema = tasas.filter((t) => t.isSystem);
+  const bcv = delSistema.find((t) => t.id === BCV_TASA_ID)
+    ?? { id: BCV_TASA_ID, nombre: BCV_TASA_NOMBRE, referencia: "BCV oficial", valor: "" };
+  const euro = delSistema.find((t) => t.id === BCV_EUR_TASA_ID)
+    ?? { id: BCV_EUR_TASA_ID, nombre: BCV_EUR_TASA_NOMBRE, referencia: "BCV oficial EUR", valor: "" };
+  return [bcv, euro, ...propias];
+}
+
+/**
  * La tasa solo aplica cuando la moneda del monto y la de pago son distintas.
  *
  * Va a nivel de módulo y no dentro del editor: definida adentro, React la
@@ -48,20 +73,22 @@ function SelectorTasa({
   tasas: ExchangeRate[]; deshabilitado: boolean;
 }) {
   const mismaMoneda = (cuenta || "USD") === (pago || "USD");
+  const opciones = opcionesDeTasa(tasas);
+  // Lo guardado antes con la tasa vacía significaba "la del BCV", así que se
+  // muestra como tal en vez de dejar el desplegable en blanco.
   return (
     <select
       aria-label={etiqueta}
-      value={mismaMoneda ? "" : (tasaId || "")}
+      value={mismaMoneda ? "" : (tasaId || BCV_TASA_ID)}
       onChange={(e) => onTasa(e.target.value)}
       disabled={deshabilitado || mismaMoneda}
       className={`field-select text-sm w-full ${mismaMoneda ? "opacity-50" : ""}`}
     >
       {mismaMoneda
         ? <option value="">No aplica</option>
-        : <>
-            <option value="">Sin tasa (BCV)</option>
-            {tasas.map((t) => <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>)}
-          </>}
+        : opciones.map((t) => (
+            <option key={t.id} value={t.id}>{t.nombre || t.referencia}</option>
+          ))}
     </select>
   );
 }

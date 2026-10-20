@@ -1,4 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import {
+  BCV_EUR_TASA_ID,
+  BCV_EUR_TASA_NOMBRE,
+  BCV_TASA_ID,
+  BCV_TASA_NOMBRE,
+} from "@/lib/tasas-sistema";
+
+// Quien ya las importaba de acá las sigue encontrando.
+export { BCV_TASA_ID, BCV_EUR_TASA_ID, BCV_TASA_NOMBRE, BCV_EUR_TASA_NOMBRE };
 
 const BCV_KEY      = "bcv_usd_rate";
 const BCV_EUR_KEY  = "bcv_eur_rate";
@@ -6,8 +15,6 @@ const BINANCE_KEY  = "binance_rate";
 // Refresh if older than 12h — ensures rates update at least twice daily
 const STALE_MS = 12 * 60 * 60 * 1000;
 
-export const BCV_TASA_ID     = "bcv-usd";
-export const BCV_EUR_TASA_ID = "bcv-eur";
 
 // ─── Fetch helpers ───────────────────────────────────────────────────────────
 
@@ -175,8 +182,6 @@ export async function refreshAllRates() {
  * tres sitios; con que una se desalineara, la planilla ofrecería una tasa que
  * la plataforma no reconoce al releerla.
  */
-export const BCV_TASA_NOMBRE = "Tasa BCV (Bs./USD)";
-export const BCV_EUR_TASA_NOMBRE = "Tasa BCV (Bs./EUR)";
 
 export function buildBcvTasa(rate: number | null, updatedAt: string | null) {
   return {

@@ -45,6 +45,8 @@ type Cuerpo = {
   companyId?: string;
   snapshotId?: string;
   filas?: FilaDeLaPlanilla[];
+  /** Las tasas como quedaron en la hoja de configuración del archivo. */
+  tasas?: Array<{ nombre: string; valor: string }>;
   /** Cuando es true, la lista actual se borra antes de cargar la nueva. */
   reemplazar?: boolean;
 };
@@ -170,16 +172,67 @@ export async function POST(request: Request) {
     }
   });
 
+  // Si la empresa corrigió el valor de una de sus tasas en la planilla, el
+  // cambio vuelve a su ficha: de otro modo el informe se calcularía con una
+  // tasa y la pantalla mostraría otra (AC Consulting, 2026-10-20).
+  const actualizadas = await actualizarTasas(acceso.companyId, body?.tasas ?? []);
+
   const conGrado = aCrear.filter((c) => c.hayGrade !== null).length;
 
   return Response.json({
     creados: aCrear.length,
     homologados: equivalencias.size,
     rechazadas,
+    tasasActualizadas: actualizadas,
     message: `Se cargaron ${aCrear.length} ${aCrear.length === 1 ? "ocupante" : "ocupantes"}`
       + (conGrado > 0 ? `, ${conGrado} con grado CAPRI calculado` : "")
       + (equivalencias.size > 0 ? ` y ${equivalencias.size} ${equivalencias.size === 1 ? "cargo homologado" : "cargos homologados"}` : "")
       + "."
+      + (actualizadas > 0 ? ` Se actualizó el valor de ${actualizadas} ${actualizadas === 1 ? "tasa" : "tasas"}.` : "")
       + (rechazadas.length > 0 ? ` ${rechazadas.length} ${rechazadas.length === 1 ? "fila quedó" : "filas quedaron"} fuera.` : ""),
   });
+}
+
+/**
+ * Lleva a la ficha de la empresa los valores de tasa que venían en el archivo.
+ *
+ * Solo toca las tasas PROPIAS: las del BCV las mantiene el sistema y lo que
+ * alguien escriba sobre ellas en el Excel no debe pisarlas. Devuelve cuántas
+ * cambiaron.
+ */
+async function actualizarTasas(
+  companyId: string,
+  delArchivo: Array<{ nombre: string; valor: string }>,
+): Promise<number> {
+  if (delArchivo.length === 0) return 0;
+
+  const workspace = await prisma.userWorkspace.findFirst({
+    where: { user: { companyId } },
+    select: { userId: true, companyInfoJson: true },
+  });
+  if (!workspace) return 0;
+
+  const info = safeParseCompanyInfo(workspace.companyInfoJson);
+  const porNombre = new Map(
+    delArchivo
+      .filter((t) => t.nombre.trim() && t.valor.trim())
+      .map((t) => [normalizarTitulo(t.nombre), t.valor.trim()]),
+  );
+
+  let cambiadas = 0;
+  const tasas = (info.tasas ?? []).map((t) => {
+    if (t.isSystem) return t;
+    const nuevo = porNombre.get(normalizarTitulo(t.nombre ?? ""));
+    if (!nuevo || nuevo === t.valor) return t;
+    cambiadas += 1;
+    return { ...t, valor: nuevo, updatedAt: new Date().toISOString() };
+  });
+
+  if (cambiadas === 0) return 0;
+
+  await prisma.userWorkspace.update({
+    where: { userId: workspace.userId },
+    data: { companyInfoJson: JSON.stringify({ ...info, tasas }) },
+  });
+  return cambiadas;
 }

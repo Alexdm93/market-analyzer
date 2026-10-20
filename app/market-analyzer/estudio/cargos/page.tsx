@@ -353,6 +353,9 @@ export default function MisCargosPage() {
           ...(snapshotId ? { snapshotId } : {}),
           reemplazar,
           filas: leido.filas,
+          // Si corrigió el valor de alguna de sus tasas en la hoja de
+          // configuración, el cambio vuelve con la carga.
+          tasas: leido.tasas,
         }),
       });
 
@@ -701,7 +704,7 @@ export default function MisCargosPage() {
             <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
               <CompensacionEditor
                 valor={borrador.data}
-                tasas={tasas}
+                tasas={companyInfo.tasas ?? []}
                 onChange={(data) => setBorrador({ ...borrador, data })}
                 deshabilitado={guardando}
               />
