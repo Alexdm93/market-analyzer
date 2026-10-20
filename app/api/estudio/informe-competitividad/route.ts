@@ -17,7 +17,7 @@ import {
   compensacionDe,
   construirFilas,
   simularAjuste,
-  sinComisiones,
+  soloLoIncluido,
   type ConfigSimulador,
   type ConfiguracionInforme,
   type Ocupante,
@@ -102,7 +102,7 @@ async function tasasDelInforme(fijadas: TasasDelInforme | null | undefined): Pro
 
 async function mercadoDelInforme(
   snapshotId: string, filtros: string, tcrType: TcrType | null, tasasGlobales: TasasDelInforme,
-  incluirComisiones: boolean,
+  incluirVariables: { comisiones: boolean; desempeno: boolean },
 ) {
   const [workspaces, enviaron] = await Promise.all([
     prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
@@ -115,7 +115,7 @@ async function mercadoDelInforme(
     workspaces,
     enviaron,
     // La misma regla con la que se mide la nómina del cliente.
-    incluirComisiones,
+    incluirVariables,
   };
 
   return tcrType
@@ -145,7 +145,8 @@ export async function POST(request: Request) {
   // Las del informe guardado si viene a reemitirse; si no, las de hoy.
   const tasasGlobales = await tasasDelInforme(body?.tasas ?? null);
   const mercado = await mercadoDelInforme(
-    snapshotId, body?.filtrosGrupo ?? "", tcrType, tasasGlobales, config.incluirComisiones,
+    snapshotId, body?.filtrosGrupo ?? "", tcrType, tasasGlobales,
+    { comisiones: config.incluirComisiones, desempeno: config.incluirDesempeno },
   );
 
   // El grupo de comparación necesita un mínimo de empresas para que nadie
@@ -172,6 +173,7 @@ export async function POST(request: Request) {
       metrica: config.concepto,
       tcr: body?.tcr?.tipo ?? null,
       comisiones: Boolean(config.incluirComisiones),
+      desempeno: config.incluirDesempeno,
       filtros: body?.filtrosGrupo ?? "",
       grados: body?.grados ?? [],
     });
@@ -362,9 +364,13 @@ export async function POST(request: Request) {
       // Con las comisiones excluidas, la hoja tampoco las muestra: antes
       // salían siempre y el detalle no cuadraba con el total de la métrica
       // (AC Consulting, 2026-10-20).
-      config.incluirComisiones
-        ? ocupantes
-        : ocupantes.map((o) => ({ ...o, data: sinComisiones(o.data) })),
+      ocupantes.map((o) => ({
+        ...o,
+        data: soloLoIncluido(o.data, {
+          comisiones: config.incluirComisiones,
+          desempeno: config.incluirDesempeno,
+        }),
+      })),
       // El total de cada ocupante según la métrica elegida y, cuando el
       // estudio va en TCR, su equivalente. Antes eran fórmulas de la
       // plantilla; al rediseñarla quedaron en #REF!, así que los calcula el

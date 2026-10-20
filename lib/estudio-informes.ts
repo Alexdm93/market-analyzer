@@ -78,6 +78,8 @@ export type CriteriosInforme = {
   /** Null cuando el estudio no va en TCR. */
   tcr: string | null;
   comisiones: boolean;
+  /** Si el informe incluyó lo variable por desempeño. Por omisión sí. */
+  desempeno: boolean;
   /** Los filtros del grupo, como viajan en la URL. */
   filtrosGrupo: string;
   /** En palabras, para mostrarlo. */
@@ -166,6 +168,9 @@ export function validarDatosInforme(entrada: unknown): Validacion {
         snapshotLabel: String(c.snapshotLabel ?? ""),
         tcr: c.tcr ? String(c.tcr) : null,
         comisiones: Boolean(c.comisiones),
+        // Lo guardado antes de que fueran dos casillas incluía el desempeño,
+        // porque era la única forma de calcularlo.
+        desempeno: c.desempeno === undefined ? true : Boolean(c.desempeno),
         filtrosGrupo: String(c.filtrosGrupo ?? ""),
         grupoComparacion: String(c.grupoComparacion ?? ""),
         grados: Array.isArray(c.grados) ? c.grados.map(Number).filter(Number.isFinite) : [],

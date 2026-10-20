@@ -152,6 +152,8 @@ export default function ComparacionPage() {
   const [generando, setGenerando] = useState(false);
   const [aviso, setAviso] = useState("");
   const [comisiones, setComisiones] = useState(false);
+  // Por omisión el desempeño entra, que es como se venía calculando.
+  const [desempeno, setDesempeno] = useState(true);
   const [bajandoExcel, setBajandoExcel] = useState(false);
 
   // Grupo de mercado contra el que se compara. La plantilla lo llama
@@ -357,6 +359,7 @@ export default function ComparacionPage() {
       p.set("snapshotId", snapshotId);
       if (esAdmin && companyId) p.set("companyId", companyId);
       if (!comisiones) p.set("comisiones", "no");
+      if (!desempeno) p.set("desempeno", "no");
       const res = await fetch(`/api/estudio/mercado?${p.toString()}`, { cache: "no-store" });
       const d = (await res.json().catch(() => null)) as MercadoDelEstudio | null;
       if (d && "grupo" in d) {
@@ -366,7 +369,7 @@ export default function ComparacionPage() {
     } finally {
       setValidandoGrupo(false);
     }
-  }, [snapshotId, consultaFiltros, esAdmin, companyId, comisiones]);
+  }, [snapshotId, consultaFiltros, esAdmin, companyId, comisiones, desempeno]);
 
   /**
    * El mercado del corte sale de `/api/estudio/mercado`, no de `/api/percentiles`.
@@ -382,6 +385,7 @@ export default function ComparacionPage() {
     if (esAdmin && companyId) p.set("companyId", companyId);
     if (tcrActivo) p.set("tcrType", tcrTipo);
     if (!comisiones) p.set("comisiones", "no");
+    if (!desempeno) p.set("desempeno", "no");
 
     void fetch(`/api/estudio/mercado?${p.toString()}`, { cache: "no-store" })
       .then((r) => r.json().catch(() => null))
@@ -403,7 +407,7 @@ export default function ComparacionPage() {
       .catch(() => { if (!ignorar) { setPorCargo([]); setPorGrado([]); } });
 
     return () => { ignorar = true; };
-  }, [snapshotId, consultaFiltros, tcrActivo, tcrTipo, esAdmin, companyId, comisiones]);
+  }, [snapshotId, consultaFiltros, tcrActivo, tcrTipo, esAdmin, companyId, comisiones, desempeno]);
 
   const tasas = useMemo(() => (companyInfo.tasas ?? []).filter((t) => !t.isSystem), [companyInfo.tasas]);
   const bcv = useMemo(() => {
@@ -521,6 +525,7 @@ export default function ComparacionPage() {
             snapshotLabel: corte ? `${corte.label} — ${corte.date}` : "",
             tcr: tcrActivo ? tcrTipo : null,
             comisiones,
+            desempeno,
             filtrosGrupo: consultaFiltros,
             grupoComparacion: descripcionGrupo,
             grados: filtroGrados,
@@ -529,6 +534,7 @@ export default function ComparacionPage() {
           // uno nuevo —y consume cupo— o uno que la empresa ya configuró.
           tcr: tcrActivo ? tcrTipo : null,
           comisiones,
+          desempeno,
           filtrosGrupo: consultaFiltros,
           grados: filtroGrados,
           filas: elegidas.map((f) => ({
@@ -581,7 +587,7 @@ export default function ComparacionPage() {
         body: JSON.stringify({
           ...(esAdmin && companyId ? { companyId } : {}),
           snapshotId,
-          config: { concepto: metrica, incluirComisiones: comisiones },
+          config: { concepto: metrica, incluirComisiones: comisiones, incluirDesempeno: desempeno },
           grados: filtroGrados.length > 0 ? filtroGrados : undefined,
           tcr: tcrActivo ? { tipo: tcrTipo } : null,
           grupoComparacion: descripcionGrupo,
@@ -745,10 +751,15 @@ export default function ComparacionPage() {
                 {METRICAS.map((m) => <option key={m.value} value={m.value}>{m.sigla} — {m.label}</option>)}
               </select>
             </div>
-            <div className="flex items-end">
+            <div className="flex flex-col justify-end gap-2">
+              <span className="field-label">Pagos variables</span>
               <label className="flex items-start gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={comisiones} onChange={(e) => setComisiones(e.target.checked)} className="mt-1" />
-                <span>Incluir comisiones</span>
+                <span>Incluir variable por comisiones</span>
+              </label>
+              <label className="flex items-start gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={desempeno} onChange={(e) => setDesempeno(e.target.checked)} className="mt-1" />
+                <span>Incluir variable por desempeño</span>
               </label>
             </div>
           </div>

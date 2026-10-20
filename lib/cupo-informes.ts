@@ -31,6 +31,10 @@ export type ConfiguracionDelCorte = {
   metrica: string;
   tcr: string | null;
   comisiones: boolean;
+  /**
+   * Si entró lo variable por desempeño. Opcional a propósito: ver la huella.
+   */
+  desempeno?: boolean;
   /** Los filtros del grupo de comparación, como viajan en la URL. */
   filtros: string;
   grados: number[];
@@ -43,6 +47,10 @@ export function huellaDelCorte(c: ConfiguracionDelCorte): string {
     c.metrica,
     c.tcr ?? "sin-tcr",
     c.comisiones ? "con-comisiones" : "sin-comisiones",
+    // Solo se suma a la huella cuando el desempeño se EXCLUYE, que es lo
+    // nuevo. Si se sumara siempre, cambiarían todas las huellas ya guardadas
+    // y un informe viejo bajado del historial volvería a consumir cupo.
+    ...(c.desempeno === false ? ["sin-desempeno"] : []),
     // Los filtros se ordenan: el mismo grupo elegido en otro orden es el mismo
     // grupo, y si no la huella cambiaría por nada.
     [...new URLSearchParams(c.filtros).entries()]

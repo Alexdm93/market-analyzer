@@ -55,9 +55,12 @@ export async function GET(request: Request) {
   }
 
   const filtros = leerFiltrosMercado(searchParams);
-  // La pantalla puede pedir el mercado sin comisiones, para que lo que compara
-  // esté medido igual que la nómina del cliente.
-  const incluirComisiones = searchParams.get("comisiones") !== "no";
+  // La pantalla puede pedir el mercado sin comisiones y/o sin desempeño, para
+  // que lo que compara esté medido igual que la nómina del cliente.
+  const incluirVariables = {
+    comisiones: searchParams.get("comisiones") !== "no",
+    desempeno: searchParams.get("desempeno") !== "no",
+  };
 
   const [workspaces, enviaron, bcv, bcvEur, binance, libreManual] = await Promise.all([
     prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
@@ -76,10 +79,10 @@ export async function GET(request: Request) {
         workspaces,
         enviaron,
         globales: { bcv: bcv.rate, bcvEur: bcvEur.rate, binance: binance.rate, libreManual: libreManual.rate },
-        incluirComisiones,
+        incluirVariables,
       })
     : calcularPercentilesMercado({
-        snapshotId, filtros, workspaces, enviaron, bcvGeneral: bcv.rate, incluirComisiones,
+        snapshotId, filtros, workspaces, enviaron, bcvGeneral: bcv.rate, incluirVariables,
       });
 
   return Response.json({ snapshotId, ...mercado } satisfies MercadoDelEstudio);

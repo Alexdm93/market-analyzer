@@ -83,6 +83,7 @@ type CuerpoCrear = {
   /** Lo que define el corte de data, para saber si consume cupo. */
   tcr?: string | null;
   comisiones?: boolean;
+  desempeno?: boolean;
   filtrosGrupo?: string;
   grados?: number[];
 };
@@ -127,6 +128,7 @@ export async function POST(request: Request) {
     metrica: body?.metrica ?? "",
     tcr: body?.tcr ?? null,
     comisiones: Boolean(body?.comisiones),
+    desempeno: body?.desempeno,
     filtros: body?.filtrosGrupo ?? "",
     grados: Array.isArray(body?.grados) ? body.grados : [],
   };

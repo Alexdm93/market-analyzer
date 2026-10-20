@@ -149,6 +149,7 @@ export default function InformesPage() {
           config: {
             concepto: informe.datos?.metrica,
             incluirComisiones: criterios.comisiones,
+            incluirDesempeno: criterios.desempeno,
           },
           grados: criterios.grados.length > 0 ? criterios.grados : undefined,
           tcr: criterios.tcr ? { tipo: criterios.tcr } : null,

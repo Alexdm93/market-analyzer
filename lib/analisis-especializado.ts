@@ -27,7 +27,16 @@ export const CONCEPTOS: Array<{ clave: Concepto; etiqueta: string }> = [
 
 export type ConfiguracionInforme = {
   concepto: Concepto;
+  /** Si entra lo marcado como variable POR COMISIÓN. */
   incluirComisiones: boolean;
+  /**
+   * Si entra lo marcado como variable POR DESEMPEÑO.
+   *
+   * Son dos casillas y no una: AC Consulting pidió poder incluir una, la otra,
+   * las dos o ninguna (2026-10-20). Por omisión entra, que es como se venía
+   * calculando.
+   */
+  incluirDesempeno: boolean;
   /** Ancho total de la banda de equidad, p. ej. 0,20 para ±10 %. */
   aperturaBandas: number;
   /** Margen del mapa de calor, p. ej. 0,15. */
@@ -52,6 +61,7 @@ export type OpcionesTcr = {
 export const CONFIG_POR_DEFECTO: ConfiguracionInforme = {
   concepto: "conPasivosAnual",
   incluirComisiones: false,
+  incluirDesempeno: true,
   aperturaBandas: 0.2,
   margenMapaCalor: 0.15,
 };
@@ -91,22 +101,30 @@ export type FilaAnalisis = {
  * total al cálculo canónico con y sin ellas.
  */
 /**
- * La fila sin lo que se paga por comisiones.
+ * La fila con solo los pagos variables que el informe incluye.
  *
- * Quita el campo propio de comisiones y los conceptos variables marcados como
- * "por comisión". Los de desempeño se quedan: la casilla del informe dice
- * "incluir comisiones", no "incluir variable".
+ * Son dos interruptores independientes porque el cliente puede querer medirse
+ * sin comisiones pero con el bono de desempeño, o al revés. Un concepto
+ * variable sin tipo cuenta como desempeño, que es lo que pone el editor por
+ * omisión.
  *
  * La usan el cálculo del cliente Y el del mercado. Antes solo el del cliente,
  * así que con la casilla desmarcada se comparaba una nómina sin comisiones
  * contra un mercado que sí las traía (AC Consulting, 2026-10-20).
  */
-export function sinComisiones(data: Partial<ExtendedMarketPosition>): Partial<ExtendedMarketPosition> {
+export function soloLoIncluido(
+  data: Partial<ExtendedMarketPosition>,
+  incluir: { comisiones: boolean; desempeno: boolean },
+): Partial<ExtendedMarketPosition> {
+  if (incluir.comisiones && incluir.desempeno) return data;
+
   return {
     ...data,
-    comisiones: 0,
+    // El campo propio de comisiones es, por definición, una comisión.
+    ...(incluir.comisiones ? {} : { comisiones: 0 }),
     additionalVariablePayments: (data.additionalVariablePayments ?? []).filter(
-      (p: CompensationConcept) => p.variableType !== "commission",
+      (p: CompensationConcept) =>
+        p.variableType === "commission" ? incluir.comisiones : incluir.desempeno,
     ),
   };
 }
@@ -120,7 +138,10 @@ export function compensacionDe(
   config: ConfiguracionInforme,
   tcr?: OpcionesTcr | null,
 ): number {
-  const data = config.incluirComisiones ? ocupante.data : sinComisiones(ocupante.data);
+  const data = soloLoIncluido(ocupante.data, {
+    comisiones: config.incluirComisiones,
+    desempeno: config.incluirDesempeno,
+  });
   const fila = { id: ocupante.id, tituloCargo: ocupante.tituloCargo, ...data } as ExtendedMarketPosition;
   const t = tcr
     ? computeTCRTotals(fila, tasas, bcv, tcr.bcvEur, tcr.libre, tcr.tasaTcr, tcr.tipo, diasVacaciones, diasUtilidades)

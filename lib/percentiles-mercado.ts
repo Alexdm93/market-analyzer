@@ -31,7 +31,7 @@ import {
 import { localidadesDe, pasaFiltros, type FiltrosMercado } from "@/lib/filtros-mercado";
 import { prisma } from "@/lib/prisma";
 import { suavizarPorMetrica, type Diagnostico } from "@/lib/suavizado-percentiles";
-import { sinComisiones } from "@/lib/analisis-especializado";
+import { soloLoIncluido } from "@/lib/analisis-especializado";
 import { safeParseCompanyInfo, safeParseSnapshots } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
 
@@ -322,16 +322,19 @@ export function calcularPercentilesMercado(params: {
   enviaron?: Set<string>;
   observar?: Observador;
   /**
-   * Cuando es false, el mercado se calcula sin lo que se paga por comisiones,
-   * igual que la nómina del cliente. Si no coincidieran, el compa-ratio
-   * compararía dos cosas medidas con reglas distintas.
+   * Qué pagos variables entran. Sin esto entran todos, que es como se
+   * calculaba antes. Tiene que ser la misma regla con la que se mide la
+   * nómina del cliente: si no coincidieran, el compa-ratio compararía dos
+   * cosas medidas distinto.
    */
-  incluirComisiones?: boolean;
+  incluirVariables?: { comisiones: boolean; desempeno: boolean };
 }) {
   return recorrer({
     ...params,
     totalizar: (row, info) => computeRowTotals(
-      params.incluirComisiones === false ? ({ ...row, ...sinComisiones(row) } as typeof row) : row,
+      params.incluirVariables
+        ? ({ ...row, ...soloLoIncluido(row, params.incluirVariables) } as typeof row)
+        : row,
       info.tasas ?? [],
       // La tasa que la empresa tenía al guardar, no la de hoy.
       info.ratesAtSave?.bcvUsd ?? params.bcvGeneral,
@@ -351,13 +354,13 @@ export function calcularPercentilesTcr(params: {
   enviaron?: Set<string>;
   observar?: Observador;
   /** Igual que en el mercado sin TCR: la misma regla que la nómina del cliente. */
-  incluirComisiones?: boolean;
+  incluirVariables?: { comisiones: boolean; desempeno: boolean };
 }): MercadoDelCorte {
   return recorrer({
     ...params,
     totalizar: (fila, info) => {
-      const row = params.incluirComisiones === false
-        ? ({ ...fila, ...sinComisiones(fila) } as typeof fila)
+      const row = params.incluirVariables
+        ? ({ ...fila, ...soloLoIncluido(fila, params.incluirVariables) } as typeof fila)
         : fila;
       // Las tasas que esta empresa tenía cuando envió su data. La resolución
       // vive en lib/compensation para que la pantalla del cliente use
