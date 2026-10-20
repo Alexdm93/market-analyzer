@@ -12,18 +12,20 @@
  * habilitado, que la ficha de la empresa y el contacto de RR.HH. estén
  * completos, y que quede cupo en el trimestre (AC Consulting, 2026-10-20).
  */
-import { AlertTriangle, ArrowRight, Layers, Radar as RadarIcon, Search } from "lucide-react";
+import { AlertTriangle, ArrowRight, Layers, Loader2, Radar as RadarIcon, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { CapriWizardModal } from "@/components/CapriWizardModal";
+import { InformeRadarVista } from "@/components/InformeRadarVista";
 import { SelectorBuscador } from "@/components/SelectorBuscador";
 import { CAPRI_ROLES } from "@/lib/capri";
 import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
-import type { ContextoRadar } from "@/app/api/radar/route";
+import type { ContextoRadar, InformeRadar } from "@/app/api/radar/route";
+import type { EstadoCupoRadar } from "@/lib/radar";
 
 type Familia = "IC" | "LO" | "GE" | "EJ";
 
@@ -47,6 +49,9 @@ export default function RadarPage() {
   const [grado, setGrado] = useState<number | null>(null);
   const [familia, setFamilia] = useState<Familia | null>(null);
 
+  const [informe, setInforme] = useState<InformeRadar | null>(null);
+  const [generando, setGenerando] = useState(false);
+
   const cargar = useCallback(async () => {
     setCargando(true);
     setError("");
@@ -67,6 +72,37 @@ export default function RadarPage() {
   }, []);
 
   useEffect(() => { void cargar(); }, [cargar]);
+
+  async function generar() {
+    setGenerando(true);
+    setError("");
+    try {
+      const res = await fetch("/api/radar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          modo: valorando ? "grado" : "cargo",
+          tituloCargo: valorando ? nombrePropio.trim() : cargo,
+          unidad,
+          ...(valorando ? { grado, familia } : {}),
+          ...(tcr ? { tcr: { tipo: "bcv" } } : {}),
+        }),
+      });
+      const d = (await res.json().catch(() => null)) as
+        { informe?: InformeRadar; cupo?: EstadoCupoRadar; message?: string } | null;
+      if (!res.ok) { setError(d?.message ?? "No se pudo generar el reporte."); return; }
+      setInforme(d?.informe ?? null);
+      if (d?.cupo && ctx) setCtx({ ...ctx, cupo: d.cupo });
+      // El informe queda abajo; sin esto en móvil parecería que no pasó nada.
+      requestAnimationFrame(() => {
+        document.getElementById("radar-informe")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el reporte.");
+    } finally {
+      setGenerando(false);
+    }
+  }
 
   const cargosDeLaUnidad = useMemo(
     () => ctx?.unidades.find((u) => u.unidad === unidad)?.cargos ?? [],
@@ -290,13 +326,21 @@ export default function RadarPage() {
             </span>
             <button
               type="button"
-              disabled={!listo}
+              onClick={() => void generar()}
+              disabled={!listo || generando}
               className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
+              {generando ? <Loader2 size={16} className="animate-spin" /> : null}
               Generar reporte <ArrowRight size={16} />
             </button>
           </div>
         </section>
+
+        {informe && (
+          <div id="radar-informe" className="scroll-mt-6">
+            <InformeRadarVista informe={informe} />
+          </div>
+        )}
 
         {esAdmin && (
           <p className="text-xs text-slate-400">
