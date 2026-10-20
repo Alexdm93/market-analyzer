@@ -118,22 +118,38 @@ export async function DELETE(request: Request) {
   const acceso = resolverAcceso(await sesion(), searchParams.get("companyId")?.trim() ?? "");
   if (!acceso.ok) return acceso.response;
 
-  const id = searchParams.get("id")?.trim() ?? "";
-  if (!id) return Response.json({ message: "Indica el cargo a borrar." }, { status: 400 });
+  // Uno o varios: la pantalla permite seleccionar y borrar en bloque, porque
+  // limpiar una lista de doscientos de a uno no era razonable
+  // (AC Consulting, 2026-10-20).
+  const ids = [
+    ...(searchParams.get("id")?.trim() ? [searchParams.get("id")!.trim()] : []),
+    ...(searchParams.get("ids") ?? "").split(",").map((x) => x.trim()).filter(Boolean),
+  ];
+  if (ids.length === 0) return Response.json({ message: "Indica el cargo a borrar." }, { status: 400 });
 
-  const actual = await prisma.estudioCargo.findUnique({
-    where: { id },
-    select: { companyId: true, tituloCargo: true },
+  const actuales = await prisma.estudioCargo.findMany({
+    where: { id: { in: ids }, companyId: acceso.companyId },
+    select: { id: true, tituloCargo: true },
   });
-  if (!actual || actual.companyId !== acceso.companyId) {
-    return Response.json({ message: "Ese ocupante no existe en esta empresa." }, { status: 404 });
+  if (actuales.length === 0) {
+    return Response.json({ message: "Ninguno de esos ocupantes existe en esta empresa." }, { status: 404 });
   }
 
-  await prisma.estudioCargo.delete({ where: { id } });
+  await prisma.estudioCargo.deleteMany({
+    where: { id: { in: actuales.map((a) => a.id) }, companyId: acceso.companyId },
+  });
 
-  // La homologación es del cargo, no de la persona: solo se pierde si este era
-  // el último ocupante de ese cargo.
-  const equivalenciasPerdidas = await limpiarEquivalenciasHuerfanas(acceso.companyId, actual.tituloCargo);
+  // La homologación es del cargo, no de la persona: solo se pierde si el que
+  // se fue era el último ocupante de ese cargo.
+  let equivalenciasPerdidas = 0;
+  for (const titulo of new Set(actuales.map((a) => a.tituloCargo))) {
+    equivalenciasPerdidas += await limpiarEquivalenciasHuerfanas(acceso.companyId, titulo);
+  }
 
-  return Response.json({ message: "Ocupante eliminado.", equivalenciasPerdidas });
+  const n = actuales.length;
+  return Response.json({
+    message: n === 1 ? "Ocupante eliminado." : `${n} ocupantes eliminados.`,
+    eliminados: n,
+    equivalenciasPerdidas,
+  });
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -123,6 +123,7 @@ export default function MisCargosPage() {
   const [importando, setImportando] = useState(false);
   const [bajandoPlantilla, setBajandoPlantilla] = useState(false);
   const [menuImportar, setMenuImportar] = useState(false);
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   const archivoRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
 
@@ -169,6 +170,9 @@ export default function MisCargosPage() {
       const { ok, data, mensaje } = await leerRespuesta(res);
       if (!ok) { setError(mensaje); setCargos([]); return; }
       setCargos((data?.cargos as CargoDTO[]) ?? []);
+      // La selección es de la lista que había; al recargarla puede apuntar a
+      // ocupantes que ya no están y el contador mentiría.
+      setSeleccion(new Set());
       if (workspace) setCompanyInfo(workspace.companyInfo);
       // Solo los cortes que el admin incluyó en el estudio de esta empresa.
       if (!esAdmin) {
@@ -278,6 +282,55 @@ export default function MisCargosPage() {
     if (!fue) { setError(mensaje); return; }
     setAviso(mensaje);
     await cargar();
+  }
+
+  /** Borra los seleccionados de una vez. */
+  async function borrarSeleccionados() {
+    const ids = [...seleccion];
+    if (ids.length === 0) return;
+
+    const titulos = new Set(cargos.filter((c) => seleccion.has(c.id)).map((c) => c.tituloCargo));
+    const quedan = cargos.filter((c) => !seleccion.has(c.id)).map((c) => c.tituloCargo);
+    const cargosQueSeVan = [...titulos].filter((t) => !quedan.includes(t)).length;
+
+    const ok = await confirm({
+      title: `Eliminar ${ids.length} ${ids.length === 1 ? "ocupante" : "ocupantes"}`,
+      message: (
+        <span className="space-y-2">
+          <span className="block">Se eliminan con toda su estructura de compensación.</span>
+          {cargosQueSeVan > 0 && (
+            <span className="block">
+              {cargosQueSeVan === 1
+                ? "Uno de los cargos se queda sin ocupantes, así que también se pierde su homologación."
+                : `${cargosQueSeVan} cargos se quedan sin ocupantes, así que también se pierden sus homologaciones.`}
+            </span>
+          )}
+        </span>
+      ),
+      confirmLabel: "Eliminar",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    setGuardando(true);
+    try {
+      const res = await fetch(`/api/estudio/cargos?${qs({ ids: ids.join(",") })}`, { method: "DELETE" });
+      const { ok: fue, mensaje } = await leerRespuesta(res);
+      if (!fue) { setError(mensaje); return; }
+      setAviso(mensaje);
+      setSeleccion(new Set());
+      await cargar();
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  function alternar(id: string) {
+    setSeleccion((previa) => {
+      const siguiente = new Set(previa);
+      if (siguiente.has(id)) siguiente.delete(id); else siguiente.add(id);
+      return siguiente;
+    });
   }
 
   /**
@@ -490,6 +543,97 @@ export default function MisCargosPage() {
     );
   }
 
+  /**
+   * El formulario del cargo.
+   *
+   * Vive en una función y no suelto en el árbol porque se pinta en dos
+   * sitios: arriba cuando se agrega uno nuevo, y dentro de la tabla —debajo
+   * de su propia fila— cuando se edita uno que ya está. Antes solo estaba
+   * arriba, y editar el cargo número cuarenta mandaba la pantalla al
+   * principio (AC Consulting, 2026-10-20).
+   */
+  function formularioCargo(b: Borrador) {
+    return (
+      <>
+  <div className="mb-5 flex items-center justify-between gap-3">
+                <h2 className="font-display text-xl font-bold text-slate-900">
+                  {b.id === null ? "Cargo nuevo" : `Editando: ${b.tituloCargo || "cargo"}`}
+                </h2>
+                <button type="button" onClick={() => setBorrador(null)} aria-label="Cerrar" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-4">
+                <div>
+                  <label htmlFor="mc-ocupante" className="field-label">Ocupante / ID</label>
+                  <input
+                    id="mc-ocupante"
+                    value={b.ocupanteId}
+                    onChange={(e) => setBorrador({ ...b, ocupanteId: e.target.value })}
+                    className="field"
+                    placeholder="Ej. 001 (opcional)"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="mc-dept" className="field-label">Unidad funcional</label>
+                  <input id="mc-dept" value={b.departamento} onChange={(e) => setBorrador({ ...b, departamento: e.target.value })} className="field" placeholder="Ej. Finanzas" />
+                </div>
+                <div>
+                  <label htmlFor="mc-titulo" className="field-label">Nombre del cargo</label>
+                  <input id="mc-titulo" value={b.tituloCargo} onChange={(e) => setBorrador({ ...b, tituloCargo: e.target.value })} className="field" placeholder="Como lo llamas internamente" />
+                </div>
+                <div>
+                  <span className="field-label">Grado CAPRI</span>
+                  <button
+                    type="button"
+                    onClick={() => setCapriAbierto(true)}
+                    className="field flex items-center gap-2 text-left text-sm hover:bg-slate-50"
+                  >
+                    <Layers className="h-4 w-4 text-slate-400" />
+                    {b.hayGrade
+                      ? <span className="font-semibold text-teal-700">{b.hayGrade} · {CAPRI_ROLES[b.hayGrade]?.rol ?? ""}</span>
+                      : <span className="text-slate-400">Clasificar con CAPRI</span>}
+                  </button>
+                </div>
+                <div className="md:col-span-2">
+                  <label htmlFor="mc-reporta" className="field-label">Reporta a</label>
+                  <input
+                    id="mc-reporta"
+                    value={b.reportaA}
+                    onChange={(e) => setBorrador({ ...b, reportaA: e.target.value })}
+                    className="field"
+                    placeholder="Cargo al que reporta"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label htmlFor="mc-desc" className="field-label">Descripción (opcional)</label>
+                  <textarea id="mc-desc" value={b.descripcion} onChange={(e) => setBorrador({ ...b, descripcion: e.target.value })} className="field-textarea" rows={2} />
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
+                <CompensacionEditor
+                  valor={b.data}
+                  tasas={companyInfo.tasas ?? []}
+                  onChange={(data) => setBorrador({ ...b, data })}
+                  deshabilitado={guardando}
+                />
+                <div className="lg:w-56"><ResumenCompensacion total={temDe(b.data)} /></div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button type="button" onClick={() => void guardar()} disabled={guardando} className="btn btn-primary disabled:opacity-50">
+                  {guardando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Guardar cargo
+                </button>
+                <button type="button" onClick={() => setBorrador(null)} disabled={guardando} className="btn btn-secondary disabled:opacity-50">
+                  Cancelar
+                </button>
+              </div>
+      </>
+    );
+  }
+
   return (
     <main className="page-wrap">
       <div className="flex w-full flex-col gap-6">
@@ -641,92 +785,43 @@ export default function MisCargosPage() {
           )}
         </section>
 
-        {/* ── Formulario ────────────────────────────────────────────────── */}
-        {borrador && (
+        {/* ── Cargo nuevo ───────────────────────────────────────────────── */}
+        {borrador?.id === null && (
           <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <h2 className="font-display text-xl font-bold text-slate-900">
-                {borrador.id === null ? "Cargo nuevo" : `Editando: ${borrador.tituloCargo || "cargo"}`}
-              </h2>
-              <button type="button" onClick={() => setBorrador(null)} aria-label="Cerrar" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-4">
-              <div>
-                <label htmlFor="mc-ocupante" className="field-label">Ocupante / ID</label>
-                <input
-                  id="mc-ocupante"
-                  value={borrador.ocupanteId}
-                  onChange={(e) => setBorrador({ ...borrador, ocupanteId: e.target.value })}
-                  className="field"
-                  placeholder="Ej. 001 (opcional)"
-                />
-              </div>
-              <div>
-                <label htmlFor="mc-dept" className="field-label">Unidad funcional</label>
-                <input id="mc-dept" value={borrador.departamento} onChange={(e) => setBorrador({ ...borrador, departamento: e.target.value })} className="field" placeholder="Ej. Finanzas" />
-              </div>
-              <div>
-                <label htmlFor="mc-titulo" className="field-label">Nombre del cargo</label>
-                <input id="mc-titulo" value={borrador.tituloCargo} onChange={(e) => setBorrador({ ...borrador, tituloCargo: e.target.value })} className="field" placeholder="Como lo llamas internamente" />
-              </div>
-              <div>
-                <span className="field-label">Grado CAPRI</span>
-                <button
-                  type="button"
-                  onClick={() => setCapriAbierto(true)}
-                  className="field flex items-center gap-2 text-left text-sm hover:bg-slate-50"
-                >
-                  <Layers className="h-4 w-4 text-slate-400" />
-                  {borrador.hayGrade
-                    ? <span className="font-semibold text-teal-700">{borrador.hayGrade} · {CAPRI_ROLES[borrador.hayGrade]?.rol ?? ""}</span>
-                    : <span className="text-slate-400">Clasificar con CAPRI</span>}
-                </button>
-              </div>
-              <div className="md:col-span-2">
-                <label htmlFor="mc-reporta" className="field-label">Reporta a</label>
-                <input
-                  id="mc-reporta"
-                  value={borrador.reportaA}
-                  onChange={(e) => setBorrador({ ...borrador, reportaA: e.target.value })}
-                  className="field"
-                  placeholder="Cargo al que reporta"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label htmlFor="mc-desc" className="field-label">Descripción (opcional)</label>
-                <textarea id="mc-desc" value={borrador.descripcion} onChange={(e) => setBorrador({ ...borrador, descripcion: e.target.value })} className="field-textarea" rows={2} />
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
-              <CompensacionEditor
-                valor={borrador.data}
-                tasas={companyInfo.tasas ?? []}
-                onChange={(data) => setBorrador({ ...borrador, data })}
-                deshabilitado={guardando}
-              />
-              <div className="lg:w-56"><ResumenCompensacion total={temDe(borrador.data)} /></div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button type="button" onClick={() => void guardar()} disabled={guardando} className="btn btn-primary disabled:opacity-50">
-                {guardando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Guardar cargo
-              </button>
-              <button type="button" onClick={() => setBorrador(null)} disabled={guardando} className="btn btn-secondary disabled:opacity-50">
-                Cancelar
-              </button>
-            </div>
+            {formularioCargo(borrador)}
           </section>
         )}
 
         {/* ── Lista ─────────────────────────────────────────────────────── */}
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <h2 className="mb-5 font-display text-xl font-bold text-slate-900">
-            {cargos.length} {cargos.length === 1 ? "ocupante" : "ocupantes"} en la lista
-          </h2>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-xl font-bold text-slate-900">
+              {cargos.length} {cargos.length === 1 ? "ocupante" : "ocupantes"} en la lista
+            </h2>
+            {seleccion.size > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-600">
+                  {seleccion.size} {seleccion.size === 1 ? "seleccionado" : "seleccionados"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSeleccion(new Set())}
+                  className="text-sm text-slate-500 underline hover:text-slate-700"
+                >
+                  Quitar selección
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void borrarSeleccionados()}
+                  disabled={guardando}
+                  className="btn btn-secondary border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {guardando ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  Eliminar
+                </button>
+              </div>
+            )}
+          </div>
 
           {!puedeOperar && <p className="text-sm text-slate-500">Elige una empresa para ver su lista.</p>}
 
@@ -744,6 +839,21 @@ export default function MisCargosPage() {
                   <table className="w-full min-w-[46rem] text-sm">
                     <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                       <tr>
+                        <th className="w-10 px-4 py-2.5">
+                          <input
+                            type="checkbox"
+                            aria-label={`Seleccionar todos los de ${dept}`}
+                            checked={lista.every((c) => seleccion.has(c.id))}
+                            onChange={(e) => setSeleccion((previa) => {
+                              const siguiente = new Set(previa);
+                              for (const c of lista) {
+                                if (e.target.checked) siguiente.add(c.id); else siguiente.delete(c.id);
+                              }
+                              return siguiente;
+                            })}
+                            className="h-4 w-4 accent-[#1B4965]"
+                          />
+                        </th>
                         <th className="px-4 py-2.5 font-semibold">Cargo</th>
                         <th className="px-4 py-2.5 font-semibold">Ocupante</th>
                         <th className="px-4 py-2.5 font-semibold">Grado</th>
@@ -756,7 +866,17 @@ export default function MisCargosPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {lista.map((c) => (
-                        <tr key={c.id}>
+                        <Fragment key={c.id}>
+                        <tr className={seleccion.has(c.id) ? "bg-slate-50" : undefined}>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="checkbox"
+                              aria-label={`Seleccionar ${c.tituloCargo}`}
+                              checked={seleccion.has(c.id)}
+                              onChange={() => alternar(c.id)}
+                              className="h-4 w-4 accent-[#1B4965]"
+                            />
+                          </td>
                           <td className="px-4 py-2.5 text-slate-800">{c.tituloCargo}</td>
                           <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{c.ocupanteId || "—"}</td>
                           <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-slate-600">{c.hayGrade ?? "—"}</td>
@@ -804,6 +924,19 @@ export default function MisCargosPage() {
                             </div>
                           </td>
                         </tr>
+                        {/*
+                          Editar abre el formulario DEBAJO de su propia fila.
+                          Antes se abría arriba de todo y en una lista larga
+                          parecía que no había pasado nada.
+                        */}
+                        {borrador?.id === c.id && (
+                          <tr>
+                            <td colSpan={snapshotId ? 9 : 8} className="bg-slate-50/70 px-4 py-5">
+                              {formularioCargo(borrador)}
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
