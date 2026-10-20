@@ -7,6 +7,8 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
+import { getLibreRate } from "@/lib/tcr-config";
 import { cupoAgotado, huellaDelCorte, type ConfiguracionDelCorte } from "@/lib/cupo-informes";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
 import { parseDatosInforme, validarDatosInforme } from "@/lib/estudio-informes";
@@ -101,13 +103,21 @@ export async function POST(request: Request) {
   const vetado = await asegurarCorte(acceso, snapshotId);
   if (vetado) return vetado;
 
+  // Las tasas del momento se fijan acá y no en el navegador: son parte de lo
+  // que hace reproducible el informe, y el cliente no tiene por qué poder
+  // elegirlas (AC Consulting, 2026-10-20).
+  const [bcv, bcvEur, binance, libre] = await Promise.all([
+    getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
+  ]);
+  const tasas = { bcv: bcv.rate, bcvEur: bcvEur.rate, binance: binance.rate, libreManual: libre.rate };
+
   const validacion = validarDatosInforme({
     modo: body?.modo,
     metrica: body?.metrica,
     filas: body?.filas,
     // Sin esto el informe queda sin criterios y después no se puede volver a
     // emitir: el cuerpo los traía y se perdían acá.
-    criterios: body?.criterios,
+    criterios: { ...(body?.criterios ?? {}), tasas },
   });
   if (!validacion.ok) return Response.json({ message: validacion.mensaje }, { status: 400 });
 
@@ -151,7 +161,9 @@ export async function POST(request: Request) {
     select: { id: true },
   });
 
-  return Response.json({ id: creado.id, message: `Informe "${nombre}" guardado.` });
+  // Las tasas vuelven para que la pantalla emita el Excel con las MISMAS que
+  // quedaron guardadas, y no con las que haya cuando salga la petición.
+  return Response.json({ id: creado.id, tasas, message: `Informe "${nombre}" guardado.` });
 }
 
 /**

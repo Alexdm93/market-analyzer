@@ -154,6 +154,9 @@ export default function InformesPage() {
           tcr: criterios.tcr ? { tipo: criterios.tcr } : null,
           grupoComparacion: criterios.grupoComparacion,
           filtrosGrupo: criterios.filtrosGrupo,
+          // Las tasas con las que se emitió. Sin esto, un informe en TCR
+          // libre se recalcularía con la tasa de hoy y daría otras cifras.
+          tasas: criterios.tasas ?? null,
         }),
       });
 

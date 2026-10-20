@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { gradeToNivel } from "@/lib/capri";
+import type { TasasDelInforme } from "@/lib/estudio-informes";
 import { computeRowTotals, computeTCRTotals, tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
 import { MINIMO_EMPRESAS_DEL_GRUPO, TAMANOS } from "@/lib/filtros-mercado";
 import { posicionEnMercado } from "@/lib/estudio-informes";
@@ -487,11 +488,16 @@ export default function ComparacionPage() {
    * calculados a propósito: un informe es la foto de lo que el cliente vio, así
    * que recalcularlos al guardar sería justamente lo contrario de congelar.
    */
-  /** Congela el informe en el historial. Devuelve si pudo. */
-  async function guardarEnHistorial(): Promise<boolean> {
+  /**
+   * Congela el informe en el historial.
+   *
+   * Devuelve las tasas que quedaron fijadas con él —null si no pudo—, porque
+   * el Excel se emite con esas y no con las que haya en ese instante.
+   */
+  async function guardarEnHistorial(): Promise<{ tasas: TasasDelInforme | null } | null> {
     const elegidas = filas.filter((f) => seleccionados.includes(f.cargo.id));
-    if (elegidas.length === 0) { setError("Elige al menos un cargo para el informe."); return false; }
-    if (!nombreInforme.trim()) { setError("Ponle un nombre al informe."); return false; }
+    if (elegidas.length === 0) { setError("Elige al menos un cargo para el informe."); return null; }
+    if (!nombreInforme.trim()) { setError("Ponle un nombre al informe."); return null; }
 
     setGenerando(true);
     setError("");
@@ -536,9 +542,10 @@ export default function ComparacionPage() {
           })),
         }),
       });
-      const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      if (!res.ok) { setError(data?.message ?? "No se pudo guardar el informe."); return false; }
-      return true;
+      const data = (await res.json().catch(() => null)) as
+        { message?: string; tasas?: TasasDelInforme } | null;
+      if (!res.ok) { setError(data?.message ?? "No se pudo guardar el informe."); return null; }
+      return { tasas: data?.tasas ?? null };
     } finally {
       setGenerando(false);
     }
@@ -556,6 +563,9 @@ export default function ComparacionPage() {
 
     const guardado = await guardarEnHistorial();
     if (!guardado) return;
+    // Las que quedaron fijadas con el informe: el Excel se emite con esas
+    // para que bajarlo ahora y bajarlo dentro de un mes den lo mismo.
+    const tasasFijadas = guardado.tasas ?? null;
 
     setBajandoExcel(true);
     setError("");
@@ -575,6 +585,7 @@ export default function ComparacionPage() {
           grupoComparacion: descripcionGrupo,
           filtrosGrupo: consultaFiltros,
           modo,
+          tasas: tasasFijadas,
         }),
       });
 

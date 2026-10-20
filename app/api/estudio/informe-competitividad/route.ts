@@ -26,6 +26,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
+import type { TasasDelInforme } from "@/lib/estudio-informes";
 import { CATEGORIAS, calcularDistribucion, calcularMonedaPorNivel } from "@/lib/distribucion-compensacion";
 import { getLibreRate } from "@/lib/tcr-config";
 import { asegurarCorte, resolverAcceso } from "@/lib/estudio-cargos";
@@ -63,6 +64,13 @@ type Cuerpo = {
   filtrosGrupo?: string;
   /** "cargo" o "grado": forma parte de lo que define el corte de data. */
   modo?: string;
+  /**
+   * Las tasas con las que se emitió el informe original.
+   *
+   * Solo vienen cuando se reemite desde el historial: en ese caso se usan
+   * esas y no las de hoy, para que el mismo informe dé siempre lo mismo.
+   */
+  tasas?: TasasDelInforme | null;
 };
 
 /**
@@ -73,11 +81,30 @@ type Cuerpo = {
  * que el Excel no puede decir algo distinto de lo que el cliente está viendo.
  * Y viene con la matriz por grado ya suavizada.
  */
-async function mercadoDelInforme(snapshotId: string, filtros: string, tcrType: TcrType | null) {
-  const [workspaces, enviaron, bcv, bcvEur, binance, libre] = await Promise.all([
+/**
+ * Las tasas con las que se calcula el informe.
+ *
+ * Un informe que ya se emitió tiene que dar siempre lo mismo. Las del BCV ya
+ * eran estables —cada empresa convierte con la que tenía al enviar su data—
+ * pero la tasa libre la mantiene el administrador a mano, así que reemitir en
+ * otro momento cambiaba las cifras. Por eso se fijan al generarlo y se reusan
+ * al bajarlo del historial; solo un informe NUEVO toma las de hoy
+ * (AC Consulting, 2026-10-20).
+ */
+async function tasasDelInforme(fijadas: TasasDelInforme | null | undefined): Promise<TasasDelInforme> {
+  if (fijadas) return fijadas;
+  const [bcv, bcvEur, binance, libre] = await Promise.all([
+    getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
+  ]);
+  return { bcv: bcv.rate, bcvEur: bcvEur.rate, binance: binance.rate, libreManual: libre.rate };
+}
+
+async function mercadoDelInforme(
+  snapshotId: string, filtros: string, tcrType: TcrType | null, tasasGlobales: TasasDelInforme,
+) {
+  const [workspaces, enviaron] = await Promise.all([
     prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
     usuariosQueEnviaron(snapshotId),
-    getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
   ]);
 
   const parametros = {
@@ -88,12 +115,8 @@ async function mercadoDelInforme(snapshotId: string, filtros: string, tcrType: T
   };
 
   return tcrType
-    ? calcularPercentilesTcr({
-        ...parametros,
-        tcrType,
-        globales: { bcv: bcv.rate, bcvEur: bcvEur.rate, binance: binance.rate, libreManual: libre.rate },
-      })
-    : calcularPercentilesMercado({ ...parametros, bcvGeneral: bcv.rate });
+    ? calcularPercentilesTcr({ ...parametros, tcrType, globales: tasasGlobales })
+    : calcularPercentilesMercado({ ...parametros, bcvGeneral: tasasGlobales.bcv });
 }
 
 export async function POST(request: Request) {
@@ -115,7 +138,9 @@ export async function POST(request: Request) {
   const tcrType: TcrType | null =
     tipoTcrPedido === "bcv" || tipoTcrPedido === "euro" || tipoTcrPedido === "libre" ? tipoTcrPedido : null;
 
-  const mercado = await mercadoDelInforme(snapshotId, body?.filtrosGrupo ?? "", tcrType);
+  // Las del informe guardado si viene a reemitirse; si no, las de hoy.
+  const tasasGlobales = await tasasDelInforme(body?.tasas ?? null);
+  const mercado = await mercadoDelInforme(snapshotId, body?.filtrosGrupo ?? "", tcrType, tasasGlobales);
 
   // El grupo de comparación necesita un mínimo de empresas para que nadie
   // deduzca el sueldo de una en particular. Lo fijó AC Consulting en doce
@@ -241,14 +266,7 @@ export async function POST(request: Request) {
   const tipoTcr = body?.tcr?.tipo;
   let opcionesTcr: OpcionesTcr | null = null;
   if (tipoTcr === "bcv" || tipoTcr === "euro" || tipoTcr === "libre") {
-    const [bcvG, bcvEurG, binanceG, libreG] = await Promise.all([
-      getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
-    ]);
-    const r = tasasTcrDeEmpresa(
-      info.ratesAtSave,
-      { bcv: bcvG.rate, bcvEur: bcvEurG.rate, binance: binanceG.rate, libreManual: libreG.rate },
-      tipoTcr,
-    );
+    const r = tasasTcrDeEmpresa(info.ratesAtSave, tasasGlobales, tipoTcr);
     if (r.tcrRate > 0) {
       opcionesTcr = { tipo: tipoTcr, bcvEur: r.bcvEurRate, libre: r.libreRate, tasaTcr: r.tcrRate };
     }
@@ -381,6 +399,9 @@ export async function POST(request: Request) {
         filtros: body?.filtrosGrupo ?? "",
         metrica: config.concepto,
         datosJson: JSON.stringify(mercado.suavizado),
+        // Con qué tasas se calculó: es lo que permite reproducir un informe
+        // viejo y explicar de dónde salió cada cifra.
+        tasasJson: JSON.stringify({ ...tasasGlobales, tcr: tipoTcr ?? null }),
         generadoPor: session?.user?.name ?? session?.user?.email ?? "",
       },
     });
@@ -392,6 +413,9 @@ export async function POST(request: Request) {
 
   return new Response(new Uint8Array(buffer), {
     headers: {
+      // La pantalla las guarda con el informe: son las que hay que reusar
+      // para que al reemitirlo dé exactamente lo mismo.
+      "X-Tasas-Informe": JSON.stringify(tasasGlobales),
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(nombre)}`,
       "Cache-Control": "no-store",

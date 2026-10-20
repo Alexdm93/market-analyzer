@@ -52,6 +52,26 @@ export type FilaInforme = {
  * poder volver a emitir el documento completo sin que el cliente tenga que
  * reconstruir la configuración a mano.
  */
+/** Las cuatro tasas globales del momento en que se emitió un informe. */
+export type TasasDelInforme = {
+  bcv: number | null;
+  bcvEur: number | null;
+  binance: number | null;
+  libreManual: number | null;
+};
+
+function leerTasas(v: unknown): TasasDelInforme | null {
+  if (!v || typeof v !== "object") return null;
+  const t = v as Record<string, unknown>;
+  const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : null);
+  const tasas = {
+    bcv: num(t.bcv), bcvEur: num(t.bcvEur),
+    binance: num(t.binance), libreManual: num(t.libreManual),
+  };
+  // Un objeto sin ninguna tasa no sirve para fijar nada.
+  return Object.values(tasas).some((x) => x !== null) ? tasas : null;
+}
+
 export type CriteriosInforme = {
   snapshotId: string;
   snapshotLabel: string;
@@ -63,6 +83,15 @@ export type CriteriosInforme = {
   /** En palabras, para mostrarlo. */
   grupoComparacion: string;
   grados: number[];
+  /**
+   * Las tasas con las que se emitió, congeladas.
+   *
+   * Sin esto, volver a bajar el informe en TCR libre lo recalculaba con la
+   * tasa del día y el cliente veía cifras distintas para el mismo informe. Se
+   * fijan al generarlo y se reusan al reemitirlo; solo un informe NUEVO toma
+   * las de hoy (AC Consulting, 2026-10-20).
+   */
+  tasas?: TasasDelInforme | null;
 };
 
 export type DatosInforme = {
@@ -140,6 +169,7 @@ export function validarDatosInforme(entrada: unknown): Validacion {
         filtrosGrupo: String(c.filtrosGrupo ?? ""),
         grupoComparacion: String(c.grupoComparacion ?? ""),
         grados: Array.isArray(c.grados) ? c.grados.map(Number).filter(Number.isFinite) : [],
+        tasas: leerTasas(c.tasas),
       }
     : undefined;
 

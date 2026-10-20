@@ -211,6 +211,10 @@ model AuditoriaSuavizado {
   metrica          String   @default("")
   /// Cruda, procesada y diagnóstico de las cuatro métricas.
   datosJson        String
+  /// Con qué tasas se calculó: las cuatro globales del momento y qué TCR se
+  /// pidió. Es lo que permite reproducir un informe viejo y explicar de dónde
+  /// salió cada cifra.
+  tasasJson        String   @default("{}")
   generadoPor      String   @default("")
   createdAt        DateTime @default(now())
 
