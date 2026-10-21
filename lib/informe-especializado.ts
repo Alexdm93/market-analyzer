@@ -297,36 +297,30 @@ const MAPEO_ALTO_CIERRE = 23;
 /**
  * De dónde sale el formato de cada fila que escribe el mapeo.
  *
- * La plantilla trae el primer bloque bien dibujado —fila de título, tres de
- * detalle y una separadora— pero de la fila 15 en adelante los estilos ya no
- * son los mismos, así que los cargos que caían ahí salían en texto plano
- * (AC Consulting, 2026-10-20). En vez de confiar en lo que haya debajo, cada
- * bloque copia el formato del primero.
+ * El mapeo es una CUADRICULA de nivel × unidad funcional, no un montón de
+ * recuadros sueltos: cada columna lleva sus dos rayas verticales de arriba
+ * abajo y cada nivel se cierra con una horizontal que cruza todo el ancho,
+ * tenga esa unidad un cargo en ese grado o no. Dentro de una celda los cargos
+ * van apilados, separados por un renglón en blanco y sin raya entre ellos
+ * (AC Consulting, 2026-10-21).
+ *
+ * De ahí que hagan falta tres estilos por columna, que se copian de la primera
+ * banda de la plantilla: la fila de arriba de la banda, las de en medio y la
+ * de abajo. De la fila 15 en adelante los estilos de la plantilla ya no son
+ * los mismos, así que no sirve confiar en lo que haya debajo.
  */
 const MAPEO_MODELO = {
-  /** Las cuatro filas de un cargo: la del título y las tres de detalle. */
-  cargo: [MAPEO_PRIMERA_FILA, MAPEO_PRIMERA_FILA + 1, MAPEO_PRIMERA_FILA + 2, MAPEO_PRIMERA_FILA + 3],
-  /**
-   * La quinta fila, que es la que CIERRA la caja.
-   *
-   * En la plantilla el recuadro de un cargo se dibuja con tres estilos: el
-   * primero trae borde superior y laterales, los tres siguientes solo
-   * laterales, y el quinto el borde inferior. No es una fila separadora: sin
-   * ella la caja queda abierta por abajo (AC Consulting, 2026-10-20).
-   */
+  /** La primera fila de una banda: raya de arriba y laterales. */
+  arriba: MAPEO_PRIMERA_FILA,
+  /** Las de en medio: solo laterales. */
+  medio: MAPEO_PRIMERA_FILA + 1,
+  /** La última: laterales y la raya que cierra el nivel. */
   cierre: MAPEO_PRIMERA_FILA + 4,
   /**
-   * Las tres filas de la columna del grado: la primera, las de en medio y la
-   * que cierra.
-   *
-   * Se toman de la SEGUNDA banda de la plantilla, no de la primera: en la
-   * primera la celda del grado viene sin borde derecho —un descuido del
-   * original— y la columna "Nivel" quedaba abierta contra la primera unidad.
-   *
-   * Hay que ponerle formato a las tres: la banda se combina de alto variable
-   * y el borde inferior del recuadro lo pone la ULTIMA fila, no la primera,
-   * así que si solo se escribe la de arriba la caja del grado no cierra
-   * (AC Consulting, 2026-10-20).
+   * Lo mismo para la columna del grado, tomado de la SEGUNDA banda de la
+   * plantilla: en la primera la celda del grado viene sin borde derecho —un
+   * descuido del original— y la columna "Nivel" quedaba abierta contra la
+   * primera unidad.
    */
   grado: [MAPEO_PRIMERA_FILA + 5, MAPEO_PRIMERA_FILA + 6, MAPEO_PRIMERA_FILA + 9],
 } as const;
@@ -373,6 +367,10 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
     if (alto > 1) ws.set(`A${fila + alto - 1}`, null, `A${MAPEO_MODELO.grado[2]}`);
     if (alto > 1) ws.combinar(`A${fila}:A${fila + alto - 1}`);
 
+    /** El modelo de la fila k de la banda: arriba, en medio o la de cierre. */
+    const modeloDe = (k: number) =>
+      k === 0 ? MAPEO_MODELO.arriba : k === alto - 1 ? MAPEO_MODELO.cierre : MAPEO_MODELO.medio;
+
     MAPEO_COLUMNAS.forEach((col, i) => {
       // Las columnas que no son de ninguna unidad se vacían de formato: si no,
       // los recuadros de la plantilla seguían dibujándose hasta la columna O y
@@ -383,33 +381,23 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
         for (let f = fila; f < fila + alto; f++) ws.limpiar(`${col}${f}`);
         return;
       }
-      const lista = porArea.get(areas[i]) ?? [];
 
-      lista.forEach((c, idx) => {
-        const base = fila + idx * (MAPEO_FILAS_POR_CARGO + 1);
-        const comoEl = (k: number) => `${col}${MAPEO_MODELO.cargo[k]}`;
-        ws.set(`${col}${base}`, c.tituloCargo, comoEl(0));
-        ws.set(`${col}${base + 1}`, c.unidadFuncional, comoEl(1));
+      // La cuadrícula, primero y completa: toda la banda lleva sus laterales y
+      // la raya que cierra el nivel, aunque esta unidad no tenga ningún cargo
+      // en este grado.
+      for (let k = 0; k < alto; k++) ws.set(`${col}${fila + k}`, null, `${col}${modeloDe(k)}`);
+
+      // Y encima el texto, respetando el formato que le toca a cada fila.
+      (porArea.get(areas[i]) ?? []).forEach((c, idx) => {
+        const k = idx * (MAPEO_FILAS_POR_CARGO + 1);
+        const comoEl = (n: number) => `${col}${modeloDe(n)}`;
+        ws.set(`${col}${fila + k}`, c.tituloCargo, comoEl(k));
+        ws.set(`${col}${fila + k + 1}`, c.unidadFuncional, comoEl(k + 1));
         // Una sola celda: "Reporta a: Fulano". Si va la etiqueta en una fila y
         // el nombre en la siguiente, cuando el cliente no lo cargó queda un
         // "Reporta a:" suelto sin nadie detrás.
-        ws.set(`${col}${base + 2}`, c.reportaA ? `Reporta a: ${c.reportaA}` : null, comoEl(2));
-        ws.set(`${col}${base + 3}`, null, comoEl(3));
-        // La quinta fila cierra el recuadro de ESTE cargo, apilado o no.
-        ws.set(`${col}${base + 4}`, null, `${col}${MAPEO_MODELO.cierre}`);
+        ws.set(`${col}${fila + k + 2}`, c.reportaA ? `Reporta a: ${c.reportaA}` : null, comoEl(k + 2));
       });
-
-      // Lo que sobra en esta columna va SIN formato: con el de las filas de
-      // detalle quedaban laterales sueltos bajando hasta el final de la banda,
-      // como un recuadro que no cierra nunca.
-      const ocupadas = lista.length * (MAPEO_FILAS_POR_CARGO + 1);
-      for (let f = fila + ocupadas; f < fila + alto; f++) ws.limpiar(`${col}${f}`);
-
-      // Pero la raya que separa un nivel del siguiente sí cruza todo el ancho,
-      // tenga esta unidad un cargo en este grado o no: es lo que hace que el
-      // mapeo se lea como una cuadrícula de niveles y no como cajas sueltas
-      // flotando (AC Consulting, 2026-10-20).
-      if (ocupadas < alto) ws.setSoloCierre(`${col}${fila + alto - 1}`, `${col}${MAPEO_MODELO.cierre}`);
     });
 
     // Sin fila en blanco entre bandas: en la plantilla van pegadas, y la que

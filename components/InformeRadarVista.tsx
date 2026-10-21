@@ -207,6 +207,7 @@ export function InformeRadarVista({ informe }: { informe: InformeRadar }) {
 
         <p className="mt-4 text-xs text-slate-400">
           {informe.empresa} · {informe.corte.label} · emitido el {informe.emitido}
+          {informe.grupo && ` · recorte: ${informe.grupo}`}
         </p>
       </section>
     </article>

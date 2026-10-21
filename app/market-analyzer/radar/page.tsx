@@ -18,9 +18,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { CapriWizardModal } from "@/components/CapriWizardModal";
+import { ListaCasillas } from "@/components/ListaCasillas";
 import { InformeRadarVista } from "@/components/InformeRadarVista";
 import { SelectorBuscador } from "@/components/SelectorBuscador";
 import { CAPRI_ROLES } from "@/lib/capri";
+import { TAMANOS } from "@/lib/filtros-mercado";
 import { isAdminRole } from "@/lib/roles";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
@@ -46,6 +48,20 @@ export default function RadarPage() {
    * plataforma, que es el único que ve una empresa.
    */
   const [corteAdmin, setCorteAdmin] = useState("");
+
+  /**
+   * El recorte del mercado, solo para el admin: los mismos cinco criterios que
+   * el grupo de comparación del Estudio de Competitividad
+   * (AC Consulting, 2026-10-21).
+   */
+  const [filtroSectores, setFiltroSectores] = useState<string[]>([]);
+  const [filtroClasificaciones, setFiltroClasificaciones] = useState<string[]>([]);
+  const [filtroLocalidades, setFiltroLocalidades] = useState<string[]>([]);
+  const [filtroTamanos, setFiltroTamanos] = useState<string[]>([]);
+  const [filtroEmpresas, setFiltroEmpresas] = useState<string[]>([]);
+  const [abrirRecorte, setAbrirRecorte] = useState(false);
+  /** Cuántas empresas quedan con el recorte puesto; null mientras se consulta. */
+  const [empresasEnGrupo, setEmpresasEnGrupo] = useState<number | null>(null);
   const [tcr, setTcr] = useState(false);
   // Los mismos tres que el resto de la plataforma, no uno fijo
   // (AC Consulting, 2026-10-20).
@@ -88,6 +104,51 @@ export default function RadarPage() {
 
   useEffect(() => { void cargar(); }, [cargar]);
 
+  /** Los filtros como query string, con los nombres que lee el servidor. */
+  const consultaFiltros = useMemo(() => {
+    const p = new URLSearchParams();
+    if (filtroSectores.length > 0) p.set("sectors", filtroSectores.join(","));
+    // El parámetro se llama `sizes` de antes; filtra la clasificación.
+    if (filtroClasificaciones.length > 0) p.set("sizes", filtroClasificaciones.join(","));
+    if (filtroLocalidades.length > 0) p.set("localities", filtroLocalidades.join(","));
+    if (filtroTamanos.length > 0) p.set("tamanos", filtroTamanos.join(","));
+    if (filtroEmpresas.length > 0) p.set("companies", filtroEmpresas.join(","));
+    return p.toString();
+  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos, filtroEmpresas]);
+
+  const descripcionRecorte = useMemo(() => {
+    const resumir = (xs: string[], uno: string, varios: string) =>
+      xs.length === 1 ? `${uno} ${xs[0]}` : xs.length > 1 ? `${xs.length} ${varios}` : "";
+    const partes = [
+      resumir(filtroSectores, "Sector", "sectores"),
+      resumir(filtroClasificaciones, "Clasificación", "clasificaciones"),
+      resumir(filtroLocalidades, "Ubicación", "ubicaciones"),
+      resumir(filtroTamanos, "Tamaño", "tamaños"),
+      resumir(filtroEmpresas, "Empresa", "empresas"),
+    ].filter(Boolean);
+    return partes.length > 0 ? partes.join(" · ") : "Todo el corte";
+  }, [filtroSectores, filtroClasificaciones, filtroLocalidades, filtroTamanos, filtroEmpresas]);
+
+  /**
+   * Cuántas empresas quedan con el recorte.
+   *
+   * Va en su propia consulta y no en `cargar` a propósito: tocar una casilla
+   * no tiene por qué dejar la pantalla entera en blanco mientras se recuenta.
+   */
+  useEffect(() => {
+    if (!esAdmin) { setEmpresasEnGrupo(null); return; }
+    let ignorar = false;
+    const p = new URLSearchParams(consultaFiltros);
+    if (corteAdmin) p.set("corte", corteAdmin);
+    void fetch(`/api/radar?${p.toString()}`, { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((d: ContextoRadar | null) => {
+        if (!ignorar) setEmpresasEnGrupo(d?.recorte?.empresasEnGrupo ?? null);
+      })
+      .catch(() => { if (!ignorar) setEmpresasEnGrupo(null); });
+    return () => { ignorar = true; };
+  }, [esAdmin, consultaFiltros, corteAdmin]);
+
   async function generar() {
     setGenerando(true);
     setError("");
@@ -102,6 +163,7 @@ export default function RadarPage() {
           ...(valorando ? { grado, familia } : {}),
           ...(tcr ? { tcr: { tipo: tcrTipo } } : {}),
           ...(corteAdmin ? { corte: corteAdmin } : {}),
+          ...(consultaFiltros ? { filtrosGrupo: consultaFiltros } : {}),
         }),
       });
       const d = (await res.json().catch(() => null)) as
@@ -235,7 +297,9 @@ export default function RadarPage() {
           {ctx.ilimitado ? (
             <p className="mt-1 text-sm text-slate-500">
               Como administrador no tienes tope: puedes emitir los reportes que quieras, sobre
-              cualquier corte publicado. No consumen cupo ni quedan en el historial de la empresa.
+              cualquier corte publicado y con el recorte de data que quieras. No consumen cupo
+              ni quedan en el historial de la empresa, y el reporte sale con las cuatro métricas
+              (TEM, TEMz, CIM y PCTA) en vez de las dos del informe de cliente.
             </p>
           ) : ctx.cupo && (
             <p className="mt-1 text-sm text-slate-500">
@@ -257,6 +321,79 @@ export default function RadarPage() {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             El administrador todavía no eligió de qué estudio sale el Radar.
           </p>
+        )}
+
+        {ctx.ilimitado && ctx.recorte && (
+          <section className="surface-panel rounded-[2rem] p-6">
+            <button
+              type="button"
+              onClick={() => setAbrirRecorte((v) => !v)}
+              className="flex w-full items-center justify-between text-left"
+            >
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">Recorte de la data</span>
+                <span className="block text-xs text-slate-500">
+                  Contra quién se compara: <strong>{descripcionRecorte}</strong>
+                  {empresasEnGrupo !== null && ` · ${empresasEnGrupo} ${empresasEnGrupo === 1 ? "empresa" : "empresas"}`}
+                </span>
+              </span>
+              <span className="text-xs font-semibold text-teal-700">{abrirRecorte ? "Ocultar" : "Cambiar"}</span>
+            </button>
+
+            {abrirRecorte && (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <ListaCasillas
+                    titulo="Sectores económicos"
+                    vacio="Todos los del corte"
+                    opciones={ctx.recorte.sectores}
+                    elegidas={filtroSectores}
+                    onToggle={(v) => setFiltroSectores((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                    onLimpiar={() => setFiltroSectores([])}
+                  />
+                  <ListaCasillas
+                    titulo="Clasificación (subsector)"
+                    vacio="Todas las del corte"
+                    opciones={ctx.recorte.clasificaciones}
+                    elegidas={filtroClasificaciones}
+                    onToggle={(v) => setFiltroClasificaciones((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                    onLimpiar={() => setFiltroClasificaciones([])}
+                  />
+                  <ListaCasillas
+                    titulo="Ubicación"
+                    vacio="Todas las del corte"
+                    opciones={ctx.recorte.localidades}
+                    elegidas={filtroLocalidades}
+                    onToggle={(v) => setFiltroLocalidades((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                    onLimpiar={() => setFiltroLocalidades([])}
+                  />
+                  <ListaCasillas
+                    titulo="Tamaño"
+                    vacio="Todos los del corte"
+                    opciones={TAMANOS.map((t) => t.valor)}
+                    etiquetas={Object.fromEntries(TAMANOS.map((t) => [t.valor, t.etiqueta]))}
+                    elegidas={filtroTamanos}
+                    onToggle={(v) => setFiltroTamanos((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                    onLimpiar={() => setFiltroTamanos([])}
+                  />
+                </div>
+
+                <ListaCasillas
+                  titulo="Empresas"
+                  vacio="Todas las del corte"
+                  opciones={ctx.recorte.empresas}
+                  elegidas={filtroEmpresas}
+                  onToggle={(v) => setFiltroEmpresas((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                  onLimpiar={() => setFiltroEmpresas([])}
+                />
+
+                <p className="text-xs text-slate-500">
+                  El recorte no tiene mínimo de empresas: es para revisar, no para entregarle a un
+                  cliente. Con pocas empresas los percentiles dejan de ser mercado.
+                </p>
+              </div>
+            )}
+          </section>
         )}
 
         {fichaIncompleta && (

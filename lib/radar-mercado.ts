@@ -14,9 +14,32 @@ import { CATEGORIAS, composicionDe, type Categoria } from "@/lib/distribucion-co
 import { tamanoDeEmpresa } from "@/lib/filtros-mercado";
 import type { ObservacionMercado } from "@/lib/percentiles-mercado";
 
-/** Las dos métricas que publica el Radar, con el nombre que usa el mercado. */
+/** Las métricas del Radar, con el nombre que usa el mercado. */
 export const METRICA_TEM = "sinPasivosMensual" as const;
+export const METRICA_TEMZ = "directoMensualizado" as const;
+export const METRICA_CIM = "conPasivosMensual" as const;
 export const METRICA_PCTA = "conPasivosAnual" as const;
+
+export type MetricaRadar =
+  | typeof METRICA_TEM | typeof METRICA_TEMZ | typeof METRICA_CIM | typeof METRICA_PCTA;
+
+/**
+ * Las cuatro métricas, en el orden en que se leen.
+ *
+ * Un informe de empresa publica solo TEM y PCTA, que es el modelo que aprobó
+ * AC Consulting. El administrador las ve las cuatro, para poder revisar un
+ * corte con la misma vara que el resto de la plataforma
+ * (AC Consulting, 2026-10-21).
+ */
+export const METRICAS_RADAR: Array<{ clave: MetricaRadar; etiqueta: string }> = [
+  { clave: METRICA_TEM,  etiqueta: "TEM (Total Efectivo Mensual)" },
+  { clave: METRICA_TEMZ, etiqueta: "TEMz (Total Efectivo Mensualizado)" },
+  { clave: METRICA_CIM,  etiqueta: "CIM (Compensación Integral Mensualizada)" },
+  { clave: METRICA_PCTA, etiqueta: "PCTA (Paquete de Compensación Total Anual)" },
+];
+
+/** Las que ve una empresa. */
+export const METRICAS_DEL_CLIENTE: MetricaRadar[] = [METRICA_TEM, METRICA_PCTA];
 
 export const PERCENTILES_RADAR = ["p10", "p25", "p50", "p75", "p90"] as const;
 export type PercentilRadar = (typeof PERCENTILES_RADAR)[number];

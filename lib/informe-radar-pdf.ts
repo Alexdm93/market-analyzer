@@ -145,8 +145,11 @@ export function generarPdfRadar(informe: InformeRadar): Promise<Buffer> {
   doc.font("Helvetica-Bold").fontSize(16).fillColor(AZUL)
     .text(informe.modo === "cargo" ? "REPORTE POR CARGO" : "REPORTE POR VALORACIÓN CAPRI", MARGEN, MARGEN,
       { width: anchoTitulo });
+  // El recorte solo aparece cuando el reporte NO salió del corte entero, que
+  // es el caso del administrador revisando un sector o un grupo de empresas.
+  const subtitulo = [informe.empresa, informe.corte.label, informe.grupo].filter(Boolean).join(" · ");
   doc.font("Helvetica").fontSize(9).fillColor(GRIS)
-    .text(`${informe.empresa} · ${informe.corte.label}`, MARGEN, doc.y + 2, { width: anchoTitulo });
+    .text(subtitulo, MARGEN, doc.y + 2, { width: anchoTitulo });
 
   let y = doc.y + 16;
 

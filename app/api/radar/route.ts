@@ -28,14 +28,15 @@ import {
 } from "@/lib/percentiles-mercado";
 import { corteDelRadar, estadoDelCupo, faltaEnLaFicha, type EstadoCupoRadar } from "@/lib/radar";
 import {
-  METRICA_PCTA,
-  METRICA_TEM,
+  METRICAS_DEL_CLIENTE,
+  METRICAS_RADAR,
   PERCENTILES_RADAR,
   describirMuestra,
   type FilaPosicionamiento,
   type MuestraDelRadar,
   type PercentilRadar,
 } from "@/lib/radar-mercado";
+import { leerFiltrosMercado, type FiltrosMercado } from "@/lib/filtros-mercado";
 import { getLibreRate } from "@/lib/tcr-config";
 import { safeParseCompanyInfo } from "@/lib/workspace";
 
@@ -62,12 +63,21 @@ export type ContextoRadar = {
    */
   ilimitado: boolean;
   cortes: CorteDisponible[];
+  /** Con qué se puede recortar el mercado. Solo se llena para el admin. */
+  recorte: {
+    sectores: string[];
+    clasificaciones: string[];
+    localidades: string[];
+    empresas: string[];
+    /** Cuántas empresas quedan con el recorte que vino en la consulta. */
+    empresasEnGrupo: number;
+  } | null;
 };
 
 const VACIO: ContextoRadar = {
   habilitado: false, falta: [], corte: null, cupo: null,
   unidades: [], facturacion: "", empresa: "",
-  ilimitado: false, cortes: [],
+  ilimitado: false, cortes: [], recorte: null,
 };
 
 /**
@@ -153,6 +163,30 @@ export async function GET(request: Request) {
     esAdmin ? cortesPublicados() : Promise.resolve([]),
   ]);
 
+  // El admin recorta el mercado como en el Estudio de Competitividad, así que
+  // necesita las listas de sectores, clasificaciones, ubicaciones y empresas
+  // del corte, y cuántas quedan con el recorte que trae puesto. Salen del
+  // mismo recorrido que los percentiles, que es el único que sabe qué empresa
+  // participó de verdad en este corte (AC Consulting, 2026-10-21).
+  let recorte: ContextoRadar["recorte"] = null;
+  if (esAdmin && snapshotId) {
+    const [workspaces, enviaron, bcvGeneral] = await Promise.all([
+      prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
+      usuariosQueEnviaron(snapshotId),
+      getBcvRate(),
+    ]);
+    const { grupo } = calcularPercentilesMercado({
+      snapshotId, filtros: leerFiltrosMercado(parametros), workspaces, enviaron, bcvGeneral: bcvGeneral.rate,
+    });
+    recorte = {
+      sectores: grupo.sectores,
+      clasificaciones: grupo.clasificaciones,
+      localidades: grupo.localidades,
+      empresas: grupo.empresas,
+      empresasEnGrupo: grupo.empresasEnGrupo,
+    };
+  }
+
   // Agrupado por unidad funcional, que es como lo pide la pantalla: primero la
   // unidad, después el cargo.
   const porUnidad = new Map<string, CargoDelRadar[]>();
@@ -182,6 +216,7 @@ export async function GET(request: Request) {
     empresa: empresa.name,
     ilimitado: esAdmin,
     cortes,
+    recorte,
   } satisfies ContextoRadar);
 }
 
@@ -194,6 +229,8 @@ export type InformeRadar = {
   empresa: string;
   emitido: string;
   tcr: string | null;
+  /** El recorte del mercado, en una frase. Null = el corte entero. */
+  grupo: string | null;
   perfil: {
     tituloCargo: string;
     unidadFuncional: string;
@@ -219,13 +256,30 @@ type CuerpoEmision = {
   tcr?: { tipo?: string } | null;
   /** Solo el admin: de qué corte publicado sale el reporte. */
   corte?: string;
+  /** Solo el admin: el recorte del mercado, como query string. */
+  filtrosGrupo?: string;
 };
 
 function esTcr(v: string): v is TcrType {
   return v === "bcv" || v === "euro" || v === "libre";
 }
 
-const SIN_FILTROS = { sectores: [], clasificaciones: [], empresas: [], localidades: [], tamanos: [] };
+const SIN_FILTROS: FiltrosMercado = {
+  sectores: [], clasificaciones: [], empresas: [], localidades: [], tamanos: [],
+};
+
+/** En una frase, contra quién se comparó. Vacío = el corte entero. */
+function describirGrupo(f: FiltrosMercado): string {
+  const resumir = (xs: string[], uno: string, varios: string) =>
+    xs.length === 1 ? `${uno} ${xs[0]}` : xs.length > 1 ? `${xs.length} ${varios}` : "";
+  return [
+    resumir(f.sectores, "Sector", "sectores"),
+    resumir(f.clasificaciones, "Clasificación", "clasificaciones"),
+    resumir(f.localidades, "Ubicación", "ubicaciones"),
+    resumir(f.tamanos, "Tamaño", "tamaños"),
+    resumir(f.empresas, "Empresa", "empresas"),
+  ].filter(Boolean).join(" · ");
+}
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions).catch(() => null);
@@ -304,14 +358,20 @@ export async function POST(request: Request) {
     if (o.tipo === modo && o.clave === clave) observaciones.push(o);
   };
 
+  // Una empresa siempre se compara contra el corte entero; el admin puede
+  // recortarlo igual que en el Estudio de Competitividad.
+  const filtros = esAdmin && body?.filtrosGrupo
+    ? leerFiltrosMercado(new URLSearchParams(body.filtrosGrupo))
+    : SIN_FILTROS;
+
   const mercado = tipoTcr && esTcr(tipoTcr)
     ? calcularPercentilesTcr({
-        snapshotId, tcrType: tipoTcr, filtros: SIN_FILTROS, workspaces, enviaron,
+        snapshotId, tcrType: tipoTcr, filtros, workspaces, enviaron,
         globales: { bcv: bcv.rate, bcvEur: bcvEur.rate, binance: binance.rate, libreManual: libre.rate },
         observar,
       })
     : calcularPercentilesMercado({
-        snapshotId, filtros: SIN_FILTROS, workspaces, enviaron, bcvGeneral: bcv.rate, observar,
+        snapshotId, filtros, workspaces, enviaron, bcvGeneral: bcv.rate, observar,
       });
 
   const fuente = modo === "cargo"
@@ -326,10 +386,15 @@ export async function POST(request: Request) {
     }, { status: 400 });
   }
 
-  const percentilesDe = (metrica: typeof METRICA_TEM | typeof METRICA_PCTA) => {
-    const m = fuente[metrica];
-    return Object.fromEntries(PERCENTILES_RADAR.map((p) => [p, m[p]])) as Record<PercentilRadar, number | null>;
-  };
+  // El informe de una empresa publica TEM y PCTA; el del admin, las cuatro.
+  const posicionamiento: FilaPosicionamiento[] = METRICAS_RADAR
+    .filter((m) => esAdmin || METRICAS_DEL_CLIENTE.includes(m.clave))
+    .map((m) => ({
+      etiqueta: m.etiqueta,
+      valores: Object.fromEntries(
+        PERCENTILES_RADAR.map((p) => [p, fuente[m.clave][p]]),
+      ) as Record<PercentilRadar, number | null>,
+    }));
 
   const delCatalogo = catalogo.find((c) => c.tituloCargo.trim().toLowerCase() === tituloCargo.toLowerCase());
   const familia = (body?.familia ?? "").trim().toUpperCase();
@@ -344,6 +409,7 @@ export async function POST(request: Request) {
     empresa: empresa.name,
     emitido: new Date().toISOString().slice(0, 10),
     tcr: tipoTcr || null,
+    grupo: describirGrupo(filtros) || null,
     perfil: {
       tituloCargo,
       unidadFuncional: delCatalogo?.departamento || (body?.unidad ?? "").trim(),
@@ -354,10 +420,7 @@ export async function POST(request: Request) {
       rol: modo === "grado" && grado ? (CAPRI_ROLES[grado]?.rol ?? "") : "",
     },
     muestra: describirMuestra(observaciones, bcv.rate),
-    posicionamiento: [
-      { etiqueta: "TEM (Total Efectivo Mensual)", valores: percentilesDe(METRICA_TEM) },
-      { etiqueta: "PCTA (Paquete de Compensación Total Anual)", valores: percentilesDe(METRICA_PCTA) },
-    ],
+    posicionamiento,
   };
 
   // El informe se guarda entero y consume cupo. El admin que entra a revisar
