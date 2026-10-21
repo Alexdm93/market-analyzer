@@ -640,7 +640,7 @@ export default function RadarPage() {
         {esAdmin && (
           <p className="text-xs text-slate-400">
             El cupo, la habilitación y el corte con el que trabajan las empresas se configuran
-            en <Link href="/market-analyzer/admin/radar" className="underline">Administración → Radar Salarial</Link>.
+            en <Link href="/market-analyzer/admin/radar" className="underline">Administración → Radar: habilitación</Link>.
           </p>
         )}
       </div>

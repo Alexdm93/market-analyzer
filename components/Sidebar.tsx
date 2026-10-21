@@ -88,7 +88,11 @@ const grupoAdmin: MenuGroup = {
     { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
     { name: "Informe general", href: `${BASE}/admin/informe-general`, icon: FileSpreadsheet, hint: "Habilitar y repartir informes" },
     { name: "Control de calidad", href: `${BASE}/admin/auditoria`, icon: ScanSearch, hint: "Suavizado del mercado" },
-    { name: "Radar Salarial", href: `${BASE}/admin/radar`, icon: Radar, hint: "Habilitar, cupo y corte" },
+    // Dos entradas distintas: una es USAR el Radar y la otra configurárselo a
+    // las empresas. El admin no tenía por dónde entrar a la primera
+    // (AC Consulting, 2026-10-21).
+    { name: "Radar Salarial", href: `${BASE}/radar`, icon: Radar, hint: "Sin tope, con recorte y las 4 métricas" },
+    { name: "Radar: habilitación", href: `${BASE}/admin/radar`, icon: Radar, hint: "Qué empresas, cuánto cupo y de qué corte" },
   ],
 };
 
