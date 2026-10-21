@@ -242,7 +242,13 @@ export function generarPdfRadar(informe: InformeRadar): Promise<Buffer> {
   });
 
   // ── Pie ──
-  const yPie = 842 - MARGEN - 34;
+  //
+  // pdfkit abre una página nueva en cuanto un texto cruza el margen inferior,
+  // aunque se le pase una posición explícita. El pie va pegado al borde, así
+  // que con el margen puesto salían dos páginas en blanco detrás
+  // (2026-10-20). Se baja el margen mientras se dibuja.
+  doc.page.margins.bottom = 0;
+  const yPie = 842 - MARGEN - 40;
   doc.moveTo(MARGEN, yPie - 6).lineTo(MARGEN + UTIL, yPie - 6).lineWidth(0.8).strokeColor(AZUL).stroke();
 
   // Los logos no son indispensables: si faltan, el informe sale igual.
