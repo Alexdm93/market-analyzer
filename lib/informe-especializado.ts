@@ -404,6 +404,12 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
       // como un recuadro que no cierra nunca.
       const ocupadas = lista.length * (MAPEO_FILAS_POR_CARGO + 1);
       for (let f = fila + ocupadas; f < fila + alto; f++) ws.limpiar(`${col}${f}`);
+
+      // Pero la raya que separa un nivel del siguiente sí cruza todo el ancho,
+      // tenga esta unidad un cargo en este grado o no: es lo que hace que el
+      // mapeo se lea como una cuadrícula de niveles y no como cajas sueltas
+      // flotando (AC Consulting, 2026-10-20).
+      if (ocupadas < alto) ws.setSoloCierre(`${col}${fila + alto - 1}`, `${col}${MAPEO_MODELO.cierre}`);
     });
 
     // Sin fila en blanco entre bandas: en la plantilla van pegadas, y la que

@@ -155,7 +155,9 @@ function atributosHeredados(filas: Map<number, Fila>, fila: number): string {
 }
 
 export class HojaPlantilla {
-  private cambios = new Map<string, { valor: Valor; estiloDe?: string; sinFormato?: boolean; numFmt?: number }>();
+  private cambios = new Map<string, {
+    valor: Valor; estiloDe?: string; sinFormato?: boolean; numFmt?: number; soloCierre?: string;
+  }>();
   private combinaciones: string[] | null = null;
   private alturas = new Map<number, number>();
 
@@ -164,6 +166,8 @@ export class HojaPlantilla {
     private xml: string,
     /** Del libro: clona un estilo cambiándole el formato de número. */
     private derivarEstilo?: (estiloBase: number, numFmtId: number) => number,
+    /** Del libro: clona un estilo dejándole solo el borde inferior. */
+    private derivarCierre?: (estiloBase: number) => number,
   ) {}
 
   /**
@@ -203,6 +207,19 @@ export class HojaPlantilla {
    */
   setConFormato(ref: string, valor: Valor, numFmtId: number): void {
     this.cambios.set(ref.toUpperCase(), { valor, numFmt: numFmtId });
+  }
+
+  /**
+   * Vacía la celda y le deja SOLO la raya de abajo del modelo.
+   *
+   * Es la que cierra una banda del mapeo de lado a lado: en el modelo la
+   * separación entre niveles cruza todo el ancho, también por encima de las
+   * unidades que en ese grado no tienen ningún cargo. Con el estilo de cierre
+   * entero saldrían además dos rayitas verticales sueltas, porque ese estilo
+   * trae los laterales de la caja (AC Consulting, 2026-10-20).
+   */
+  setSoloCierre(ref: string, modeloDe: string): void {
+    this.cambios.set(ref.toUpperCase(), { valor: null, soloCierre: modeloDe.toUpperCase() });
   }
 
   /**
@@ -259,12 +276,17 @@ export class HojaPlantilla {
       }
     }
 
-    for (const [ref, { valor, estiloDe, sinFormato, numFmt }] of ordenados) {
+    for (const [ref, { valor, estiloDe, sinFormato, numFmt, soloCierre }] of ordenados) {
       const { fila: numero } = partesRef(ref);
       const { columna } = partesRef(ref);
       // Vaciar una celda que la plantilla no trae no es nada: crearla solo
-      // alargaría el rango usado de la hoja con filas en blanco.
-      if (valor === null && !filas.get(numero)?.celdas.has(ref)) continue;
+      // alargaría el rango usado de la hoja con filas en blanco. Distinto es
+      // cuando se pide un formato explícito —copiar el de otra celda o dejar
+      // la raya de cierre—: ahí la celda se escribe por el formato, no por el
+      // valor, y saltársela dejaba las cajas del mapeo sin cerrar en cuanto
+      // pasaban de la última fila que trae la plantilla.
+      const porElFormato = estiloDe !== undefined || soloCierre !== undefined;
+      if (valor === null && !porElFormato && !filas.get(numero)?.celdas.has(ref)) continue;
 
       let fila = filas.get(numero);
       if (!fila) {
@@ -279,6 +301,12 @@ export class HojaPlantilla {
         atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "") + ` s="${copiado}"`;
       } else if (sinFormato) {
         atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "");
+      }
+
+      if (soloCierre !== undefined && this.derivarCierre) {
+        const base = Number(estilosOriginales.get(soloCierre) ?? 0);
+        const derivado = this.derivarCierre(base);
+        atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "") + ` s="${derivado}"`;
       }
 
       if (numFmt !== undefined && this.derivarEstilo) {
@@ -358,6 +386,8 @@ export class LibroPlantilla {
   private estilosDerivados = new Map<string, number>();
   /** Los `<xf>` de cellXfs, cargados la primera vez que hace falta clonar. */
   private cellXfs: string[] | null = null;
+  /** Los `<border>` del libro, cargados solo si hay que inventar uno. */
+  private bordes: string[] | null = null;
 
   private constructor(private entradas: EntradaZip[]) {}
 
@@ -415,8 +445,11 @@ export class LibroPlantilla {
     const ruta = this.rutaDeHoja.get(nombre);
     if (!ruta || !this.buscar(ruta)) return undefined;
 
-    const hoja = new HojaPlantilla(nombre, this.texto(ruta), (base, numFmtId) =>
-      this.estiloConFormato(base, numFmtId));
+    const hoja = new HojaPlantilla(
+      nombre, this.texto(ruta),
+      (base, numFmtId) => this.estiloConFormato(base, numFmtId),
+      (base) => this.estiloSoloCierre(base),
+    );
     this.hojas.set(nombre, hoja);
     return hoja;
   }
@@ -433,12 +466,9 @@ export class LibroPlantilla {
     const ya = this.estilosDerivados.get(clave);
     if (ya !== undefined) return ya;
 
-    if (!this.cellXfs) {
-      const bloque = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(this.texto("xl/styles.xml"));
-      this.cellXfs = bloque ? leerXfs(bloque[1]) : [];
-    }
+    this.cargarEstilos();
 
-    const original = this.cellXfs[estiloBase];
+    const original = this.cellXfs![estiloBase];
     // Sin estilo base del que partir no hay nada que clonar: se deja como está
     // antes que inventar un formato que no case con la hoja.
     if (!original) return estiloBase;
@@ -449,16 +479,79 @@ export class LibroPlantilla {
       .replace(/\s*\bapplyNumberFormat="\d"/, "")
       .replace(/^<xf\b/, `<xf applyNumberFormat="1"`);
 
-    const indice = this.cellXfs.length;
-    this.cellXfs.push(clon);
+    const indice = this.cellXfs!.length;
+    this.cellXfs!.push(clon);
     this.estilosDerivados.set(clave, indice);
     return indice;
+  }
+
+  /**
+   * El índice de un estilo igual al base pero con el borde reducido a su raya
+   * inferior.
+   *
+   * Hace falta para cerrar de lado a lado una banda del mapeo sin arrastrar
+   * los laterales de la caja. El borde se da de alta en `<borders>` si no
+   * existía, copiando el `<bottom>` del original para que la raya sea
+   * exactamente la misma —mismo grosor y mismo gris.
+   */
+  private estiloSoloCierre(estiloBase: number): number {
+    const clave = `cierre|${estiloBase}`;
+    const ya = this.estilosDerivados.get(clave);
+    if (ya !== undefined) return ya;
+
+    this.cargarEstilos();
+    const original = this.cellXfs?.[estiloBase];
+    if (!original || !this.bordes) return estiloBase;
+
+    const bordeBase = this.bordes[Number(/\bborderId="(\d+)"/.exec(original)?.[1] ?? 0)];
+    const abajo = bordeBase
+      ? (/<bottom\b[^>]*\/>|<bottom\b[^>]*>[\s\S]*?<\/bottom>/.exec(bordeBase)?.[0] ?? "<bottom/>")
+      : "<bottom/>";
+    // Sin raya abajo no hay nada que dibujar: se queda como está.
+    if (abajo === "<bottom/>" || abajo === "<bottom />") return estiloBase;
+
+    const borde = `<border><left/><right/><top/>${abajo}<diagonal/></border>`;
+    let idBorde = this.bordes.indexOf(borde);
+    if (idBorde < 0) { idBorde = this.bordes.length; this.bordes.push(borde); }
+
+    const clon = (/\bborderId="\d+"/.test(original)
+      ? original.replace(/\bborderId="\d+"/, `borderId="${idBorde}"`)
+      : original.replace(/^<xf\b/, `<xf borderId="${idBorde}"`))
+      .replace(/\s*\bapplyBorder="\d"/, "")
+      .replace(/^<xf\b/, `<xf applyBorder="1"`);
+
+    const indice = this.cellXfs!.length;
+    this.cellXfs!.push(clon);
+    this.estilosDerivados.set(clave, indice);
+    return indice;
+  }
+
+  /** Carga `cellXfs` y `borders` de styles.xml, una sola vez. */
+  private cargarEstilos(): void {
+    const xml = this.texto("xl/styles.xml");
+    if (!this.cellXfs) {
+      const bloque = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml);
+      this.cellXfs = bloque ? leerXfs(bloque[1]) : [];
+    }
+    if (!this.bordes) {
+      const bloque = /<borders\b[^>]*>([\s\S]*?)<\/borders>/.exec(xml);
+      this.bordes = bloque
+        ? (bloque[1].match(/<border\b[^>]*\/>|<border\b[^>]*>[\s\S]*?<\/border>/g) ?? [])
+        : [];
+    }
   }
 
   /** Vuelca a styles.xml los estilos que se clonaron al escribir. */
   private guardarEstilos(): void {
     if (!this.cellXfs || this.estilosDerivados.size === 0) return;
-    const xml = this.texto("xl/styles.xml");
+    let xml = this.texto("xl/styles.xml");
+    // Los bordes primero: el `<xf>` clonado apunta a uno que quizá es nuevo.
+    if (this.bordes) {
+      const b = /<borders\b[^>]*>([\s\S]*?)<\/borders>/.exec(xml);
+      if (b) {
+        xml = xml.replace(b[0], `<borders count="${this.bordes.length}">${this.bordes.join("")}</borders>`);
+      }
+    }
     const m = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml);
     if (!m) return;
     const nuevo = `<cellXfs count="${this.cellXfs.length}">${this.cellXfs.join("")}</cellXfs>`;
