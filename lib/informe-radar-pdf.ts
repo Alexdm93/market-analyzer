@@ -28,11 +28,24 @@ const FONDO = "#F1F4F7";
 /** Los tonos de la torta, del más oscuro al más claro. */
 const TONOS = ["#1B4965", "#2E6B8F", "#5390B5", "#8FB8D4", "#C3DAE8", "#E4EEF5"];
 
-/** Los logos del pie. Van en templates/ porque nadie los importa. */
+/** Los logos del encabezado. Van en templates/ porque nadie los importa. */
 const LOGOS = {
   ac: path.join(process.cwd(), "templates", "logos", "ac-consulting.jpg"),
   avgh: path.join(process.cwd(), "templates", "logos", "avgh.png"),
 };
+
+/**
+ * Los dos logos, a la misma altura y uno al lado del otro.
+ *
+ * Los anchos salen de las proporciones de cada archivo —280×179 el de AC
+ * Consulting, 2883×974 el de AVGH— para poder alinearlos a la derecha sin
+ * preguntarle a pdfkit cuánto van a medir.
+ */
+const ALTO_LOGO = 24;
+const LOGO_AC = { alto: ALTO_LOGO, ancho: (ALTO_LOGO * 280) / 179 };
+const LOGO_AVGH = { alto: ALTO_LOGO, ancho: (ALTO_LOGO * 2883) / 974 };
+const SEPARACION_LOGOS = 10;
+const ANCHO_LOGOS = LOGO_AC.ancho + SEPARACION_LOGOS + LOGO_AVGH.ancho;
 
 const MARGEN = 46;
 const ANCHO = 595.28; // A4 vertical
@@ -116,10 +129,24 @@ export function generarPdfRadar(informe: InformeRadar): Promise<Buffer> {
   const { perfil, muestra, posicionamiento } = informe;
 
   // ── Encabezado ──
+  //
+  // Los logos van arriba a la derecha, uno al lado del otro, y el título a la
+  // izquierda con el ancho recortado para que no se le meta debajo
+  // (AC Consulting, 2026-10-20). Si algún archivo falta, el informe sale igual.
+  const xLogos = MARGEN + UTIL - ANCHO_LOGOS;
+  try {
+    doc.image(LOGOS.ac, xLogos, MARGEN, { height: LOGO_AC.alto });
+  } catch { /* sin logo */ }
+  try {
+    doc.image(LOGOS.avgh, xLogos + LOGO_AC.ancho + SEPARACION_LOGOS, MARGEN, { height: LOGO_AVGH.alto });
+  } catch { /* sin logo */ }
+
+  const anchoTitulo = UTIL - ANCHO_LOGOS - 16;
   doc.font("Helvetica-Bold").fontSize(16).fillColor(AZUL)
-    .text(informe.modo === "cargo" ? "REPORTE POR CARGO" : "REPORTE POR VALORACIÓN CAPRI", MARGEN, MARGEN);
+    .text(informe.modo === "cargo" ? "REPORTE POR CARGO" : "REPORTE POR VALORACIÓN CAPRI", MARGEN, MARGEN,
+      { width: anchoTitulo });
   doc.font("Helvetica").fontSize(9).fillColor(GRIS)
-    .text(`${informe.empresa} · ${informe.corte.label}`, MARGEN, doc.y + 2);
+    .text(`${informe.empresa} · ${informe.corte.label}`, MARGEN, doc.y + 2, { width: anchoTitulo });
 
   let y = doc.y + 16;
 
@@ -248,21 +275,14 @@ export function generarPdfRadar(informe: InformeRadar): Promise<Buffer> {
   // que con el margen puesto salían dos páginas en blanco detrás
   // (2026-10-20). Se baja el margen mientras se dibuja.
   doc.page.margins.bottom = 0;
-  const yPie = 842 - MARGEN - 40;
+  // Sin los logos el pie es una sola línea, así que se pega más al borde.
+  const yPie = 842 - MARGEN - 14;
   doc.moveTo(MARGEN, yPie - 6).lineTo(MARGEN + UTIL, yPie - 6).lineWidth(0.8).strokeColor(AZUL).stroke();
 
-  // Los logos no son indispensables: si faltan, el informe sale igual.
-  try {
-    doc.image(LOGOS.ac, MARGEN, yPie + 2, { height: 22 });
-  } catch { /* sin logo */ }
-  try {
-    doc.image(LOGOS.avgh, MARGEN + UTIL - 76, yPie + 4, { width: 76 });
-  } catch { /* sin logo */ }
-
   doc.font("Helvetica").fontSize(7.5).fillColor(GRIS)
-    .text("www.acconsult.net/market-analyzer", MARGEN, yPie + 28, { width: UTIL / 2 });
+    .text("www.acconsult.net/market-analyzer", MARGEN, yPie, { width: UTIL / 2 });
   doc.font("Helvetica").fontSize(7.5).fillColor(GRIS)
-    .text(`Emitido el ${informe.emitido}`, MARGEN + UTIL / 2, yPie + 28, { width: UTIL / 2, align: "right" });
+    .text(`Emitido el ${informe.emitido}`, MARGEN + UTIL / 2, yPie, { width: UTIL / 2, align: "right" });
 
   doc.end();
   return listo;

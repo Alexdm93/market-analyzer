@@ -157,6 +157,7 @@ function atributosHeredados(filas: Map<number, Fila>, fila: number): string {
 export class HojaPlantilla {
   private cambios = new Map<string, { valor: Valor; estiloDe?: string; sinFormato?: boolean; numFmt?: number }>();
   private combinaciones: string[] | null = null;
+  private alturas = new Map<number, number>();
 
   constructor(
     readonly nombre: string,
@@ -216,12 +217,25 @@ export class HojaPlantilla {
     this.cambios.set(ref.toUpperCase(), { valor: null, sinFormato: true });
   }
 
+  /**
+   * Fija el alto de una fila, en puntos.
+   *
+   * Hace falta donde la plantilla trae un esqueleto con altos distintos por
+   * tramo: el mapeo, por ejemplo, viene con las bandas de arriba a 20 puntos y
+   * las de más abajo a 13, así que los mismos tres renglones de un cargo
+   * salían holgados en un grado y apretados en el siguiente
+   * (AC Consulting, 2026-10-20).
+   */
+  altoDeFila(fila: number, puntos: number): void {
+    this.alturas.set(fila, puntos);
+  }
+
   get tieneCambios(): boolean {
-    return this.cambios.size > 0 || this.combinaciones !== null;
+    return this.cambios.size > 0 || this.combinaciones !== null || this.alturas.size > 0;
   }
 
   aplicar(): string {
-    if (this.cambios.size === 0 && this.combinaciones === null) return this.xml;
+    if (this.cambios.size === 0 && this.combinaciones === null && this.alturas.size === 0) return this.xml;
 
     const m = /<sheetData\s*\/>|<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/.exec(this.xml);
     if (!m) throw new Error(`La hoja "${this.nombre}" no tiene sheetData.`);
@@ -293,6 +307,17 @@ export class HojaPlantilla {
         atributos: partes[1],
         cuerpo: partes[2] === "/>" ? null : (partes[3] ?? ""),
       });
+    }
+
+    // Los altos se aplican al final, sobre las filas que ya existen: pedir el
+    // alto de una fila que nadie escribió solo alargaría la hoja.
+    for (const [numero, puntos] of this.alturas) {
+      const fila = filas.get(numero);
+      if (!fila) continue;
+      fila.atributos = fila.atributos
+        .replace(/\s*\bht="[^"]*"/g, "")
+        .replace(/\s*\bcustomHeight="[^"]*"/g, "")
+        + ` ht="${puntos}" customHeight="1"`;
     }
 
     let xml = this.xml.replace(m[0], `<sheetData>${serializar(filas)}</sheetData>`);

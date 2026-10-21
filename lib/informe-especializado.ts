@@ -281,6 +281,20 @@ const MAPEO_FILAS_POR_CARGO = 4;
 const MAPEO_COLUMNAS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"];
 
 /**
+ * El alto en puntos de las cinco filas de un cargo, tomado de la primera banda
+ * de la plantilla.
+ *
+ * La plantilla trae su esqueleto de grados con altos que van bajando —20 en la
+ * banda de arriba, 14 más abajo, 13 al final— porque quien la dibujó fue
+ * ajustando a ojo. Como nuestras bandas no caen en esas filas, el mismo cargo
+ * salía holgado arriba y con los renglones encimados abajo; de ahí que el
+ * mapeo "se siguiera emitiendo mal" (AC Consulting, 2026-10-20).
+ */
+const MAPEO_ALTOS = [20, 20, 19, 19];
+/** La fila que cierra la caja es más alta: hace de separación entre cargos. */
+const MAPEO_ALTO_CIERRE = 23;
+
+/**
  * De dónde sale el formato de cada fila que escribe el mapeo.
  *
  * La plantilla trae el primer bloque bien dibujado —fila de título, tres de
@@ -301,8 +315,20 @@ const MAPEO_MODELO = {
    * ella la caja queda abierta por abajo (AC Consulting, 2026-10-20).
    */
   cierre: MAPEO_PRIMERA_FILA + 4,
-  /** La celda del grado de una banda que no es la primera. */
-  grado: MAPEO_PRIMERA_FILA + 5,
+  /**
+   * Las tres filas de la columna del grado: la primera, las de en medio y la
+   * que cierra.
+   *
+   * Se toman de la SEGUNDA banda de la plantilla, no de la primera: en la
+   * primera la celda del grado viene sin borde derecho —un descuido del
+   * original— y la columna "Nivel" quedaba abierta contra la primera unidad.
+   *
+   * Hay que ponerle formato a las tres: la banda se combina de alto variable
+   * y el borde inferior del recuadro lo pone la ULTIMA fila, no la primera,
+   * así que si solo se escribe la de arriba la caja del grado no cierra
+   * (AC Consulting, 2026-10-20).
+   */
+  grado: [MAPEO_PRIMERA_FILA + 5, MAPEO_PRIMERA_FILA + 6, MAPEO_PRIMERA_FILA + 9],
 } as const;
 
 function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
@@ -313,8 +339,11 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
     .slice(0, MAPEO_COLUMNAS.length);
 
   areas.forEach((area, i) => { ws.set(`${MAPEO_COLUMNAS[i]}4`, area); });
+  // La cabecera termina donde termina la data. Con `set(…, null)` la celda se
+  // vaciaba pero conservaba el relleno azul de la plantilla, y la banda seguía
+  // hasta la columna O sin nada debajo.
   for (let i = areas.length; i < MAPEO_COLUMNAS.length; i++) {
-    ws.set(`${MAPEO_COLUMNAS[i]}4`, null);
+    ws.limpiar(`${MAPEO_COLUMNAS[i]}4`);
   }
 
   const grados = [...new Set(cargos.map((c) => c.grado))].sort((a, b) => b - a);
@@ -334,12 +363,27 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
     // Cinco filas por cargo: las cuatro de contenido más la que cierra la caja.
     const alto = maxApilados * (MAPEO_FILAS_POR_CARGO + 1);
 
-    ws.set(`A${fila}`, grado, fila === MAPEO_PRIMERA_FILA ? undefined : `A${MAPEO_MODELO.grado}`);
+    for (let k = 0; k < alto; k++) {
+      const dentro = k % (MAPEO_FILAS_POR_CARGO + 1);
+      ws.altoDeFila(fila + k, dentro === MAPEO_FILAS_POR_CARGO ? MAPEO_ALTO_CIERRE : MAPEO_ALTOS[dentro]);
+    }
+
+    ws.set(`A${fila}`, grado, `A${MAPEO_MODELO.grado[0]}`);
+    for (let f = fila + 1; f < fila + alto - 1; f++) ws.set(`A${f}`, null, `A${MAPEO_MODELO.grado[1]}`);
+    if (alto > 1) ws.set(`A${fila + alto - 1}`, null, `A${MAPEO_MODELO.grado[2]}`);
     if (alto > 1) ws.combinar(`A${fila}:A${fila + alto - 1}`);
 
-    areas.forEach((area, i) => {
-      const col = MAPEO_COLUMNAS[i];
-      const lista = porArea.get(area) ?? [];
+    MAPEO_COLUMNAS.forEach((col, i) => {
+      // Las columnas que no son de ninguna unidad se vacían de formato: si no,
+      // los recuadros de la plantilla seguían dibujándose hasta la columna O y
+      // el mapeo salía con cajas vacías a la derecha, además desalineadas con
+      // las bandas porque las de la plantilla están en filas fijas
+      // (AC Consulting, 2026-10-20).
+      if (i >= areas.length) {
+        for (let f = fila; f < fila + alto; f++) ws.limpiar(`${col}${f}`);
+        return;
+      }
+      const lista = porArea.get(areas[i]) ?? [];
 
       lista.forEach((c, idx) => {
         const base = fila + idx * (MAPEO_FILAS_POR_CARGO + 1);
@@ -362,16 +406,17 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
       for (let f = fila + ocupadas; f < fila + alto; f++) ws.limpiar(`${col}${f}`);
     });
 
-    // Una fila en blanco entre bandas, sin bordes.
-    ws.limpiar(`A${fila + alto}`);
-    for (const col of MAPEO_COLUMNAS) ws.limpiar(`${col}${fila + alto}`);
-
-    fila += alto + 1;
+    // Sin fila en blanco entre bandas: en la plantilla van pegadas, y la que
+    // cierra la caja del último cargo ya hace de separación.
+    fila += alto;
   }
 
+  // Debajo de la última banda la plantilla trae su esqueleto de grados hasta
+  // la fila 94. `set(…, null)` dejaba las celdas vacías pero con sus bordes,
+  // o sea una ristra de recuadros en blanco detrás del mapeo.
   for (let f = fila; f < fila + 160; f++) {
-    ws.set(`A${f}`, null);
-    for (const col of MAPEO_COLUMNAS) ws.set(`${col}${f}`, null);
+    ws.limpiar(`A${f}`);
+    for (const col of MAPEO_COLUMNAS) ws.limpiar(`${col}${f}`);
   }
 
   return areas;

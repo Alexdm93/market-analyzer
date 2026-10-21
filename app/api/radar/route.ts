@@ -14,6 +14,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { catalogoDelCorte } from "@/lib/estudio-cargos";
+import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 import { prisma } from "@/lib/prisma";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { CAPRI_ROLES, gradeToNivel } from "@/lib/capri";
@@ -40,6 +41,7 @@ import { safeParseCompanyInfo } from "@/lib/workspace";
 
 export type CargoDelRadar = { tituloCargo: string; descripcion: string };
 export type UnidadDelRadar = { unidad: string; cargos: CargoDelRadar[] };
+export type CorteDisponible = { id: string; label: string; date: string };
 
 export type ContextoRadar = {
   habilitado: boolean;
@@ -51,12 +53,47 @@ export type ContextoRadar = {
   /** El tramo de facturación: limita las rutas CAPRI si se valora un cargo. */
   facturacion: string;
   empresa: string;
+  /**
+   * El administrador no tiene tope y elige de qué corte sale cada reporte.
+   *
+   * Para una empresa el corte es uno solo —el que fijó el admin— pero el admin
+   * necesita poder mirar cualquier corte publicado, igual que en el Estudio de
+   * Competitividad (AC Consulting, 2026-10-20).
+   */
+  ilimitado: boolean;
+  cortes: CorteDisponible[];
 };
 
 const VACIO: ContextoRadar = {
   habilitado: false, falta: [], corte: null, cupo: null,
   unidades: [], facturacion: "", empresa: "",
+  ilimitado: false, cortes: [],
 };
+
+/**
+ * El corte del que sale el reporte.
+ *
+ * Para una empresa, siempre el que fijó el admin. El admin puede pedir otro,
+ * pero solo de los publicados: el Radar no sale de data que todavía se mueve.
+ */
+async function corteElegido(esAdmin: boolean, pedido: string): Promise<string> {
+  if (!esAdmin || !pedido) return corteDelRadar();
+  const publicados = await getPublishedSnapshotIds();
+  return publicados.includes(pedido) ? pedido : corteDelRadar();
+}
+
+/** Los cortes publicados, con su etiqueta, para el selector del admin. */
+async function cortesPublicados(): Promise<CorteDisponible[]> {
+  const publicados = await getPublishedSnapshotIds();
+  if (publicados.length === 0) return [];
+  const filas = await prisma.userSnapshot.findMany({
+    where: { snapshotId: { in: publicados } },
+    select: { snapshotId: true, label: true, date: true },
+    distinct: ["snapshotId"],
+    orderBy: { date: "desc" },
+  });
+  return filas.map((c) => ({ id: c.snapshotId, label: c.label, date: c.date.toISOString().slice(0, 10) }));
+}
 
 async function descripciones(): Promise<Record<string, string>> {
   const fila = await prisma.globalConfig.findUnique({
@@ -76,8 +113,9 @@ export async function GET(request: Request) {
   if (!session?.user?.id) return Response.json({ message: "No autorizado." }, { status: 401 });
 
   const esAdmin = session.user.role === "ADMIN";
+  const parametros = new URL(request.url).searchParams;
   const companyId = esAdmin
-    ? (new URL(request.url).searchParams.get("companyId")?.trim() || session.user.companyId || "")
+    ? (parametros.get("companyId")?.trim() || session.user.companyId || "")
     : (session.user.companyId ?? "");
 
   if (!companyId) return Response.json(VACIO satisfies ContextoRadar);
@@ -96,8 +134,8 @@ export async function GET(request: Request) {
     return Response.json({ ...VACIO, empresa: empresa?.name ?? "" } satisfies ContextoRadar);
   }
 
-  const snapshotId = await corteDelRadar();
-  const [corte, catalogo, textos, cupo, workspace] = await Promise.all([
+  const snapshotId = await corteElegido(esAdmin, parametros.get("corte")?.trim() ?? "");
+  const [corte, catalogo, textos, cupo, workspace, cortes] = await Promise.all([
     snapshotId
       ? prisma.userSnapshot.findFirst({
           where: { snapshotId },
@@ -112,6 +150,7 @@ export async function GET(request: Request) {
       where: { user: { companyId } },
       select: { companyInfoJson: true },
     }),
+    esAdmin ? cortesPublicados() : Promise.resolve([]),
   ]);
 
   // Agrupado por unidad funcional, que es como lo pide la pantalla: primero la
@@ -141,6 +180,8 @@ export async function GET(request: Request) {
       .sort((a, b) => a.unidad.localeCompare(b.unidad, "es")),
     facturacion: (empresa.revenueUSD || info.revenueUSD || "").trim(),
     empresa: empresa.name,
+    ilimitado: esAdmin,
+    cortes,
   } satisfies ContextoRadar);
 }
 
@@ -176,6 +217,8 @@ type CuerpoEmision = {
   grado?: number;
   familia?: string;
   tcr?: { tipo?: string } | null;
+  /** Solo el admin: de qué corte publicado sale el reporte. */
+  corte?: string;
 };
 
 function esTcr(v: string): v is TcrType {
@@ -232,7 +275,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const snapshotId = await corteDelRadar();
+  const snapshotId = await corteElegido(esAdmin, (body?.corte ?? "").trim());
   if (!snapshotId) {
     return Response.json({ message: "El administrador todavía no eligió el estudio del Radar." }, { status: 400 });
   }

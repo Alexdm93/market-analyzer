@@ -411,10 +411,22 @@ export default function ComparacionPage() {
   }, [snapshotId, consultaFiltros, tcrActivo, tcrTipo, esAdmin, companyId, comisiones, desempeno]);
 
   const tasas = useMemo(() => (companyInfo.tasas ?? []).filter((t) => !t.isSystem), [companyInfo.tasas]);
+  /**
+   * La tasa BCV con la que se valora la nómina propia: la que la empresa tenía
+   * al enviar su data, no la de hoy.
+   *
+   * El mercado se calcula así para todas las empresas del corte —tanto en
+   * `/api/percentiles` como en la ruta del informe— y el Excel también. Acá se
+   * estaba usando la tasa viva de la lista de tasas, así que la columna TUYO
+   * se movía todos los días y no coincidía con el paquete del informe que se
+   * emitía (AC Consulting, 2026-10-20).
+   */
   const bcv = useMemo(() => {
+    const guardada = companyInfo.ratesAtSave?.bcvUsd;
+    if (typeof guardada === "number" && guardada > 0) return guardada;
     const v = Number((companyInfo.tasas ?? []).find((t) => t.id === "bcv-usd")?.valor);
     return Number.isFinite(v) && v > 0 ? v : null;
-  }, [companyInfo.tasas]);
+  }, [companyInfo.tasas, companyInfo.ratesAtSave]);
 
   /**
    * Las tasas con las que la empresa envió su data, resueltas igual que en la

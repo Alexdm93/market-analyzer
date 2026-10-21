@@ -41,6 +41,11 @@ export default function RadarPage() {
 
   const [unidad, setUnidad] = useState("");
   const [cargo, setCargo] = useState("");
+  /**
+   * El corte que el admin está mirando. Vacío = el que fijó para la
+   * plataforma, que es el único que ve una empresa.
+   */
+  const [corteAdmin, setCorteAdmin] = useState("");
   const [tcr, setTcr] = useState(false);
   // Los mismos tres que el resto de la plataforma, no uno fijo
   // (AC Consulting, 2026-10-20).
@@ -64,7 +69,7 @@ export default function RadarPage() {
     setError("");
     try {
       const [res, workspace, hist] = await Promise.all([
-        fetch("/api/radar", { cache: "no-store" }),
+        fetch(corteAdmin ? `/api/radar?corte=${encodeURIComponent(corteAdmin)}` : "/api/radar", { cache: "no-store" }),
         fetchWorkspace().catch(() => null),
         fetch("/api/radar/informes", { cache: "no-store" }).catch(() => null),
       ]);
@@ -79,7 +84,7 @@ export default function RadarPage() {
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [corteAdmin]);
 
   useEffect(() => { void cargar(); }, [cargar]);
 
@@ -96,6 +101,7 @@ export default function RadarPage() {
           unidad,
           ...(valorando ? { grado, familia } : {}),
           ...(tcr ? { tcr: { tipo: tcrTipo } } : {}),
+          ...(corteAdmin ? { corte: corteAdmin } : {}),
         }),
       });
       const d = (await res.json().catch(() => null)) as
@@ -188,7 +194,9 @@ export default function RadarPage() {
   }
 
   const sinCorte = !ctx.corte;
-  const sinCupo = (ctx.cupo?.restantes ?? 0) <= 0;
+  // El admin no gasta cupo: su reporte no se guarda ni cuenta contra el
+  // trimestre de la empresa (AC Consulting, 2026-10-20).
+  const sinCupo = !ctx.ilimitado && (ctx.cupo?.restantes ?? 0) <= 0;
   const fichaIncompleta = ctx.falta.length > 0;
   const listo = Boolean(
     !sinCorte && !sinCupo && !fichaIncompleta
@@ -205,12 +213,31 @@ export default function RadarPage() {
             La compensación de mercado de un cargo, en TEM y PCTA. Elige el cargo del estudio o,
             si no está en la lista, nómbralo y clasifícalo con CAPRI.
           </p>
-          {ctx.corte && (
+          {ctx.ilimitado && ctx.cortes.length > 0 ? (
+            <label className="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+              Estudio de referencia:
+              <select
+                value={corteAdmin || ctx.corte?.id || ""}
+                onChange={(e) => setCorteAdmin(e.target.value)}
+                className="field-select w-auto"
+                aria-label="Estudio de referencia"
+              >
+                {ctx.cortes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label} · {c.date}</option>
+                ))}
+              </select>
+            </label>
+          ) : ctx.corte && (
             <p className="mt-4 text-sm text-slate-500">
               Estudio de referencia: <strong className="text-slate-700">{ctx.corte.label}</strong> · {ctx.corte.date}
             </p>
           )}
-          {ctx.cupo && (
+          {ctx.ilimitado ? (
+            <p className="mt-1 text-sm text-slate-500">
+              Como administrador no tienes tope: puedes emitir los reportes que quieras, sobre
+              cualquier corte publicado. No consumen cupo ni quedan en el historial de la empresa.
+            </p>
+          ) : ctx.cupo && (
             <p className="mt-1 text-sm text-slate-500">
               Te {ctx.cupo.restantes === 1 ? "queda" : "quedan"}{" "}
               <strong className="text-slate-700">{ctx.cupo.restantes}</strong> de {ctx.cupo.cupo}{" "}
@@ -475,7 +502,7 @@ export default function RadarPage() {
 
         {esAdmin && (
           <p className="text-xs text-slate-400">
-            Estás viendo la pantalla como la ve una empresa. El cupo y la habilitación se configuran
+            El cupo, la habilitación y el corte con el que trabajan las empresas se configuran
             en <Link href="/market-analyzer/admin/radar" className="underline">Administración → Radar Salarial</Link>.
           </p>
         )}
