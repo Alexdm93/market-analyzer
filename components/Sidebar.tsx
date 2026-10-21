@@ -88,10 +88,10 @@ const grupoAdmin: MenuGroup = {
     { name: "Anuncios", href: `${BASE}/admin/anuncios`, icon: Newspaper, hint: "Publicar noticias" },
     { name: "Informe general", href: `${BASE}/admin/informe-general`, icon: FileSpreadsheet, hint: "Habilitar y repartir informes" },
     { name: "Control de calidad", href: `${BASE}/admin/auditoria`, icon: ScanSearch, hint: "Suavizado del mercado" },
-    // Dos entradas distintas: una es USAR el Radar y la otra configurárselo a
-    // las empresas. El admin no tenía por dónde entrar a la primera
+    // Acá va solo la configuración. Emitir un Radar es trabajo de todos los
+    // días, no una tarea administrativa, así que esa entrada vive fuera del
+    // desplegable, debajo del Estudio de Competitividad
     // (AC Consulting, 2026-10-21).
-    { name: "Radar Salarial", href: `${BASE}/radar`, icon: Radar, hint: "Sin tope, con recorte y las 4 métricas" },
     { name: "Radar: habilitación", href: `${BASE}/admin/radar`, icon: Radar, hint: "Qué empresas, cuánto cupo y de qué corte" },
   ],
 };
@@ -146,11 +146,14 @@ export default function Sidebar() {
   // El admin lo configura desde Administración, así que acá solo aparece para
   // la empresa que lo tiene habilitado.
   const itemsInformeGeneral = !isAdmin && canSeeInformeGeneral ? [informeGeneralItem] : [];
-  const itemsRadar = !isAdmin && canSeeRadar ? [radarItem] : [];
+  // El Radar va suelto y detrás del Estudio de Competitividad, igual para el
+  // admin que para la empresa: lo que cambia entre uno y otro es lo que la
+  // pantalla deja hacer, no dónde está.
+  const itemsRadar = canSeeRadar ? [radarItem] : [];
 
   const itemsPlanos = isAdmin
-    ? [...itemsBaseAdmin, ...itemsEstudio]
-    : [...itemsBase, ...itemsInformeGeneral, ...itemsRadar, ...itemsEstudio, ...(isCoordinator ? [estudiosItem] : [])];
+    ? [...itemsBaseAdmin, ...itemsEstudio, ...itemsRadar]
+    : [...itemsBase, ...itemsInformeGeneral, ...itemsEstudio, ...itemsRadar, ...(isCoordinator ? [estudiosItem] : [])];
 
   const grupos: MenuGroup[] = isAdmin ? [grupoAdmin] : [];
 
