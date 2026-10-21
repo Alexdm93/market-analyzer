@@ -11,6 +11,7 @@
  * composición de la muestra y posicionamiento competitivo.
  */
 import type { InformeRadar } from "@/app/api/radar/route";
+import { etiquetaTcr } from "@/lib/radar-etiquetas";
 import { PERCENTILES_RADAR } from "@/lib/radar-mercado";
 
 const PORCENTAJE = new Intl.NumberFormat("es-VE", { style: "percent", maximumFractionDigits: 0 });
@@ -175,7 +176,7 @@ export function InformeRadarVista({ informe }: { informe: InformeRadar }) {
         <h3 className="font-display mb-1 text-xl font-bold text-slate-900">Posicionamiento competitivo</h3>
         <p className="mb-6 text-sm text-slate-500">
           {informe.tcr
-            ? `Cifras expresadas en moneda dura (TCR ${informe.tcr}).`
+            ? `Cifras expresadas en moneda dura (${etiquetaTcr(informe.tcr)}).`
             : "Cifras en la moneda en que cada empresa cargó su data."}
         </p>
 

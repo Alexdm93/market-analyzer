@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeft, BarChart3, Check, Download, Loader2 } from "l
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { soloLoIncluido } from "@/lib/analisis-especializado";
 import { gradeToNivel } from "@/lib/capri";
 import type { TasasDelInforme } from "@/lib/estudio-informes";
 import { computeRowTotals, computeTCRTotals, tasasTcrDeEmpresa, type TcrType } from "@/lib/compensation";
@@ -455,7 +456,11 @@ export default function ComparacionPage() {
       : cargos.filter((c) => typeof c.hayGrade === "number" && filtroGrados.includes(c.hayGrade));
 
     return enFoco.map((c) => {
-      const fila = { id: c.id, tituloCargo: c.tituloCargo, ...c.data } as ExtendedMarketPosition;
+      // Lo mismo que se le pide al mercado: si las variables están excluidas,
+      // la columna TUYO tampoco las cuenta. Si no, se compararía una nómina
+      // con comisiones contra un mercado sin ellas (AC Consulting, 2026-10-20).
+      const datos = soloLoIncluido(c.data, { comisiones, desempeno });
+      const fila = { id: c.id, tituloCargo: c.tituloCargo, ...datos } as ExtendedMarketPosition;
       const diasVac = Number(companyInfo.minVacationDays) || 0;
       const diasUtil = Number(companyInfo.minUtilityDays) || 0;
       const totales = opcionesTcr
@@ -487,7 +492,7 @@ export default function ComparacionPage() {
         observaciones: mercado?.n ?? 0,
       };
     });
-  }, [cargos, filtroGrados, tasas, bcv, companyInfo, metrica, modo, snapshotId, mercadoPorTitulo, mercadoPorGrado, opcionesTcr]);
+  }, [cargos, filtroGrados, tasas, bcv, companyInfo, metrica, modo, snapshotId, mercadoPorTitulo, mercadoPorGrado, opcionesTcr, comisiones, desempeno]);
 
   /**
    * Congela lo que la pantalla está mostrando. Se mandan los números ya

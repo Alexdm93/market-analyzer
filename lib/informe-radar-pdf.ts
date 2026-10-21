@@ -12,9 +12,12 @@
  * declaradas en `outputFileTracingIncludes` o el texto sale vacío al
  * desplegar.
  */
+import path from "node:path";
+
 import PDFDocument from "pdfkit";
 
 import type { InformeRadar } from "@/app/api/radar/route";
+import { etiquetaTcr } from "@/lib/radar-etiquetas";
 import { PERCENTILES_RADAR } from "@/lib/radar-mercado";
 
 const AZUL = "#1B4965";
@@ -24,6 +27,12 @@ const FONDO = "#F1F4F7";
 
 /** Los tonos de la torta, del más oscuro al más claro. */
 const TONOS = ["#1B4965", "#2E6B8F", "#5390B5", "#8FB8D4", "#C3DAE8", "#E4EEF5"];
+
+/** Los logos del pie. Van en templates/ porque nadie los importa. */
+const LOGOS = {
+  ac: path.join(process.cwd(), "templates", "logos", "ac-consulting.jpg"),
+  avgh: path.join(process.cwd(), "templates", "logos", "avgh.png"),
+};
 
 const MARGEN = 46;
 const ANCHO = 595.28; // A4 vertical
@@ -175,24 +184,33 @@ export function generarPdfRadar(informe: InformeRadar): Promise<Buffer> {
   y = doc.y + 6;
 
   const anchoCasilla = UTIL / muestra.composicion.length;
-  doc.rect(MARGEN, y, UTIL, 30).fillColor(FONDO).fill();
+
+  // El alto se mide, no se fija: "Otros pagos otra frecuencia con impacto"
+  // ocupa tres renglones en una casilla de 60 puntos, y con un alto fijo el
+  // porcentaje caía encima del título (AC Consulting, 2026-10-20).
+  doc.font("Helvetica").fontSize(5.6);
+  const altoTitulo = Math.max(...muestra.composicion.map((c) =>
+    doc.heightOfString(c.categoria, { width: anchoCasilla - 6, align: "center" })));
+  const altoCasilla = altoTitulo + 20;
+
+  doc.rect(MARGEN, y, UTIL, altoCasilla).fillColor(FONDO).fill();
   muestra.composicion.forEach((c, i) => {
     const x = MARGEN + anchoCasilla * i;
     doc.font("Helvetica").fontSize(5.6).fillColor(GRIS)
       .text(c.categoria, x + 3, y + 4, { width: anchoCasilla - 6, align: "center" });
     doc.font("Helvetica-Bold").fontSize(8.5).fillColor(AZUL)
-      .text(porcentaje(c.porcentaje), x + 3, y + 19, { width: anchoCasilla - 6, align: "center" });
+      .text(porcentaje(c.porcentaje), x + 3, y + altoTitulo + 7, { width: anchoCasilla - 6, align: "center" });
     if (i > 0) {
-      doc.moveTo(x, y).lineTo(x, y + 30).lineWidth(0.4).strokeColor("#FFFFFF").stroke();
+      doc.moveTo(x, y).lineTo(x, y + altoCasilla).lineWidth(0.4).strokeColor("#FFFFFF").stroke();
     }
   });
-  y += 30 + 16;
+  y += altoCasilla + 16;
 
   // ── Posicionamiento ──
   y = seccion(doc, "Posicionamiento competitivo", y);
   doc.font("Helvetica").fontSize(8.5).fillColor(GRIS).text(
     informe.tcr
-      ? `Cifras expresadas en moneda dura (TCR ${informe.tcr}).`
+      ? `Cifras expresadas en moneda dura (${etiquetaTcr(informe.tcr)}).`
       : "Cifras en la moneda en que cada empresa cargó su data.",
     MARGEN, y, { width: UTIL },
   );
@@ -224,12 +242,21 @@ export function generarPdfRadar(informe: InformeRadar): Promise<Buffer> {
   });
 
   // ── Pie ──
-  const yPie = 842 - MARGEN - 14;
-  doc.moveTo(MARGEN, yPie - 8).lineTo(MARGEN + UTIL, yPie - 8).lineWidth(0.8).strokeColor(AZUL).stroke();
+  const yPie = 842 - MARGEN - 34;
+  doc.moveTo(MARGEN, yPie - 6).lineTo(MARGEN + UTIL, yPie - 6).lineWidth(0.8).strokeColor(AZUL).stroke();
+
+  // Los logos no son indispensables: si faltan, el informe sale igual.
+  try {
+    doc.image(LOGOS.ac, MARGEN, yPie + 2, { height: 22 });
+  } catch { /* sin logo */ }
+  try {
+    doc.image(LOGOS.avgh, MARGEN + UTIL - 76, yPie + 4, { width: 76 });
+  } catch { /* sin logo */ }
+
   doc.font("Helvetica").fontSize(7.5).fillColor(GRIS)
-    .text("www.acconsult.net/market-analyzer", MARGEN, yPie, { width: UTIL / 2 });
+    .text("www.acconsult.net/market-analyzer", MARGEN, yPie + 28, { width: UTIL / 2 });
   doc.font("Helvetica").fontSize(7.5).fillColor(GRIS)
-    .text(`Emitido el ${informe.emitido}`, MARGEN + UTIL / 2, yPie, { width: UTIL / 2, align: "right" });
+    .text(`Emitido el ${informe.emitido}`, MARGEN + UTIL / 2, yPie + 28, { width: UTIL / 2, align: "right" });
 
   doc.end();
   return listo;

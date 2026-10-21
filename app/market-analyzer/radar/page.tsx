@@ -42,6 +42,9 @@ export default function RadarPage() {
   const [unidad, setUnidad] = useState("");
   const [cargo, setCargo] = useState("");
   const [tcr, setTcr] = useState(false);
+  // Los mismos tres que el resto de la plataforma, no uno fijo
+  // (AC Consulting, 2026-10-20).
+  const [tcrTipo, setTcrTipo] = useState<"bcv" | "euro" | "libre">("bcv");
 
   // El camino de valoración: nombre propio + CAPRI.
   const [valorando, setValorando] = useState(false);
@@ -92,7 +95,7 @@ export default function RadarPage() {
           tituloCargo: valorando ? nombrePropio.trim() : cargo,
           unidad,
           ...(valorando ? { grado, familia } : {}),
-          ...(tcr ? { tcr: { tipo: "bcv" } } : {}),
+          ...(tcr ? { tcr: { tipo: tcrTipo } } : {}),
         }),
       });
       const d = (await res.json().catch(() => null)) as
@@ -350,21 +353,39 @@ export default function RadarPage() {
 
         {/* ── Moneda y emisión ────────────────────────────────────────── */}
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              checked={tcr}
-              onChange={(e) => setTcr(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#1B4965]"
-            />
-            <span>
-              <span className="block text-sm font-semibold text-slate-800">Expresar en moneda dura (TCR)</span>
-              <span className="block text-xs text-slate-500">
-                Convierte las cifras con el tipo de cambio de referencia en vez de dejarlas en la
-                moneda en que cada empresa cargó su data.
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={tcr}
+                onChange={(e) => setTcr(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-[#1B4965]"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">Expresar en moneda dura (TCR)</span>
+                <span className="block text-xs text-slate-500">
+                  Convierte las cifras con el tipo de cambio de referencia en vez de dejarlas en la
+                  moneda en que cada empresa cargó su data.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+
+            {tcr && (
+              <div>
+                <label htmlFor="radar-tcr-tipo" className="field-label">Tipo de cambio</label>
+                <select
+                  id="radar-tcr-tipo"
+                  value={tcrTipo}
+                  onChange={(e) => setTcrTipo(e.target.value as "bcv" | "euro" | "libre")}
+                  className="field-select"
+                >
+                  <option value="bcv">BCV — dólar</option>
+                  <option value="euro">BCV — euro</option>
+                  <option value="libre">Libre</option>
+                </select>
+              </div>
+            )}
+          </div>
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
             <span className="flex items-center gap-1.5 text-xs text-slate-500">

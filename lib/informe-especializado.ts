@@ -292,7 +292,15 @@ const MAPEO_COLUMNAS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "
 const MAPEO_MODELO = {
   /** Las cuatro filas de un cargo: la del título y las tres de detalle. */
   cargo: [MAPEO_PRIMERA_FILA, MAPEO_PRIMERA_FILA + 1, MAPEO_PRIMERA_FILA + 2, MAPEO_PRIMERA_FILA + 3],
-  separadora: MAPEO_PRIMERA_FILA + 4,
+  /**
+   * La quinta fila, que es la que CIERRA la caja.
+   *
+   * En la plantilla el recuadro de un cargo se dibuja con tres estilos: el
+   * primero trae borde superior y laterales, los tres siguientes solo
+   * laterales, y el quinto el borde inferior. No es una fila separadora: sin
+   * ella la caja queda abierta por abajo (AC Consulting, 2026-10-20).
+   */
+  cierre: MAPEO_PRIMERA_FILA + 4,
   /** La celda del grado de una banda que no es la primera. */
   grado: MAPEO_PRIMERA_FILA + 5,
 } as const;
@@ -323,7 +331,8 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
     }
 
     const maxApilados = Math.max(...[...porArea.values()].map((l) => l.length));
-    const alto = maxApilados * MAPEO_FILAS_POR_CARGO + (maxApilados - 1);
+    // Cinco filas por cargo: las cuatro de contenido más la que cierra la caja.
+    const alto = maxApilados * (MAPEO_FILAS_POR_CARGO + 1);
 
     ws.set(`A${fila}`, grado, fila === MAPEO_PRIMERA_FILA ? undefined : `A${MAPEO_MODELO.grado}`);
     if (alto > 1) ws.combinar(`A${fila}:A${fila + alto - 1}`);
@@ -342,26 +351,20 @@ function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
         // "Reporta a:" suelto sin nadie detrás.
         ws.set(`${col}${base + 2}`, c.reportaA ? `Reporta a: ${c.reportaA}` : null, comoEl(2));
         ws.set(`${col}${base + 3}`, null, comoEl(3));
-        // La separadora entre dos cargos apilados de la misma banda.
-        if (idx < lista.length - 1) {
-          ws.set(`${col}${base + 4}`, null, `${col}${MAPEO_MODELO.separadora}`);
-        }
+        // La quinta fila cierra el recuadro de ESTE cargo, apilado o no.
+        ws.set(`${col}${base + 4}`, null, `${col}${MAPEO_MODELO.cierre}`);
       });
 
-      // Lo que sobra de la banda, con el formato de las filas de detalle para
-      // que la columna no se corte a media altura.
-      const ocupadas = lista.length * (MAPEO_FILAS_POR_CARGO + 1) - (lista.length > 0 ? 1 : 0);
-      for (let f = fila + ocupadas; f < fila + alto; f++) {
-        ws.set(`${col}${f}`, null, `${col}${MAPEO_MODELO.cargo[3]}`);
-      }
-      if (lista.length === 0 && alto > 1) ws.combinar(`${col}${fila}:${col}${fila + alto - 1}`);
+      // Lo que sobra en esta columna va SIN formato: con el de las filas de
+      // detalle quedaban laterales sueltos bajando hasta el final de la banda,
+      // como un recuadro que no cierra nunca.
+      const ocupadas = lista.length * (MAPEO_FILAS_POR_CARGO + 1);
+      for (let f = fila + ocupadas; f < fila + alto; f++) ws.limpiar(`${col}${f}`);
     });
 
-    const separadora = fila + alto;
-    ws.set(`A${separadora}`, null, `A${MAPEO_MODELO.separadora}`);
-    for (const col of MAPEO_COLUMNAS) {
-      ws.set(`${col}${separadora}`, null, `${col}${MAPEO_MODELO.separadora}`);
-    }
+    // Una fila en blanco entre bandas, sin bordes.
+    ws.limpiar(`A${fila + alto}`);
+    for (const col of MAPEO_COLUMNAS) ws.limpiar(`${col}${fila + alto}`);
 
     fila += alto + 1;
   }

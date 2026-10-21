@@ -24,7 +24,11 @@ const nextConfig: NextConfig = {
     // pdfkit lee del disco las métricas de las fuentes estándar. Como las
     // abre en tiempo de ejecución y nadie las importa, el rastreo tampoco las
     // ve y el PDF saldría sin texto al desplegar.
-    "/api/radar/pdf": ["./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/data/**"],
+    "/api/radar/pdf": [
+      "./node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/data/**",
+      // Los logos del pie: también se leen del disco al dibujar el PDF.
+      "./templates/logos/**",
+    ],
   },
 
   async headers() {
