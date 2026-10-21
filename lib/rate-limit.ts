@@ -22,10 +22,14 @@ const PREFIJO = "ratelimit:";
  * nada malo. Sigue limitada, pero contra el scraping masivo, no contra el uso
  * normal.
  */
-const TOPES = { login: 10, lookup: 60 } as const;
+const TOPES = { login: 10, lookup: 60, acceso: 5 } as const;
 
 function topeDe(id: string): number {
-  return id.startsWith("lookup:") ? TOPES.lookup : TOPES.login;
+  if (id.startsWith("lookup:")) return TOPES.lookup;
+  // Pedir acceso es algo que se hace una vez. Cinco en quince minutos deja
+  // margen para equivocarse y corregir, y corta el formulario automatizado.
+  if (id.startsWith("acceso:")) return TOPES.acceso;
+  return TOPES.login;
 }
 
 type Entrada = { count: number; resetAt: number };

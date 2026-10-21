@@ -294,6 +294,15 @@ export default function SignInPage() {
                 {isSubmitting || isPending ? "Iniciando sesión..." : "Entrar a Market Analyzer →"}
               </button>
             )}
+
+            {!isBootstrap && (
+              <p className="text-center text-xs text-slate-500">
+                ¿Todavía no tienes cuenta?{" "}
+                <Link href="/market-analyzer/solicitar-acceso" className="font-semibold text-teal-700 underline">
+                  Solicitar acceso
+                </Link>
+              </p>
+            )}
           </form>
 
           {!isBootstrap && (

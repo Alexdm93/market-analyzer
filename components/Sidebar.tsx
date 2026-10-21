@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, Radar, ChartBar, ScanSearch, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BookOpen, Building2, Radar, ChartBar, ScanSearch, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { Fragment, useEffect, useState } from "react";
@@ -81,6 +81,7 @@ const grupoAdmin: MenuGroup = {
     { name: "Admin", href: `${BASE}/admin`, icon: Shield, hint: "Vista administrativa" },
     { name: "Empresas", href: `${BASE}/empresas`, icon: Building2, hint: "Catálogo disponible" },
     { name: "Aprobaciones", href: `${BASE}/admin/aprobaciones`, icon: ClipboardCheck, hint: "Solicitudes de edición" },
+    { name: "Solicitudes de acceso", href: `${BASE}/admin/acceso`, icon: UserPlus, hint: "Quién pidió entrar desde la web" },
     { name: "Importar data", href: `${BASE}/admin/importar`, icon: FileSpreadsheet, hint: "Cargar Excel de las empresas" },
     { name: "Reportes", href: `${BASE}/admin/reportes`, icon: ClipboardList, hint: "Excel para revisar la data" },
     { name: "Valoración", href: `${BASE}/valoracion`, icon: Layers, hint: "CAPRI por cargo" },
@@ -111,6 +112,8 @@ export default function Sidebar() {
   const { hasUnread } = useAnnouncements();
   const { hasUnreadResultados, hasUnreadData } = useWorkspaceNotification();
   const [pendingEditRequests, setPendingEditRequests] = useState(0);
+  /** Solicitudes de acceso por revisar, para el punto rojo del menú. */
+  const [solicitudesAcceso, setSolicitudesAcceso] = useState(0);
   // Los grupos arrancan cerrados, salvo el que contiene la pantalla en la que
   // estás: así el menú abre corto y aun así se ve dónde estás parado.
   const [gruposAbiertos, setGruposAbiertos] = useState<Record<string, boolean>>({});
@@ -127,8 +130,26 @@ export default function Sidebar() {
       } catch { /* silencioso — no bloquea la navegación */ }
     }
 
+    async function loadAccessRequests() {
+      try {
+        const res = await fetch("/api/admin/acceso", { cache: "no-store" });
+        const payload = (await res.json().catch(() => null)) as
+          { solicitudes?: Array<{ status: string; usuarioCreadoId: string | null }> } | null;
+        if (ignore || !res.ok) return;
+        // Cuenta lo que pide acción: las pendientes de revisar y las que ya se
+        // aceptaron pero siguen sin cuenta creada.
+        setSolicitudesAcceso((payload?.solicitudes ?? []).filter(
+          (s) => s.status === "PENDING" || (s.status === "APPROVED" && !s.usuarioCreadoId),
+        ).length);
+      } catch { /* silencioso — no bloquea la navegación */ }
+    }
+
     void loadPendingCount();
-    const interval = window.setInterval(loadPendingCount, 60000);
+    void loadAccessRequests();
+    const interval = window.setInterval(() => {
+      void loadPendingCount();
+      void loadAccessRequests();
+    }, 60000);
     return () => { ignore = true; window.clearInterval(interval); };
   }, [isAdmin]);
 
@@ -186,6 +207,11 @@ export default function Sidebar() {
           {item.href === `${BASE}/admin/aprobaciones` && pendingEditRequests > 0 && (
             <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[0.6rem] font-bold text-white ring-2 ring-white">
               {pendingEditRequests > 9 ? "9+" : pendingEditRequests}
+            </span>
+          )}
+          {item.href === `${BASE}/admin/acceso` && solicitudesAcceso > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[0.6rem] font-bold text-white ring-2 ring-white">
+              {solicitudesAcceso > 9 ? "9+" : solicitudesAcceso}
             </span>
           )}
         </div>

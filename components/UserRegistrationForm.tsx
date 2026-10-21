@@ -39,6 +39,14 @@ type UserRegistrationFormProps = {
   externalError?: string;
   onSubmit: (values: UserRegistrationValues) => Promise<void> | void;
   secondaryAction?: React.ReactNode;
+  /**
+   * Con qué arranca el formulario.
+   *
+   * Lo usa la bandeja de solicitudes de acceso para no hacerle retipear al
+   * admin el nombre y el correo que la persona ya escribió
+   * (AC Consulting, 2026-10-21).
+   */
+  valoresIniciales?: Partial<UserRegistrationValues>;
 };
 
 const DEFAULT_VALUES: UserRegistrationValues = {
@@ -63,8 +71,9 @@ export default function UserRegistrationForm({
   externalError,
   onSubmit,
   secondaryAction,
+  valoresIniciales,
 }: UserRegistrationFormProps) {
-  const [values, setValues] = useState<UserRegistrationValues>(DEFAULT_VALUES);
+  const [values, setValues] = useState<UserRegistrationValues>({ ...DEFAULT_VALUES, ...valoresIniciales });
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [bootstrapRequired, setBootstrapRequired] = useState(false);

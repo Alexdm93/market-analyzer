@@ -364,10 +364,19 @@ export default function LandingPage() {
                 compara curvas de mercado y mide la competitividad de tu organización.
               </p>
             </div>
-            <Link href="/market-analyzer/signin"
-              className="shrink-0 inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-4 text-base font-black transition hover:bg-[#EEF7FF]" style={{ color: "#1B4965" }}>
-              Ingresar <ChevronRight size={18} />
-            </Link>
+            {/* Dos caminos: el que ya es cliente entra, y el que no, pide
+                acceso. La solicitud la revisa el admin a mano
+                (AC Consulting, 2026-10-21). */}
+            <div className="flex shrink-0 flex-col gap-3 sm:flex-row md:flex-col">
+              <Link href="/market-analyzer/signin"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-8 py-4 text-base font-black transition hover:bg-[#EEF7FF]" style={{ color: "#1B4965" }}>
+                Ingresar <ChevronRight size={18} />
+              </Link>
+              <Link href="/market-analyzer/solicitar-acceso"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-white/60 px-8 py-4 text-base font-black text-white transition hover:border-white hover:bg-white/10">
+                Solicitar acceso
+              </Link>
+            </div>
           </div>
         </div>
       </section>

@@ -375,3 +375,44 @@ model RadarInforme {
   @@index([companyId, trimestre])
   @@index([companyId, createdAt])
 }
+
+/// Una persona pidiendo acceso al Market Analyzer desde la página pública.
+///
+/// No cuelga de Company ni de User a propósito: quien la manda todavía no es
+/// nadie dentro del sistema, y la empresa que escribe puede no existir. Es la
+/// única tabla que se escribe sin sesión, así que la ruta que la llena va con
+/// tope por IP (AC Consulting, 2026-10-21).
+///
+/// El circuito es el mismo que el de las solicitudes de edición: llega
+/// PENDING, el admin la acepta o la deniega, y recién después crea el usuario.
+/// Aceptar y crear son dos pasos distintos porque el admin puede aceptar hoy y
+/// crear cuando tenga la empresa dada de alta; mientras tanto la solicitud
+/// queda aprobada y sin usuario, que es lo que la bandeja marca como
+/// pendiente de crear.
+model SolicitudAcceso {
+  id              String            @id @default(cuid())
+  /// Quién la manda.
+  nombre          String
+  correo          String
+  cargo           String            @default("")
+  telefono        String            @default("")
+  /// Su empresa, tal como la escribió. Puede no existir todavía.
+  empresa         String
+  sector          String            @default("")
+  clasificacion   String            @default("")
+  headcount       String            @default("")
+  localidad       String            @default("")
+  mensaje         String            @default("")
+  status          EditRequestStatus @default(PENDING)
+  /// Por qué se denegó. Es nota interna: no se le muestra a quien solicitó.
+  motivoRechazo   String            @default("")
+  resueltoPor     String            @default("")
+  resueltoEn      DateTime?
+  /// El usuario que salió de esta solicitud, si ya se creó.
+  usuarioCreadoId String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status, createdAt])
+  @@index([correo])
+}
