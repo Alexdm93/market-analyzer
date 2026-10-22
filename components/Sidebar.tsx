@@ -7,6 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 import { Fragment, useEffect, useState } from "react";
 
 import { getRoleLabel, isAdminRole, isCoordinatorRole } from "@/lib/roles";
+import { esRutaPublica } from "@/lib/rutas-publicas";
 import { useNavigationTrigger } from "./NavigationProgress";
 import { useAnnouncements } from "@/contexts/AnnouncementContext";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
@@ -153,7 +154,9 @@ export default function Sidebar() {
     return () => { ignore = true; window.clearInterval(interval); };
   }, [isAdmin]);
 
-  if (pathname === "/" || pathname.startsWith("/market-analyzer/signin") || pathname.startsWith("/market-analyzer/register")) {
+  // En una pantalla pública no hay menú que mostrar: quien la está viendo no
+  // tiene sesión, y en la de solicitar acceso ni siquiera tiene cuenta.
+  if (esRutaPublica(pathname)) {
     return null;
   }
 

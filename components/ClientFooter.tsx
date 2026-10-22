@@ -1,9 +1,12 @@
 "use client";
 import { usePathname } from "next/navigation";
 
+import { esRutaPublica } from "@/lib/rutas-publicas";
+
 export default function ClientFooter() {
   const pathname = usePathname();
-  if (pathname === "/" || pathname.startsWith("/market-analyzer/signin") || pathname.startsWith("/market-analyzer/register")) return null;
+  // Las pantallas públicas llevan su propio pie, o ninguno.
+  if (esRutaPublica(pathname)) return null;
   return (
     <footer className="px-6 py-10 text-center text-xs leading-6 text-slate-400 md:px-10">
       <p>© 2026 AC Consulting. Todos los derechos reservados.</p>
