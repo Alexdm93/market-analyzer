@@ -1,6 +1,8 @@
 "use client";
 
+import { Wand2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { generarClave } from "@/lib/clave";
 import {
   COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
   ECONOMIC_SECTOR_OPTIONS,
@@ -74,6 +76,7 @@ export default function UserRegistrationForm({
   valoresIniciales,
 }: UserRegistrationFormProps) {
   const [values, setValues] = useState<UserRegistrationValues>({ ...DEFAULT_VALUES, ...valoresIniciales });
+  const [mostrarClave, setMostrarClave] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
@@ -107,7 +110,14 @@ export default function UserRegistrationForm({
           setBootstrapRequired(Boolean(payload?.bootstrapRequired));
           setValues((current) => ({
             ...current,
-            companyId: current.companyId || nextCompanies[0]?.id || "",
+            // Si quien abre el formulario ya dijo con qué empresa arranca, se
+            // respeta —aunque sea vacío—. Cayendo a la primera de la lista, el
+            // alta desde una solicitud cuya empresa no está en el catálogo
+            // salía preseleccionada con una empresa que no tiene nada que ver
+            // (AC Consulting, 2026-10-22).
+            companyId: valoresIniciales
+              ? current.companyId
+              : current.companyId || nextCompanies[0]?.id || "",
             role: !allowRoleSelection && Boolean(payload?.bootstrapRequired) ? "ADMIN" : current.role,
           }));
         }
@@ -127,6 +137,9 @@ export default function UserRegistrationForm({
     return () => {
       ignore = true;
     };
+    // `valoresIniciales` se lee solo para saber si hay una preferencia; no se
+    // vuelve a aplicar, así que no entra en las dependencias.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowRoleSelection]);
 
   function updateValue<Key extends keyof UserRegistrationValues>(key: Key, value: UserRegistrationValues[Key]) {
@@ -208,13 +221,29 @@ export default function UserRegistrationForm({
       </div>
       <div className="md:grid md:grid-cols-2 md:gap-3">
         <div>
-        <label htmlFor="registrationPassword" className="field-label">Contrasena</label>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label htmlFor="registrationPassword" className="field-label mb-0">Contrasena</label>
+          {/* La clave se entrega a mano, así que conviene que sea una buena y
+              no "Empresa2026". El botón la pone en los dos campos y la deja a
+              la vista, que para eso hay que copiarla (AC Consulting, 2026-10-22). */}
+          <button
+            type="button"
+            onClick={() => {
+              const nueva = generarClave();
+              setValues((current) => ({ ...current, password: nueva, confirmPassword: nueva }));
+              setMostrarClave(true);
+            }}
+            className="btn btn-secondary btn-xs"
+          >
+            <Wand2 className="h-3.5 w-3.5" /> Generar
+          </button>
+        </div>
         <input
           id="registrationPassword"
-          type="password"
+          type={mostrarClave ? "text" : "password"}
           value={values.password}
           onChange={(event) => updateValue("password", event.target.value)}
-          className="field"
+          className="field mt-1.5"
           placeholder="Minimo 8 caracteres"
           autoComplete="new-password"
           required
@@ -224,7 +253,7 @@ export default function UserRegistrationForm({
         <label htmlFor="registrationConfirmPassword" className="field-label">Confirmar contrasena</label>
         <input
           id="registrationConfirmPassword"
-          type="password"
+          type={mostrarClave ? "text" : "password"}
           value={values.confirmPassword}
           onChange={(event) => updateValue("confirmPassword", event.target.value)}
           className="field"

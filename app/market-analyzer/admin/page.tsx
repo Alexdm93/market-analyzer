@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Activity, AlertTriangle, Radar, ArrowLeft, ArrowRight, BookOpen, ScanSearch, Building2, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, ClipboardList, Download, FileSpreadsheet, History, LayoutList, LoaderCircle, Pencil, Plus, RefreshCw, Save, Shield, Tag, Trash2, UserPlus, Users, X } from "lucide-react";
 import type { TcrHistoryEntry } from "@/app/api/admin/tcr-history/route";
+import { generarClave } from "@/lib/clave";
 import UserRegistrationForm, { type UserRegistrationValues } from "@/components/UserRegistrationForm";
 import { useConfirm, type ConfirmOptions } from "@/components/ConfirmDialog";
 import { ROLE_OPTIONS, getRoleLabel, type AppUserRole } from "@/lib/roles";
@@ -72,18 +73,6 @@ type PendingUserEdit = {
   password: string;
   companyId: string;
 };
-
-function generatePassword() {
-  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const lower = "abcdefghijkmnpqrstuvwxyz";
-  const digits = "23456789";
-  const special = "!@#$%&*";
-  const all = upper + lower + digits + special;
-  const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
-  const core = [pick(upper), pick(lower), pick(digits), pick(special)];
-  for (let i = 0; i < 8; i++) core.push(pick(all));
-  return core.sort(() => Math.random() - 0.5).join("");
-}
 
 function getRoleBadgeClasses(role: AppUserRole) {
   if (role === "ADMIN") {
@@ -2089,7 +2078,7 @@ export default function AdminPage() {
                           <button
                             type="button"
                             title="Generar contraseña segura"
-                            onClick={() => updatePendingUserEdit(user, { password: generatePassword() })}
+                            onClick={() => updatePendingUserEdit(user, { password: generarClave() })}
                             className="btn btn-secondary shrink-0 px-2.5"
                             disabled={isSavingUserChanges}
                           >

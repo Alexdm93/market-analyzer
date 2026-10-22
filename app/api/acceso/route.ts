@@ -7,8 +7,12 @@
  * que alguien pidió entrar— y el admin decide después desde su bandeja
  * (AC Consulting, 2026-10-21).
  *
- * La respuesta es siempre la misma aunque el correo ya tenga cuenta: decirle a
- * un desconocido "ese correo ya existe" es regalarle el padrón de clientes.
+ * Si ese correo ya mandó una solicitud, la respuesta depende de en qué quedó:
+ * esperando, aprobada o denegada. AC Consulting lo pidió así (2026-10-22) para
+ * que nadie se quede mandando el formulario a ciegas. Tiene un costo que
+ * conviene tener presente: quien pruebe correos puede averiguar cuáles tienen
+ * solicitud. No se dice nunca si ese correo tiene CUENTA, que es el dato que
+ * de verdad importa.
  */
 import { checkRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
@@ -60,29 +64,46 @@ export async function POST(request: Request) {
     return Response.json({ message: "Escribe el nombre de tu empresa." }, { status: 400 });
   }
 
-  // Dos envíos iguales seguidos son el mismo pedido, no dos: suele ser un
-  // doble clic o alguien que vuelve a mandar porque no vio el aviso.
-  const repetida = await prisma.solicitudAcceso.findFirst({
-    where: { correo, status: "PENDING" },
-    select: { id: true },
+  // La última que mandó ese correo manda sobre lo que se le responde. Una
+  // denegada no bloquea: quien corrigió lo que le faltaba tiene que poder
+  // volver a pedirlo.
+  const previa = await prisma.solicitudAcceso.findFirst({
+    where: { correo },
+    orderBy: { createdAt: "desc" },
+    select: { status: true },
   });
 
-  if (!repetida) {
-    await prisma.solicitudAcceso.create({
-      data: {
-        nombre, correo, empresa,
-        cargo: texto(body.cargo, LARGO.cargo),
-        telefono: texto(body.telefono, LARGO.telefono),
-        sector: texto(body.sector, LARGO.sector),
-        clasificacion: texto(body.clasificacion, LARGO.clasificacion),
-        headcount: texto(body.headcount, LARGO.headcount),
-        localidad: texto(body.localidad, LARGO.localidad),
-        mensaje: texto(body.mensaje, LARGO.mensaje),
-      },
-    });
+  if (previa?.status === "PENDING") {
+    return Response.json({
+      estado: "pendiente",
+      message: "Ya tenemos una solicitud tuya en revisión. Te escribiremos en cuanto la revisemos; "
+        + "no hace falta que la vuelvas a enviar.",
+    }, { status: 409 });
   }
 
+  if (previa?.status === "APPROVED") {
+    return Response.json({
+      estado: "aprobada",
+      message: "Tu solicitud ya fue aprobada. Revisa tu correo: si no te llegaron los datos de "
+        + "acceso, escríbenos a marketanalyzer@acconsult.net.",
+    }, { status: 409 });
+  }
+
+  await prisma.solicitudAcceso.create({
+    data: {
+      nombre, correo, empresa,
+      cargo: texto(body.cargo, LARGO.cargo),
+      telefono: texto(body.telefono, LARGO.telefono),
+      sector: texto(body.sector, LARGO.sector),
+      clasificacion: texto(body.clasificacion, LARGO.clasificacion),
+      headcount: texto(body.headcount, LARGO.headcount),
+      localidad: texto(body.localidad, LARGO.localidad),
+      mensaje: texto(body.mensaje, LARGO.mensaje),
+    },
+  });
+
   return Response.json({
+    estado: "recibida",
     message: "Recibimos tu solicitud. El equipo de AC Consulting te contactará por correo.",
   }, { status: 201 });
 }

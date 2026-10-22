@@ -13,7 +13,6 @@
  * apenas se crea la cuenta, la pantalla muestra correo y clave con un botón
  * para copiarlas y mandárselas al cliente por donde ya se le escribe.
  */
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle, Building2, Check, ClipboardCheck, Copy, Clock, Loader2, Mail,
@@ -53,17 +52,22 @@ export default function BandejaAccesoPage() {
   /** Las credenciales recién creadas, para copiarlas una vez. */
   const [credenciales, setCredenciales] = useState<{ correo: string; clave: string; empresa: string } | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [creandoEmpresa, setCreandoEmpresa] = useState(false);
+  const [pestana, setPestana] = useState<SolicitudAccesoFila["status"]>("PENDING");
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (): Promise<SolicitudAccesoFila[]> => {
     setCargando(true);
     setError("");
     try {
       const res = await fetch("/api/admin/acceso", { cache: "no-store" });
       const d = (await res.json().catch(() => null)) as { solicitudes?: SolicitudAccesoFila[]; message?: string } | null;
-      if (!res.ok) { setError(d?.message ?? "No se pudo cargar la bandeja."); return; }
-      setSolicitudes(d?.solicitudes ?? []);
+      if (!res.ok) { setError(d?.message ?? "No se pudo cargar la bandeja."); return []; }
+      const filas = d?.solicitudes ?? [];
+      setSolicitudes(filas);
+      return filas;
     } catch {
       setError("No se pudo cargar la bandeja.");
+      return [];
     } finally {
       setCargando(false);
     }
@@ -83,9 +87,55 @@ export default function BandejaAccesoPage() {
       });
       const d = (await res.json().catch(() => null)) as { message?: string } | null;
       if (!res.ok) { setError(d?.message ?? "No se pudo actualizar la solicitud."); return; }
-      await cargar();
+      const frescas = await cargar();
+      // Aceptar y crear la cuenta son dos pasos, pero lo normal es hacerlos
+      // seguidos: al aceptar se abre el alta sola, con la solicitud ya
+      // recargada para que traiga el cruce con el catálogo de empresas
+      // (AC Consulting, 2026-10-22).
+      if (accion === "aceptar") {
+        const recien = frescas.find((x) => x.id === id);
+        if (recien) { setErrorAlta(""); setCreando(recien); setPestana("APPROVED"); }
+      }
     } finally {
       setTrabajando("");
+    }
+  }
+
+  /**
+   * Da de alta la empresa de la solicitud sin salir del modal.
+   *
+   * Sin esto había que irse a Empresas, crearla y volver; y mientras tanto el
+   * selector mostraba otra empresa cualquiera, con el riesgo de crear al
+   * usuario en la que no era.
+   */
+  async function crearEmpresa() {
+    if (!creando) return;
+    setCreandoEmpresa(true);
+    setErrorAlta("");
+    try {
+      const res = await fetch("/api/companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: creando.empresa,
+          description: "",
+          economicSector: creando.sector,
+          classification: creando.clasificacion,
+        }),
+      });
+      const d = (await res.json().catch(() => null)) as
+        { company?: { id: string; name: string }; message?: string } | null;
+      if (!res.ok || !d?.company) {
+        setErrorAlta(d?.message ?? "No se pudo crear la empresa.");
+        return;
+      }
+      // El formulario lee su valor inicial una sola vez, así que se reabre con
+      // la empresa recién creada ya elegida.
+      setCreando({ ...creando, empresaDelCatalogo: d.company });
+    } catch {
+      setErrorAlta("No se pudo crear la empresa.");
+    } finally {
+      setCreandoEmpresa(false);
     }
   }
 
@@ -152,8 +202,16 @@ export default function BandejaAccesoPage() {
   }
 
   const pendientes = solicitudes.filter((s) => s.status === "PENDING");
-  const sinUsuario = solicitudes.filter((s) => s.status === "APPROVED" && !s.usuarioCreadoId);
-  const resueltas = solicitudes.filter((s) => s.status !== "PENDING");
+  const aprobadas = solicitudes.filter((s) => s.status === "APPROVED");
+  const rechazadas = solicitudes.filter((s) => s.status === "REJECTED");
+  const sinUsuario = aprobadas.filter((s) => !s.usuarioCreadoId);
+
+  const PESTANAS = [
+    { clave: "PENDING" as const, etiqueta: "Pendientes", filas: pendientes },
+    { clave: "APPROVED" as const, etiqueta: "Aprobadas", filas: aprobadas },
+    { clave: "REJECTED" as const, etiqueta: "Rechazadas", filas: rechazadas },
+  ];
+  const visibles = PESTANAS.find((p) => p.clave === pestana)?.filas ?? [];
 
   return (
     <main className="page-wrap">
@@ -230,35 +288,47 @@ Contraseña: ${credenciales.clave}`}
           </section>
         ) : (
           <>
-            {pendientes.length > 0 && (
-              <section className="space-y-3">
-                <h2 className="font-display text-base font-bold text-slate-900">Por revisar</h2>
-                {pendientes.map((s) => (
-                  <Tarjeta
-                    key={s.id} s={s} trabajando={trabajando === s.id}
-                    onAceptar={() => void resolver(s.id, "aceptar")}
-                    onDenegar={() => void denegar(s)}
-                    onCrear={() => { setErrorAlta(""); setCreando(s); }}
-                    onReabrir={() => void resolver(s.id, "reabrir")}
-                  />
-                ))}
-              </section>
-            )}
+            {/* Nada se borra: una solicitud resuelta se queda con quién la
+                resolvió y cuándo, para poder volver sobre ella. */}
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Estado de las solicitudes">
+              {PESTANAS.map((p) => (
+                <button
+                  key={p.clave}
+                  type="button"
+                  role="tab"
+                  aria-selected={pestana === p.clave}
+                  onClick={() => setPestana(p.clave)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    pestana === p.clave
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {p.etiqueta}
+                  <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[0.65rem] font-bold ${
+                    pestana === p.clave ? "bg-white/20" : "bg-slate-100 text-slate-600"
+                  }`}>
+                    {p.filas.length}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-            {resueltas.length > 0 && (
-              <section className="space-y-3">
-                <h2 className="font-display text-base font-bold text-slate-900">Resueltas</h2>
-                {resueltas.map((s) => (
-                  <Tarjeta
-                    key={s.id} s={s} trabajando={trabajando === s.id}
-                    onAceptar={() => void resolver(s.id, "aceptar")}
-                    onDenegar={() => void denegar(s)}
-                    onCrear={() => { setErrorAlta(""); setCreando(s); }}
-                    onReabrir={() => void resolver(s.id, "reabrir")}
-                  />
-                ))}
-              </section>
-            )}
+            <section className="space-y-3">
+              {visibles.length === 0 ? (
+                <p className="surface-panel rounded-[2rem] p-8 text-center text-sm text-slate-500">
+                  Nada en esta pestaña.
+                </p>
+              ) : visibles.map((s) => (
+                <Tarjeta
+                  key={s.id} s={s} trabajando={trabajando === s.id}
+                  onAceptar={() => void resolver(s.id, "aceptar")}
+                  onDenegar={() => void denegar(s)}
+                  onCrear={() => { setErrorAlta(""); setCreando(s); }}
+                  onReabrir={() => void resolver(s.id, "reabrir")}
+                />
+              ))}
+            </section>
           </>
         )}
       </div>
@@ -281,18 +351,25 @@ Contraseña: ${credenciales.clave}`}
             </div>
 
             {!creando.empresaDelCatalogo && (
-              <p className="mt-4 flex items-start gap-1.5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  «{creando.empresa}» no está en el catálogo. Créala primero en{" "}
-                  <Link href="/market-analyzer/empresas" className="font-semibold underline">Empresas</Link>{" "}
-                  y vuelve acá; el selector de abajo solo lista las que ya existen.
-                </span>
-              </p>
+              <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p className="flex items-start gap-1.5">
+                  <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    «{creando.empresa}» no está en el catálogo, así que abajo no hay ninguna empresa
+                    elegida. Créala de una vez o elige a mano la que corresponda.
+                  </span>
+                </p>
+                <button type="button" onClick={() => void crearEmpresa()} disabled={creandoEmpresa}
+                  className="btn btn-secondary btn-sm mt-3">
+                  {creandoEmpresa ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                  {creandoEmpresa ? "Creando…" : `Crear «${creando.empresa}»`}
+                </button>
+              </div>
             )}
 
             <div className="mt-5">
               <UserRegistrationForm
+                key={creando.empresaDelCatalogo?.id ?? "sin-empresa"}
                 allowRoleSelection
                 forceExistingCompanySelector
                 isSubmitting={creandoUsuario}

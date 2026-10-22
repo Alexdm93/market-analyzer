@@ -15,7 +15,7 @@
  * obligatorios.
  */
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, LoaderCircle, Send } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, LoaderCircle, Send } from "lucide-react";
 
 import { COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR, ECONOMIC_SECTOR_OPTIONS } from "@/lib/company";
 
@@ -29,6 +29,8 @@ export default function FormularioAcceso({ alCerrar }: { alCerrar?: () => void }
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
   const [listo, setListo] = useState(false);
+  /** El correo ya tenía una solicitud: en qué quedó. */
+  const [yaEstaba, setYaEstaba] = useState("");
 
   const clasificaciones = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[valores.sector] ?? [];
   const puedeEnviar = valores.nombre.trim().length >= 3
@@ -49,20 +51,40 @@ export default function FormularioAcceso({ alCerrar }: { alCerrar?: () => void }
     if (!puedeEnviar || enviando) return;
     setEnviando(true);
     setError("");
+    setYaEstaba("");
     try {
       const res = await fetch("/api/acceso", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(valores),
       });
-      const d = (await res.json().catch(() => null)) as { message?: string } | null;
-      if (!res.ok) { setError(d?.message ?? "No se pudo enviar la solicitud."); return; }
+      const d = (await res.json().catch(() => null)) as { message?: string; estado?: string } | null;
+      if (!res.ok) {
+        // Que ya exista una solicitud de ese correo no es un error de quien la
+        // manda: se le dice en qué quedó, sin pintarlo de rojo.
+        if (res.status === 409) { setYaEstaba(d?.message ?? ""); return; }
+        setError(d?.message ?? "No se pudo enviar la solicitud.");
+        return;
+      }
       setListo(true);
     } catch {
       setError("No se pudo enviar la solicitud. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setEnviando(false);
     }
+  }
+
+  if (yaEstaba) {
+    return (
+      <div className="py-6 text-center">
+        <Info className="mx-auto h-12 w-12 text-slate-400" />
+        <h2 className="font-display mt-4 text-2xl font-bold text-slate-900">Ya tenemos tu solicitud</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">{yaEstaba}</p>
+        {alCerrar && (
+          <button type="button" onClick={alCerrar} className="btn btn-secondary mt-6">Cerrar</button>
+        )}
+      </div>
+    );
   }
 
   if (listo) {
