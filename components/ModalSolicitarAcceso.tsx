@@ -30,14 +30,16 @@ export default function ModalSolicitarAcceso({ abierto, alCerrar }: { abierto: b
 
   return (
     <div
-      className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/50 p-4 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="titulo-solicitar-acceso"
       onMouseDown={(e) => { if (e.target === e.currentTarget) alCerrar(); }}
     >
-      <div className="mx-auto w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-2xl md:p-8">
-        <div className="flex items-start justify-between gap-4">
+      {/* Alto acotado y desplazamiento por dentro: el formulario es largo y en
+          una pantalla de portátil el botón de enviar quedaba fuera. */}
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 p-6 pb-4 md:p-8 md:pb-4">
           <div>
             <div className="eyebrow mb-1">Market Analyzer</div>
             <h2 id="titulo-solicitar-acceso" className="font-display text-2xl font-bold tracking-tight text-slate-900">
@@ -54,7 +56,7 @@ export default function ModalSolicitarAcceso({ abierto, alCerrar }: { abierto: b
           </button>
         </div>
 
-        <div className="mt-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 md:px-8 md:pb-8">
           <FormularioAcceso alCerrar={alCerrar} />
         </div>
       </div>

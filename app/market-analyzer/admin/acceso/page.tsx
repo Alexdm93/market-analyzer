@@ -333,10 +333,13 @@ Contraseña: ${credenciales.clave}`}
         )}
       </div>
 
+      {/* La ventana no pasa del alto de la pantalla: la cabecera se queda fija
+          y lo que desborda se desplaza por dentro, para que el botón de crear
+          nunca quede fuera de la vista (AC Consulting, 2026-10-22). */}
       {creando && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 py-10">
-          <div className="w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-xl md:p-8">
-            <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 p-6 pb-4 md:p-8 md:pb-4">
               <div>
                 <div className="eyebrow mb-0.5">Alta controlada</div>
                 <h2 className="font-display text-2xl font-bold text-slate-900 md:text-[1.35rem]">Crear usuario</h2>
@@ -350,8 +353,9 @@ Contraseña: ${credenciales.clave}`}
               </button>
             </div>
 
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 md:px-8 md:pb-8">
             {!creando.empresaDelCatalogo && (
-              <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <p className="flex items-start gap-1.5">
                   <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
@@ -381,8 +385,14 @@ Contraseña: ${credenciales.clave}`}
                   email: creando.correo,
                   companyId: creando.empresaDelCatalogo?.id ?? "",
                 }}
+                secondaryAction={
+                  <button type="button" onClick={() => setCreando(null)} className="btn btn-secondary">
+                    Cancelar
+                  </button>
+                }
                 onSubmit={crearUsuario}
               />
+            </div>
             </div>
           </div>
         </div>
