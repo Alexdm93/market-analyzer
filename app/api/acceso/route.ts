@@ -16,12 +16,13 @@
  */
 import { checkRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
+import { esCanalConocido } from "@/lib/solicitud-acceso";
 
 /** Lo que puede medir cada campo. Lo que pase se recorta, no se rechaza. */
 const LARGO = {
   nombre: 120, correo: 160, cargo: 120, telefono: 40,
   empresa: 160, sector: 120, clasificacion: 120, headcount: 40,
-  localidad: 120, mensaje: 1000,
+  localidad: 120, actividad: 1000, comoSeEntero: 60,
 } as const;
 
 type Cuerpo = Partial<Record<keyof typeof LARGO, string>>;
@@ -98,7 +99,12 @@ export async function POST(request: Request) {
       clasificacion: texto(body.clasificacion, LARGO.clasificacion),
       headcount: texto(body.headcount, LARGO.headcount),
       localidad: texto(body.localidad, LARGO.localidad),
-      mensaje: texto(body.mensaje, LARGO.mensaje),
+      actividad: texto(body.actividad, LARGO.actividad),
+      // Un canal que no esté en la lista se descarta: el campo es un selector
+      // y lo que llegue por fuera no lo escribió nadie desde el formulario.
+      comoSeEntero: esCanalConocido(texto(body.comoSeEntero, LARGO.comoSeEntero))
+        ? texto(body.comoSeEntero, LARGO.comoSeEntero)
+        : "",
     },
   });
 

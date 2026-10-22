@@ -444,8 +444,14 @@ function Tarjeta({
         </span>
       </div>
 
-      {s.mensaje && (
-        <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">{s.mensaje}</p>
+      {s.actividad && (
+        <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+          <span className="font-semibold text-slate-700">A qué se dedica: </span>{s.actividad}
+        </p>
+      )}
+
+      {s.comoSeEntero && (
+        <p className="mt-2 text-xs text-slate-500">Nos conoció por: {s.comoSeEntero}</p>
       )}
 
       {s.yaTieneCuentaEn.length > 0 && (

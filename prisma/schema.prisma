@@ -402,7 +402,10 @@ model SolicitudAcceso {
   clasificacion   String            @default("")
   headcount       String            @default("")
   localidad       String            @default("")
-  mensaje         String            @default("")
+  /// A qué se dedica la empresa, en sus palabras.
+  actividad       String            @default("")
+  /// Por dónde se enteró del Market Analyzer. Una de `CANALES_ACCESO`.
+  comoSeEntero    String            @default("")
   status          EditRequestStatus @default(PENDING)
   /// Por qué se denegó. Es nota interna: no se le muestra a quien solicitó.
   motivoRechazo   String            @default("")

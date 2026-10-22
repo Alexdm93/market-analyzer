@@ -18,10 +18,12 @@ import { useState } from "react";
 import { AlertTriangle, CheckCircle2, Info, LoaderCircle, Send } from "lucide-react";
 
 import { COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR, ECONOMIC_SECTOR_OPTIONS } from "@/lib/company";
+import { CANALES_ACCESO } from "@/lib/solicitud-acceso";
 
 const VACIO = {
   nombre: "", correo: "", cargo: "", telefono: "",
-  empresa: "", sector: "", clasificacion: "", headcount: "", localidad: "", mensaje: "",
+  empresa: "", sector: "", clasificacion: "", headcount: "", localidad: "",
+  actividad: "", comoSeEntero: "",
 };
 
 export default function FormularioAcceso({ alCerrar }: { alCerrar?: () => void }) {
@@ -166,13 +168,22 @@ export default function FormularioAcceso({ alCerrar }: { alCerrar?: () => void }
             <input id="acc-localidad" className="field" value={valores.localidad} placeholder="Ciudad o estado"
               onChange={(e) => cambiar("localidad", e.target.value)} />
           </div>
+          <div className="md:col-span-2">
+            <label className="field-label" htmlFor="acc-actividad">¿A qué se dedica la empresa?</label>
+            <textarea id="acc-actividad" className="field min-h-20" value={valores.actividad} rows={3}
+              placeholder="En una o dos líneas: a qué se dedica."
+              onChange={(e) => cambiar("actividad", e.target.value)} />
+          </div>
         </div>
       </fieldset>
 
       <div>
-        <label className="field-label" htmlFor="acc-mensaje">¿Qué necesitas del Market Analyzer?</label>
-        <textarea id="acc-mensaje" className="field min-h-24" value={valores.mensaje} rows={3}
-          onChange={(e) => cambiar("mensaje", e.target.value)} />
+        <label className="field-label" htmlFor="acc-canal">¿Cómo te enteraste de nosotros?</label>
+        <select id="acc-canal" className="field-select" value={valores.comoSeEntero}
+          onChange={(e) => cambiar("comoSeEntero", e.target.value)}>
+          <option value="">Sin especificar</option>
+          {CANALES_ACCESO.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
 
       {error && (

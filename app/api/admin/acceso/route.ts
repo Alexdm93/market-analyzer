@@ -22,7 +22,8 @@ export type SolicitudAccesoFila = {
   clasificacion: string;
   headcount: string;
   localidad: string;
-  mensaje: string;
+  actividad: string;
+  comoSeEntero: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   motivoRechazo: string;
   resueltoPor: string;
@@ -84,7 +85,8 @@ export async function GET() {
       id: s.id,
       nombre: s.nombre, correo: s.correo, cargo: s.cargo, telefono: s.telefono,
       empresa: s.empresa, sector: s.sector, clasificacion: s.clasificacion,
-      headcount: s.headcount, localidad: s.localidad, mensaje: s.mensaje,
+      headcount: s.headcount, localidad: s.localidad,
+      actividad: s.actividad, comoSeEntero: s.comoSeEntero,
       status: s.status,
       motivoRechazo: s.motivoRechazo,
       resueltoPor: s.resueltoPor,
