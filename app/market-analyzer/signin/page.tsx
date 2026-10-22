@@ -6,6 +6,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { BarChart2, LoaderCircle, LockKeyhole, LogIn, ShieldCheck } from "lucide-react";
 import { signIn, useSession } from "next-auth/react";
 
+import ModalSolicitarAcceso from "@/components/ModalSolicitarAcceso";
+
 type CompanyOption = { id: string; name: string };
 
 export default function SignInPage() {
@@ -16,6 +18,7 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [companies, setCompanies] = useState<CompanyOption[] | null>(null);
+  const [pidiendoAcceso, setPidiendoAcceso] = useState(false);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState("");
   const [error, setError] = useState("");
@@ -298,9 +301,10 @@ export default function SignInPage() {
             {!isBootstrap && (
               <p className="text-center text-xs text-slate-500">
                 ¿Todavía no tienes cuenta?{" "}
-                <Link href="/market-analyzer/solicitar-acceso" className="font-semibold text-teal-700 underline">
+                <button type="button" onClick={() => setPidiendoAcceso(true)}
+                  className="font-semibold text-teal-700 underline">
                   Solicitar acceso
-                </Link>
+                </button>
               </p>
             )}
           </form>
@@ -315,6 +319,9 @@ export default function SignInPage() {
           )}
         </section>
       </div>
+
+
+      <ModalSolicitarAcceso abierto={pidiendoAcceso} alCerrar={() => setPidiendoAcceso(false)} />
 
     </main>
   );

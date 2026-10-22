@@ -7,6 +7,7 @@ import {
   Target, Eye, Star, Users, ExternalLink,
   Rocket, BarChart2, Globe, Bell, LogOut,
 } from "lucide-react";
+import ModalSolicitarAcceso from "@/components/ModalSolicitarAcceso";
 // signingOut state kept for navbar logout button
 
 const NAV_LINKS = [
@@ -170,6 +171,7 @@ export default function LandingPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: session, status } = useSession();
   const [signingOut, setSigningOut] = useState(false);
+  const [pidiendoAcceso, setPidiendoAcceso] = useState(false);
 
   return (
     <div className="min-h-screen bg-white text-[#2C3E50]">
@@ -372,10 +374,10 @@ export default function LandingPage() {
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-8 py-4 text-base font-black transition hover:bg-[#EEF7FF]" style={{ color: "#1B4965" }}>
                 Ingresar <ChevronRight size={18} />
               </Link>
-              <Link href="/market-analyzer/solicitar-acceso"
+              <button type="button" onClick={() => setPidiendoAcceso(true)}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-white/60 px-8 py-4 text-base font-black text-white transition hover:border-white hover:bg-white/10">
                 Solicitar acceso
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -433,6 +435,9 @@ export default function LandingPage() {
           <p className="text-xs" style={{ color: "#5FA5E3" }}>Todos los derechos reservados.</p>
         </div>
       </footer>
+
+
+      <ModalSolicitarAcceso abierto={pidiendoAcceso} alCerrar={() => setPidiendoAcceso(false)} />
 
     </div>
   );
