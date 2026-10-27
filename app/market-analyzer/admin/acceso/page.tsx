@@ -53,6 +53,14 @@ export default function BandejaAccesoPage() {
   const [credenciales, setCredenciales] = useState<{ correo: string; clave: string; empresa: string } | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [creandoEmpresa, setCreandoEmpresa] = useState(false);
+  /**
+   * Con qué se da de alta la empresa. Arrancan con lo que escribió quien
+   * solicitó, pero se pueden corregir: el nombre suele venir con erratas —"IT
+   * SERVICIOS DE VENEZUELA, .S.A."— y queda fijo para siempre, y la
+   * descripción antes se mandaba vacía (AC Consulting, 2026-10-26).
+   */
+  const [nombreEmpresa, setNombreEmpresa] = useState("");
+  const [descripcionEmpresa, setDescripcionEmpresa] = useState("");
   const [pestana, setPestana] = useState<SolicitudAccesoFila["status"]>("PENDING");
 
   const cargar = useCallback(async (): Promise<SolicitudAccesoFila[]> => {
@@ -94,11 +102,19 @@ export default function BandejaAccesoPage() {
       // (AC Consulting, 2026-10-22).
       if (accion === "aceptar") {
         const recien = frescas.find((x) => x.id === id);
-        if (recien) { setErrorAlta(""); setCreando(recien); setPestana("APPROVED"); }
+        if (recien) { abrirAlta(recien); setPestana("APPROVED"); }
       }
     } finally {
       setTrabajando("");
     }
+  }
+
+  /** Abre el alta con los campos de la empresa precargados de la solicitud. */
+  function abrirAlta(s: SolicitudAccesoFila) {
+    setErrorAlta("");
+    setNombreEmpresa(s.empresa);
+    setDescripcionEmpresa(s.actividad);
+    setCreando(s);
   }
 
   /**
@@ -110,6 +126,8 @@ export default function BandejaAccesoPage() {
    */
   async function crearEmpresa() {
     if (!creando) return;
+    const nombre = nombreEmpresa.trim();
+    if (nombre.length < 2) { setErrorAlta("La empresa necesita un nombre."); return; }
     setCreandoEmpresa(true);
     setErrorAlta("");
     try {
@@ -117,8 +135,8 @@ export default function BandejaAccesoPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: creando.empresa,
-          description: "",
+          name: nombre,
+          description: descripcionEmpresa.trim(),
           economicSector: creando.sector,
           classification: creando.clasificacion,
         }),
@@ -324,7 +342,7 @@ Contraseña: ${credenciales.clave}`}
                   key={s.id} s={s} trabajando={trabajando === s.id}
                   onAceptar={() => void resolver(s.id, "aceptar")}
                   onDenegar={() => void denegar(s)}
-                  onCrear={() => { setErrorAlta(""); setCreando(s); }}
+                  onCrear={() => abrirAlta(s)}
                   onReabrir={() => void resolver(s.id, "reabrir")}
                 />
               ))}
@@ -360,14 +378,37 @@ Contraseña: ${credenciales.clave}`}
                   <Building2 className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
                     «{creando.empresa}» no está en el catálogo, así que abajo no hay ninguna empresa
-                    elegida. Créala de una vez o elige a mano la que corresponda.
+                    elegida. Créala de una vez —revisa el nombre, queda fijo— o elige a mano la que
+                    corresponda.
                   </span>
                 </p>
-                <button type="button" onClick={() => void crearEmpresa()} disabled={creandoEmpresa}
-                  className="btn btn-secondary btn-sm mt-3">
-                  {creandoEmpresa ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
-                  {creandoEmpresa ? "Creando…" : `Crear «${creando.empresa}»`}
-                </button>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="field-label" htmlFor="alta-empresa-nombre">Nombre de la empresa</label>
+                    <input id="alta-empresa-nombre" className="field" value={nombreEmpresa}
+                      onChange={(e) => setNombreEmpresa(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="field-label" htmlFor="alta-empresa-descripcion">
+                      A qué se dedica
+                    </label>
+                    <textarea id="alta-empresa-descripcion" className="field min-h-20" rows={2}
+                      value={descripcionEmpresa}
+                      placeholder="Lo que escribió en la solicitud; puedes corregirlo."
+                      onChange={(e) => setDescripcionEmpresa(e.target.value)} />
+                  </div>
+                  {(creando.sector || creando.clasificacion) && (
+                    <p className="text-xs">
+                      Se dará de alta con sector <strong>{creando.sector || "sin especificar"}</strong>
+                      {creando.clasificacion && <> y clasificación <strong>{creando.clasificacion}</strong></>}.
+                    </p>
+                  )}
+                  <button type="button" onClick={() => void crearEmpresa()} disabled={creandoEmpresa}
+                    className="btn btn-secondary btn-sm">
+                    {creandoEmpresa ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                    {creandoEmpresa ? "Creando…" : "Crear empresa"}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -401,6 +442,18 @@ Contraseña: ${credenciales.clave}`}
   );
 }
 
+/** Una etiqueta y su valor; una raya cuando quien solicitó lo dejó vacío. */
+function Dato({ etiqueta, valor, ancho }: { etiqueta: string; valor: string; ancho?: boolean }) {
+  return (
+    <div className={ancho ? "sm:col-span-2" : undefined}>
+      <dt className="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-400">{etiqueta}</dt>
+      <dd className={`mt-0.5 leading-6 ${valor ? "text-slate-700" : "text-slate-400"}`}>
+        {valor || "—"}
+      </dd>
+    </div>
+  );
+}
+
 function Tarjeta({
   s, trabajando, onAceptar, onDenegar, onCrear, onReabrir,
 }: {
@@ -428,31 +481,29 @@ function Tarjeta({
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-slate-600">
-            {s.correo}{s.cargo && ` · ${s.cargo}`}{s.telefono && ` · ${s.telefono}`}
-          </p>
-          <p className="mt-0.5 text-sm text-slate-600">
-            <strong className="text-slate-800">{s.empresa}</strong>
-            {s.sector && ` · ${s.sector}`}
-            {s.clasificacion && ` · ${s.clasificacion}`}
-            {s.headcount && ` · ${s.headcount} empleados`}
-            {s.localidad && ` · ${s.localidad}`}
-          </p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-700">{s.empresa}</p>
         </div>
         <span className="flex items-center gap-1 whitespace-nowrap text-xs text-slate-400">
           <Clock className="h-3.5 w-3.5" /> {fecha(s.createdAt)}
         </span>
       </div>
 
-      {s.actividad && (
-        <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-          <span className="font-semibold text-slate-700">A qué se dedica: </span>{s.actividad}
-        </p>
-      )}
-
-      {s.comoSeEntero && (
-        <p className="mt-2 text-xs text-slate-500">Nos conoció por: {s.comoSeEntero}</p>
-      )}
+      {/* Todo lo que se le pidió, campo por campo y con su etiqueta. Antes iba
+          encadenado con puntos y los datos de contacto se perdían en el
+          renglón; lo que no se llenó se marca con una raya, para distinguir
+          "no lo puso" de "no se lo preguntamos" (AC Consulting, 2026-10-26). */}
+      <dl className="mt-3 grid gap-x-6 gap-y-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm sm:grid-cols-2">
+        <Dato etiqueta="Correo" valor={s.correo} />
+        <Dato etiqueta="Teléfono" valor={s.telefono} />
+        <Dato etiqueta="Cargo" valor={s.cargo} />
+        <Dato etiqueta="Empresa" valor={s.empresa} />
+        <Dato etiqueta="Sector económico" valor={s.sector} />
+        <Dato etiqueta="Clasificación" valor={s.clasificacion} />
+        <Dato etiqueta="Empleados" valor={s.headcount} />
+        <Dato etiqueta="Ubicación" valor={s.localidad} />
+        <Dato etiqueta="Nos conoció por" valor={s.comoSeEntero} />
+        <Dato etiqueta="A qué se dedica" valor={s.actividad} ancho />
+      </dl>
 
       {s.yaTieneCuentaEn.length > 0 && (
         <p className="mt-3 flex items-start gap-1.5 rounded-2xl bg-amber-50 px-4 py-2.5 text-xs text-amber-800">

@@ -7,13 +7,47 @@
  * informes se pueden bajar por trimestre— y abajo la lista de empresas, donde
  * se habilita una por una y se le puede dar un cupo propio.
  */
-import { AlertTriangle, ArrowLeft, Check, Loader2, Radar } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowUpDown, Check, ChevronDown, ChevronUp, Loader2, Radar } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import { isAdminRole } from "@/lib/roles";
 import type { CorteRadar, EmpresaRadar } from "@/app/api/admin/radar/route";
+
+/** Por cuál columna se ordena la tabla de empresas. */
+type ColumnaOrden = "nombre" | "habilitado" | "cupo" | "usados";
+
+/**
+ * Una cabecera que ordena al hacerle clic, con la flecha del sentido actual.
+ */
+function Cabecera({
+  por, orden, onOrdenar, alineada, children,
+}: {
+  por: ColumnaOrden;
+  orden: { por: ColumnaOrden; desc: boolean };
+  onOrdenar: (por: ColumnaOrden) => void;
+  alineada?: "derecha";
+  children: React.ReactNode;
+}) {
+  const activa = orden.por === por;
+  const Flecha = !activa ? ArrowUpDown : orden.desc ? ChevronDown : ChevronUp;
+  return (
+    <th className={`px-4 py-2.5 font-semibold ${alineada === "derecha" ? "text-right" : ""}`}>
+      <button
+        type="button"
+        onClick={() => onOrdenar(por)}
+        aria-label={`Ordenar por ${String(children)}`}
+        className={`inline-flex items-center gap-1 uppercase tracking-wide transition hover:text-slate-700 ${
+          activa ? "text-slate-700" : ""
+        }`}
+      >
+        {children}
+        <Flecha className={`h-3 w-3 shrink-0 ${activa ? "" : "opacity-40"}`} />
+      </button>
+    </th>
+  );
+}
 
 type Respuesta = {
   trimestre: string;
@@ -34,6 +68,7 @@ export default function RadarAdmin() {
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [orden, setOrden] = useState<{ por: ColumnaOrden; desc: boolean }>({ por: "nombre", desc: false });
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -71,6 +106,45 @@ export default function RadarAdmin() {
     }
   }
 
+  /**
+   * La tabla se ordena por cualquiera de sus columnas.
+   *
+   * Lo que de verdad se viene a mirar acá es quién está usando el Radar, y con
+   * ciento y pico de empresas en orden alfabético eso no se ve: hay que ir
+   * fila por fila buscando un número distinto de cero. Por eso "Usados" ordena
+   * de mayor a menor en el primer clic (AC Consulting, 2026-10-26).
+   */
+  const empresas = useMemo(() => {
+    const filtradas = (datos?.empresas ?? []).filter((e) =>
+      e.name.toLowerCase().includes(busqueda.trim().toLowerCase()));
+
+    const signo = orden.desc ? -1 : 1;
+    return [...filtradas].sort((a, b) => {
+      switch (orden.por) {
+        case "usados":
+          // Con el mismo número de usos manda el nombre, para que el orden no
+          // baile entre recargas.
+          return signo * (a.usados - b.usados) || a.name.localeCompare(b.name, "es");
+        case "habilitado":
+          return signo * (Number(a.habilitado) - Number(b.habilitado)) || a.name.localeCompare(b.name, "es");
+        case "cupo": {
+          const general = datos?.cupoGeneral ?? 0;
+          return signo * ((a.cupo ?? general) - (b.cupo ?? general)) || a.name.localeCompare(b.name, "es");
+        }
+        default:
+          return signo * a.name.localeCompare(b.name, "es");
+      }
+    });
+  }, [datos, busqueda, orden]);
+
+  function ordenarPor(por: ColumnaOrden) {
+    // Primer clic en una columna nueva: nombre ascendente, el resto
+    // descendente, que es como se quiere ver cada una.
+    setOrden((prev) => prev.por === por
+      ? { por, desc: !prev.desc }
+      : { por, desc: por !== "nombre" });
+  }
+
   if (status === "loading") {
     return <main className="page-wrap"><p className="text-sm text-slate-500">Cargando…</p></main>;
   }
@@ -85,8 +159,6 @@ export default function RadarAdmin() {
     );
   }
 
-  const empresas = (datos?.empresas ?? []).filter((e) =>
-    e.name.toLowerCase().includes(busqueda.trim().toLowerCase()));
 
   return (
     <main className="page-wrap">
@@ -192,10 +264,12 @@ export default function RadarAdmin() {
               <table className="w-full min-w-[38rem] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-4 py-2.5 font-semibold">Empresa</th>
-                    <th className="px-4 py-2.5 font-semibold">Radar</th>
-                    <th className="px-4 py-2.5 font-semibold">Cupo propio</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">Usados este trimestre</th>
+                    <Cabecera por="nombre" orden={orden} onOrdenar={ordenarPor}>Empresa</Cabecera>
+                    <Cabecera por="habilitado" orden={orden} onOrdenar={ordenarPor}>Radar</Cabecera>
+                    <Cabecera por="cupo" orden={orden} onOrdenar={ordenarPor}>Cupo propio</Cabecera>
+                    <Cabecera por="usados" orden={orden} onOrdenar={ordenarPor} alineada="derecha">
+                      Usados este trimestre
+                    </Cabecera>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
