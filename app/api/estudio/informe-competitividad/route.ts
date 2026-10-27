@@ -39,10 +39,15 @@ import {
 } from "@/lib/informe-especializado";
 import { cupoAgotado } from "@/lib/cupo-informes";
 import { MINIMO_EMPRESAS_DEL_GRUPO, leerFiltrosMercado, tamanoDeEmpresa } from "@/lib/filtros-mercado";
-import { calcularPercentilesMercado, calcularPercentilesTcr, usuariosQueEnviaron } from "@/lib/percentiles-mercado";
+import {
+  calcularPercentilesMercado,
+  calcularPercentilesTcr,
+  usuariosQueEnviaron,
+  type ObservacionMercado,
+} from "@/lib/percentiles-mercado";
 import { elegirTendencia } from "@/lib/tendencia-compensacion";
 import { prisma } from "@/lib/prisma";
-import { safeParseCompanyInfo } from "@/lib/workspace";
+import { safeParseCompanyInfo, type ExchangeRate } from "@/lib/workspace";
 import type { ExtendedMarketPosition } from "@/types/salary";
 import { construirDataEmpresa } from "@/lib/data-empresa";
 
@@ -100,6 +105,9 @@ async function tasasDelInforme(fijadas: TasasDelInforme | null | undefined): Pro
   return { bcv: bcv.rate, bcvEur: bcvEur.rate, binance: binance.rate, libreManual: libre.rate };
 }
 
+/** Una fila del mercado, lista para repartirla por elemento de pago. */
+type FilaDelMercado = { fila: ExtendedMarketPosition; tasas: ExchangeRate[]; bcv: number | null };
+
 async function mercadoDelInforme(
   snapshotId: string, filtros: string, tcrType: TcrType | null, tasasGlobales: TasasDelInforme,
   incluirVariables: { comisiones: boolean; desempeno: boolean },
@@ -109,18 +117,43 @@ async function mercadoDelInforme(
     usuariosQueEnviaron(snapshotId),
   ]);
 
+  /**
+   * Las filas con las que se arma la hoja de Distribución de Compensación.
+   *
+   * Se toman las observaciones por GRADO: son una por empresa y por grado, la
+   * misma población con la que se calculan los percentiles por grado, así que
+   * la lámina habla del mismo mercado que el resto del informe. Se recogen
+   * acá y no en un segundo recorrido para que no puedan separarse.
+   *
+   * Cada fila se valora con las tasas de SU empresa —las que tenía al enviar—
+   * igual que los percentiles: es la única forma de que los montos de
+   * empresas que pagan en monedas distintas sean comparables.
+   */
+  const delMercado: FilaDelMercado[] = [];
+  const observar = (o: ObservacionMercado) => {
+    if (o.tipo !== "grado") return;
+    delMercado.push({
+      fila: o.fila,
+      tasas: o.companyInfo.tasas ?? [],
+      bcv: o.companyInfo.ratesAtSave?.bcvUsd ?? tasasGlobales.bcv,
+    });
+  };
+
   const parametros = {
     snapshotId,
     filtros: leerFiltrosMercado(new URLSearchParams(filtros)),
     workspaces,
     enviaron,
+    observar,
     // La misma regla con la que se mide la nómina del cliente.
     incluirVariables,
   };
 
-  return tcrType
+  const mercado = tcrType
     ? calcularPercentilesTcr({ ...parametros, tcrType, globales: tasasGlobales })
     : calcularPercentilesMercado({ ...parametros, bcvGeneral: tasasGlobales.bcv });
+
+  return { ...mercado, delMercado };
 }
 
 export async function POST(request: Request) {
@@ -313,14 +346,21 @@ export async function POST(request: Request) {
 
   const filas = construirFilas(ocupantes, nombreEmpresa, tasas, bcv, diasVac, diasUtil, config, opcionesTcr);
 
-  // La hoja de distribución mira a los ocupantes DEL INFORME, no al mercado:
-  // es el reparto de la compensación de la propia empresa, por nivel y por
-  // elemento de pago (AC Consulting, 2026-10-18).
-  const paraDistribucion = ocupantes.map((o) => ({
-    fila: o.data as ExtendedMarketPosition,
-    tasas,
-    bcv,
-  }));
+  /**
+   * La hoja de distribución habla del MERCADO del grupo de comparación, no de
+   * la nómina del cliente.
+   *
+   * Durante un tiempo se armó con los ocupantes del informe, y así salió a la
+   * calle: dos informes del mismo corte daban láminas distintas porque eran de
+   * clientes distintos, que es justo lo contrario de lo que la lámina quiere
+   * decir. Julio Contreras lo corrigió (2026-10-26): muestra cómo el mercado
+   * seleccionado reparte la compensación entre los elementos de pago.
+   *
+   * Va con la nómina cruda a propósito: aunque el informe excluya comisiones o
+   * desempeño, la lámina sigue mostrando de qué está hecho el paquete del
+   * mercado, que es para lo que sirve (AC Consulting, 2026-10-26).
+   */
+  const paraDistribucion = mercado.delMercado;
   const distribucion = calcularDistribucion(paraDistribucion).map((f) => ({
     nivel: f.nivel.toUpperCase(),
     valores: CATEGORIAS.map((c) => f.porcentajes[c]),
