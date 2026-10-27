@@ -44,6 +44,7 @@ export default function EmpresasPage() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [modalMode, setModalMode] = useState<"view" | "edit" | "delete">("view");
   const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [editSector, setEditSector] = useState("");
   const [editClassification, setEditClassification] = useState("");
   const [modalError, setModalError] = useState("");
@@ -178,6 +179,7 @@ export default function EmpresasPage() {
   function openEdit() {
     if (!selectedCompany) return;
     setEditName(selectedCompany.name);
+    setEditDescription(selectedCompany.description ?? "");
     setEditSector(selectedCompany.economicSector ?? "");
     setEditClassification(selectedCompany.classification ?? "");
     setModalError("");
@@ -192,7 +194,12 @@ export default function EmpresasPage() {
       const res = await fetch(`/api/companies/${selectedCompany.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName, economicSector: editSector, classification: editClassification }),
+        body: JSON.stringify({
+          name: editName,
+          description: editDescription,
+          economicSector: editSector,
+          classification: editClassification,
+        }),
       });
       const payload = (await res.json().catch(() => null)) as { company?: Company; message?: string } | null;
       if (!res.ok) { setModalError(payload?.message ?? "No fue posible guardar los cambios."); return; }
@@ -579,6 +586,17 @@ export default function EmpresasPage() {
                   <div>
                     <label className="field-label">Nombre</label>
                     <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="field w-full" placeholder="Nombre de la empresa" />
+                  </div>
+                  <div>
+                    <label className="field-label" htmlFor="editCompanyDescription">Descripción</label>
+                    <textarea
+                      id="editCompanyDescription"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      className="field min-h-20 w-full"
+                      placeholder="A qué se dedica la empresa"
+                    />
                   </div>
                   <div>
                     <label className="field-label">Sector económico</label>

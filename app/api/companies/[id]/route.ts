@@ -12,6 +12,7 @@ export async function PUT(request: Request, { params }: Params) {
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as {
     name?: string;
+    description?: string;
     economicSector?: string;
     classification?: string;
     locality?: string;
@@ -26,15 +27,23 @@ export async function PUT(request: Request, { params }: Params) {
   const existing = await prisma.company.findFirst({ where: { name, NOT: { id } }, select: { id: true } });
   if (existing) return Response.json({ message: "Ya existe otra empresa con ese nombre." }, { status: 409 });
 
+  /**
+   * Solo se toca lo que vino en el cuerpo.
+   *
+   * Antes cada campo caía a `?? ""`, así que una pantalla que mandara tres
+   * campos le borraba los demás sin decir nada: la de Empresas manda nombre,
+   * sector y clasificación, y con cada edición se llevaba por delante la
+   * localidad y el headcount de la empresa (AC Consulting, 2026-10-26).
+   */
+  const data: Record<string, string> = { name };
+  for (const campo of ["description", "economicSector", "classification", "locality", "headcount"] as const) {
+    const valor = body[campo];
+    if (typeof valor === "string") data[campo] = valor.trim();
+  }
+
   const company = await prisma.company.update({
     where: { id },
-    data: {
-      name,
-      economicSector: body.economicSector?.trim() ?? "",
-      classification: body.classification?.trim() ?? "",
-      locality: body.locality?.trim() ?? "",
-      headcount: body.headcount?.trim() ?? "",
-    },
+    data,
     select: {
       id: true, name: true, description: true, economicSector: true,
       classification: true, headcount: true, revenueUSD: true,
