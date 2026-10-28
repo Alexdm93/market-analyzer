@@ -176,21 +176,22 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
       <div>
         <p className="field-label">Compensación fija</p>
         <div className="overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="w-full min-w-[42rem] text-sm">
+          <table className="w-full min-w-[48rem] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-2 font-semibold">Concepto</th>
                 <th className="px-3 py-2 font-semibold">Monto</th>
-                <th className="px-3 py-2 font-semibold">Moneda monto</th>
-                <th className="px-3 py-2 font-semibold">Moneda pago</th>
+                <th className="px-3 py-2 font-semibold">Mon. Cuenta</th>
+                <th className="px-3 py-2 font-semibold">Mon. Pago</th>
                 <th className="px-3 py-2 font-semibold">Tasa</th>
+                <th className="px-3 py-2 font-semibold">Pasivos</th>
                 <th className="px-3 py-2 font-semibold">Frecuencia</th>
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               <tr>
-                <td className="px-3 py-2"><span className="field bg-slate-100 text-sm">Sueldo básico</span></td>
+                <td className="px-3 py-2"><span className="field block bg-slate-100 text-sm leading-snug">Sueldo básico</span></td>
                 <td className="px-3 py-2">
                   <NumericInput
                     aria-label="Monto sueldo básico"
@@ -219,12 +220,13 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
                     onTasa={(id) => set({ sueldoBasicoTasaId: id })}
                   />
                 </td>
-                <td className="px-3 py-2"><span className="field bg-slate-50 text-sm text-slate-400">Mensual</span></td>
+                <td className="px-3 py-2"><span className="field block bg-slate-50 text-sm leading-snug text-slate-400">Sí</span></td>
+                <td className="px-3 py-2"><span className="field block bg-slate-50 text-sm leading-snug text-slate-400">Mensual</span></td>
                 <td />
               </tr>
 
               <tr>
-                <td className="px-3 py-2"><span className="field bg-slate-100 text-sm">Bono alimentación</span></td>
+                <td className="px-3 py-2"><span className="field block bg-slate-100 text-sm leading-snug">Bono alimentación</span></td>
                 <td className="px-3 py-2">
                   <NumericInput
                     aria-label="Monto bono alimentación"
@@ -253,7 +255,8 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
                     onTasa={(id) => set({ bonoAlimentacionTasaId: id })}
                   />
                 </td>
-                <td className="px-3 py-2"><span className="field bg-slate-50 text-sm text-slate-400">Mensual</span></td>
+                <td className="px-3 py-2"><span className="field block bg-slate-50 text-sm leading-snug text-slate-400">No</span></td>
+                <td className="px-3 py-2"><span className="field block bg-slate-50 text-sm leading-snug text-slate-400">Mensual</span></td>
                 <td />
               </tr>
 
@@ -296,6 +299,23 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
                       tasaId={c.tasaId}
                       onTasa={(id) => actualizarConcepto("additionalFixedPayments", idx, { tasaId: id })}
                     />
+                  </td>
+                  <td className="px-3 py-2">
+                    {/* Si el concepto impacta las prestaciones. Faltaba: se
+                        creaba siempre en "No" y no había forma de cambiarlo,
+                        así que el mismo concepto cargado desde Data y desde
+                        acá daba un CIM y un PCTA distintos
+                        (AC Consulting, 2026-10-28). */}
+                    <select
+                      aria-label="Pasivos del concepto fijo"
+                      value={c.impacto ? "si" : "no"}
+                      onChange={(e) => actualizarConcepto("additionalFixedPayments", idx, { impacto: e.target.value === "si" })}
+                      disabled={deshabilitado}
+                      className="field-select text-sm w-full"
+                    >
+                      <option value="si">Sí</option>
+                      <option value="no">No</option>
+                    </select>
                   </td>
                   <td className="px-3 py-2">
                     <select
