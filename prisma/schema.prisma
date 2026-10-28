@@ -445,3 +445,33 @@ model RecursoFormacion {
 
   @@index([categoria, publicado, orden])
 }
+
+/// Un documento de la Biblioteca de Descargas.
+///
+/// El archivo vive en el bucket privado `biblioteca` de Supabase Storage; acá
+/// solo queda su ficha y, sobre todo, quién puede bajarlo. Nunca se guarda una
+/// URL pública: la descarga pasa siempre por el servidor, que comprueba el
+/// permiso y recién entonces firma un enlace que vence en un minuto. Si se
+/// guardara la URL directa, el nivel asignado no serviría de nada
+/// (AC Consulting, 2026-10-27).
+model DocumentoBiblioteca {
+  id           String   @id @default(cuid())
+  nombre       String
+  descripcion  String   @default("")
+  /// La ruta dentro del bucket. No es una URL y no se le muestra a nadie.
+  ruta         String   @unique
+  /// El tipo MIME que declaró el navegador; de ahí sale el icono.
+  tipo         String   @default("")
+  /// En bytes.
+  tamano       Int      @default(0)
+  /// "publico" —toda empresa registrada— o "asignado".
+  visibilidad  String   @default("asignado")
+  /// Los companyId que pueden verlo cuando es "asignado", como arreglo JSON.
+  empresasJson String   @default("[]")
+  publicado    Boolean  @default(true)
+  subidoPor    String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([visibilidad, createdAt])
+}

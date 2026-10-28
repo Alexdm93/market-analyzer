@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChartBar, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, GraduationCap, HardDrive, Home, Info, Layers, LayoutDashboard, LifeBuoy, ListChecks, LoaderCircle, LogIn, LogOut, Newspaper, PlayCircle, Radar, ScanSearch, Shield, TrendingUp, UserPlus } from "lucide-react";
+import { BookOpen, Building2, ChartBar, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, FolderDown, GraduationCap, HardDrive, Home, Info, Layers, LayoutDashboard, LifeBuoy, ListChecks, LoaderCircle, LogIn, LogOut, Newspaper, PlayCircle, Radar, ScanSearch, Shield, TrendingUp, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { Fragment, useEffect, useState } from "react";
@@ -87,6 +87,13 @@ const academiaItem: MenuItem = {
   hint: "Formación en Compensación y Beneficios",
 };
 
+const bibliotecaItem: MenuItem = {
+  name: "Biblioteca",
+  href: `${BASE}/biblioteca`,
+  icon: FolderDown,
+  hint: "Plantillas y documentos para descargar",
+};
+
 const radarItem: MenuItem = {
   name: "Radar Salarial",
   href: `${BASE}/radar`,
@@ -115,6 +122,7 @@ const grupoAdmin: MenuGroup = {
     // (AC Consulting, 2026-10-21).
     { name: "Radar: habilitación", href: `${BASE}/admin/radar`, icon: Radar, hint: "Qué empresas, cuánto cupo y de qué corte" },
     { name: "Videotutoriales", href: `${BASE}/admin/recursos`, icon: PlayCircle, hint: "Centro de Ayuda y Academia C&B" },
+    { name: "Biblioteca", href: `${BASE}/admin/biblioteca`, icon: FolderDown, hint: "Documentos y quién puede bajarlos" },
   ],
 };
 
@@ -197,7 +205,7 @@ export default function Sidebar() {
 
   // El Centro de Ayuda y la Academia los ve todo el mundo: no dependen de que
   // a la empresa le hayan habilitado nada.
-  const itemsFormacion = [ayudaItem, academiaItem];
+  const itemsFormacion = [bibliotecaItem, ayudaItem, academiaItem];
 
   const itemsPlanos = isAdmin
     ? [...itemsBaseAdmin, ...itemsEstudio, ...itemsRadar, ...itemsFormacion]
