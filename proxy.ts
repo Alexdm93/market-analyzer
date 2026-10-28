@@ -29,6 +29,7 @@ const protectedPages = new Set([
   `${BASE}/estudio/cargos`, `${BASE}/estudio/comparacion`, `${BASE}/estudio/informes`,
   `${BASE}/estudios`, `${BASE}/informacion`, `${BASE}/empresas`, `${BASE}/resultados`,
   `${BASE}/valoracion`, `${BASE}/radar`, `${BASE}/informe-general`,
+  `${BASE}/centro-de-ayuda`, `${BASE}/academia`,
 ]);
 
 /**

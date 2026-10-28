@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, Radar, ChartBar, ScanSearch, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, ListChecks, HardDrive, Home, Info, LayoutDashboard, Layers, LoaderCircle, LogIn, LogOut, Newspaper, Shield, TrendingUp, UserPlus } from "lucide-react";
+import { BookOpen, Building2, ChartBar, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, GraduationCap, HardDrive, Home, Info, Layers, LayoutDashboard, LifeBuoy, ListChecks, LoaderCircle, LogIn, LogOut, Newspaper, PlayCircle, Radar, ScanSearch, Shield, TrendingUp, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { Fragment, useEffect, useState } from "react";
@@ -68,6 +68,25 @@ const especializadoItem: MenuItem = {
   hint: "Cargos, comparación e historial",
 };
 
+/**
+ * Las dos secciones de video van sueltas y separadas entre sí: una es soporte
+ * de la plataforma y la otra formación profesional, y mezclarlas confundiría
+ * las dos cosas (AC Consulting, 2026-10-27).
+ */
+const ayudaItem: MenuItem = {
+  name: "Centro de Ayuda",
+  href: `${BASE}/centro-de-ayuda`,
+  icon: LifeBuoy,
+  hint: "Tutoriales de la plataforma",
+};
+
+const academiaItem: MenuItem = {
+  name: "Academia C&B",
+  href: `${BASE}/academia`,
+  icon: GraduationCap,
+  hint: "Formación en Compensación y Beneficios",
+};
+
 const radarItem: MenuItem = {
   name: "Radar Salarial",
   href: `${BASE}/radar`,
@@ -95,6 +114,7 @@ const grupoAdmin: MenuGroup = {
     // desplegable, debajo del Estudio de Competitividad
     // (AC Consulting, 2026-10-21).
     { name: "Radar: habilitación", href: `${BASE}/admin/radar`, icon: Radar, hint: "Qué empresas, cuánto cupo y de qué corte" },
+    { name: "Videotutoriales", href: `${BASE}/admin/recursos`, icon: PlayCircle, hint: "Centro de Ayuda y Academia C&B" },
   ],
 };
 
@@ -175,9 +195,14 @@ export default function Sidebar() {
   // pantalla deja hacer, no dónde está.
   const itemsRadar = canSeeRadar ? [radarItem] : [];
 
+  // El Centro de Ayuda y la Academia los ve todo el mundo: no dependen de que
+  // a la empresa le hayan habilitado nada.
+  const itemsFormacion = [ayudaItem, academiaItem];
+
   const itemsPlanos = isAdmin
-    ? [...itemsBaseAdmin, ...itemsEstudio, ...itemsRadar]
-    : [...itemsBase, ...itemsInformeGeneral, ...itemsEstudio, ...itemsRadar, ...(isCoordinator ? [estudiosItem] : [])];
+    ? [...itemsBaseAdmin, ...itemsEstudio, ...itemsRadar, ...itemsFormacion]
+    : [...itemsBase, ...itemsInformeGeneral, ...itemsEstudio, ...itemsRadar,
+       ...(isCoordinator ? [estudiosItem] : []), ...itemsFormacion];
 
   const grupos: MenuGroup[] = isAdmin ? [grupoAdmin] : [];
 

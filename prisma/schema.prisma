@@ -419,3 +419,29 @@ model SolicitudAcceso {
   @@index([status, createdAt])
   @@index([correo])
 }
+
+/// Un videotutorial, del Centro de Ayuda o de la Academia C&B.
+///
+/// Las dos secciones son la misma cosa con distinta intención —una enseña a
+/// usar la plataforma, la otra enseña Compensación y Beneficios— así que
+/// comparten tabla y componente y se separan por `categoria`. Van en el menú
+/// aparte a propósito, para que no se confunda el soporte técnico con la
+/// formación profesional (AC Consulting, 2026-10-27).
+///
+/// El video es siempre un enlace de YouTube: no se sube nada a la plataforma,
+/// igual que en los anuncios.
+model RecursoFormacion {
+  id          String   @id @default(cuid())
+  /// "ayuda" o "academia". Texto y no enum para poder sumar secciones sin migrar.
+  categoria   String
+  titulo      String
+  descripcion String   @default("")
+  /// La URL tal como la pegó el admin; el id se extrae al mostrarla.
+  videoUrl    String
+  publicado   Boolean  @default(false)
+  orden       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoria, publicado, orden])
+}
