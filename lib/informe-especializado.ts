@@ -325,8 +325,28 @@ const MAPEO_MODELO = {
   grado: [MAPEO_PRIMERA_FILA + 5, MAPEO_PRIMERA_FILA + 6, MAPEO_PRIMERA_FILA + 9],
 } as const;
 
-function escribirMapeo(ws: HojaPlantilla, cargos: CargoMapeado[]): string[] {
+function escribirMapeo(ws: HojaPlantilla, todos: CargoMapeado[]): string[] {
   ws.limpiarCombinaciones();
+
+  /**
+   * Un recuadro por CARGO, no por ocupante.
+   *
+   * La lista llega con una entrada por persona, así que tres analistas de
+   * servicio técnico dibujaban tres cajas idénticas una debajo de otra. El
+   * mapeo es un organigrama: dice qué cargos hay en cada grado y unidad, no
+   * cuánta gente los ocupa (AC Consulting, 2026-10-28).
+   *
+   * Se queda la primera aparición. Si dos ocupantes del mismo cargo declararan
+   * jefes distintos, el mapeo muestra el del primero; cuál de los dos está mal
+   * es cosa de la data, no del informe.
+   */
+  const vistos = new Set<string>();
+  const cargos = todos.filter((c) => {
+    const clave = `${c.grado}|${(c.area || "Sin unidad").toLowerCase()}|${c.tituloCargo.trim().toLowerCase()}`;
+    if (vistos.has(clave)) return false;
+    vistos.add(clave);
+    return true;
+  });
 
   const areas = [...new Set(cargos.map((c) => c.area || "Sin unidad"))]
     .sort((a, b) => a.localeCompare(b, "es"))
@@ -563,6 +583,9 @@ export async function generarInformeEspecializado(datos: DatosEspecializado): Pr
     set(sim, "B8", datos.configSimulador.variacionGeneral);
     set(sim, "B9", datos.configSimulador.variacionMaxima);
     set(sim, "B10", datos.config.incluirComisiones ? "Sí" : "No");
+    // El monto del método de ajuste es una celda de entrada: la hoja va
+    // protegida y la dejaba de solo lectura (AC Consulting, 2026-10-28).
+    sim.desbloquear("C7");
 
     datos.simulador.forEach((f, i) => setFila(sim, PRIMERA_FILA.simulador + i, identidad(f)));
     limpiarHasta(sim, PRIMERA_FILA.simulador + datos.simulador.length, ULTIMA_FILA.simulador, colsId);

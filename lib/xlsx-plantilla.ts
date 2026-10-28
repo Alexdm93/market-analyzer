@@ -155,7 +155,9 @@ function atributosHeredados(filas: Map<number, Fila>, fila: number): string {
 }
 
 export class HojaPlantilla {
-  private cambios = new Map<string, { valor: Valor; estiloDe?: string; sinFormato?: boolean; numFmt?: number }>();
+  private cambios = new Map<string, {
+    valor: Valor; estiloDe?: string; sinFormato?: boolean; numFmt?: number; desbloquear?: boolean;
+  }>();
   private combinaciones: string[] | null = null;
   private alturas = new Map<number, number>();
 
@@ -164,6 +166,8 @@ export class HojaPlantilla {
     private xml: string,
     /** Del libro: clona un estilo cambiándole el formato de número. */
     private derivarEstilo?: (estiloBase: number, numFmtId: number) => number,
+    /** Del libro: clona un estilo quitándole el candado. */
+    private derivarDesbloqueado?: (estiloBase: number) => number,
   ) {}
 
   /**
@@ -203,6 +207,21 @@ export class HojaPlantilla {
    */
   setConFormato(ref: string, valor: Valor, numFmtId: number): void {
     this.cambios.set(ref.toUpperCase(), { valor, numFmt: numFmtId });
+  }
+
+  /**
+   * Deja la celda escribible aunque la hoja esté protegida.
+   *
+   * En una hoja protegida toda celda está bloqueada salvo que su estilo diga
+   * lo contrario, así que no basta con proteger la hoja: hay que marcar una
+   * por una las que son de entrada. Se hace en el código y no en la plantilla
+   * para que siga valiendo si AC Consulting manda una plantilla nueva
+   * (AC Consulting, 2026-10-28).
+   */
+  desbloquear(ref: string): void {
+    const r = ref.toUpperCase();
+    const previo = this.cambios.get(r);
+    this.cambios.set(r, { ...(previo ?? { valor: null }), desbloquear: true });
   }
 
   /**
@@ -259,16 +278,18 @@ export class HojaPlantilla {
       }
     }
 
-    for (const [ref, { valor, estiloDe, sinFormato, numFmt }] of ordenados) {
+    for (const [ref, { valor, estiloDe, sinFormato, numFmt, desbloquear }] of ordenados) {
       const { fila: numero } = partesRef(ref);
       const { columna } = partesRef(ref);
       // Vaciar una celda que la plantilla no trae no es nada: crearla solo
       // alargaría el rango usado de la hoja con filas en blanco. Distinto es
-      // cuando se pide copiar el formato de otra celda: ahí la celda se
-      // escribe POR el formato, no por el valor, y saltársela dejaba la
-      // cuadrícula del mapeo sin dibujar en cuanto pasaba de la fila 94, que
-      // es la última que trae la plantilla (AC Consulting, 2026-10-21).
-      if (valor === null && estiloDe === undefined && !filas.get(numero)?.celdas.has(ref)) continue;
+      // cuando se pide un formato explícito —copiar el de otra celda o quitar
+      // el candado—: ahí la celda se escribe POR el formato, no por el valor,
+      // y saltársela dejaba la cuadrícula del mapeo sin dibujar en cuanto
+      // pasaba de la fila 94, la última que trae la plantilla
+      // (AC Consulting, 2026-10-21).
+      const porElFormato = estiloDe !== undefined || desbloquear === true;
+      if (valor === null && !porElFormato && !filas.get(numero)?.celdas.has(ref)) continue;
 
       let fila = filas.get(numero);
       if (!fila) {
@@ -283,6 +304,12 @@ export class HojaPlantilla {
         atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "") + ` s="${copiado}"`;
       } else if (sinFormato) {
         atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "");
+      }
+
+      if (desbloquear && this.derivarDesbloqueado) {
+        const base = Number(/\bs="(\d+)"/.exec(atributosPrevios)?.[1] ?? 0);
+        const derivado = this.derivarDesbloqueado(base);
+        atributosPrevios = atributosPrevios.replace(/\s*\bs="\d+"/g, "") + ` s="${derivado}"`;
       }
 
       if (numFmt !== undefined && this.derivarEstilo) {
@@ -304,7 +331,12 @@ export class HojaPlantilla {
         );
       }
 
-      const xmlCelda = escribirCelda(ref, atributosPrevios, valor);
+      // Desbloquear sola no toca el contenido: la celda de entrada conserva
+      // el valor de ejemplo que traiga la plantilla.
+      const cuerpoPrevio = previa?.cuerpo ?? null;
+      const xmlCelda = (desbloquear && valor === null && cuerpoPrevio !== null)
+        ? `<c${atributosPrevios}>${cuerpoPrevio}</c>`
+        : escribirCelda(ref, atributosPrevios, valor);
       const partes = /<c\b([^>]*?)(\/>|>([\s\S]*?)<\/c>)/.exec(xmlCelda);
       if (!partes) continue;
       fila.celdas.set(ref, {
@@ -419,8 +451,11 @@ export class LibroPlantilla {
     const ruta = this.rutaDeHoja.get(nombre);
     if (!ruta || !this.buscar(ruta)) return undefined;
 
-    const hoja = new HojaPlantilla(nombre, this.texto(ruta), (base, numFmtId) =>
-      this.estiloConFormato(base, numFmtId));
+    const hoja = new HojaPlantilla(
+      nombre, this.texto(ruta),
+      (base, numFmtId) => this.estiloConFormato(base, numFmtId),
+      (base) => this.estiloSinCandado(base),
+    );
     this.hojas.set(nombre, hoja);
     return hoja;
   }
@@ -437,12 +472,9 @@ export class LibroPlantilla {
     const ya = this.estilosDerivados.get(clave);
     if (ya !== undefined) return ya;
 
-    if (!this.cellXfs) {
-      const bloque = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(this.texto("xl/styles.xml"));
-      this.cellXfs = bloque ? leerXfs(bloque[1]) : [];
-    }
+    this.cargarCellXfs();
 
-    const original = this.cellXfs[estiloBase];
+    const original = this.cellXfs![estiloBase];
     // Sin estilo base del que partir no hay nada que clonar: se deja como está
     // antes que inventar un formato que no case con la hoja.
     if (!original) return estiloBase;
@@ -453,10 +485,48 @@ export class LibroPlantilla {
       .replace(/\s*\bapplyNumberFormat="\d"/, "")
       .replace(/^<xf\b/, `<xf applyNumberFormat="1"`);
 
-    const indice = this.cellXfs.length;
-    this.cellXfs.push(clon);
+    const indice = this.cellXfs!.length;
+    this.cellXfs!.push(clon);
     this.estilosDerivados.set(clave, indice);
     return indice;
+  }
+
+  /**
+   * El índice de un estilo igual al base pero sin candado.
+   *
+   * En una hoja protegida manda `locked`, que por omisión vale 1. Se conserva
+   * `hidden` si lo traía: lo que se quiere es que el cliente pueda escribir,
+   * no que vea las fórmulas de la hoja.
+   */
+  private estiloSinCandado(estiloBase: number): number {
+    const clave = `abierto|${estiloBase}`;
+    const ya = this.estilosDerivados.get(clave);
+    if (ya !== undefined) return ya;
+
+    this.cargarCellXfs();
+    const original = this.cellXfs?.[estiloBase];
+    if (!original) return estiloBase;
+
+    const oculto = /<protection\b[^>]*\bhidden="1"/.test(original);
+    const proteccion = `<protection locked="0"${oculto ? ' hidden="1"' : ""}/>`;
+    let clon = /<protection\b[^>]*\/>/.test(original)
+      ? original.replace(/<protection\b[^>]*\/>/, proteccion)
+      : (original.endsWith("/>")
+          ? `${original.slice(0, -2)}>${proteccion}</xf>`
+          : original.replace("</xf>", `${proteccion}</xf>`));
+    clon = clon.replace(/\s*\bapplyProtection="\d"/, "").replace(/^<xf\b/, `<xf applyProtection="1"`);
+
+    const indice = this.cellXfs!.length;
+    this.cellXfs!.push(clon);
+    this.estilosDerivados.set(clave, indice);
+    return indice;
+  }
+
+  /** Carga `cellXfs` de styles.xml una sola vez. */
+  private cargarCellXfs(): void {
+    if (this.cellXfs) return;
+    const bloque = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(this.texto("xl/styles.xml"));
+    this.cellXfs = bloque ? leerXfs(bloque[1]) : [];
   }
 
   /** Vuelca a styles.xml los estilos que se clonaron al escribir. */
