@@ -14,11 +14,11 @@
  * es, cómo ubicarlo y de qué empresa viene. Solo nombre, correo y empresa son
  * obligatorios.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Info, LoaderCircle, Send } from "lucide-react";
 
-import { COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR, ECONOMIC_SECTOR_OPTIONS } from "@/lib/company";
 import { CANALES_ACCESO } from "@/lib/solicitud-acceso";
+import type { SectorConClasificaciones } from "@/lib/sectores";
 
 const VACIO = {
   nombre: "", correo: "", cargo: "", telefono: "",
@@ -34,7 +34,26 @@ export default function FormularioAcceso({ alCerrar }: { alCerrar?: () => void }
   /** El correo ya tenía una solicitud: en qué quedó. */
   const [yaEstaba, setYaEstaba] = useState("");
 
-  const clasificaciones = COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[valores.sector] ?? [];
+  /**
+   * Los sectores salen del catálogo que mantiene el admin, no de una lista
+   * fija en el código: si no, alguien pide acceso declarando un sector que la
+   * plataforma ya no reconoce y después no calza con nada
+   * (AC Consulting, 2026-10-27).
+   */
+  const [sectores, setSectores] = useState<SectorConClasificaciones[]>([]);
+
+  useEffect(() => {
+    let ignorar = false;
+    void fetch("/api/sectores", { cache: "no-store" })
+      .then((r) => r.json().catch(() => null))
+      .then((d: { sectores?: SectorConClasificaciones[] } | null) => {
+        if (!ignorar && Array.isArray(d?.sectores)) setSectores(d.sectores);
+      })
+      .catch(() => { /* sin catálogo, los dos selectores quedan vacíos */ });
+    return () => { ignorar = true; };
+  }, []);
+
+  const clasificaciones = sectores.find((s) => s.name === valores.sector)?.classifications ?? [];
   const puedeEnviar = valores.nombre.trim().length >= 3
     && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(valores.correo.trim())
     && valores.empresa.trim().length >= 2;
@@ -146,7 +165,7 @@ export default function FormularioAcceso({ alCerrar }: { alCerrar?: () => void }
             <select id="acc-sector" className="field-select" value={valores.sector}
               onChange={(e) => cambiar("sector", e.target.value)}>
               <option value="">Sin especificar</option>
-              {ECONOMIC_SECTOR_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {sectores.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
             </select>
           </div>
           <div>

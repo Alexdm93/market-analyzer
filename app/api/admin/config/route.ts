@@ -1,31 +1,18 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  ECONOMIC_SECTOR_OPTIONS,
-  COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR,
-} from "@/lib/company";
 import { JOB_TITLES_BY_DEPARTMENT } from "@/data/jobTitles";
+import { CLAVE_SECTORES, leerSectores, sectoresPorDefecto, type SectorConClasificaciones } from "@/lib/sectores";
 
-export type SectorEntry = {
-  name: string;
-  classifications: string[];
-};
+export type SectorEntry = SectorConClasificaciones;
 
 export type CargoEntry = {
   departamento: string;
   cargos: string[];
 };
 
-const SECTORS_KEY = "sectors";
+const SECTORS_KEY = CLAVE_SECTORES;
 const CARGOS_KEY = "cargos";
-
-function defaultSectors(): SectorEntry[] {
-  return (ECONOMIC_SECTOR_OPTIONS as readonly string[]).map((name) => ({
-    name,
-    classifications: COMPANY_CLASSIFICATION_OPTIONS_BY_SECTOR[name] ?? [],
-  }));
-}
 
 function defaultCargos(): CargoEntry[] {
   return Object.entries(JOB_TITLES_BY_DEPARTMENT).map(([departamento, cargos]) => ({
@@ -40,19 +27,16 @@ export async function GET() {
     return Response.json({ message: "No autorizado." }, { status: 401 });
   }
 
-  let sectors: SectorEntry[] = defaultSectors();
+  let sectors: SectorEntry[] = sectoresPorDefecto();
   let cargos: CargoEntry[] = defaultCargos();
 
   try {
-    const [sectorsRow, cargosRow] = await Promise.all([
-      prisma.globalConfig.findUnique({ where: { key: SECTORS_KEY } }),
+    const [leidos, cargosRow] = await Promise.all([
+      leerSectores(),
       prisma.globalConfig.findUnique({ where: { key: CARGOS_KEY } }),
     ]);
 
-    if (sectorsRow?.value) {
-      const parsed = JSON.parse(sectorsRow.value) as SectorEntry[];
-      if (Array.isArray(parsed)) sectors = parsed;
-    }
+    sectors = leidos;
 
     if (cargosRow?.value) {
       const parsed = JSON.parse(cargosRow.value) as CargoEntry[];
