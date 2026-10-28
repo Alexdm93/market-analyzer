@@ -11,7 +11,7 @@ import { authOptions } from "@/lib/auth";
 import { getBcvRate, getBcvEuroRate, getBinanceRate } from "@/lib/bcv";
 import { promedioLibre, type TcrType } from "@/lib/compensation";
 import { leerFiltrosMercado } from "@/lib/filtros-mercado";
-import { calcularPercentilesTcr, usuariosQueEnviaron, type TcrPercentilesResponse } from "@/lib/percentiles-mercado";
+import { calcularPercentilesTcr, usuariosQueEnviaron, workspacesDelCorte, type TcrPercentilesResponse } from "@/lib/percentiles-mercado";
 import { prisma } from "@/lib/prisma";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 import { getLibreRate } from "@/lib/tcr-config";
@@ -42,12 +42,10 @@ export async function GET(request: Request) {
 
   const isAdmin = session.user.role === "ADMIN";
 
-  const [publishedIds, globalRates, workspaces] = await Promise.all([
+  const [publishedIds, globalRates, { workspaces }] = await Promise.all([
     getPublishedSnapshotIds(),
     Promise.all([getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate()]),
-    prisma.userWorkspace.findMany({
-      select: { userId: true, snapshotsJson: true, companyInfoJson: true },
-    }),
+    workspacesDelCorte(snapshotId),
   ]);
   const [{ rate: globalBcvRate }, { rate: globalBcvEurRate }, { rate: globalBinanceRate }, { rate: libreOverride }] = globalRates;
 
@@ -56,7 +54,13 @@ export async function GET(request: Request) {
     if (!publishedIds.includes(snapshotId)) {
       return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
     }
-    const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
+    // Por su clave y no dentro de la lista: esa ya viene filtrada a los que
+    // enviaron, y esto es control de acceso, no mercado
+    // (AC Consulting, 2026-10-28).
+    const requestingWorkspace = await prisma.userWorkspace.findUnique({
+      where: { userId: session.user.id },
+      select: { snapshotsJson: true },
+    });
     const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
     const requestingSnapshot  = requestingSnapshots[snapshotId];
     const userParticipated    = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;

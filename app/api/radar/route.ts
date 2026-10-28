@@ -23,7 +23,7 @@ import type { TcrType } from "@/lib/compensation";
 import {
   calcularPercentilesMercado,
   calcularPercentilesTcr,
-  usuariosQueEnviaron,
+  workspacesDelCorte,
   type ObservacionMercado,
 } from "@/lib/percentiles-mercado";
 import { corteDelRadar, estadoDelCupo, faltaEnLaFicha, type EstadoCupoRadar } from "@/lib/radar";
@@ -170,9 +170,8 @@ export async function GET(request: Request) {
   // participó de verdad en este corte (AC Consulting, 2026-10-21).
   let recorte: ContextoRadar["recorte"] = null;
   if (esAdmin && snapshotId) {
-    const [workspaces, enviaron, bcvGeneral] = await Promise.all([
-      prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
-      usuariosQueEnviaron(snapshotId),
+    const [{ workspaces, enviaron }, bcvGeneral] = await Promise.all([
+      workspacesDelCorte(snapshotId),
       getBcvRate(),
     ]);
     const { grupo } = calcularPercentilesMercado({
@@ -339,16 +338,16 @@ export async function POST(request: Request) {
     return Response.json({ message: "Ese tipo de cambio no existe." }, { status: 400 });
   }
 
-  const [corte, catalogo, textos, workspaces, enviaron, bcv, bcvEur, binance, libre] = await Promise.all([
+  const [corte, catalogo, textos, delCorte, bcv, bcvEur, binance, libre] = await Promise.all([
     prisma.userSnapshot.findFirst({
       where: { snapshotId }, select: { label: true, date: true }, orderBy: { date: "desc" },
     }),
     catalogoDelCorte(snapshotId),
     descripciones(),
-    prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
-    usuariosQueEnviaron(snapshotId),
+    workspacesDelCorte(snapshotId),
     getBcvRate(), getBcvEuroRate(), getBinanceRate(), getLibreRate(),
   ]);
+  const { workspaces, enviaron } = delCorte;
 
   // Las observaciones que el mercado cuenta, para describir la misma muestra
   // con la que se calcularon los percentiles.

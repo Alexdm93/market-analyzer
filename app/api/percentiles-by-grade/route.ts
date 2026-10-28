@@ -6,7 +6,7 @@ import { resolveRowTotals, computeMetricPercentiles, type MetricPercentiles } fr
 import { getBcvRate } from "@/lib/bcv";
 import { getPublishedSnapshotIds } from "@/lib/published-snapshots";
 import { leerFiltrosMercado, pasaFiltros } from "@/lib/filtros-mercado";
-import { usuariosQueEnviaron } from "@/lib/percentiles-mercado";
+import { workspacesDelCorte } from "@/lib/percentiles-mercado";
 import { suavizarPorMetrica } from "@/lib/suavizado-percentiles";
 
 export type GradePercentiles = {
@@ -58,12 +58,7 @@ export async function GET(request: Request) {
 
   const publishedIds = await getPublishedSnapshotIds();
 
-  const [{ rate: bcvRate }, workspaces] = await Promise.all([
-    getBcvRate(),
-    prisma.userWorkspace.findMany({
-      select: { userId: true, snapshotsJson: true, companyInfoJson: true },
-    }),
-  ]);
+  const { rate: bcvRate } = await getBcvRate();
 
   // El admin no carga data, así que exigirle haber participado lo dejaba fuera
   // de su propia herramienta. Mismo trato que en /api/percentiles: para
@@ -72,7 +67,14 @@ export async function GET(request: Request) {
     if (!publishedIds.includes(snapshotId)) {
       return Response.json({ message: "Este corte aún no ha sido publicado." }, { status: 403 });
     }
-    const requestingWorkspace = workspaces.find((w) => w.userId === session.user.id);
+    // El workspace de quien pregunta, por su clave. Antes se buscaba dentro de
+    // la lista completa; ahora esa lista viene filtrada a los que enviaron, y
+    // quien cargó data sin enviarla dejaría de poder entrar. Esto es control
+    // de acceso, no mercado: se deja igual (AC Consulting, 2026-10-28).
+    const requestingWorkspace = await prisma.userWorkspace.findUnique({
+      where: { userId: session.user.id },
+      select: { snapshotsJson: true },
+    });
     const requestingSnapshots = safeParseSnapshots(requestingWorkspace?.snapshotsJson ?? "{}");
     const requestingSnapshot  = requestingSnapshots[snapshotId];
     const userParticipated    = requestingSnapshot?.rows?.some((row) => !row._carried) ?? false;
@@ -88,10 +90,11 @@ export async function GET(request: Request) {
   // el mercado de nadie (AC Consulting, 2026-10-14). Es la misma condición con
   // la que el informe de cortesía arma su lista de participantes, y por eso el
   // total de la portada coincide con el de la muestra.
-  const enviaron = await usuariosQueEnviaron(snapshotId);
+  const { workspaces, enviaron } = await workspacesDelCorte(snapshotId);
 
   for (const workspace of workspaces) {
-    if (!enviaron.has(workspace.userId)) continue;
+    // La consulta ya los filtró; se deja porque el tipo admite userId ausente.
+    if (!workspace.userId || !enviaron.has(workspace.userId)) continue;
 
     const snapshots   = safeParseSnapshots(workspace.snapshotsJson);
     const snapshot    = snapshots[snapshotId];

@@ -121,6 +121,37 @@ export async function usuariosQueEnviaron(snapshotId: string): Promise<Set<strin
   return new Set(envios.map((e) => e.userId));
 }
 
+/**
+ * Los workspaces que de verdad entran en el mercado de un corte, y quiénes lo
+ * enviaron.
+ *
+ * Solo trae los de quien envió ESE corte. El recorrido ya descartaba a los
+ * demás —primera línea del bucle— pero después de habérselos descargado: de
+ * 315 workspaces solo 134 han enviado algo alguna vez, así que de los ~6 MB
+ * que viajaban en cada cálculo sobraba más de la mitad. El conjunto que se
+ * procesa es idéntico; lo único que cambia es lo que cruza la red
+ * (AC Consulting, 2026-10-28).
+ *
+ * Las dos consultas van en serie y no en paralelo porque la segunda necesita
+ * el resultado de la primera. Se pierde un viaje de ida y vuelta y se gana no
+ * mover megabytes: el cambio vale la pena con holgura.
+ */
+export async function workspacesDelCorte(snapshotId: string): Promise<{
+  workspaces: WorkspaceParaTcr[];
+  enviaron: Set<string>;
+}> {
+  const enviaron = await usuariosQueEnviaron(snapshotId);
+  // Sin nadie que haya enviado, el mercado es vacío: `in: []` traería cero
+  // filas igual, pero así ni se pregunta.
+  if (enviaron.size === 0) return { workspaces: [], enviaron };
+
+  const workspaces = await prisma.userWorkspace.findMany({
+    where: { userId: { in: [...enviaron] } },
+    select: { userId: true, snapshotsJson: true, companyInfoJson: true },
+  });
+  return { workspaces, enviaron };
+}
+
 /** Cómo se totaliza una fila: en moneda base o convertida a TCR. */
 type Totalizador = (
   row: Parameters<typeof computeRowTotals>[0],
@@ -306,8 +337,13 @@ function recorrer(params: {
       empresas: ordenar(empresas),
       localidades: ordenar(localidades),
       empresasEnGrupo: enElGrupo.size,
-      nombresEnGrupo: [...enElGrupo],
-      usuariosEnGrupo: [...usuariosDelGrupo],
+      // Ordenadas: el orden de un Set es el de inserción, o sea el orden en
+      // que la base devolvió las filas, y ese cambia con la consulta. Las dos
+      // listas se consumen como conjuntos, así que el orden nunca importó;
+      // fijarlo hace que dos cálculos del mismo mercado sean byte a byte
+      // iguales y se puedan comparar (AC Consulting, 2026-10-28).
+      nombresEnGrupo: [...enElGrupo].sort(),
+      usuariosEnGrupo: [...usuariosDelGrupo].sort(),
     },
   };
 }

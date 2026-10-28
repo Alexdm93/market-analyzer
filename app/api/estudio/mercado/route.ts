@@ -23,10 +23,9 @@ import { leerFiltrosMercado } from "@/lib/filtros-mercado";
 import {
   calcularPercentilesMercado,
   calcularPercentilesTcr,
-  usuariosQueEnviaron,
+  workspacesDelCorte,
   type MercadoDelCorte,
 } from "@/lib/percentiles-mercado";
-import { prisma } from "@/lib/prisma";
 import { getLibreRate } from "@/lib/tcr-config";
 
 export const maxDuration = 60;
@@ -62,9 +61,8 @@ export async function GET(request: Request) {
     desempeno: searchParams.get("desempeno") !== "no",
   };
 
-  const [workspaces, enviaron, bcv, bcvEur, binance, libreManual] = await Promise.all([
-    prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
-    usuariosQueEnviaron(snapshotId),
+  const [{ workspaces, enviaron }, bcv, bcvEur, binance, libreManual] = await Promise.all([
+    workspacesDelCorte(snapshotId),
     getBcvRate(),
     getBcvEuroRate(),
     getBinanceRate(),

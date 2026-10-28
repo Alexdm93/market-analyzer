@@ -42,7 +42,7 @@ import { MINIMO_EMPRESAS_DEL_GRUPO, leerFiltrosMercado, tamanoDeEmpresa } from "
 import {
   calcularPercentilesMercado,
   calcularPercentilesTcr,
-  usuariosQueEnviaron,
+  workspacesDelCorte,
   type ObservacionMercado,
 } from "@/lib/percentiles-mercado";
 import { elegirTendencia } from "@/lib/tendencia-compensacion";
@@ -112,10 +112,7 @@ async function mercadoDelInforme(
   snapshotId: string, filtros: string, tcrType: TcrType | null, tasasGlobales: TasasDelInforme,
   incluirVariables: { comisiones: boolean; desempeno: boolean },
 ) {
-  const [workspaces, enviaron] = await Promise.all([
-    prisma.userWorkspace.findMany({ select: { userId: true, snapshotsJson: true, companyInfoJson: true } }),
-    usuariosQueEnviaron(snapshotId),
-  ]);
+  const { workspaces, enviaron } = await workspacesDelCorte(snapshotId);
 
   /**
    * Las filas con las que se arma la hoja de Distribución de Compensación.
