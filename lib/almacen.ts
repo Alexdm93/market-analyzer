@@ -27,8 +27,17 @@ export function almacenListo(): boolean {
   return configuracion() !== null;
 }
 
-function cabeceras(clave: string): HeadersInit {
-  return { Authorization: `Bearer ${clave}`, apikey: clave, "Content-Type": "application/json" };
+/**
+ * `conCuerpo` decide si va el `Content-Type`.
+ *
+ * No es un detalle: Supabase rechaza con un 400 cualquier petición que se
+ * declare JSON y llegue sin cuerpo —"Body cannot be empty"—, que es lo que
+ * pasaba al borrar (AC Consulting, 2026-10-27).
+ */
+function cabeceras(clave: string, conCuerpo: boolean): HeadersInit {
+  const base: Record<string, string> = { Authorization: `Bearer ${clave}`, apikey: clave };
+  if (conCuerpo) base["Content-Type"] = "application/json";
+  return base;
 }
 
 /**
@@ -60,7 +69,7 @@ export async function firmarSubida(ruta: string): Promise<{ url: string } | { er
 
   const res = await fetch(`${cfg.url}/storage/v1/object/upload/sign/${BUCKET}/${ruta}`, {
     method: "POST",
-    headers: cabeceras(cfg.clave),
+    headers: cabeceras(cfg.clave, true),
     body: "{}",
   });
 
@@ -78,7 +87,7 @@ export async function firmarDescarga(ruta: string, nombre: string): Promise<{ ur
 
   const res = await fetch(`${cfg.url}/storage/v1/object/sign/${BUCKET}/${ruta}`, {
     method: "POST",
-    headers: cabeceras(cfg.clave),
+    headers: cabeceras(cfg.clave, true),
     body: JSON.stringify({ expiresIn: SEGUNDOS_DESCARGA }),
   });
 
@@ -96,9 +105,10 @@ export async function firmarDescarga(ruta: string, nombre: string): Promise<{ ur
 export async function borrarArchivo(ruta: string): Promise<boolean> {
   const cfg = configuracion();
   if (!cfg) return false;
-  const res = await fetch(`${cfg.url}/storage/v1/object/${BUCKET}/${ruta}`, {
+  const res = await fetch(`${cfg.url}/storage/v1/object/${BUCKET}`, {
     method: "DELETE",
-    headers: cabeceras(cfg.clave),
+    headers: cabeceras(cfg.clave, true),
+    body: JSON.stringify({ prefixes: [ruta] }),
   });
   return res.ok;
 }
