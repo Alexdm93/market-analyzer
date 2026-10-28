@@ -1,5 +1,6 @@
 "use client";
 import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { FmtMoney } from "@/components/FmtMoney";
 import { NumericInput } from "@/components/NumericInput";
@@ -128,6 +129,38 @@ function FilaMoneda({
   );
 }
 
+/**
+ * El monto con su moneda de cuenta dentro del campo, a la derecha.
+ *
+ * Es lo que hace legible una tabla donde conviven bolívares y dólares: sin el
+ * sufijo hay que mirar dos columnas más allá para saber qué significa el
+ * número. Copiado de la sección de Data (AC Consulting, 2026-10-28).
+ */
+function MontoConMoneda({
+  etiqueta, valor, moneda, deshabilitado, onChange,
+}: {
+  etiqueta: string;
+  valor: number;
+  moneda: string | undefined;
+  deshabilitado?: boolean;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="relative">
+      <NumericInput
+        aria-label={etiqueta}
+        value={valor}
+        onChange={onChange}
+        disabled={deshabilitado}
+        className="field text-sm w-full pr-10"
+      />
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-slate-400">
+        {moneda === "VES" ? "Bs." : "$"}
+      </span>
+    </div>
+  );
+}
+
 export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = false }: Props) {
   function set(patch: Partial<ExtendedMarketPosition>) {
     onChange({ ...valor, ...patch });
@@ -170,11 +203,55 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
   const fijos = valor.additionalFixedPayments ?? [];
   const variables = valor.additionalVariablePayments ?? [];
 
+  /**
+   * Fija y variable en pestañas, como en la sección de Data.
+   *
+   * Lo pidió el CEO (2026-10-28) para que las dos pantallas donde se carga la
+   * misma información se completen igual. Antes iban una debajo de la otra y
+   * la ficha quedaba larguísima.
+   */
+  const [pestana, setPestana] = useState<"fija" | "variable">("fija");
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-1 border-b border-slate-200" role="tablist">
+        {([["fija", "Comp. Fija", fijos.length], ["variable", "Comp. Variable", variables.length]] as const)
+          .map(([clave, etiqueta, cuantos]) => (
+            <button
+              key={clave}
+              type="button"
+              role="tab"
+              aria-selected={pestana === clave}
+              onClick={() => setPestana(clave)}
+              className={`-mb-px rounded-t-xl border-b-2 px-4 py-2 text-sm font-semibold transition ${
+                pestana === clave
+                  ? "border-teal-600 text-teal-700"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {etiqueta}
+              {cuantos > 0 && (
+                <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[0.65rem] font-bold text-slate-600">
+                  {cuantos}
+                </span>
+              )}
+            </button>
+          ))}
+      </div>
+
       {/* ── Compensación fija ─────────────────────────────────────────── */}
-      <div>
-        <p className="field-label">Compensación fija</p>
+      <div hidden={pestana !== "fija"}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="field-label mb-0">Compensación fija del cargo</p>
+          <button
+            type="button"
+            onClick={() => agregarConcepto("additionalFixedPayments")}
+            disabled={deshabilitado}
+            className="btn btn-secondary text-xs disabled:opacity-40"
+          >
+            <Plus size={14} /> Agregar concepto
+          </button>
+        </div>
         <div className="overflow-x-auto rounded-2xl border border-slate-200">
           <table className="w-full min-w-[48rem] text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -193,12 +270,12 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
               <tr>
                 <td className="px-3 py-2"><span className="field block bg-slate-100 text-sm leading-snug">Sueldo básico</span></td>
                 <td className="px-3 py-2">
-                  <NumericInput
-                    aria-label="Monto sueldo básico"
-                    value={valor.sueldoBasico ?? 0}
+                  <MontoConMoneda
+                    etiqueta="Monto sueldo básico"
+                    valor={valor.sueldoBasico ?? 0}
+                    moneda={valor.sueldoBasicoCuentaMoneda}
+                    deshabilitado={deshabilitado}
                     onChange={(v) => set({ sueldoBasico: v })}
-                    disabled={deshabilitado}
-                    className="field text-sm w-full"
                   />
                 </td>
                 <FilaMoneda
@@ -228,12 +305,12 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
               <tr>
                 <td className="px-3 py-2"><span className="field block bg-slate-100 text-sm leading-snug">Bono alimentación</span></td>
                 <td className="px-3 py-2">
-                  <NumericInput
-                    aria-label="Monto bono alimentación"
-                    value={valor.bonoAlimentacion ?? 0}
+                  <MontoConMoneda
+                    etiqueta="Monto bono alimentación"
+                    valor={valor.bonoAlimentacion ?? 0}
+                    moneda={valor.bonoAlimentacionCuentaMoneda}
+                    deshabilitado={deshabilitado}
                     onChange={(v) => set({ bonoAlimentacion: v })}
-                    disabled={deshabilitado}
-                    className="field text-sm w-full"
                   />
                 </td>
                 <FilaMoneda
@@ -273,12 +350,12 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
                     />
                   </td>
                   <td className="px-3 py-2">
-                    <NumericInput
-                      aria-label="Monto del concepto fijo"
-                      value={c.amount ?? 0}
+                    <MontoConMoneda
+                      etiqueta="Monto del concepto fijo"
+                      valor={c.amount ?? 0}
+                      moneda={c.accountCurrency}
+                      deshabilitado={deshabilitado}
                       onChange={(v) => actualizarConcepto("additionalFixedPayments", idx, { amount: v })}
-                      disabled={deshabilitado}
-                      className="field text-sm w-full"
                     />
                   </td>
                   <FilaMoneda
@@ -347,19 +424,21 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
             </tbody>
           </table>
         </div>
-        <button
-          type="button"
-          onClick={() => agregarConcepto("additionalFixedPayments")}
-          disabled={deshabilitado}
-          className="btn btn-secondary mt-2 text-xs disabled:opacity-40"
-        >
-          <Plus size={14} /> Agregar concepto fijo
-        </button>
       </div>
 
       {/* ── Compensación variable ─────────────────────────────────────── */}
-      <div>
-        <p className="field-label">Compensación variable</p>
+      <div hidden={pestana !== "variable"}>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="field-label mb-0">Compensación variable del cargo</p>
+          <button
+            type="button"
+            onClick={() => agregarConcepto("additionalVariablePayments")}
+            disabled={deshabilitado}
+            className="btn btn-secondary text-xs disabled:opacity-40"
+          >
+            <Plus size={14} /> Agregar concepto
+          </button>
+        </div>
         {variables.length === 0 && (
           <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-xs text-slate-500">
             Sin conceptos variables.
@@ -473,14 +552,7 @@ export function CompensacionEditor({ valor, tasas, onChange, deshabilitado = fal
             </div>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={() => agregarConcepto("additionalVariablePayments")}
-          disabled={deshabilitado}
-          className="btn btn-secondary mt-2 text-xs disabled:opacity-40"
-        >
-          <Plus size={14} /> Agregar concepto variable
-        </button>
+
       </div>
     </div>
   );
