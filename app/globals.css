@@ -341,3 +341,38 @@ input:-webkit-autofill {
   animation-name: autofill-detect;
   animation-duration: 1ms;
 }
+
+/* ---------------------------------------------------------------------------
+ * Ajustes que solo aplican a la app instalada.
+ *
+ * `display-mode: standalone` lo activa el navegador únicamente cuando la
+ * página se abrió desde el ícono de la pantalla de inicio. En la web de
+ * siempre la condición es falsa y el navegador ni siquiera lee lo que hay
+ * dentro, así que nada de aquí puede cambiar cómo se ve el sitio.
+ *
+ * Por lo mismo, aquí solo van reglas nuevas: no se pisa ninguna regla de
+ * arriba, para que quitar este bloque devuelva la app a como estaba.
+ * (AC Consulting, 2026-10-30)
+ * ------------------------------------------------------------------------- */
+@media (display-mode: standalone) {
+  /*
+   * El rebote elástico al llegar al final del scroll es lo que delata que
+   * esto es una página web metida en una ventana. De paso quita el
+   * "deslizar para recargar" de Android, que dentro de una app no se espera
+   * y recarga pantallas pesadas sin querer.
+   */
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  /*
+   * El pie institucional es cromo de la web. Dentro de la app ya se sabe de
+   * quién es, y en un teléfono son cuatro líneas de relleno al final de cada
+   * pantalla. Se apunta por posición y no por una clase nueva para no tocar
+   * el componente, que es compartido con la web.
+   */
+  .app-main > footer {
+    display: none;
+  }
+}
