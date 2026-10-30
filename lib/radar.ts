@@ -14,6 +14,9 @@
  * que el cliente entiende por "trimestral" y lo que permite decirle cuándo se
  * le repone sin que tenga que recordar en qué día bajó el primero.
  */
+import { getBcvRate } from "@/lib/bcv";
+import { PERCENTILE_MIN_N } from "@/lib/compensation";
+import { calcularPercentilesMercado, workspacesDelCorte } from "@/lib/percentiles-mercado";
 import { prisma } from "@/lib/prisma";
 
 /** Lo que puede bajar una empresa por trimestre si el admin no dijo otra cosa. */
@@ -54,6 +57,8 @@ export async function fijarCorteDelRadar(snapshotId: string): Promise<void> {
     create: { key: CLAVE_CORTE, value: snapshotId },
     update: { value: snapshotId },
   });
+  // Qué cargos tienen data depende del corte, así que lo guardado ya no sirve.
+  await olvidarCargosConDatos(snapshotId);
 }
 
 /** El tope general, que vale para toda empresa sin cupo propio. */
@@ -114,4 +119,99 @@ export function faltaEnLaFicha(empresa: {
   if (!empresa.hrEmail?.trim()) falta.push("el correo del contacto de RR.HH.");
   if (!empresa.hrPhone?.trim()) falta.push("el teléfono del contacto de RR.HH.");
   return falta;
+}
+
+/* ---------------------------------------------------------------------------
+ * Qué cargos se pueden consultar de verdad en un corte.
+ * ------------------------------------------------------------------------ */
+
+const CLAVE_DISPONIBLES = "radar-cargos-con-datos-";
+
+/**
+ * Cuántas empresas hacen falta para que un cargo valga la pena ofrecerlo.
+ *
+ * Es el mínimo de la mediana, que es el primer percentil que la metodología
+ * deja calcular. Por debajo de eso `computeMetricPercentiles` devuelve null en
+ * todo y el informe saldría entero en ND.
+ */
+export const MINIMO_EMPRESAS_RADAR = PERCENTILE_MIN_N.p50;
+
+/** Cada cuánto se vuelve a mirar qué cargos tienen data. */
+const VIGENCIA_MS = 12 * 60 * 60 * 1000;
+
+/** Título del cargo en minúsculas → cuántas empresas lo reportaron. */
+export type CargosConDatos = Record<string, number>;
+
+type Guardado = { calculadoEn: string; cargos: CargosConDatos };
+
+/**
+ * La lista de cargos que la pantalla del Radar puede ofrecer.
+ *
+ * Hasta ahora la pantalla ofrecía el catálogo del corte entero —el diccionario
+ * de cargos de la encuesta— y las cifras salían de otro lado, del recorrido de
+ * los workspaces. Nadie cruzaba las dos: por eso aparecían cargos que al
+ * intentar extraerlos contestaban "el estudio no tiene data de mercado para
+ * X". Esto devuelve la otra mitad, para poder cruzarlas.
+ *
+ * Va con caché porque averiguarlo cuesta caro: hay que recorrer el workspace
+ * de cada empresa que envió el corte, que es justo la descarga que estamos
+ * tratando de no repetir. Se calcula una vez cada doce horas por corte, y se
+ * tira al cambiar el corte del Radar (AC Consulting, 2026-10-30).
+ */
+export async function cargosConDatos(snapshotId: string): Promise<CargosConDatos> {
+  if (!snapshotId) return {};
+
+  const fila = await prisma.globalConfig.findUnique({
+    where: { key: CLAVE_DISPONIBLES + snapshotId },
+    select: { value: true },
+  });
+
+  if (fila?.value) {
+    try {
+      const guardado = JSON.parse(fila.value) as Guardado;
+      const edad = Date.now() - new Date(guardado.calculadoEn).getTime();
+      if (guardado.cargos && edad >= 0 && edad < VIGENCIA_MS) return guardado.cargos;
+    } catch {
+      // Guardado ilegible: se recalcula abajo.
+    }
+  }
+
+  return recalcularCargosConDatos(snapshotId);
+}
+
+export async function recalcularCargosConDatos(snapshotId: string): Promise<CargosConDatos> {
+  const [{ workspaces, enviaron }, bcv] = await Promise.all([
+    workspacesDelCorte(snapshotId),
+    getBcvRate(),
+  ]);
+
+  // Sin recorte: la lista que se ofrece es la del corte entero. El admin que
+  // además recorta el mercado puede toparse con un cargo que dentro de su
+  // recorte no llegue al mínimo; para eso el POST sigue comprobándolo por su
+  // cuenta antes de emitir nada.
+  const { cargos } = calcularPercentilesMercado({
+    snapshotId,
+    filtros: { sectores: [], clasificaciones: [], empresas: [], localidades: [], tamanos: [] },
+    workspaces,
+    enviaron,
+    bcvGeneral: bcv.rate,
+  });
+
+  const mapa: CargosConDatos = {};
+  for (const c of cargos) mapa[c.tituloCargo.trim().toLowerCase()] = c.n;
+
+  const guardado: Guardado = { calculadoEn: new Date().toISOString(), cargos: mapa };
+  await prisma.globalConfig.upsert({
+    where: { key: CLAVE_DISPONIBLES + snapshotId },
+    create: { key: CLAVE_DISPONIBLES + snapshotId, value: JSON.stringify(guardado) },
+    update: { value: JSON.stringify(guardado) },
+  });
+
+  return mapa;
+}
+
+/** Tira la lista guardada de un corte, para que se vuelva a calcular. */
+export async function olvidarCargosConDatos(snapshotId: string): Promise<void> {
+  if (!snapshotId) return;
+  await prisma.globalConfig.deleteMany({ where: { key: CLAVE_DISPONIBLES + snapshotId } });
 }

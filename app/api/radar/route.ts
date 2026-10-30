@@ -26,7 +26,14 @@ import {
   workspacesDelCorte,
   type ObservacionMercado,
 } from "@/lib/percentiles-mercado";
-import { corteDelRadar, estadoDelCupo, faltaEnLaFicha, type EstadoCupoRadar } from "@/lib/radar";
+import {
+  MINIMO_EMPRESAS_RADAR,
+  cargosConDatos,
+  corteDelRadar,
+  estadoDelCupo,
+  faltaEnLaFicha,
+  type EstadoCupoRadar,
+} from "@/lib/radar";
 import {
   METRICAS_DEL_CLIENTE,
   METRICAS_RADAR,
@@ -145,7 +152,7 @@ export async function GET(request: Request) {
   }
 
   const snapshotId = await corteElegido(esAdmin, parametros.get("corte")?.trim() ?? "");
-  const [corte, catalogo, textos, cupo, workspace, cortes] = await Promise.all([
+  const [corte, catalogo, textos, cupo, workspace, cortes, conDatos] = await Promise.all([
     snapshotId
       ? prisma.userSnapshot.findFirst({
           where: { snapshotId },
@@ -161,6 +168,7 @@ export async function GET(request: Request) {
       select: { companyInfoJson: true },
     }),
     esAdmin ? cortesPublicados() : Promise.resolve([]),
+    cargosConDatos(snapshotId),
   ]);
 
   // El admin recorta el mercado como en el Estudio de Competitividad, así que
@@ -188,8 +196,18 @@ export async function GET(request: Request) {
 
   // Agrupado por unidad funcional, que es como lo pide la pantalla: primero la
   // unidad, después el cargo.
+  //
+  // Solo entran los cargos que este corte puede responder. El catálogo es el
+  // diccionario de la encuesta y trae cargos que nadie reportó, o que reportaron
+  // menos empresas de las que la metodología exige para calcular siquiera la
+  // mediana; ofrecerlos terminaba en "el estudio no tiene data de mercado para
+  // X" después de que el cliente ya había elegido. Una unidad que se queda sin
+  // cargos desaparece sola, porque nunca llega a crearse
+  // (AC Consulting, 2026-10-30).
   const porUnidad = new Map<string, CargoDelRadar[]>();
   for (const c of catalogo) {
+    const empresas = conDatos[c.tituloCargo.trim().toLowerCase()] ?? 0;
+    if (empresas < MINIMO_EMPRESAS_RADAR) continue;
     const unidad = c.departamento || "Sin unidad";
     const lista = porUnidad.get(unidad) ?? [];
     lista.push({ tituloCargo: c.tituloCargo, descripcion: textos[c.tituloCargo] ?? "" });
@@ -382,6 +400,16 @@ export async function POST(request: Request) {
       message: modo === "cargo"
         ? `El estudio no tiene data de mercado para "${tituloCargo}".`
         : `El estudio no tiene data de mercado para el grado ${grado}.`,
+    }, { status: 400 });
+  }
+
+  // La pantalla ya no ofrece cargos por debajo del mínimo, pero la ruta no se
+  // fía de la pantalla: con menos empresas que las que pide la mediana el
+  // informe saldría entero en ND, y eso no es un informe. Solo aplica al modo
+  // "cargo": los grados pasan por el suavizado, que es otra regla.
+  if (modo === "cargo" && fuente.n < MINIMO_EMPRESAS_RADAR) {
+    return Response.json({
+      message: `"${tituloCargo}" no tiene suficientes empresas en este estudio para calcular percentiles.`,
     }, { status: 400 });
   }
 
