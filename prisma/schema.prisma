@@ -70,6 +70,10 @@ model Company {
   radarEnabled        Boolean        @default(false)
   /// Cuántos puede bajar por trimestre. Null = el tope general del sistema.
   radarCupoTrimestral Int?
+  /// Consultas pagadas que le quedan, aparte de las gratuitas del trimestre.
+  /// No se reponen: se descuentan al usarlas y el admin las vuelve a cargar.
+  /// El informe que sale de una de estas trae las cuatro métricas.
+  radarCreditos       Int            @default(0)
   radarInformes       RadarInforme[]
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
@@ -370,9 +374,13 @@ model RadarInforme {
   /// El informe completo —perfil, muestra y percentiles— para poder volver a
   /// bajarlo sin recalcular nada.
   datosJson     String
+  /// Si gastó una consulta pagada en vez del cupo gratuito del trimestre.
+  /// Las pagadas no cuentan contra el trimestre y salen con las cuatro métricas.
+  conCreditos   Boolean  @default(false)
   createdAt     DateTime @default(now())
 
   @@index([companyId, trimestre])
+  @@index([companyId, trimestre, conCreditos])
   @@index([companyId, createdAt])
 }
 

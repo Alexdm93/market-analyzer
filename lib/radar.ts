@@ -43,6 +43,11 @@ export type EstadoCupoRadar = {
   restantes: number;
   /** Cuándo vuelve a cero. */
   seRepone: string;
+  /**
+   * Consultas pagadas que le quedan, aparte de las gratuitas del trimestre.
+   * No se reponen solas: se gastan y el admin las vuelve a cargar.
+   */
+  creditos: number;
 };
 
 /** El corte del que se sacan los Radar. Vacío significa que el admin no lo eligió. */
@@ -80,9 +85,14 @@ export async function fijarCupoGeneral(cupo: number): Promise<void> {
 export async function estadoDelCupo(companyId: string, ahora = new Date()): Promise<EstadoCupoRadar> {
   const trimestre = trimestreDe(ahora);
   const [empresa, general, usados] = await Promise.all([
-    prisma.company.findUnique({ where: { id: companyId }, select: { radarCupoTrimestral: true } }),
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: { radarCupoTrimestral: true, radarCreditos: true },
+    }),
     cupoGeneral(),
-    prisma.radarInforme.count({ where: { companyId, trimestre } }),
+    // Solo los gratuitos: una consulta pagada no gasta el trimestre, que es
+    // justamente lo que el cliente compró (AC Consulting, 2026-10-30).
+    prisma.radarInforme.count({ where: { companyId, trimestre, conCreditos: false } }),
   ]);
 
   const cupo = empresa?.radarCupoTrimestral ?? general;
@@ -92,6 +102,7 @@ export async function estadoDelCupo(companyId: string, ahora = new Date()): Prom
     usados,
     restantes: Math.max(0, cupo - usados),
     seRepone: inicioDelProximoTrimestre(ahora).toISOString().slice(0, 10),
+    creditos: empresa?.radarCreditos ?? 0,
   };
 }
 

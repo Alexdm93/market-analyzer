@@ -258,7 +258,12 @@ export default function RadarPage() {
   const sinCorte = !ctx.corte;
   // El admin no gasta cupo: su reporte no se guarda ni cuenta contra el
   // trimestre de la empresa (AC Consulting, 2026-10-20).
-  const sinCupo = !ctx.ilimitado && (ctx.cupo?.restantes ?? 0) <= 0;
+  // Las consultas adicionales son el colchón de quien ya agotó el trimestre:
+  // mientras le queden, el Radar sigue abierto (AC Consulting, 2026-10-30).
+  const creditos = ctx.cupo?.creditos ?? 0;
+  const sinCupo = !ctx.ilimitado && (ctx.cupo?.restantes ?? 0) <= 0 && creditos <= 0;
+  /** El próximo informe sale de las pagadas, así que trae las cuatro métricas. */
+  const gastaraAdicional = !ctx.ilimitado && (ctx.cupo?.restantes ?? 0) <= 0 && creditos > 0;
   const fichaIncompleta = ctx.falta.length > 0;
   const listo = Boolean(
     !sinCorte && !sinCupo && !fichaIncompleta
@@ -302,11 +307,22 @@ export default function RadarPage() {
               (TEM, TEMz, CIM y PCTA) en vez de las dos del informe de cliente.
             </p>
           ) : ctx.cupo && (
-            <p className="mt-1 text-sm text-slate-500">
-              Te {ctx.cupo.restantes === 1 ? "queda" : "quedan"}{" "}
-              <strong className="text-slate-700">{ctx.cupo.restantes}</strong> de {ctx.cupo.cupo}{" "}
-              {ctx.cupo.cupo === 1 ? "informe" : "informes"} este trimestre. Se reponen el {ctx.cupo.seRepone}.
-            </p>
+            <>
+              <p className="mt-1 text-sm text-slate-500">
+                Te {ctx.cupo.restantes === 1 ? "queda" : "quedan"}{" "}
+                <strong className="text-slate-700">{ctx.cupo.restantes}</strong> de {ctx.cupo.cupo}{" "}
+                {ctx.cupo.cupo === 1 ? "informe" : "informes"} este trimestre. Se reponen el {ctx.cupo.seRepone}.
+              </p>
+              {creditos > 0 && (
+                <p className="mt-1 text-sm text-slate-500">
+                  Además {creditos === 1 ? "tienes" : "tienes"}{" "}
+                  <strong className="text-slate-700">{creditos}</strong>{" "}
+                  {creditos === 1 ? "consulta adicional" : "consultas adicionales"}. No se reponen por
+                  trimestre y se usan solo cuando el cupo de arriba llega a cero. El informe que sale de
+                  una de ellas trae las cuatro métricas: TEM, TEMz, CIM y PCTA.
+                </p>
+              )}
+            </>
           )}
         </section>
 
@@ -410,6 +426,15 @@ export default function RadarPage() {
           <p className="flex items-start gap-1.5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             Ya usaste los {ctx.cupo?.cupo} informes de este trimestre. Se reponen el {ctx.cupo?.seRepone}.
+          </p>
+        )}
+
+        {gastaraAdicional && !fichaIncompleta && (
+          <p className="flex items-start gap-1.5 rounded-2xl bg-teal-50 px-4 py-3 text-sm text-teal-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            Agotaste el cupo de este trimestre, así que el próximo informe gastará una de tus{" "}
+            {creditos} {creditos === 1 ? "consulta adicional" : "consultas adicionales"} y saldrá con
+            las cuatro métricas (TEM, TEMz, CIM y PCTA).
           </p>
         )}
 

@@ -16,7 +16,7 @@ import { isAdminRole } from "@/lib/roles";
 import type { CorteRadar, EmpresaRadar } from "@/app/api/admin/radar/route";
 
 /** Por cuál columna se ordena la tabla de empresas. */
-type ColumnaOrden = "nombre" | "habilitado" | "cupo" | "usados";
+type ColumnaOrden = "nombre" | "habilitado" | "cupo" | "creditos" | "usados";
 
 /**
  * Una cabecera que ordena al hacerle clic, con la flecha del sentido actual.
@@ -127,6 +127,8 @@ export default function RadarAdmin() {
           return signo * (a.usados - b.usados) || a.name.localeCompare(b.name, "es");
         case "habilitado":
           return signo * (Number(a.habilitado) - Number(b.habilitado)) || a.name.localeCompare(b.name, "es");
+        case "creditos":
+          return signo * (a.creditos - b.creditos) || a.name.localeCompare(b.name, "es");
         case "cupo": {
           const general = datos?.cupoGeneral ?? 0;
           return signo * ((a.cupo ?? general) - (b.cupo ?? general)) || a.name.localeCompare(b.name, "es");
@@ -261,12 +263,13 @@ export default function RadarAdmin() {
 
           {empresas.length > 0 && (
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full min-w-[38rem] text-sm">
+              <table className="w-full min-w-[46rem] text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <Cabecera por="nombre" orden={orden} onOrdenar={ordenarPor}>Empresa</Cabecera>
                     <Cabecera por="habilitado" orden={orden} onOrdenar={ordenarPor}>Radar</Cabecera>
                     <Cabecera por="cupo" orden={orden} onOrdenar={ordenarPor}>Cupo propio</Cabecera>
+                    <Cabecera por="creditos" orden={orden} onOrdenar={ordenarPor}>Consultas adicionales</Cabecera>
                     <Cabecera por="usados" orden={orden} onOrdenar={ordenarPor} alineada="derecha">
                       Usados este trimestre
                     </Cabecera>
@@ -308,6 +311,24 @@ export default function RadarAdmin() {
                           className="field w-32 text-sm"
                         />
                       </td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          type="number"
+                          min={0}
+                          max={999}
+                          aria-label={`Consultas adicionales de ${e.name}`}
+                          defaultValue={e.creditos}
+                          key={`${e.id}-creditos-${e.creditos}`}
+                          onBlur={(ev) => {
+                            const n = Number(ev.target.value.trim());
+                            if (Number.isFinite(n) && n !== e.creditos) {
+                              void guardar({ empresa: { id: e.id, creditos: n } }, e.id);
+                            }
+                          }}
+                          disabled={guardando === e.id}
+                          className="field w-32 text-sm"
+                        />
+                      </td>
                       <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-600">
                         {e.usados}
                       </td>
@@ -321,6 +342,16 @@ export default function RadarAdmin() {
           <p className="mt-4 flex items-start gap-1.5 text-xs text-slate-500">
             <Radar className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Para bajar un Radar, la empresa además debe tener completa su ficha y el contacto de RR.HH.
+          </p>
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-slate-500">
+            <Radar className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              <strong className="font-semibold text-slate-600">Consultas adicionales</strong> es un
+              saldo, no un acumulado: lo que escribes es lo que le queda. No se repone al cambiar de
+              trimestre. Se empiezan a gastar solo cuando la empresa agotó su cupo trimestral, y el
+              informe que sale de una de ellas trae las cuatro métricas (TEM, TEMz, CIM y PCTA) en vez
+              de TEM y PCTA. El recorte del mercado sigue siendo solo tuyo.
+            </span>
           </p>
         </section>
       </div>

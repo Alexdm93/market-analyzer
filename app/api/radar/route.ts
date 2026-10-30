@@ -285,6 +285,9 @@ const SIN_FILTROS: FiltrosMercado = {
   sectores: [], clasificaciones: [], empresas: [], localidades: [], tamanos: [],
 };
 
+/** Se lanza dentro de la transacción para deshacerla si el crédito ya no está. */
+class SinConsultasPagadas extends Error {}
+
 /** En una frase, contra quién se comparó. Vacío = el corte entero. */
 function describirGrupo(f: FiltrosMercado): string {
   const resumir = (xs: string[], uno: string, varios: string) =>
@@ -339,7 +342,16 @@ export async function POST(request: Request) {
   }
 
   const cupo = await estadoDelCupo(companyId);
-  if (!esAdmin && cupo.restantes <= 0) {
+
+  /**
+   * Primero lo gratuito del trimestre; cuando se acaba, las consultas pagadas.
+   * Es automático a propósito: si el cliente tuviera que elegir, tendría que
+   * entender la diferencia antes de pedir nada, y lo que compró es justamente
+   * no quedarse sin consultar (AC Consulting, 2026-10-30).
+   */
+  const pagada = !esAdmin && cupo.restantes <= 0 && cupo.creditos > 0;
+
+  if (!esAdmin && cupo.restantes <= 0 && cupo.creditos <= 0) {
     return Response.json(
       { message: `Ya usaste los ${cupo.cupo} informes de este trimestre. Se reponen el ${cupo.seRepone}.`, cupo },
       { status: 409 },
@@ -413,9 +425,12 @@ export async function POST(request: Request) {
     }, { status: 400 });
   }
 
-  // El informe de una empresa publica TEM y PCTA; el del admin, las cuatro.
+  // El informe gratuito de una empresa publica TEM y PCTA. El del admin trae
+  // las cuatro, y el que gasta una consulta pagada también: las cuatro
+  // métricas son lo que se compra, no el recorte del mercado, que sigue siendo
+  // solo del admin (AC Consulting, 2026-10-30).
   const posicionamiento: FilaPosicionamiento[] = METRICAS_RADAR
-    .filter((m) => esAdmin || METRICAS_DEL_CLIENTE.includes(m.clave))
+    .filter((m) => esAdmin || pagada || METRICAS_DEL_CLIENTE.includes(m.clave))
     .map((m) => ({
       etiqueta: m.etiqueta,
       valores: Object.fromEntries(
@@ -455,19 +470,49 @@ export async function POST(request: Request) {
   // gastarle el trimestre (AC Consulting, 2026-10-20).
   if (esAdmin) return Response.json({ informe, cupo, id: null });
 
-  const guardado = await prisma.radarInforme.create({
-    data: {
-      companyId,
-      generadoPor: session.user.email ?? session.user.id,
-      snapshotId,
-      snapshotLabel: informe.corte.label,
-      modo,
-      trimestre: cupo.trimestre,
-      titulo: tituloCargo,
-      datosJson: JSON.stringify(informe),
-    },
-    select: { id: true },
-  });
+  /**
+   * Cobrar y emitir van juntos o no van.
+   *
+   * El descuento va condicionado dentro del propio UPDATE y no leído antes:
+   * dos pestañas pidiendo a la vez leerían el mismo "queda una" y gastarían
+   * dos. Postgres resuelve el `>= 1` fila por fila, así que solo una gana. Y
+   * va en transacción con el `create` para que no se cobre un informe que
+   * después no llegó a guardarse.
+   */
+  let guardado: { id: string };
+  try {
+    guardado = await prisma.$transaction(async (tx) => {
+      if (pagada) {
+        const { count } = await tx.company.updateMany({
+          where: { id: companyId, radarCreditos: { gte: 1 } },
+          data: { radarCreditos: { decrement: 1 } },
+        });
+        if (count !== 1) throw new SinConsultasPagadas();
+      }
+      return tx.radarInforme.create({
+        data: {
+          companyId,
+          generadoPor: session.user.email ?? session.user.id,
+          snapshotId,
+          snapshotLabel: informe.corte.label,
+          modo,
+          trimestre: cupo.trimestre,
+          titulo: tituloCargo,
+          datosJson: JSON.stringify(informe),
+          conCreditos: pagada,
+        },
+        select: { id: true },
+      });
+    });
+  } catch (error) {
+    if (error instanceof SinConsultasPagadas) {
+      return Response.json(
+        { message: "Te quedaste sin consultas adicionales.", cupo: await estadoDelCupo(companyId) },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
 
   return Response.json({ informe, id: guardado.id, cupo: await estadoDelCupo(companyId) });
 }

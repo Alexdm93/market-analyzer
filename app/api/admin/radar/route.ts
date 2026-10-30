@@ -27,8 +27,10 @@ export type EmpresaRadar = {
   habilitado: boolean;
   /** Null significa "el tope general". */
   cupo: number | null;
-  /** Cuántos lleva en el trimestre en curso. */
+  /** Cuántos lleva en el trimestre en curso. Solo los gratuitos. */
   usados: number;
+  /** Consultas pagadas que le quedan, aparte de las del trimestre. */
+  creditos: number;
 };
 
 export type CorteRadar = { id: string; label: string; date: string };
@@ -51,10 +53,18 @@ export async function GET() {
 
   const [empresas, consumos, cortes, corte, cupo] = await Promise.all([
     prisma.company.findMany({
-      select: { id: true, name: true, radarEnabled: true, radarCupoTrimestral: true },
+      select: {
+        id: true, name: true, radarEnabled: true,
+        radarCupoTrimestral: true, radarCreditos: true,
+      },
       orderBy: { name: "asc" },
     }),
-    prisma.radarInforme.groupBy({ by: ["companyId"], where: { trimestre }, _count: { _all: true } }),
+    // Solo los gratuitos: las consultas pagadas no gastan el trimestre.
+    prisma.radarInforme.groupBy({
+      by: ["companyId"],
+      where: { trimestre, conCreditos: false },
+      _count: { _all: true },
+    }),
     publicados.length === 0 ? Promise.resolve([]) : prisma.userSnapshot.findMany({
       where: { snapshotId: { in: publicados } },
       select: { snapshotId: true, label: true, date: true },
@@ -83,6 +93,7 @@ export async function GET() {
       habilitado: e.radarEnabled,
       cupo: e.radarCupoTrimestral,
       usados: porEmpresa.get(e.id) ?? 0,
+      creditos: e.radarCreditos,
     })),
   });
 }
@@ -93,7 +104,7 @@ type Cuerpo = {
   /** Cambia el tope general. */
   cupoGeneral?: number;
   /** Cambia una empresa. */
-  empresa?: { id: string; habilitado?: boolean; cupo?: number | null };
+  empresa?: { id: string; habilitado?: boolean; cupo?: number | null; creditos?: number };
 };
 
 export async function PUT(request: Request) {
@@ -126,9 +137,21 @@ export async function PUT(request: Request) {
   }
 
   if (body.empresa?.id) {
-    const { id, habilitado, cupo } = body.empresa;
-    const datos: { radarEnabled?: boolean; radarCupoTrimestral?: number | null } = {};
+    const { id, habilitado, cupo, creditos } = body.empresa;
+    const datos: {
+      radarEnabled?: boolean;
+      radarCupoTrimestral?: number | null;
+      radarCreditos?: number;
+    } = {};
     if (typeof habilitado === "boolean") datos.radarEnabled = habilitado;
+    if (typeof creditos === "number") {
+      // Es un saldo, no un acumulado: lo que se escribe es lo que le queda.
+      const n = Math.round(creditos);
+      if (!Number.isFinite(n) || n < 0 || n > 999) {
+        return Response.json({ message: "Las consultas adicionales van de 0 a 999." }, { status: 400 });
+      }
+      datos.radarCreditos = n;
+    }
     if (cupo === null) datos.radarCupoTrimestral = null;
     else if (typeof cupo === "number") {
       const n = Math.round(cupo);
