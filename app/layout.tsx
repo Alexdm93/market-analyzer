@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
@@ -23,7 +23,25 @@ export const metadata: Metadata = {
     icon: [
       { url: "/ac-favicon.svg", type: "image/svg+xml" },
     ],
+    // iOS no lee el manifiesto para el ícono de la pantalla de inicio: usa este.
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
+  // Al instalarla en iPhone abre sin la barra de Safari.
+  appleWebApp: {
+    capable: true,
+    title: "Market Analyzer",
+    statusBarStyle: "default",
+  },
+};
+
+/**
+ * Color con el que Chrome en Android tiñe la barra superior. Es el mismo azul
+ * del sidebar, para que la app instalada no muestre una franja blanca encima.
+ */
+export const viewport: Viewport = {
+  themeColor: "#1B4965",
 };
 
 export default function RootLayout({
