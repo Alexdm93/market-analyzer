@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, ChartBar, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, FolderDown, GraduationCap, HardDrive, Home, Info, Layers, LayoutDashboard, LifeBuoy, ListChecks, LoaderCircle, LogIn, LogOut, Newspaper, PlayCircle, Radar, ScanSearch, Shield, TrendingUp, UserPlus } from "lucide-react";
+import { BookOpen, Building2, ChartBar, ChevronDown, ClipboardCheck, ClipboardList, Database, FileSpreadsheet, FolderDown, GraduationCap, HardDrive, Home, Info, Layers, LayoutDashboard, LifeBuoy, ListChecks, LoaderCircle, LogIn, LogOut, Menu, Newspaper, PlayCircle, Radar, ScanSearch, Shield, TrendingUp, UserPlus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { Fragment, useEffect, useState } from "react";
@@ -146,6 +146,22 @@ export default function Sidebar() {
   // Los grupos arrancan cerrados, salvo el que contiene la pantalla en la que
   // estás: así el menú abre corto y aun así se ve dónde estás parado.
   const [gruposAbiertos, setGruposAbiertos] = useState<Record<string, boolean>>({});
+  /**
+   * En teléfono el menú no cabe al lado ni encima: son once entradas más la
+   * tarjeta de sesión, y antes había que pasarlas todas para llegar al
+   * contenido de cada pantalla. Aquí se guarda si está desplegado. De 768px
+   * para arriba este estado no se usa para nada: el menú se ve siempre, igual
+   * que siempre (AC Consulting, 2026-10-30).
+   */
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  // Con el menú encima, lo de atrás no debe moverse.
+  useEffect(() => {
+    if (!menuAbierto) return;
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previo; };
+  }, [menuAbierto]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -214,6 +230,11 @@ export default function Sidebar() {
 
   const grupos: MenuGroup[] = isAdmin ? [grupoAdmin] : [];
 
+  // Con el menú plegado los puntos rojos quedan escondidos, así que el botón
+  // que lo abre lleva el suyo si hay cualquiera de ellos.
+  const hayAvisos = hasUnread || hasUnreadResultados || hasUnreadData
+    || pendingEditRequests > 0 || solicitudesAcceso > 0;
+
   const renderItem = (item: MenuItem) => {
     const Icon = item.icon;
     const isActive = pathname === item.href;
@@ -221,7 +242,7 @@ export default function Sidebar() {
       <Link
         key={item.href}
         href={item.href}
-        onClick={isActive ? undefined : triggerNavigation}
+        onClick={() => { setMenuAbierto(false); if (!isActive) triggerNavigation(); }}
         className={`group flex shrink-0 min-w-0 items-start gap-2.5 overflow-hidden rounded-[1.1rem] border px-2.5 py-2.5 ${
           isActive
             ? "border-[#1B4965]/10 bg-[linear-gradient(135deg,rgba(27,73,101,0.14),rgba(21,58,82,0.06))] text-slate-900 shadow-[0_2px_10px_rgba(27,73,101,0.18)]"
@@ -260,11 +281,63 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4">
+    <>
+      {/*
+        Barra compacta con el logo y la hamburguesa. `md:hidden` la deja
+        existiendo solo en teléfono: de 768px para arriba no se renderiza y la
+        pantalla queda exactamente como estaba.
+      */}
+      <header className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-white/50 bg-[var(--shell-background)] px-3 py-2 backdrop-blur-xl md:hidden">
+        <Link
+          href={`${BASE}/inicio`}
+          onClick={pathname === `${BASE}/inicio` ? undefined : triggerNavigation}
+          className="flex min-w-0 items-center gap-2 rounded-[0.9rem] bg-[#1B4965] px-2.5 py-1.5"
+        >
+          <span className="font-display truncate text-[0.8rem] font-black leading-none tracking-tight text-white">Market Analyzer</span>
+          <span className="shrink-0 select-none text-xs leading-none text-white/40">|</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0" style={{ width: 26, height: 26, filter: "brightness(0) invert(1)" }} />
+        </Link>
+        <button
+          type="button"
+          onClick={() => setMenuAbierto(true)}
+          aria-label="Abrir menu"
+          aria-expanded={menuAbierto}
+          className="relative shrink-0 rounded-[0.9rem] border border-slate-200/70 bg-white/70 p-2.5 text-slate-700"
+        >
+          <Menu size={20} aria-hidden />
+          {hayAvisos && (
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+          )}
+        </button>
+      </header>
+
+      {/* El fondo oscuro cierra el menú al tocarlo. */}
+      {menuAbierto && (
+        <button
+          type="button"
+          aria-label="Cerrar menu"
+          onClick={() => setMenuAbierto(false)}
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm md:hidden"
+        />
+      )}
+
+      <aside
+        data-menu={menuAbierto ? "abierto" : "cerrado"}
+        className="app-shell w-full border-b border-white/50 bg-[var(--shell-background)] px-3 py-3 backdrop-blur-xl md:h-screen md:w-[var(--sidebar-width)] md:border-r md:border-b-0 md:px-3 md:py-3 lg:px-4 lg:py-4"
+      >
       <div className="surface-panel flex h-auto min-w-0 flex-col overflow-hidden rounded-[1.5rem] p-3 md:h-full md:p-3.5 lg:p-4">
         <div className="mb-4 lg:mb-4 rounded-[1.2rem] bg-[#1B4965] px-3 py-3">
-            <div className="mb-2 flex justify-end">
+            <div className="mb-2 flex items-center justify-end gap-2">
               <span className="rounded-full border border-white/30 bg-white/20 px-1.5 py-0.5 text-[0.55rem] font-bold text-white">v2.0</span>
+              <button
+                type="button"
+                onClick={() => setMenuAbierto(false)}
+                aria-label="Cerrar menu"
+                className="rounded-full border border-white/30 bg-white/20 p-1 text-white md:hidden"
+              >
+                <X size={14} aria-hidden />
+              </button>
             </div>
             <Link href="/market-analyzer/inicio" className="flex items-center justify-center gap-1.5" onClick={pathname === "/market-analyzer/inicio" ? undefined : triggerNavigation}>
               <div className="flex-none shrink-0 leading-none">
@@ -305,6 +378,7 @@ export default function Sidebar() {
 
         <Link
           href="/"
+          onClick={() => setMenuAbierto(false)}
           className="mt-1 flex shrink-0 items-center justify-center gap-1.5 rounded-[1rem] border border-slate-200/60 bg-white/40 px-3 py-2 text-[0.72rem] font-semibold text-slate-500 transition hover:bg-white/70 hover:text-slate-800"
         >
           <Home size={13} />
@@ -351,6 +425,7 @@ export default function Sidebar() {
           )}
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

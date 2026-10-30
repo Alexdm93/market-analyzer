@@ -376,3 +376,35 @@ input:-webkit-autofill {
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * El menú en teléfono.
+ *
+ * Hasta ahora el `<aside>` se renderizaba completo y a todo el ancho también
+ * en pantallas chicas, y como el `<body>` apila en columna por debajo de
+ * 768px, cada pantalla empezaba con las once entradas del menú y la tarjeta de
+ * sesión antes del contenido. Aquí se pliega: lo abre la hamburguesa de la
+ * barra de arriba y se muestra encima, no en el flujo.
+ *
+ * Todo vive dentro de `max-width: 767px`, o sea que de 768px para arriba el
+ * navegador ni lee estas reglas y el escritorio queda idéntico.
+ * (AC Consulting, 2026-10-30)
+ * ------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  .app-shell[data-menu="cerrado"] {
+    display: none;
+  }
+
+  /*
+   * El selector lleva el atributo a propósito: `.app-shell` ya fija
+   * `position: static` más arriba en este mismo archivo, y una utilidad suelta
+   * de Tailwind perdería contra ella por orden de aparición.
+   */
+  .app-shell[data-menu="abierto"] {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
