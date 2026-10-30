@@ -137,7 +137,19 @@ export default function SignInPage() {
     });
 
     if (result?.error) {
-      setError("Correo o contraseña incorrectos.");
+      /**
+       * NextAuth devuelve "CredentialsSignin" cuando la validación falló de
+       * verdad (correo o clave que no cuadran), y el texto del error cuando
+       * `authorize` lo lanzó —hoy, el tope de diez intentos por IP en quince
+       * minutos—. Antes todo salía como "Correo o contraseña incorrectos", así
+       * que alguien bloqueado por el tope seguía probando una clave que estaba
+       * bien y el mensaje no se lo decía nunca (AC Consulting, 2026-10-30).
+       */
+      setError(
+        result.error === "CredentialsSignin"
+          ? "Correo o contraseña incorrectos."
+          : result.error
+      );
       setIsSubmitting(false);
       return;
     }
