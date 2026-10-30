@@ -119,7 +119,7 @@ function AdminDashboard() {
 
         {/* Panel principal */}
         <section className="surface-panel overflow-hidden rounded-[1.75rem] p-4 md:p-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="tablero-cabecera grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
             <div>
               <div className="eyebrow mb-1.5">Vista Salarial — Admin</div>
               <h1 className="font-display text-[1.25rem] font-bold tracking-tight text-slate-900 md:text-[1.4rem]">

@@ -408,3 +408,53 @@ input:-webkit-autofill {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * La pantalla de ingreso dentro de la app instalada.
+ *
+ * La mitad de presentación —"Bienvenido a Market Analyzer" y las tres
+ * tarjetas— es para quien llega por la web y todavía no sabe qué es esto.
+ * Quien abre la app ya lo sabe, y en un teléfono tiene que pasar tres
+ * pantallazos de scroll antes de ver el formulario. Dentro de la app se
+ * esconde y en su lugar aparece la barra de marca.
+ * (AC Consulting, 2026-10-30)
+ * ------------------------------------------------------------------------- */
+.signin-marca {
+  display: none;
+}
+
+@media (display-mode: standalone) {
+  .signin-presentacion {
+    display: none;
+  }
+
+  .signin-marca {
+    display: flex;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * La cabecera del Tablero en pantallas de teléfono.
+ *
+ * Los hijos de un grid arrancan con `min-width: auto`, así que la tabla de
+ * percentiles por nivel —que es ancha— estiraba su columna, y con ella todo el
+ * grid, más allá del ancho de la pantalla. La fila de indicadores entonces no
+ * envolvía (le sobraba ancho inventado) y el `overflow-hidden` de la tarjeta
+ * cortaba la tercera y la cuarta. Con `min-width: 0` la columna vuelve al
+ * ancho real y la tabla se desliza sola dentro de su propio contenedor, que
+ * para eso ya tiene `overflow-x-auto`.
+ *
+ * Va dentro de `max-width: 767px` porque de ahí para arriba el grid es de dos
+ * columnas y se ve bien: el escritorio no lee nada de esto.
+ * (AC Consulting, 2026-10-30)
+ * ------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  .tablero-cabecera > * {
+    min-width: 0;
+  }
+
+  /* Dos por fila en vez de 11rem fijos, que no caben en un teléfono. */
+  .tablero-cabecera .metric-tile {
+    width: calc(50% - 0.25rem);
+  }
+}

@@ -10,7 +10,7 @@ export type Announcement = {
   content: string;
   type: string;
   publishedAt: string | null;
-  mediaData: string | null;
+  mediaSrc: string | null;
   mediaUrl: string | null;
 };
 

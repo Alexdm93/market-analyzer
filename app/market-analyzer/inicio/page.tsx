@@ -85,13 +85,13 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function MediaThumb({
-  mediaData, mediaUrl, title, className = "",
+  mediaSrc, mediaUrl, title, className = "",
 }: {
-  mediaData: string | null; mediaUrl: string | null; title: string; className?: string;
+  mediaSrc: string | null; mediaUrl: string | null; title: string; className?: string;
 }) {
-  if (mediaData) {
+  if (mediaSrc) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={mediaData} alt={title} className={`h-full w-full object-cover object-center ${className}`} />;
+    return <img src={mediaSrc} alt={title} className={`h-full w-full object-cover object-center ${className}`} />;
   }
   if (mediaUrl) {
     const ytId = getYouTubeId(mediaUrl);
@@ -120,10 +120,10 @@ function PlaceholderThumb({ type, className = "" }: { type: string; className?: 
   );
 }
 
-function MediaBlock({ mediaData, mediaUrl, title }: { mediaData: string | null; mediaUrl: string | null; title: string }) {
-  if (mediaData) {
+function MediaBlock({ mediaSrc, mediaUrl, title }: { mediaSrc: string | null; mediaUrl: string | null; title: string }) {
+  if (mediaSrc) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={mediaData} alt={title} className="max-h-[28rem] w-full rounded-t-[1.25rem] object-cover object-center" />;
+    return <img src={mediaSrc} alt={title} className="max-h-[28rem] w-full rounded-t-[1.25rem] object-cover object-center" />;
   }
   if (mediaUrl) {
     const ytId = getYouTubeId(mediaUrl);
@@ -175,10 +175,10 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Announceme
           <X size={18} />
         </button>
         <div className="overflow-y-auto">
-          {(announcement.mediaData || announcement.mediaUrl) && (
-            <MediaBlock mediaData={announcement.mediaData} mediaUrl={announcement.mediaUrl} title={announcement.title} />
+          {(announcement.mediaSrc || announcement.mediaUrl) && (
+            <MediaBlock mediaSrc={announcement.mediaSrc} mediaUrl={announcement.mediaUrl} title={announcement.title} />
           )}
-          {!(announcement.mediaData || announcement.mediaUrl) && (
+          {!(announcement.mediaSrc || announcement.mediaUrl) && (
             <div className={`h-24 w-full ${meta.heroBg}`} />
           )}
           <div className="px-6 py-6 md:px-8 md:py-8">
@@ -199,7 +199,7 @@ function AnnouncementModal({ announcement, onClose }: { announcement: Announceme
 
 function HeroCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
   const meta = getTypeMeta(a.type);
-  const hasMedia = !!(a.mediaData || a.mediaUrl);
+  const hasMedia = !!(a.mediaSrc || a.mediaUrl);
 
   return (
     <article
@@ -214,7 +214,7 @@ function HeroCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) =>
       <div className="absolute inset-0">
         {hasMedia ? (
           <MediaThumb
-            mediaData={a.mediaData}
+            mediaSrc={a.mediaSrc}
             mediaUrl={a.mediaUrl}
             title={a.title}
             className="transition-transform duration-700 group-hover:scale-[1.03]"
@@ -257,7 +257,7 @@ function HeroCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) =>
 
 function StripCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
   const meta = getTypeMeta(a.type);
-  const hasMedia = !!(a.mediaData || a.mediaUrl);
+  const hasMedia = !!(a.mediaSrc || a.mediaUrl);
 
   return (
     <article
@@ -271,7 +271,7 @@ function StripCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) =
       <div className="relative h-[140px] overflow-hidden">
         {hasMedia ? (
           <MediaThumb
-            mediaData={a.mediaData}
+            mediaSrc={a.mediaSrc}
             mediaUrl={a.mediaUrl}
             title={a.title}
             className="transition-transform duration-500 group-hover:scale-105"
@@ -294,7 +294,7 @@ function StripCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) =
 
 function ListCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) => void }) {
   const meta = getTypeMeta(a.type);
-  const hasMedia = !!(a.mediaData || a.mediaUrl);
+  const hasMedia = !!(a.mediaSrc || a.mediaUrl);
 
   return (
     <article
@@ -309,7 +309,7 @@ function ListCard({ a, onOpen }: { a: Announcement; onOpen: (a: Announcement) =>
         <div className="relative h-[72px] overflow-hidden rounded-xl sm:h-[84px]">
           {hasMedia ? (
             <MediaThumb
-              mediaData={a.mediaData}
+              mediaSrc={a.mediaSrc}
               mediaUrl={a.mediaUrl}
               title={a.title}
               className="transition-transform duration-300 group-hover:scale-105"

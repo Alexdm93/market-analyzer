@@ -168,8 +168,22 @@ export default function SignInPage() {
   return (
     <main className="relative flex min-h-screen w-full flex-col overflow-x-hidden px-4 pt-6 pb-8 sm:px-6 sm:pt-8 md:px-10 md:pt-10">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,118,110,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(217,119,6,0.14),transparent_28%)]" />
+      {/*
+        Dentro de la app instalada la presentación de abajo no se muestra —ya
+        se decidió entrar, y en un teléfono son tres pantallazos de scroll
+        antes del formulario—, así que la marca se pone aquí. En el navegador
+        esta barra no existe: la clase nace en `display: none` y solo el bloque
+        de `display-mode: standalone` la enciende.
+      */}
+      <div className="signin-marca relative mx-auto mb-5 w-full max-w-sm items-center justify-center gap-2 rounded-[1.2rem] bg-[#1B4965] px-4 py-3">
+        <span className="font-display text-base font-black leading-none tracking-tight text-white">Market Analyzer</span>
+        <span className="select-none text-sm leading-none text-white/40">|</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/ac-consulting-logo.svg" alt="AC Consulting" className="shrink-0" style={{ width: 38, height: 38, filter: "brightness(0) invert(1)" }} />
+      </div>
+
       <div className="relative mx-auto grid flex-1 w-full max-w-6xl items-center gap-6 lg:grid-cols-[minmax(0,1.15fr)_26rem] lg:gap-8">
-        <section className="surface-panel min-w-0 rounded-[2rem] p-6 md:p-8 lg:p-10">
+        <section className="signin-presentacion surface-panel min-w-0 rounded-[2rem] p-6 md:p-8 lg:p-10">
           <div className="eyebrow mb-3">Acceso privado</div>
           <h1 className="font-display max-w-2xl text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
             Bienvenido a Market Analyzer.
