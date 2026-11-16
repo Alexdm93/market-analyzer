@@ -184,6 +184,8 @@ export default function DataPage() {
   const selectedCompanyIdRef = useRef(selectedCompanyId);
   const baseUpdatedAtRef = useRef<string | null>(null);
   const isAdminRef = useRef(isAdmin);
+  /** Lo que hay elegido ahora mismo, para que un refresco no lo pierda. */
+  const selectedSnapshotIdRef = useRef("");
 
   function getDuplicateCargoMessage(nextRows: ExtendedMarketPosition[]) {
     const duplicates = findDuplicateCargoTitles(nextRows);
@@ -211,11 +213,23 @@ export default function DataPage() {
         filtered[key] = value;
       });
 
-      const mostRecentId = Object.values(filtered)
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .at(0)?.id ?? "";
-      const savedId = workspace.selectedSnapshotId ?? "";
-      const selectedId = (savedId && filtered[savedId]) ? savedId : mostRecentId;
+      /**
+        * Al entrar, el selector arranca en blanco: la empresa elige con cuál
+        * actualización va a trabajar.
+        *
+        * Antes caía sola en la más reciente, o en la que se había elegido la
+        * última vez. El problema es que la pantalla se ve igual trabajando
+        * sobre una actualización que sobre otra, así que quien entraba a
+        * consultar una anterior podía terminar llenando la nueva sin haberla
+        * elegido nunca (Julio Contreras, 2026-11-16).
+        *
+        * Lo que sí se respeta es lo que ya está elegido en pantalla: este
+        * mismo cargador corre al pulsar "Actualizar data", y ahí perder la
+        * selección sería devolver al usuario al principio en medio del
+        * trabajo.
+        */
+      const enPantalla = selectedSnapshotIdRef.current;
+      const selectedId = (enPantalla && filtered[enPantalla]) ? enPantalla : "";
 
       setSnapshots(filtered);
       setSelectedSnapshotId(selectedId);
@@ -316,6 +330,10 @@ export default function DataPage() {
   useEffect(() => {
     isAdminRef.current = isAdmin;
   }, [isAdmin]);
+
+  useEffect(() => {
+    selectedSnapshotIdRef.current = selectedSnapshotId;
+  }, [selectedSnapshotId]);
 
   const persistSnapshots = useCallback(async (
     next: Record<string, Snapshot>,
@@ -1280,13 +1298,19 @@ export default function DataPage() {
                     className="field-select"
                     disabled={isAdmin && !selectedCompanyId}
                   >
-                    <option value="">{isAdmin && !selectedCompanyId ? "Selecciona una empresa primero" : "-- seleccionar --"}</option>
+                    <option value="">{isAdmin && !selectedCompanyId ? "Selecciona una empresa primero" : "Seleccionar actualización"}</option>
                     {(!isAdmin || selectedCompanyId) && Object.values(snapshots)
                       .sort((a, b) => b.date.localeCompare(a.date))
                       .map((s) => (
                         <option key={s.id} value={s.id}>{getDisplayLabel(s)}</option>
                       ))}
                   </select>
+                  {!selectedSnapshotId && (!isAdmin || selectedCompanyId) && (
+                    <p className="mt-1.5 text-xs leading-4 text-slate-500">
+                      Elige con cuál actualización vas a trabajar. Hasta entonces no se carga ni se
+                      guarda nada.
+                    </p>
+                  )}
                 </div>
 
                 {isReadOnlyDataView && (
@@ -1376,15 +1400,21 @@ export default function DataPage() {
               <div className="rounded-full bg-teal-50 p-4 text-teal-700">
                 <BriefcaseBusiness size={24} aria-hidden />
               </div>
-              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900 md:text-[1.35rem]">No hay cargos en esta actualización.</h2>
+              <h2 className="font-display mt-4 text-2xl font-bold text-slate-900 md:text-[1.35rem]">
+                {!selectedSnapshotId
+                  ? "Elige una actualización para empezar."
+                  : "No hay cargos en esta actualización."}
+              </h2>
               <p className="mt-3 text-sm leading-6 text-slate-600 md:text-[0.82rem]">
-                {isReadOnlyDataView
+                {!selectedSnapshotId
+                  ? "Arriba, en Seleccionar actualización, escoge con cuál vas a trabajar: la que vas a llenar, o una anterior que quieras consultar."
+                  : isReadOnlyDataView
                   ? "No hay cargos cargados para esta actualización en la vista seleccionada."
                   : cargosUnconfigured
                   ? "El administrador aún no ha configurado los cargos para este corte. Contacta al administrador para que configure los cargos requeridos."
                   : "Si aún no ves actualizaciones disponibles, solicita al admin que cree o sincronice las actualizaciones globales. Cuando la actualización exista, podrás agregar cargos y completar la información."}
               </p>
-              {!isReadOnlyDataView && !cargosUnconfigured ? (
+              {selectedSnapshotId && !isReadOnlyDataView && !cargosUnconfigured ? (
                 <button onClick={openCargoPicker} className="btn btn-primary mt-6">
                   <Plus className="h-4 w-4" />
                   {cargosConfigured ? "Seleccionar cargo" : "Crear primer cargo"}
