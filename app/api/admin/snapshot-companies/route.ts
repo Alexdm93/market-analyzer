@@ -3,6 +3,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_WORKSPACE, safeParseSnapshots, type Snapshot } from "@/lib/workspace";
 
+/**
+ * Reparte el corte entre los usuarios de las empresas elegidas, así que puede
+ * tardar más que el tope por omisión de Vercel. Es el mismo valor que ya usan
+ * las rutas de informes.
+ */
+export const maxDuration = 60;
+
 function companiesKey(snapshotId: string) {
   return `snapshot-companies-${snapshotId}`;
 }
@@ -38,6 +45,24 @@ export async function GET(request: Request) {
   }
 }
 
+/** Cuántas actualizaciones de workspace van en cada lote. */
+const TAMANO_LOTE = 20;
+
+/**
+ * Le deja el corte servido a cada usuario de las empresas indicadas.
+ *
+ * Antes esto era un bucle dentro de UNA sola transacción interactiva, con
+ * cuatro consultas por usuario: mirar si ya lo tenía, crear o traer su
+ * workspace, actualizarlo y crear la fila del corte. Con treinta empresas y
+ * más de trescientos usuarios son más de trescientas idas y vueltas seguidas
+ * contra el pooler, dentro de una transacción que Prisma corta a los cinco
+ * segundos por omisión. Guardar la lista de participantes reventaba por tiempo
+ * y la pantalla solo sabía decir "No se pudo guardar"
+ * (AC Consulting, 2026-11-17).
+ *
+ * Ahora se averigua en UNA consulta quién ya lo tiene, se trabaja solo sobre
+ * los que faltan —que suelen ser unos pocos— y las escrituras van en lotes.
+ */
 async function pushSnapshotToNewCompanies(snapshotId: string, newCompanyIds: string[]) {
   if (newCompanyIds.length === 0) return;
 
@@ -60,53 +85,94 @@ async function pushSnapshotToNewCompanies(snapshotId: string, newCompanyIds: str
     where: { companyId: { in: newCompanyIds } },
     select: { id: true, companyId: true },
   });
+  if (users.length === 0) return;
 
-  await prisma.$transaction(async (tx) => {
-    for (const user of users) {
-      // Skip if user already has this snapshot
-      const existing = await tx.userSnapshot.findFirst({
-        where: { userId: user.id, snapshotId },
-        select: { id: true },
+  // Quién ya lo tiene, de una sola vez en vez de preguntarlo usuario por usuario.
+  const yaRegistrados = new Set(
+    (
+      await prisma.userSnapshot.findMany({
+        where: { snapshotId, userId: { in: users.map((u) => u.id) } },
+        select: { userId: true },
+      })
+    ).map((s) => s.userId),
+  );
+
+  const faltantes = users.filter((u) => !yaRegistrados.has(u.id));
+  if (faltantes.length === 0) return;
+
+  const workspaces = await prisma.userWorkspace.findMany({
+    where: { userId: { in: faltantes.map((u) => u.id) } },
+    select: { userId: true, snapshotsJson: true, selectedSnapshotId: true },
+  });
+  const porUsuario = new Map(workspaces.map((w) => [w.userId, w]));
+
+  const aCrear: {
+    userId: string;
+    inflation: number;
+    snapshotsJson: string;
+    selectedSnapshotId: string;
+    companyInfoJson: string;
+  }[] = [];
+  const aActualizar: { userId: string; snapshotsJson: string; selectedSnapshotId: string }[] = [];
+
+  for (const user of faltantes) {
+    const actual = porUsuario.get(user.id);
+    const existentes = actual ? safeParseSnapshots(actual.snapshotsJson) : {};
+
+    // Si el corte ya está en su workspace, lo único que falta es la fila de
+    // UserSnapshot. Volver a armarlo duplicaría los cargos arrastrados.
+    if (existentes[snapshot.id]) continue;
+
+    const ultimo = Object.values(existentes).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const filasArrastradas = (ultimo?.rows ?? []).map((r) => ({ ...r, _carried: true as const }));
+    const siguientes = { ...existentes, [snapshot.id]: { ...snapshot, rows: filasArrastradas } };
+    const snapshotsJson = JSON.stringify(siguientes);
+
+    if (actual) {
+      aActualizar.push({
+        userId: user.id,
+        snapshotsJson,
+        selectedSnapshotId: actual.selectedSnapshotId || snapshot.id,
       });
-      if (existing) continue;
-
-      const workspace = await tx.userWorkspace.upsert({
-        where: { userId: user.id },
-        update: {},
-        create: {
-          userId: user.id,
-          inflation: DEFAULT_WORKSPACE.inflation,
-          snapshotsJson: JSON.stringify(DEFAULT_WORKSPACE.snapshots),
-          selectedSnapshotId: DEFAULT_WORKSPACE.selectedSnapshotId,
-          companyInfoJson: JSON.stringify(DEFAULT_WORKSPACE.companyInfo),
-        },
-      });
-
-      const nextSnapshots = safeParseSnapshots(workspace.snapshotsJson);
-      const latestSnapshot = Object.values(nextSnapshots)
-        .sort((a, b) => b.date.localeCompare(a.date))[0];
-      const clonedRows = (latestSnapshot?.rows ?? []).map((r) => ({ ...r, _carried: true as const }));
-
-      nextSnapshots[snapshot.id] = { ...snapshot, rows: clonedRows };
-
-      await tx.userWorkspace.update({
-        where: { userId: user.id },
-        data: {
-          snapshotsJson: JSON.stringify(nextSnapshots),
-          selectedSnapshotId: workspace.selectedSnapshotId || snapshot.id,
-        },
-      });
-
-      await tx.userSnapshot.create({
-        data: {
-          userId: user.id,
-          companyId: user.companyId,
-          snapshotId: snapshot.id,
-          label: snapshotLabel,
-          date: snapshotDate,
-        },
+    } else {
+      aCrear.push({
+        userId: user.id,
+        inflation: DEFAULT_WORKSPACE.inflation,
+        snapshotsJson,
+        selectedSnapshotId: snapshot.id,
+        companyInfoJson: JSON.stringify(DEFAULT_WORKSPACE.companyInfo),
       });
     }
+  }
+
+  if (aCrear.length > 0) {
+    await prisma.userWorkspace.createMany({ data: aCrear, skipDuplicates: true });
+  }
+
+  // En lotes: cada `snapshotsJson` pesa decenas de kilobytes y mandarlos todos
+  // de golpe es una petición enorme contra el pooler.
+  for (let i = 0; i < aActualizar.length; i += TAMANO_LOTE) {
+    await prisma.$transaction(
+      aActualizar.slice(i, i + TAMANO_LOTE).map((w) =>
+        prisma.userWorkspace.update({
+          where: { userId: w.userId },
+          data: { snapshotsJson: w.snapshotsJson, selectedSnapshotId: w.selectedSnapshotId },
+        }),
+      ),
+    );
+  }
+
+  // `skipDuplicates` se apoya en la unicidad (userId, snapshotId): si dos
+  // guardados se pisan, el segundo no revienta.
+  await prisma.userSnapshot.createMany({
+    data: faltantes.map((u) => ({
+      userId: u.id,
+      companyId: u.companyId,
+      snapshotId: snapshot.id,
+      label: snapshotLabel,
+      date: snapshotDate,
+    })),
+    skipDuplicates: true,
   });
 }
 
@@ -126,13 +192,9 @@ export async function PUT(request: Request) {
 
   const newCompanyIds = Array.isArray(body?.companyIds) ? body.companyIds.filter((id) => typeof id === "string" && id.trim()) : [];
 
-  // Read old list before updating so we can compute the diff
-  const oldRecord = await prisma.globalConfig.findUnique({ where: { key: companiesKey(snapshotId) }, select: { value: true } });
-  let oldCompanyIds: string[] | null = null;
-  try {
-    if (oldRecord?.value) oldCompanyIds = (JSON.parse(oldRecord.value) as { companyIds?: string[] }).companyIds ?? null;
-  } catch {}
-
+  // Antes se leía la lista anterior para sacar la diferencia, pero desde que
+  // se empuja siempre la lista completa el resultado no se usaba: era una
+  // consulta de más en cada guardado (AC Consulting, 2026-11-17).
   await prisma.globalConfig.upsert({
     where: { key: companiesKey(snapshotId) },
     update: { value: JSON.stringify({ companyIds: newCompanyIds }) },
