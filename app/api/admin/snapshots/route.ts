@@ -105,6 +105,22 @@ async function getUsers() {
   });
 }
 
+/**
+ * Crear, renombrar y borrar un corte escriben en el workspace de cada usuario,
+ * así que tardan más que el tope por omisión de Vercel. Es el mismo valor que
+ * ya usan las rutas de informes (AC Consulting, 2026-11-17).
+ */
+export const maxDuration = 60;
+
+/** Usuarios por transacción al repartir un corte nuevo. */
+const USUARIOS_POR_LOTE = 10;
+
+/** Workspaces por transacción al renombrar o borrar un corte. */
+const WORKSPACES_POR_LOTE = 20;
+
+/** Lo que se le deja a cada lote antes de que Prisma lo corte. */
+const TOPE_LOTE_MS = 30_000;
+
 function cloneRows(rows: Snapshot["rows"]) {
   const cloned = JSON.parse(JSON.stringify(rows ?? [])) as Snapshot["rows"];
   return cloned.map((r) => ({ ...r, _carried: true as const }));
@@ -186,8 +202,24 @@ async function applySnapshotToCompanies(snapshot: Snapshot, companyIds: string[]
     });
   }
 
-  await prisma.$transaction(async (tx) => {
-    for (const user of users) {
+  /**
+   * Por lotes, y no todo en una transacción.
+   *
+   * Cada usuario son unas trece idas y vueltas contra el pooler —el upsert, el
+   * update y lo que reconstruye sus filas relacionales—, y antes las de TODOS
+   * iban encadenadas dentro de una sola transacción interactiva, que Prisma
+   * corta a los cinco segundos por omisión. Con trescientos usuarios no llegaba
+   * nunca. Es la misma causa por la que guardar las empresas de un corte
+   * devolvía "No se pudo guardar" (AC Consulting, 2026-11-17).
+   *
+   * Partirlo en lotes rompe la atomicidad del conjunto, pero el cuerpo es
+   * idempotente por usuario: si un lote falla, volver a ejecutar la operación
+   * reaplica lo que falte sin duplicar nada.
+   */
+  for (let i = 0; i < users.length; i += USUARIOS_POR_LOTE) {
+    const lote = users.slice(i, i + USUARIOS_POR_LOTE);
+    await prisma.$transaction(async (tx) => {
+    for (const user of lote) {
       const workspace = await tx.userWorkspace.upsert({
         where: { userId: user.id },
         update: {},
@@ -222,7 +254,8 @@ async function applySnapshotToCompanies(snapshot: Snapshot, companyIds: string[]
 
       await rebuildRelationalWorkspace(tx, user, nextSnapshots);
     }
-  });
+    }, { timeout: TOPE_LOTE_MS, maxWait: 10_000 });
+  }
 
   return users.length;
 }
@@ -265,18 +298,25 @@ async function renameSnapshotForAllUsers(snapshotId: string, label: string) {
     return 0;
   }
 
-  await prisma.$transaction(async (tx) => {
-    for (const workspace of updatedWorkspaces) {
-      await tx.userWorkspace.update({
-        where: { userId: workspace.userId },
-        data: { snapshotsJson: workspace.snapshotsJson },
-      });
-    }
+  // En lotes de escrituras agrupadas, no una transacción interactiva que
+  // encadene un update por workspace: con trescientos usuarios eso pasaba del
+  // tope de cinco segundos de Prisma (AC Consulting, 2026-11-17).
+  for (let i = 0; i < updatedWorkspaces.length; i += WORKSPACES_POR_LOTE) {
+    await prisma.$transaction(
+      updatedWorkspaces.slice(i, i + WORKSPACES_POR_LOTE).map((workspace) =>
+        prisma.userWorkspace.update({
+          where: { userId: workspace.userId },
+          data: { snapshotsJson: workspace.snapshotsJson },
+        }),
+      ),
+    );
+  }
 
-    await tx.userPosition.updateMany({
-      where: { snapshotId },
-      data: { snapshotLabel: label },
-    });
+  // Fuera de los lotes: es una sola consulta y volver a ponerle el mismo
+  // nombre no cambia nada, así que repetirla no hace daño.
+  await prisma.userPosition.updateMany({
+    where: { snapshotId },
+    data: { snapshotLabel: label },
   });
 
   return updatedSnapshotRows.count;
@@ -318,33 +358,38 @@ async function deleteSnapshotForAllUsers(snapshotId: string) {
     return 0;
   }
 
-  await prisma.$transaction(async (tx) => {
-    for (const workspace of updatedWorkspaces) {
-      await tx.userWorkspace.update({
-        where: { userId: workspace.userId },
-        data: {
-          selectedSnapshotId: workspace.selectedSnapshotId,
-          snapshotsJson: workspace.snapshotsJson,
-        },
-      });
-    }
+  for (let i = 0; i < updatedWorkspaces.length; i += WORKSPACES_POR_LOTE) {
+    await prisma.$transaction(
+      updatedWorkspaces.slice(i, i + WORKSPACES_POR_LOTE).map((workspace) =>
+        prisma.userWorkspace.update({
+          where: { userId: workspace.userId },
+          data: {
+            selectedSnapshotId: workspace.selectedSnapshotId,
+            snapshotsJson: workspace.snapshotsJson,
+          },
+        }),
+      ),
+    );
+  }
 
-    // Limpiar configuración huérfana del corte eliminado (restricción de empresas y
-    // cargos configurados) para que, si luego se crea otro corte con la misma fecha,
-    // no herede en silencio restricciones de este corte ya borrado.
-    // snapshot-backup-{id} se deja intacto a propósito: es el respaldo del usuario y
-    // debe sobrevivir a la eliminación del corte para poder restaurarlo después.
-    await tx.globalConfig.deleteMany({
-      where: {
-        key: {
-          in: [
-            `snapshot-companies-${snapshotId}`,
-            `snapshot-cargos-${snapshotId}`,
-            `snapshot-ranges-${snapshotId}`,
-          ],
-        },
+  // Limpiar configuración huérfana del corte eliminado (restricción de empresas y
+  // cargos configurados) para que, si luego se crea otro corte con la misma fecha,
+  // no herede en silencio restricciones de este corte ya borrado.
+  // snapshot-backup-{id} se deja intacto a propósito: es el respaldo del usuario y
+  // debe sobrevivir a la eliminación del corte para poder restaurarlo después.
+  await prisma.globalConfig.deleteMany({
+    where: {
+      key: {
+        in: [
+          `snapshot-companies-${snapshotId}`,
+          `snapshot-cargos-${snapshotId}`,
+          `snapshot-ranges-${snapshotId}`,
+          // La lista de cargos con data del Radar se calcula por corte; si el
+          // corte ya no existe, lo guardado tampoco sirve.
+          `radar-cargos-con-datos-${snapshotId}`,
+        ],
       },
-    });
+    },
   });
 
   // Y sacarlo de la lista de publicados. Si no, el id queda ahí colgando y un
