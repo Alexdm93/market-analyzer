@@ -68,7 +68,19 @@ export default function RadarPage() {
   const [tcrTipo, setTcrTipo] = useState<"bcv" | "euro" | "libre">("bcv");
 
   // El camino de valoración: nombre propio + CAPRI.
-  const [valorando, setValorando] = useState(false);
+  /**
+   * Cuál de los dos caminos se está usando. Arranca vacío a propósito.
+   *
+   * Antes era un booleano `valorando`: la pantalla mostraba las dos secciones,
+   * la de buscar en el estudio encendida y la de CAPRI atenuada, y había que
+   * dar con el botón "Clasificarlo con CAPRI" metido en la cabecera de la
+   * segunda para cambiar. El Radar hace dos informes distintos y uno de los
+   * dos parecía la opción por defecto, cuando no lo es
+   * (AC Consulting, 2026-11-17).
+   */
+  const [modo, setModo] = useState<"" | "cargo" | "capri">("");
+  /** Lo que el resto de la pantalla venía preguntando. */
+  const valorando = modo === "capri";
   const [nombrePropio, setNombrePropio] = useState("");
   const [capriAbierto, setCapriAbierto] = useState(false);
   const [grado, setGrado] = useState<number | null>(null);
@@ -266,9 +278,16 @@ export default function RadarPage() {
   const gastaraAdicional = !ctx.ilimitado && (ctx.cupo?.restantes ?? 0) <= 0 && creditos > 0;
   const fichaIncompleta = ctx.falta.length > 0;
   const listo = Boolean(
-    !sinCorte && !sinCupo && !fichaIncompleta
+    modo && !sinCorte && !sinCupo && !fichaIncompleta
     && (valorando ? nombrePropio.trim() && grado !== null : cargo),
   );
+
+  /** Cambiar de camino limpia lo del otro: son dos informes distintos. */
+  function elegirModo(siguiente: "cargo" | "capri") {
+    setModo(siguiente);
+    setCargo(""); setUnidad("");
+    setGrado(null); setFamilia(null); setNombrePropio("");
+  }
 
   return (
     <main className="page-wrap">
@@ -438,8 +457,62 @@ export default function RadarPage() {
           </p>
         )}
 
+        {/* ── Elegir camino ───────────────────────────────────────────── */}
+        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+          <div className="mb-1 flex items-center gap-2">
+            <RadarIcon size={18} className="text-slate-400" />
+            <h2 className="font-display text-xl font-bold text-slate-900">¿Cómo quieres comparar el cargo?</h2>
+          </div>
+          <p className="mb-5 max-w-2xl text-sm text-slate-500">
+            El Radar emite dos informes distintos. Elige uno.
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {([
+              {
+                clave: "cargo" as const,
+                icono: Search,
+                titulo: "Por cargo del estudio",
+                detalle: "Eliges el cargo del catálogo y la comparación va contra ese mismo cargo en el mercado.",
+              },
+              {
+                clave: "capri" as const,
+                icono: Layers,
+                titulo: "Por valoración CAPRI",
+                detalle: "Para un cargo que no está en el catálogo. Le pones el nombre que usas y lo clasificas; la comparación va contra el grado.",
+              },
+            ]).map((opcion) => {
+              const Icono = opcion.icono;
+              const activo = modo === opcion.clave;
+              return (
+                <button
+                  key={opcion.clave}
+                  type="button"
+                  onClick={() => elegirModo(opcion.clave)}
+                  aria-pressed={activo}
+                  disabled={sinCorte}
+                  className={`flex items-start gap-3 rounded-[1.25rem] border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    activo
+                      ? "border-[#1B4965]/20 bg-[linear-gradient(135deg,rgba(27,73,101,0.12),rgba(21,58,82,0.05))] shadow-[0_2px_12px_rgba(27,73,101,0.15)]"
+                      : "border-slate-200 bg-white/60 hover:border-slate-300 hover:bg-white"
+                  }`}
+                >
+                  <span className={`inline-flex shrink-0 rounded-xl p-2.5 ${activo ? "bg-[#1B4965] text-white" : "bg-slate-100 text-slate-600"}`}>
+                    <Icono size={18} aria-hidden />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="font-display block text-[0.95rem] font-bold text-slate-900">{opcion.titulo}</span>
+                    <span className="mt-1 block text-xs leading-5 text-slate-500">{opcion.detalle}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         {/* ── Camino 1: el cargo del estudio ──────────────────────────── */}
-        <section className={`surface-panel rounded-[2rem] p-6 md:p-8 ${valorando ? "opacity-50" : ""}`}>
+        {modo === "cargo" && (
+        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="mb-5 flex items-center gap-2">
             <Search size={18} className="text-slate-400" />
             <h2 className="font-display text-xl font-bold text-slate-900">Busca el cargo en el estudio</h2>
@@ -452,7 +525,7 @@ export default function RadarPage() {
                 id="radar-unidad"
                 value={unidad}
                 onChange={(e) => { setUnidad(e.target.value); setCargo(""); }}
-                disabled={valorando || sinCorte}
+                disabled={sinCorte}
                 className="field-select"
               >
                 <option value="">Elige una unidad</option>
@@ -483,25 +556,14 @@ export default function RadarPage() {
             </div>
           )}
         </section>
+        )}
 
         {/* ── Camino 2: nombrarlo y valorarlo ─────────────────────────── */}
-        <section className={`surface-panel rounded-[2rem] p-6 md:p-8 ${valorando ? "" : "opacity-50"}`}>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Layers size={18} className="text-slate-400" />
-              <h2 className="font-display text-xl font-bold text-slate-900">¿No está en la lista?</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setValorando((v) => !v);
-                setCargo(""); setUnidad("");
-                setGrado(null); setFamilia(null); setNombrePropio("");
-              }}
-              className="btn btn-secondary"
-            >
-              {valorando ? "Volver a buscar en el estudio" : "Clasificarlo con CAPRI"}
-            </button>
+        {modo === "capri" && (
+        <section className="surface-panel rounded-[2rem] p-6 md:p-8">
+          <div className="mb-5 flex items-center gap-2">
+            <Layers size={18} className="text-slate-400" />
+            <h2 className="font-display text-xl font-bold text-slate-900">Nombra y clasifica el cargo</h2>
           </div>
 
           <p className="mb-4 max-w-2xl text-sm text-slate-500">
@@ -516,7 +578,6 @@ export default function RadarPage() {
                 id="radar-nombre"
                 value={nombrePropio}
                 onChange={(e) => setNombrePropio(e.target.value)}
-                disabled={!valorando}
                 className="field"
                 placeholder="Como lo llamas internamente"
               />
@@ -526,8 +587,7 @@ export default function RadarPage() {
               <button
                 type="button"
                 onClick={() => setCapriAbierto(true)}
-                disabled={!valorando}
-                className="field flex w-full items-center gap-2 text-left text-sm hover:bg-slate-50 disabled:cursor-not-allowed"
+                className="field flex w-full items-center gap-2 text-left text-sm hover:bg-slate-50"
               >
                 <Layers className="h-4 w-4 shrink-0 text-slate-400" />
                 {grado
@@ -539,8 +599,12 @@ export default function RadarPage() {
             </div>
           </div>
         </section>
+        )}
 
         {/* ── Moneda y emisión ────────────────────────────────────────── */}
+        {/* Mientras no haya camino elegido no hay nada que emitir, y el botón
+            saldría apagado sin que se entienda por qué. */}
+        {modo && (
         <section className="surface-panel rounded-[2rem] p-6 md:p-8">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="flex cursor-pointer items-start gap-3">
@@ -594,6 +658,7 @@ export default function RadarPage() {
             </button>
           </div>
         </section>
+        )}
 
         {informe && (
           <div id="radar-informe" className="scroll-mt-6 space-y-6">
