@@ -112,81 +112,35 @@ async function getUsers() {
  */
 export const maxDuration = 60;
 
-/** Usuarios por transacción al repartir un corte nuevo. */
-const USUARIOS_POR_LOTE = 10;
-
-/** Workspaces por transacción al renombrar o borrar un corte. */
+/** Workspaces por lote de escrituras. Cada uno lleva su JSON, que pesa. */
 const WORKSPACES_POR_LOTE = 20;
 
-/** Lo que se le deja a cada lote antes de que Prisma lo corte. */
-const TOPE_LOTE_MS = 30_000;
+/** Posiciones por `createMany`. Son filas chicas, así que caben muchas. */
+const POSICIONES_POR_LOTE = 1000;
 
 function cloneRows(rows: Snapshot["rows"]) {
   const cloned = JSON.parse(JSON.stringify(rows ?? [])) as Snapshot["rows"];
   return cloned.map((r) => ({ ...r, _carried: true as const }));
 }
 
-async function rebuildRelationalWorkspace(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  user: UserSummary,
-  snapshots: Record<string, Snapshot>
-) {
-  const existingStatuses = await tx.userSnapshot.findMany({
-    where: { userId: user.id },
-    select: {
-      snapshotId: true,
-      status: true,
-      processedAt: true,
-      submittedAt: true,
-    },
-  });
-  const statusBySnapshotId = new Map(existingStatuses.map((snapshot) => [snapshot.snapshotId, { status: snapshot.status, processedAt: snapshot.processedAt, submittedAt: snapshot.submittedAt }]));
-
-  // Solo tocar los cortes incluidos en `snapshots` — cualquier otro corte del usuario
-  // que no venga en este set se deja intacto en la base de datos en vez de borrarse.
-  const snapshotIdsInPayload = Object.keys(snapshots);
-
-  await tx.userPosition.deleteMany({
-    where: { userId: user.id, snapshotId: { in: snapshotIdsInPayload } },
-  });
-
-  await tx.userSnapshot.deleteMany({
-    where: { userId: user.id, snapshotId: { in: snapshotIdsInPayload } },
-  });
-
-  for (const snapshot of Object.values(snapshots)) {
-    const createdSnapshot = await tx.userSnapshot.create({
-      data: {
-        userId: user.id,
-        companyId: user.companyId,
-        snapshotId: snapshot.id,
-        label: snapshot.label,
-        date: resolveSnapshotDate(snapshot.date),
-        status: statusBySnapshotId.get(snapshot.id)?.status ?? SnapshotProcessingStatus.IN_REVIEW,
-        processedAt: statusBySnapshotId.get(snapshot.id)?.processedAt ?? null,
-        submittedAt: statusBySnapshotId.get(snapshot.id)?.submittedAt ?? null,
-      },
-      select: { id: true },
-    });
-
-    if ((snapshot.rows ?? []).length > 0) {
-      await tx.userPosition.createMany({
-        data: snapshot.rows.map((row) => ({
-          userId: user.id,
-          companyId: user.companyId,
-          userSnapshotId: createdSnapshot.id,
-          snapshotId: snapshot.id,
-          snapshotLabel: snapshot.label,
-          snapshotDate: resolveSnapshotDate(snapshot.date),
-          positionId: row.id,
-          title: row.tituloCargo || null,
-          dataJson: JSON.stringify(row),
-        })),
-      });
-    }
-  }
-}
-
+/**
+ * Crea el corte para los usuarios de las empresas indicadas.
+ *
+ * Antes esto era un bucle por usuario con unas trece idas y vueltas cada uno:
+ * el upsert del workspace, el update, y una reconstrucción que borraba y
+ * recreaba las filas relacionales de TODOS los cortes de ese usuario, no solo
+ * del que se estaba creando. Con trescientos usuarios y cuatro cortes cada uno
+ * son unas cuatro mil consultas en serie contra el pooler.
+ *
+ * Reconstruir los otros cortes no hacía falta: esta función solo corre al
+ * crear, el POST rechaza con 409 un corte que ya exista, y nada de lo que hace
+ * toca los cortes anteriores. Los borraba y los volvía a escribir idénticos.
+ *
+ * Ahora el número de consultas ya no depende de cuántos usuarios haya: se leen
+ * todos los workspaces de una vez, se calcula en memoria, y se escribe en
+ * `createMany` y lotes. De unas cuatro mil consultas a unas treinta
+ * (AC Consulting, 2026-11-17).
+ */
 async function applySnapshotToCompanies(snapshot: Snapshot, companyIds: string[] | null) {
   // null = all users; [] = nobody; [...] = only those companies
   let users: UserSummary[];
@@ -202,59 +156,140 @@ async function applySnapshotToCompanies(snapshot: Snapshot, companyIds: string[]
     });
   }
 
-  /**
-   * Por lotes, y no todo en una transacción.
-   *
-   * Cada usuario son unas trece idas y vueltas contra el pooler —el upsert, el
-   * update y lo que reconstruye sus filas relacionales—, y antes las de TODOS
-   * iban encadenadas dentro de una sola transacción interactiva, que Prisma
-   * corta a los cinco segundos por omisión. Con trescientos usuarios no llegaba
-   * nunca. Es la misma causa por la que guardar las empresas de un corte
-   * devolvía "No se pudo guardar" (AC Consulting, 2026-11-17).
-   *
-   * Partirlo en lotes rompe la atomicidad del conjunto, pero el cuerpo es
-   * idempotente por usuario: si un lote falla, volver a ejecutar la operación
-   * reaplica lo que falte sin duplicar nada.
-   */
-  for (let i = 0; i < users.length; i += USUARIOS_POR_LOTE) {
-    const lote = users.slice(i, i + USUARIOS_POR_LOTE);
-    await prisma.$transaction(async (tx) => {
-    for (const user of lote) {
-      const workspace = await tx.userWorkspace.upsert({
-        where: { userId: user.id },
-        update: {},
-        create: {
-          userId: user.id,
-          inflation: DEFAULT_WORKSPACE.inflation,
-          snapshotsJson: JSON.stringify(DEFAULT_WORKSPACE.snapshots),
-          selectedSnapshotId: DEFAULT_WORKSPACE.selectedSnapshotId,
-          companyInfoJson: JSON.stringify(DEFAULT_WORKSPACE.companyInfo),
-        },
+  if (users.length === 0) return 0;
+
+  const userIds = users.map((user) => user.id);
+
+  const existentes = await prisma.userWorkspace.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, snapshotsJson: true, selectedSnapshotId: true },
+  });
+  const workspacePorUsuario = new Map(existentes.map((w) => [w.userId, w]));
+
+  const workspacesACrear: {
+    userId: string;
+    inflation: number;
+    snapshotsJson: string;
+    selectedSnapshotId: string;
+    companyInfoJson: string;
+  }[] = [];
+  const workspacesAActualizar: {
+    userId: string;
+    snapshotsJson: string;
+    selectedSnapshotId: string;
+  }[] = [];
+  /** Las filas que arrastra cada usuario, para no volver a calcularlas abajo. */
+  const filasPorUsuario = new Map<string, Snapshot["rows"]>();
+
+  for (const user of users) {
+    const actual = workspacePorUsuario.get(user.id);
+    const nextSnapshots = actual ? safeParseSnapshots(actual.snapshotsJson) : {};
+    const latestSnapshot = Object.values(nextSnapshots)
+      .sort((left, right) => right.date.localeCompare(left.date))[0];
+    const clonedRows = cloneRows(latestSnapshot?.rows ?? []);
+
+    nextSnapshots[snapshot.id] = {
+      id: snapshot.id,
+      label: snapshot.label,
+      date: snapshot.date,
+      rows: clonedRows,
+    };
+
+    filasPorUsuario.set(user.id, clonedRows);
+    const snapshotsJson = JSON.stringify(nextSnapshots);
+
+    if (actual) {
+      workspacesAActualizar.push({
+        userId: user.id,
+        snapshotsJson,
+        selectedSnapshotId: actual.selectedSnapshotId || snapshot.id,
       });
-
-      const nextSnapshots = safeParseSnapshots(workspace.snapshotsJson);
-      const latestSnapshot = Object.values(nextSnapshots)
-        .sort((left, right) => right.date.localeCompare(left.date))[0];
-      const clonedRows = cloneRows(latestSnapshot?.rows ?? []);
-
-      nextSnapshots[snapshot.id] = {
-        id: snapshot.id,
-        label: snapshot.label,
-        date: snapshot.date,
-        rows: clonedRows,
-      };
-
-      await tx.userWorkspace.update({
-        where: { userId: user.id },
-        data: {
-          snapshotsJson: JSON.stringify(nextSnapshots),
-          selectedSnapshotId: workspace.selectedSnapshotId || snapshot.id,
-        },
+    } else {
+      workspacesACrear.push({
+        userId: user.id,
+        inflation: DEFAULT_WORKSPACE.inflation,
+        snapshotsJson,
+        selectedSnapshotId: snapshot.id,
+        companyInfoJson: JSON.stringify(DEFAULT_WORKSPACE.companyInfo),
       });
-
-      await rebuildRelationalWorkspace(tx, user, nextSnapshots);
     }
-    }, { timeout: TOPE_LOTE_MS, maxWait: 10_000 });
+  }
+
+  if (workspacesACrear.length > 0) {
+    await prisma.userWorkspace.createMany({ data: workspacesACrear, skipDuplicates: true });
+  }
+
+  // Los updates no se pueden agrupar en una sola consulta porque cada uno lleva
+  // su propio JSON, así que van en lotes de escrituras agrupadas.
+  for (let i = 0; i < workspacesAActualizar.length; i += WORKSPACES_POR_LOTE) {
+    await prisma.$transaction(
+      workspacesAActualizar.slice(i, i + WORKSPACES_POR_LOTE).map((w) =>
+        prisma.userWorkspace.update({
+          where: { userId: w.userId },
+          data: { snapshotsJson: w.snapshotsJson, selectedSnapshotId: w.selectedSnapshotId },
+        }),
+      ),
+    );
+  }
+
+  // Las filas relacionales SOLO del corte que se está creando. No hay nada que
+  // borrar antes: el POST ya rechazó el caso de que el corte exista.
+  const fecha = resolveSnapshotDate(snapshot.date);
+
+  await prisma.userSnapshot.createMany({
+    data: users.map((user) => ({
+      userId: user.id,
+      companyId: user.companyId,
+      snapshotId: snapshot.id,
+      label: snapshot.label,
+      date: fecha,
+    })),
+    skipDuplicates: true,
+  });
+
+  // Hace falta el id que la base le dio a cada fila para colgarle las
+  // posiciones; `createMany` no los devuelve.
+  const creados = await prisma.userSnapshot.findMany({
+    where: { snapshotId: snapshot.id, userId: { in: userIds } },
+    select: { id: true, userId: true },
+  });
+  const userSnapshotPorUsuario = new Map(creados.map((fila) => [fila.userId, fila.id]));
+
+  const posiciones: {
+    userId: string;
+    companyId: string;
+    userSnapshotId: string;
+    snapshotId: string;
+    snapshotLabel: string;
+    snapshotDate: Date;
+    positionId: string;
+    title: string | null;
+    dataJson: string;
+  }[] = [];
+
+  for (const user of users) {
+    const userSnapshotId = userSnapshotPorUsuario.get(user.id);
+    if (!userSnapshotId) continue;
+    for (const row of filasPorUsuario.get(user.id) ?? []) {
+      posiciones.push({
+        userId: user.id,
+        companyId: user.companyId,
+        userSnapshotId,
+        snapshotId: snapshot.id,
+        snapshotLabel: snapshot.label,
+        snapshotDate: fecha,
+        positionId: row.id,
+        title: row.tituloCargo || null,
+        dataJson: JSON.stringify(row),
+      });
+    }
+  }
+
+  for (let i = 0; i < posiciones.length; i += POSICIONES_POR_LOTE) {
+    await prisma.userPosition.createMany({
+      data: posiciones.slice(i, i + POSICIONES_POR_LOTE),
+      skipDuplicates: true,
+    });
   }
 
   return users.length;
