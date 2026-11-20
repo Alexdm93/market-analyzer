@@ -10,6 +10,7 @@ import { CompensacionEditor, ResumenCompensacion } from "@/components/Compensaci
 import { useConfirm } from "@/components/ConfirmDialog";
 import { gradeToNivel } from "@/lib/capri";
 import { computeRowTotals } from "@/lib/compensation";
+import { camposDesdePlantilla } from "@/lib/plantilla-compensacion";
 import { EMPTY_COMPANY_INFO, type CompanyInfo } from "@/lib/workspace";
 import { fetchWorkspace } from "@/lib/workspace-client";
 import { parsePlanillaWorkbook, type ImportPlanilla } from "@/lib/import-ocupantes";
@@ -198,6 +199,18 @@ export default function MisCargosPage() {
       .catch(() => { if (!ignorar) setCatalogo([]); });
     return () => { ignorar = true; };
   }, [snapshotId, puedeOperar, qs]);
+
+  /**
+   * Un cargo nuevo, ya con la estructura de compensación de la empresa.
+   *
+   * Antes salía del todo vacío y había que agregar a mano los mismos elementos
+   * de pago en cada cargo, aunque la empresa ya los tenga definidos en
+   * Información de la empresa (CEO, 2026-11-20).
+   */
+  const borradorNuevo = useCallback((): Borrador => ({
+    ...BORRADOR_VACIO,
+    data: { ...BORRADOR_VACIO.data, ...camposDesdePlantilla(companyInfo.compensationTemplate) },
+  }), [companyInfo.compensationTemplate]);
 
   const tasas = useMemo(() => (companyInfo.tasas ?? []).filter((t) => !t.isSystem), [companyInfo.tasas]);
   const bcv = useMemo(() => {
@@ -696,7 +709,7 @@ export default function MisCargosPage() {
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={() => { setBorrador({ ...BORRADOR_VACIO }); setError(""); }}
+              onClick={() => { setBorrador(borradorNuevo()); setError(""); }}
               disabled={!puedeOperar || guardando}
               className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
             >

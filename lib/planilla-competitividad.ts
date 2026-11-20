@@ -553,10 +553,19 @@ function armarCarga(wb: ExcelJS.Workbook, d: DatosPlanilla, tope: number) {
   const listaRutas = FACT_RULES[revenueToIndex(d.facturacion)]?.ej === false
     ? "ListaRutasCorta" : "ListaRutasCompleta";
 
-  dv.add(`B${PRIMERA_FILA}:B${ultima}`, {
-    type: "list", allowBlank: true, formulae: ["ListaDepartamentos"],
-    showErrorMessage: false,
-  });
+  /*
+   * La columna B —Departamento o Unidad Funcional— va libre, sin lista.
+   *
+   * Tenía la lista de departamentos del catálogo del corte, pero esa es la
+   * taxonomía del estudio y no la de la empresa: quien llena la planilla
+   * escribe el nombre de SU unidad, que casi nunca coincide, y la lista lo
+   * obligaba a elegir una ajena o a pelearse con el campo. La homologación
+   * contra el catálogo ya se hace por el cargo, en la columna E
+   * (CEO, 2026-11-20).
+   *
+   * El nombre definido ListaDepartamentos se deja: la hoja de catálogo sigue
+   * ahí para consultarla, y quitarlo obligaría a tocar más de lo necesario.
+   */
   dv.add(`E${PRIMERA_FILA}:E${ultima}`, {
     type: "list", allowBlank: true, formulae: ["ListaCargosCorte"],
     showErrorMessage: true, errorStyle: "warning",

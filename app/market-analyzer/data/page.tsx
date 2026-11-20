@@ -6,6 +6,7 @@ import { CapriWizardModal, ROLES as CAPRI_ROLES } from "@/components/CapriWizard
 import { useSession } from "next-auth/react";
 import { useWorkspaceNotification } from "@/contexts/WorkspaceNotificationContext";
 import { ExtendedMarketPosition, PaymentFrequency } from "@/types/salary";
+import { camposDesdePlantilla } from "@/lib/plantilla-compensacion";
 import { type Snapshot, type ExchangeRate, type CompanyInfo, EMPTY_COMPANY_INFO } from "@/lib/workspace";
 import { fetchWorkspace, updateWorkspace } from "@/lib/workspace-client";
 import { computeRowTotals, resolveRowTotals } from "@/lib/compensation";
@@ -832,49 +833,10 @@ export default function DataPage() {
 
     const newRow = empty(rows.length || 0);
 
-    const template = companyInfo.compensationTemplate;
-    if (template) {
-      const sueldoTpl = template.fixed.find((c) => c.locked && c.id === "sys-sueldo-basico");
-      const bonoTpl = template.fixed.find((c) => c.locked && c.id === "sys-bono-alimentacion");
-      if (sueldoTpl) {
-        newRow.sueldoBasicoCuentaMoneda = sueldoTpl.accountCurrency ?? "USD";
-        newRow.sueldoBasicoMonedaPago = sueldoTpl.paymentCurrency ?? "USD";
-        if (sueldoTpl.tasaId) newRow.sueldoBasicoTasaId = sueldoTpl.tasaId;
-      }
-      if (bonoTpl) {
-        newRow.bonoAlimentacionCuentaMoneda = bonoTpl.accountCurrency ?? "USD";
-        newRow.bonoAlimentacionMonedaPago = bonoTpl.paymentCurrency ?? "USD";
-        if (bonoTpl.tasaId) newRow.bonoAlimentacionTasaId = bonoTpl.tasaId;
-      }
-      if (template.fixed.length > 0) {
-        newRow.additionalFixedPayments = template.fixed.filter((c) => !c.locked).map((c) => ({
-          id: `af-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-          concept: c.concept,
-          amount: 0,
-          freq: (c.freq ?? "monthly") as PaymentFrequency,
-          accountCurrency: c.accountCurrency ?? "USD",
-          paymentCurrency: c.paymentCurrency ?? "USD",
-          impacto: c.impacto ?? false,
-          tasaId: c.tasaId ?? "",
-        }));
-      }
-      if (template.variable.length > 0) {
-        newRow.additionalVariablePayments = template.variable.map((c) => ({
-          id: `av-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-          concept: c.concept,
-          amount: 0,
-          freq: (c.freq ?? "monthly") as PaymentFrequency,
-          accountCurrency: c.accountCurrency ?? "USD",
-          paymentCurrency: c.paymentCurrency ?? "USD",
-          impacto: c.impacto ?? false,
-          tasaId: c.tasaId ?? "",
-          variableType: c.variableType,
-          commissionType: c.commissionType as "simple" | "tiered" | "product" | "service" | "other" | undefined,
-          calculationDetail: c.calculationDetail as "sale_value" | "profit_margin" | "units_sold" | "other" | undefined,
-          goalsTarget: c.goalsTarget as "sales_quota" | "units_sold" | "new_clients" | "client_retention" | "profit_margin" | "mixed" | undefined,
-        }));
-      }
-    }
+    // La estructura de compensación de la empresa, para que el cargo nazca con
+    // sus elementos de pago puestos y en cero. La misma que usa Cargos del
+    // Estudio (AC Consulting, 2026-11-20).
+    Object.assign(newRow, camposDesdePlantilla(companyInfo.compensationTemplate));
 
     if (prefill) {
       const normPrefillTitle = prefill.tituloCargo.trim().toLowerCase();
